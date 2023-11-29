@@ -1,0 +1,308 @@
+simple
+// tag::simple[]
+ROW a=[1,2,3], b="b", j=["a","b"] 
+| MV_EXPAND a
+// end::simple[]
+;
+
+// tag::simple-result[]
+a:integer | b:keyword | j:keyword
+        1 | b         | ["a", "b"]
+        2 | b         | ["a", "b"]
+        3 | b         | ["a", "b"]
+// end::simple-result[]
+;
+
+twice
+row a=[1,2,3], b="b", j=["a","b"] | mv_expand a | mv_expand j;
+
+a:integer | b:keyword | j:keyword
+        1 | b         | "a"
+        1 | b         | "b"
+        2 | b         | "a"
+        2 | b         | "b"
+        3 | b         | "a"
+        3 | b         | "b"
+;
+
+
+explosion
+row 
+a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+b = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+c = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+d = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+e = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+f = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+g = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+x = 10000000000000 
+| mv_expand a | mv_expand b | mv_expand c | mv_expand d | mv_expand e | mv_expand f | mv_expand g
+| limit 10;
+
+a:integer | b:integer | c:integer | d:integer | e:integer | f:integer | g:integer | x:long
+1         | 1         | 1         | 1         | 1         | 1         | 1         | 10000000000000 
+1         | 1         | 1         | 1         | 1         | 1         | 2         | 10000000000000 
+1         | 1         | 1         | 1         | 1         | 1         | 3         | 10000000000000 
+1         | 1         | 1         | 1         | 1         | 1         | 4         | 10000000000000 
+1         | 1         | 1         | 1         | 1         | 1         | 5         | 10000000000000 
+1         | 1         | 1         | 1         | 1         | 1         | 6         | 10000000000000 
+1         | 1         | 1         | 1         | 1         | 1         | 7         | 10000000000000 
+1         | 1         | 1         | 1         | 1         | 1         | 8         | 10000000000000 
+1         | 1         | 1         | 1         | 1         | 1         | 9         | 10000000000000 
+1         | 1         | 1         | 1         | 1         | 1         | 10        | 10000000000000             
+;
+
+
+explosionStats
+row 
+a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+b = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+c = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+d = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+e = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], 
+x = 10000000000000 
+| mv_expand a | mv_expand b | mv_expand c | mv_expand d | mv_expand e
+| stats sum_a = sum(a) by b
+| sort b;
+
+//12555000 = sum(1..30) * 30 * 30 * 30
+sum_a:long    | b:integer 
+12555000      | 1          
+12555000      | 2
+12555000      | 3
+12555000      | 4
+12555000      | 5
+12555000      | 6
+12555000      | 7
+12555000      | 8
+12555000      | 9
+12555000      | 10
+12555000      | 11          
+12555000      | 12
+12555000      | 13
+12555000      | 14
+12555000      | 15
+12555000      | 16
+12555000      | 17
+12555000      | 18
+12555000      | 19
+12555000      | 20
+12555000      | 21          
+12555000      | 22
+12555000      | 23
+12555000      | 24
+12555000      | 25
+12555000      | 26
+12555000      | 27
+12555000      | 28
+12555000      | 29
+12555000      | 30
+;
+
+expandAfterSort1
+from employees | keep job_positions, emp_no | sort emp_no | mv_expand job_positions | limit 10 | sort job_positions;
+
+   job_positions:keyword  |emp_no:integer     
+Accountant                |10001          
+Head Human Resources      |10004          
+Principal Support Engineer|10006          
+Reporting Analyst         |10004          
+Senior Python Developer   |10001          
+Senior Team Lead          |10002          
+Support Engineer          |10004          
+Tech Lead                 |10004          
+null                      |10005          
+null                      |10003          
+;
+
+expandAfterSort2
+from employees | sort emp_no | mv_expand job_positions | keep job_positions, emp_no | limit 5;
+
+   job_positions:keyword  |emp_no:integer     
+Accountant             |10001          
+Senior Python Developer|10001          
+Senior Team Lead       |10002          
+null                   |10003          
+Head Human Resources   |10004
+;
+
+expandWithMultiSort
+from employees | keep emp_no, job_positions | sort emp_no | mv_expand job_positions | limit 10 | where emp_no <= 10006 | sort job_positions nulls first;
+
+emp_no:integer |  job_positions:keyword       
+10003          |null                      
+10005          |null                      
+10001          |Accountant                
+10004          |Head Human Resources      
+10006          |Principal Support Engineer
+10004          |Reporting Analyst         
+10001          |Senior Python Developer   
+10002          |Senior Team Lead          
+10004          |Support Engineer          
+10004          |Tech Lead
+;
+
+filterMvExpanded
+from employees | keep emp_no, job_positions | mv_expand job_positions | where job_positions like "A*" | sort job_positions, emp_no;
+
+emp_no:integer |  job_positions:keyword     
+10001          |Accountant     
+10012          |Accountant     
+10016          |Accountant     
+10023          |Accountant     
+10025          |Accountant     
+10028          |Accountant     
+10034          |Accountant     
+10037          |Accountant     
+10044          |Accountant     
+10045          |Accountant     
+10050          |Accountant     
+10051          |Accountant     
+10066          |Accountant     
+10081          |Accountant     
+10085          |Accountant     
+10089          |Accountant     
+10092          |Accountant     
+10094          |Accountant     
+10010          |Architect      
+10011          |Architect      
+10031          |Architect      
+10032          |Architect      
+10042          |Architect      
+10047          |Architect      
+10059          |Architect      
+10068          |Architect      
+10072          |Architect      
+10076          |Architect      
+10078          |Architect      
+10096          |Architect      
+10098          |Architect      
+;
+
+doubleSort_OnDifferentThan_MvExpandedFields
+from employees | sort emp_no | mv_expand job_positions | keep emp_no, job_positions, salary | sort salary, job_positions | limit 5;
+
+emp_no:integer |  job_positions:keyword   |salary:integer
+10015          |Head Human Resources      |25324          
+10015          |Junior Developer          |25324          
+10015          |Principal Support Engineer|25324          
+10015          |Support Engineer          |25324          
+10035          |Data Scientist            |25945
+;
+
+doubleLimit_expandLimitLowerThanAvailable
+from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 2;
+
+emp_no:integer |  job_positions:keyword
+10004          |Head Human Resources
+10004          |Reporting Analyst
+;
+
+doubleLimit_expandLimitGreaterThanAvailable
+from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 5;
+
+emp_no:integer |  job_positions:keyword
+10004          |Head Human Resources
+10004          |Reporting Analyst   
+10004          |Support Engineer    
+10004          |Tech Lead
+;
+
+doubleLimitWithSort
+from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 5 | sort job_positions desc;
+
+emp_no:integer |  job_positions:keyword
+10004          |Tech Lead           
+10004          |Support Engineer    
+10004          |Reporting Analyst   
+10004          |Head Human Resources
+;
+
+tripleLimit_WithWhere_InBetween_MvExpand_And_Limit
+from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | where job_positions LIKE "*a*" | limit 2 | where job_positions LIKE "*a*" | limit 3;
+
+emp_no:integer |  job_positions:keyword
+10004          |Head Human Resources
+10004          |Reporting Analyst
+;
+
+
+expandFoldable
+row a = "foobar", b = ["foo", "bar"], c = 12 | mv_expand b | where b LIKE "fo*";
+
+a:keyword   | b:keyword | c:integer
+foobar      | foo       | 12
+;
+
+expandEvalFoldable
+from employees | sort emp_no | limit 2 | eval foldable = "foo,bar" | eval generate_mv = split(foldable,",") | mv_expand generate_mv | keep emp_no, first_name, generate_mv | sort emp_no asc, generate_mv desc;
+
+emp_no:integer  | first_name:keyword | generate_mv:keyword
+10001           | Georgi             | foo
+10001           | Georgi             | bar
+10002           | Bezalel            | foo
+10002           | Bezalel            | bar
+;
+
+
+expandEvalFoldableWhere
+from employees | sort emp_no | limit 2 | eval foldable = "foo,bar" | eval generate_mv = split(foldable,",") | mv_expand generate_mv | keep emp_no, first_name, generate_mv | where generate_mv LIKE "fo*";
+
+emp_no:integer  | first_name:keyword | generate_mv:keyword
+10001           | Georgi             | foo
+10002           | Bezalel            | foo
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102120
+expandAfterDuplicateAggs#[skip:-8.11.99]
+row a = 1 |  stats  a = count(*), b = count(*) | mv_expand b;
+
+a:long | b:long 
+1      | 1
+;
+
+expandAfterDuplicateAggs2#[skip:-8.11.99]
+row a = 1 | stats a = count(*), b = count(*) | mv_expand a;
+
+a:long | b:long 
+1      | 1
+;
+
+
+expandAfterDuplicateAggsAndEval#[skip:-8.11.99]
+row a = 1 | stats  a = count(*), b = count(*) | eval c = 2 | mv_expand b;
+
+a:long | b:long | c:integer
+1      | 1      | 2
+;
+
+expandAfterDuplicateAggsComplex#[skip:-8.11.99]
+row x = [1, 2, 3] 
+| mv_expand x 
+| stats a = count(*), b = count(*), c = count(*) 
+| eval x  = a + c + b 
+| mv_expand a 
+| rename a AS a | drop a;
+
+b:long    | c:long    | x:long
+3         | 3         | 9
+;
+
+
+expandAfterDuplicateAggsMultirow#[skip:-8.11.99]
+from employees 
+| stats a = count(gender), b = count(*), c = count(*) by gender 
+| eval str = concat(to_string(b), ",", gender) 
+| mv_expand b 
+| eval x = split(str,",") 
+| mv_expand x 
+| sort x;
+
+a:long      | b:long      | c:long      | gender:keyword | str:keyword   | x:keyword       
+33          |33           |33           |F               |"33,F"         |33             
+57          |57           |57           |M               |"57,M"         |57             
+33          |33           |33           |F               |"33,F"         |F              
+57          |57           |57           |M               |"57,M"         |M              
+0           |10           |10           |null            |null         |null           
+;

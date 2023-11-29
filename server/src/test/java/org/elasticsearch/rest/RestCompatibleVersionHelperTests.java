@@ -11,9 +11,14 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParsedMediaType;
+import org.hamcrest.CustomTypeSafeMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
+import java.util.Optional;
+
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.CoreMatchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -145,7 +150,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
 
         assertThat(requestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyNotPresent()), not(isCompatible()));
 
-        assertThat(requestWith(acceptHeader(null), contentTypeHeader(null), bodyNotPresent()), not(isCompatible()));
+        assertThat(requestWith(acceptHeader(null), contentTypeHeader(null), bodyNotPresent()), not(hasVersion()));
 
         // Accept header = application/json means current version. If body is provided then accept and content-Type should be the same
         assertThat(requestWith(acceptHeader("application/json"), contentTypeHeader(null), bodyNotPresent()), not(isCompatible()));
@@ -322,12 +327,30 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
 
     }
 
-    private Matcher<RestApiVersion> isCompatible() {
+    private Matcher<Optional<RestApiVersion>> isCompatible() {
         return requestHasVersion(PREVIOUS_VERSION);
     }
 
-    private Matcher<RestApiVersion> requestHasVersion(int version) {
-        return transformedMatch(v -> (int) v.major, equalTo(version));
+    private Matcher<Optional<RestApiVersion>> hasVersion() {
+        return new CustomTypeSafeMatcher<>("has-version") {
+            @Override
+            protected boolean matchesSafely(Optional<RestApiVersion> item) {
+                return item.isPresent();
+            }
+
+            @Override
+            protected void describeMismatchSafely(Optional<RestApiVersion> item, Description mismatchDescription) {
+                if (item.isEmpty()) {
+                    mismatchDescription.appendText("optional is empty");
+                } else {
+                    mismatchDescription.appendText("optional is present");
+                }
+            }
+        };
+    }
+
+    private Matcher<Optional<RestApiVersion>> requestHasVersion(int version) {
+        return both(hasVersion()).and(transformedMatch(opt -> (int) opt.get().major, equalTo(version)));
     }
 
     private String bodyNotPresent() {
@@ -361,7 +384,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         return null;
     }
 
-    private RestApiVersion requestWith(String accept, String contentType, String body) {
+    private Optional<RestApiVersion> requestWith(String accept, String contentType, String body) {
         ParsedMediaType parsedAccept = ParsedMediaType.parseMediaType(accept);
         ParsedMediaType parsedContentType = ParsedMediaType.parseMediaType(contentType);
         return RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, body.isEmpty() == false);

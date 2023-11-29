@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * per index in real time via the mapping API. If no specific postings format or vector format is
  * configured for a specific field the default postings or vector format is used.
  */
-public class PerFieldMapperCodec extends Lucene95Codec {
+public final class PerFieldMapperCodec extends Lucene95Codec {
 
     private final MapperService mapperService;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
@@ -91,10 +91,7 @@ public class PerFieldMapperCodec extends Lucene95Codec {
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         Mapper mapper = mapperService.mappingLookup().getMapper(field);
         if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-            KnnVectorsFormat format = vectorMapper.getKnnVectorsFormatForField();
-            if (format != null) {
-                return format;
-            }
+            return vectorMapper.getKnnVectorsFormatForField(super.getKnnVectorsFormatForField(field));
         }
         return super.getKnnVectorsFormatForField(field);
     }
@@ -130,11 +127,11 @@ public class PerFieldMapperCodec extends Lucene95Codec {
         return false;
     }
 
-    private boolean isTimestampField(String field) {
+    private static boolean isTimestampField(String field) {
         return "@timestamp".equals(field);
     }
 
-    private boolean isNotSpecialField(String field) {
+    private static boolean isNotSpecialField(String field) {
         return field.startsWith("_") == false;
     }
 }

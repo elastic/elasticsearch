@@ -87,8 +87,8 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
             } else {
                 out.writeBoolean(false);
             }
-            out.writeMap(overallCardinality, StreamOutput::writeString, StreamOutput::writeVLong);
-            out.writeMap(maxBucketCardinality, StreamOutput::writeString, StreamOutput::writeVLong);
+            out.writeMap(overallCardinality, StreamOutput::writeVLong);
+            out.writeMap(maxBucketCardinality, StreamOutput::writeVLong);
         }
 
         @Override

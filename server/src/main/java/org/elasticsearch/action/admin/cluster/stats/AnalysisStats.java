@@ -36,7 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.elasticsearch.TransportVersion.V_8_500_045;
+import static org.elasticsearch.TransportVersions.V_8_500_045;
 
 /**
  * Statistics about analysis usage.
@@ -46,6 +46,16 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     private static final TransportVersion SYNONYM_SETS_VERSION = V_8_500_045;
 
     private static final Set<String> SYNONYM_FILTER_TYPES = Set.of("synonym", "synonym_graph");
+
+    // Maps the synonyms token filter configurations to the stats keys used
+    static final Map<String, String> SYNONYM_STATS_KEYS_FOR_CONFIG = Map.of(
+        "synonyms",
+        "inline",
+        "synonyms_set",
+        "sets",
+        "synonyms_path",
+        "paths"
+    );
 
     /**
      * Create {@link AnalysisStats} from the given cluster state.
@@ -217,7 +227,10 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
                     synonymRuleType = "synonyms";
                     isInline = true;
                 }
-                SynonymsStats stat = synonymsStats.computeIfAbsent(synonymRuleType, id -> new SynonymsStats());
+                SynonymsStats stat = synonymsStats.computeIfAbsent(
+                    SYNONYM_STATS_KEYS_FOR_CONFIG.get(synonymRuleType),
+                    id -> new SynonymsStats()
+                );
                 if (synonymIdsUsedInIndices.add(synonymRuleType + indexName)) {
                     stat.indexCount++;
                 }
@@ -262,14 +275,14 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     }
 
     public AnalysisStats(StreamInput input) throws IOException {
-        usedCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedBuiltInCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedBuiltInTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        usedCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedBuiltInCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedBuiltInTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
         if (input.getTransportVersion().onOrAfter(SYNONYM_SETS_VERSION)) {
             usedSynonyms = input.readImmutableMap(SynonymsStats::new);
         } else {
@@ -288,7 +301,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         out.writeCollection(usedBuiltInTokenFilters);
         out.writeCollection(usedBuiltInAnalyzers);
         if (out.getTransportVersion().onOrAfter(SYNONYM_SETS_VERSION)) {
-            out.writeMap(usedSynonyms, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            out.writeMap(usedSynonyms, StreamOutput::writeWriteable);
         }
     }
 
@@ -405,7 +418,6 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         toXContentCollection(builder, params, "built_in_analyzers", usedBuiltInAnalyzers);
         builder.field("synonyms");
         builder.map(usedSynonyms);
-
         builder.endObject();
 
         return builder;

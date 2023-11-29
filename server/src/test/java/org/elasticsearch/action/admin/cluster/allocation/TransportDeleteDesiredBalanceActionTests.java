@@ -37,7 +37,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,17 +58,20 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCase {
 
     public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
-
         var listener = new PlainActionFuture<ActionResponse.Empty>();
 
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+
         new TransportDeleteDesiredBalanceAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             mock(AllocationService.class),
@@ -110,7 +115,14 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
                 return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
             }
         };
-        var allocator = new DesiredBalanceShardsAllocator(delegate, threadPool, clusterService, computer, (state, action) -> state);
+        var allocator = new DesiredBalanceShardsAllocator(
+            delegate,
+            threadPool,
+            clusterService,
+            computer,
+            (state, action) -> state,
+            TelemetryProvider.NOOP
+        );
         var allocationService = new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings),
             new TestGatewayAllocator(),
@@ -131,8 +143,11 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
 
         var listener = new PlainActionFuture<ActionResponse.Empty>();
 
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+
         var action = new TransportDeleteDesiredBalanceAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
             threadPool,
             mock(ActionFilters.class),

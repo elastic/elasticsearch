@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
@@ -23,20 +24,20 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
@@ -45,13 +46,13 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
@@ -246,10 +247,10 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
@@ -265,7 +266,6 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
@@ -280,21 +280,21 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
@@ -320,11 +320,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class AbstractClient implements Client {
 
@@ -361,7 +364,7 @@ public abstract class AbstractClient implements Client {
         ActionType<Response> action,
         Request request
     ) {
-        PlainActionFuture<Response> actionFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> actionFuture = new RefCountedFuture<>();
         execute(action, request, actionFuture);
         return actionFuture;
     }
@@ -390,12 +393,12 @@ public abstract class AbstractClient implements Client {
     );
 
     @Override
-    public ActionFuture<IndexResponse> index(final IndexRequest request) {
+    public ActionFuture<DocWriteResponse> index(final IndexRequest request) {
         return execute(IndexAction.INSTANCE, request);
     }
 
     @Override
-    public void index(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    public void index(final IndexRequest request, final ActionListener<DocWriteResponse> listener) {
         execute(IndexAction.INSTANCE, request, listener);
     }
 
@@ -506,47 +509,47 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public ActionFuture<SearchResponse> search(final SearchRequest request) {
-        return execute(SearchAction.INSTANCE, request);
+        return execute(TransportSearchAction.TYPE, request);
     }
 
     @Override
     public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
-        execute(SearchAction.INSTANCE, request, listener);
+        execute(TransportSearchAction.TYPE, request, listener);
     }
 
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        return new SearchRequestBuilder(this, SearchAction.INSTANCE).setIndices(indices);
+        return new SearchRequestBuilder(this, TransportSearchAction.TYPE).setIndices(indices);
     }
 
     @Override
     public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request) {
-        return execute(SearchScrollAction.INSTANCE, request);
+        return execute(TransportSearchScrollAction.TYPE, request);
     }
 
     @Override
     public void searchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
-        execute(SearchScrollAction.INSTANCE, request, listener);
+        execute(TransportSearchScrollAction.TYPE, request, listener);
     }
 
     @Override
     public SearchScrollRequestBuilder prepareSearchScroll(String scrollId) {
-        return new SearchScrollRequestBuilder(this, SearchScrollAction.INSTANCE, scrollId);
+        return new SearchScrollRequestBuilder(this, TransportSearchScrollAction.TYPE, scrollId);
     }
 
     @Override
     public ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request) {
-        return execute(MultiSearchAction.INSTANCE, request);
+        return execute(TransportMultiSearchAction.TYPE, request);
     }
 
     @Override
     public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
-        execute(MultiSearchAction.INSTANCE, request, listener);
+        execute(TransportMultiSearchAction.TYPE, request, listener);
     }
 
     @Override
     public MultiSearchRequestBuilder prepareMultiSearch() {
-        return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
+        return new MultiSearchRequestBuilder(this, TransportMultiSearchAction.TYPE);
     }
 
     @Override
@@ -586,32 +589,32 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public ExplainRequestBuilder prepareExplain(String index, String id) {
-        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, id);
+        return new ExplainRequestBuilder(this, TransportExplainAction.TYPE, index, id);
     }
 
     @Override
     public ActionFuture<ExplainResponse> explain(ExplainRequest request) {
-        return execute(ExplainAction.INSTANCE, request);
+        return execute(TransportExplainAction.TYPE, request);
     }
 
     @Override
     public void explain(ExplainRequest request, ActionListener<ExplainResponse> listener) {
-        execute(ExplainAction.INSTANCE, request, listener);
+        execute(TransportExplainAction.TYPE, request, listener);
     }
 
     @Override
     public void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener) {
-        execute(ClearScrollAction.INSTANCE, request, listener);
+        execute(TransportClearScrollAction.TYPE, request, listener);
     }
 
     @Override
     public ActionFuture<ClearScrollResponse> clearScroll(ClearScrollRequest request) {
-        return execute(ClearScrollAction.INSTANCE, request);
+        return execute(TransportClearScrollAction.TYPE, request);
     }
 
     @Override
     public ClearScrollRequestBuilder prepareClearScroll() {
-        return new ClearScrollRequestBuilder(this, ClearScrollAction.INSTANCE);
+        return new ClearScrollRequestBuilder(this, TransportClearScrollAction.TYPE);
     }
 
     @Override
@@ -750,37 +753,37 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request) {
-            return execute(NodesInfoAction.INSTANCE, request);
+            return execute(TransportNodesInfoAction.TYPE, request);
         }
 
         @Override
         public void nodesInfo(final NodesInfoRequest request, final ActionListener<NodesInfoResponse> listener) {
-            execute(NodesInfoAction.INSTANCE, request, listener);
+            execute(TransportNodesInfoAction.TYPE, request, listener);
         }
 
         @Override
         public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
-            return new NodesInfoRequestBuilder(this, NodesInfoAction.INSTANCE).setNodesIds(nodesIds);
+            return new NodesInfoRequestBuilder(this, TransportNodesInfoAction.TYPE).setNodesIds(nodesIds);
         }
 
         @Override
         public ActionFuture<NodesStatsResponse> nodesStats(final NodesStatsRequest request) {
-            return execute(NodesStatsAction.INSTANCE, request);
+            return execute(TransportNodesStatsAction.TYPE, request);
         }
 
         @Override
         public void nodesStats(final NodesStatsRequest request, final ActionListener<NodesStatsResponse> listener) {
-            execute(NodesStatsAction.INSTANCE, request, listener);
+            execute(TransportNodesStatsAction.TYPE, request, listener);
         }
 
         @Override
         public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
-            return new NodesStatsRequestBuilder(this, NodesStatsAction.INSTANCE).setNodesIds(nodesIds);
+            return new NodesStatsRequestBuilder(this, TransportNodesStatsAction.TYPE).setNodesIds(nodesIds);
         }
 
         @Override
         public void nodesUsage(final NodesUsageRequest request, final ActionListener<NodesUsageResponse> listener) {
-            execute(NodesUsageAction.INSTANCE, request, listener);
+            execute(TransportNodesUsageAction.TYPE, request, listener);
         }
 
         @Override
@@ -795,27 +798,27 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void nodesHotThreads(NodesHotThreadsRequest request, ActionListener<NodesHotThreadsResponse> listener) {
-            execute(NodesHotThreadsAction.INSTANCE, request, listener);
+            execute(TransportNodesHotThreadsAction.TYPE, request, listener);
         }
 
         @Override
         public NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds) {
-            return new NodesHotThreadsRequestBuilder(this, NodesHotThreadsAction.INSTANCE).setNodesIds(nodesIds);
+            return new NodesHotThreadsRequestBuilder(this, TransportNodesHotThreadsAction.TYPE).setNodesIds(nodesIds);
         }
 
         @Override
         public ActionFuture<ListTasksResponse> listTasks(final ListTasksRequest request) {
-            return execute(ListTasksAction.INSTANCE, request);
+            return execute(TransportListTasksAction.TYPE, request);
         }
 
         @Override
         public void listTasks(final ListTasksRequest request, final ActionListener<ListTasksResponse> listener) {
-            execute(ListTasksAction.INSTANCE, request, listener);
+            execute(TransportListTasksAction.TYPE, request, listener);
         }
 
         @Override
         public ListTasksRequestBuilder prepareListTasks(String... nodesIds) {
-            return new ListTasksRequestBuilder(this, ListTasksAction.INSTANCE).setNodesIds(nodesIds);
+            return new ListTasksRequestBuilder(this, TransportListTasksAction.TYPE).setNodesIds(nodesIds);
         }
 
         @Override
@@ -1597,5 +1600,35 @@ public abstract class AbstractClient implements Client {
                 }
             }
         };
+    }
+
+    /**
+     * Same as {@link PlainActionFuture} but for use with {@link RefCounted} result types. Unlike {@code PlainActionFuture} this future
+     * acquires a reference to its result. This means that the result reference must be released by a call to {@link RefCounted#decRef()}
+     * on the result before it goes out of scope.
+     * @param <R> reference counted result type
+     */
+    private static class RefCountedFuture<R extends RefCounted> extends PlainActionFuture<R> {
+
+        @Override
+        public final void onResponse(R result) {
+            result.mustIncRef();
+            if (set(result) == false) {
+                result.decRef();
+            }
+        }
+
+        private final AtomicBoolean getCalled = new AtomicBoolean(false);
+
+        @Override
+        public R get() throws InterruptedException, ExecutionException {
+            final boolean firstCall = getCalled.compareAndSet(false, true);
+            if (firstCall == false) {
+                final IllegalStateException ise = new IllegalStateException("must only call .get() once per instance to avoid leaks");
+                assert false : ise;
+                throw ise;
+            }
+            return super.get();
+        }
     }
 }

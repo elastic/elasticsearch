@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -138,7 +137,7 @@ public class GetCalendarsAction extends ActionType<GetCalendarsAction.Response> 
         }
     }
 
-    public static class Response extends AbstractGetResourcesResponse<Calendar> implements StatusToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<Calendar> implements ToXContentObject {
 
         public Response(QueryPage<Calendar> calendars) {
             super(calendars);

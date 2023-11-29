@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -59,7 +60,7 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
     public void testActionNames() {
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final BigArrays bigArrays = mock(BigArrays.class);
-        final TransportService transportService = mock(TransportService.class);
+        final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
         final var action = new GetCcrRestoreFileChunkAction.TransportAction(
@@ -82,7 +83,7 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
     public void testRequestedShardIdMustBeConsistentWithSessionShardId() {
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofBytes(1024));
-        final TransportService transportService = mock(TransportService.class);
+        final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
         final String sessionUUID = UUIDs.randomBase64UUID();
@@ -125,7 +126,7 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
         final PlainActionFuture<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> future1 = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request1, future1);
         // The actual response content does not matter as long as the future executes without any error
-        future1.actionGet().decRef();
+        future1.actionGet();
 
         // 2. Inconsistent requested ShardId
         final var request2 = new GetCcrRestoreFileChunkRequest(

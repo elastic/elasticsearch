@@ -1,0 +1,25 @@
+[discrete]
+[[esql-least]]
+=== `LEAST`
+[.text-center]
+image::esql/functions/signature/least.svg[Embedded,opts=inline]
+
+Returns the minimum value from many columns. This is similar to <<esql-mv_min>>
+except it's intended to run on multiple columns at once.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=least]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=least-result]
+|===
+
+NOTE: When run on `keyword` or `text` fields, this'll return the first string
+      in alphabetical order. When run on `boolean` columns this will return
+      `false` if any values are `false`.
+
+Supported types:
+
+include::types/least.asciidoc[]

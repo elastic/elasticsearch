@@ -58,7 +58,7 @@ class TestQueryVectorBuilderPlugin implements SearchPlugin {
         }
 
         TestQueryVectorBuilder(StreamInput in) throws IOException {
-            this.vectorToBuild = in.readList(StreamInput::readFloat);
+            this.vectorToBuild = in.readCollectionAsList(StreamInput::readFloat);
         }
 
         @Override

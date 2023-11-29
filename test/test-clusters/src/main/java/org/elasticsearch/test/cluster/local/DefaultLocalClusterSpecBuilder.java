@@ -8,17 +8,17 @@
 
 package org.elasticsearch.test.cluster.local;
 
-import org.elasticsearch.test.cluster.DefaultElasticsearchCluster;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.LocalDistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.SnapshotDistributionResolver;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
-public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {
+public final class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {
 
     public DefaultLocalClusterSpecBuilder() {
         super();
+        this.apply(c -> c.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
         this.apply(new FipsEnabledClusterConfigProvider());
         this.settings(new DefaultSettingsProvider());
         this.environment(new DefaultEnvironmentProvider());
@@ -27,9 +27,12 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuil
 
     @Override
     public ElasticsearchCluster build() {
-        return new DefaultElasticsearchCluster<>(
+        return new DefaultLocalElasticsearchCluster<>(
             this::buildClusterSpec,
-            new LocalClusterFactory(new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver())))
+            new DefaultLocalClusterFactory(
+                new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
+            )
         );
     }
+
 }

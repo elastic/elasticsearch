@@ -8,9 +8,13 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.ParsingException;
@@ -18,14 +22,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -68,11 +71,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private final List<Item> pinnedDocs;
     private final Supplier<List<Item>> pinnedDocsSupplier;
 
-    private final Logger logger = LogManager.getLogger(RuleQueryBuilder.class);
-
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_033;
+        return TransportVersions.V_8_500_040;
     }
 
     public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, String rulesetId) {
@@ -84,9 +85,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readMap();
         rulesetId = in.readString();
-        pinnedIds = in.readOptionalStringList();
+        pinnedIds = in.readOptionalStringCollectionAsList();
         pinnedIdsSupplier = null;
-        pinnedDocs = in.readOptionalList(Item::new);
+        pinnedDocs = in.readOptionalCollectionAsList(Item::new);
         pinnedDocsSupplier = null;
     }
 
@@ -212,18 +213,35 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
         queryRewriteContext.registerAsyncAction((client, listener) -> {
             Client clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
-            clientWithOrigin.get(getRequest, listener.delegateFailureAndWrap((l, getResponse) -> {
-                if (getResponse.isExists() == false) {
-                    throw new ResourceNotFoundException("query ruleset " + rulesetId + " not found");
+            clientWithOrigin.get(getRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(GetResponse getResponse) {
+                    if (getResponse.isExists() == false) {
+                        throw new ResourceNotFoundException("query ruleset " + rulesetId + " not found");
+                    }
+                    QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(
+                        rulesetId,
+                        getResponse.getSourceAsBytesRef(),
+                        XContentType.JSON
+                    );
+                    for (QueryRule rule : queryRuleset.rules()) {
+                        rule.applyRule(appliedRules, matchCriteria);
+                    }
+                    pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
+                    pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
+                    listener.onResponse(null);
                 }
-                QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
-                for (QueryRule rule : queryRuleset.rules()) {
-                    rule.applyRule(appliedRules, matchCriteria);
+
+                @Override
+                public void onFailure(Exception e) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException) {
+                        listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
+                    } else {
+                        listener.onFailure(e);
+                    }
                 }
-                pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
-                pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
-                listener.onResponse(null);
-            }));
+            });
         });
 
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);

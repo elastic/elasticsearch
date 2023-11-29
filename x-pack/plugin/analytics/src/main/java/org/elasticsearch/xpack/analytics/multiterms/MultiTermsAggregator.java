@@ -144,7 +144,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         return termValuesList;
     }
 
-    List<List<Object>> docTerms(List<TermValues> termValuesList, int doc) throws IOException {
+    static List<List<Object>> docTerms(List<TermValues> termValuesList, int doc) throws IOException {
         List<List<Object>> terms = new ArrayList<>();
         for (TermValues termValues : termValuesList) {
             List<Object> collectValues = termValues.collectValues(doc);
@@ -177,7 +177,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      */
     static List<Object> unpackTerms(BytesRef termsBytes) {
         try (StreamInput input = new BytesArray(termsBytes).streamInput()) {
-            return input.readList(StreamInput::readGenericValue);
+            return input.readCollectionAsList(StreamInput::readGenericValue);
         } catch (IOException ex) {
             throw ExceptionsHelper.convertToRuntime(ex);
         }

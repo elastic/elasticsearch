@@ -864,20 +864,18 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                         .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 );
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(partiallyMountedIndex)).build();
-
             Metadata.Builder mb = Metadata.builder(state.metadata());
 
             List<String> migratedIndices = migrateIndices(mb, state, "data");
-            assertThat(migratedIndices.size(), is(1));
+            // no index to migrate as the IndexMetadata.Builder#build method adds a tier preference for this partial index
+            assertThat(migratedIndices.size(), is(0));
 
             ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
             IndexMetadata migratedIndex = migratedState.metadata().index("foo");
             assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is("cold"));
-            // partially mounted index must remain in `data_frozen`
-            assertThat(
-                migratedIndex.getSettings().get(TIER_PREFERENCE),
-                is(MountSearchableSnapshotRequest.Storage.SHARED_CACHE.defaultDataTiersPreference())
-            );
+            // partially mounted index must remain in `data_frozen`, however we do not change the setting
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is(nullValue()));
+            assertThat(migratedIndex.getTierPreference(), is(IndexMetadata.PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE));
         }
 
         {
@@ -903,6 +901,32 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(
                 migratedIndex.getSettings().get(TIER_PREFERENCE),
                 is(MountSearchableSnapshotRequest.Storage.FULL_COPY.defaultDataTiersPreference())
+            );
+        }
+
+        {
+            // partially mounted indices remain on tier_preference data_frozen
+            IndexMetadata.Builder partiallyMountedIndex = IndexMetadata.builder("foo")
+                .settings(
+                    getBaseIndexSettings().put(BOX_ROUTING_REQUIRE_SETTING, "cold")
+                        .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+                );
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(partiallyMountedIndex)).build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "box");
+            assertThat(migratedIndices.size(), is(1));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("foo");
+            assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is(nullValue()));
+            // partially mounted index must have _tier_preference and remain in `data_frozen` (despite the cold custom filtering
+            // attributed)
+            assertThat(
+                migratedIndex.getSettings().get(TIER_PREFERENCE),
+                is(MountSearchableSnapshotRequest.Storage.SHARED_CACHE.defaultDataTiersPreference())
             );
         }
     }
@@ -1190,9 +1214,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrationDoesNotRemoveComposableTemplates() {
-        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(
-            Collections.singletonList("*")
-        ).template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null)).build();
+        ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("*"))
+            .template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null))
+            .build();
 
         String composableTemplateName = "catch-all-composable-template";
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1370,77 +1395,82 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         String includeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
         String excludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
 
-        ComposableIndexTemplate templateWithRequireRouting = new ComposableIndexTemplate(
-            List.of("test-*"),
-            new Template(
-                Settings.builder().put(requireRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
-                null,
-                null
-            ),
-            List.of(),
-            randomLong(),
-            randomLong(),
-            null
-        );
+        ComposableIndexTemplate templateWithRequireRouting = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(
+                new Template(
+                    Settings.builder().put(requireRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+                    null,
+                    null
+                )
+            )
+            .componentTemplates(List.of())
+            .priority(randomLong())
+            .version(randomLong())
+            .build();
 
-        ComposableIndexTemplate templateWithIncludeRouting = new ComposableIndexTemplate(
-            List.of("test-*"),
-            new Template(
-                Settings.builder().put(includeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
-                null,
-                null
-            ),
-            List.of(),
-            randomLong(),
-            randomLong(),
-            null
-        );
+        ComposableIndexTemplate templateWithIncludeRouting = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(
+                new Template(
+                    Settings.builder().put(includeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+                    null,
+                    null
+                )
+            )
+            .componentTemplates(List.of())
+            .priority(randomLong())
+            .version(randomLong())
+            .build();
 
-        ComposableIndexTemplate templateWithExcludeRouting = new ComposableIndexTemplate(
-            List.of("test-*"),
-            new Template(
-                Settings.builder().put(excludeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
-                null,
-                null
-            ),
-            List.of(),
-            randomLong(),
-            randomLong(),
-            null
-        );
+        ComposableIndexTemplate templateWithExcludeRouting = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(
+                new Template(
+                    Settings.builder().put(excludeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+                    null,
+                    null
+                )
+            )
+            .componentTemplates(List.of())
+            .priority(randomLong())
+            .version(randomLong())
+            .build();
 
-        ComposableIndexTemplate templateWithRequireAndIncludeRoutings = new ComposableIndexTemplate(
-            List.of("test-*"),
-            new Template(
-                Settings.builder()
-                    .put(requireRoutingSetting, "hot")
-                    .put(includeRoutingSetting, "rack1")
-                    .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                    .build(),
-                null,
-                null
-            ),
-            List.of(),
-            randomLong(),
-            randomLong(),
-            null
-        );
+        ComposableIndexTemplate templateWithRequireAndIncludeRoutings = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(
+                new Template(
+                    Settings.builder()
+                        .put(requireRoutingSetting, "hot")
+                        .put(includeRoutingSetting, "rack1")
+                        .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                        .build(),
+                    null,
+                    null
+                )
+            )
+            .componentTemplates(List.of())
+            .priority(randomLong())
+            .version(randomLong())
+            .build();
 
-        ComposableIndexTemplate templateWithoutCustomRoutings = new ComposableIndexTemplate(
-            List.of("test-*"),
-            new Template(
-                Settings.builder()
-                    .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                    .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
-                    .build(),
-                null,
-                null
-            ),
-            List.of(),
-            randomLong(),
-            randomLong(),
-            null
-        );
+        ComposableIndexTemplate templateWithoutCustomRoutings = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(
+                new Template(
+                    Settings.builder()
+                        .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                        .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                        .build(),
+                    null,
+                    null
+                )
+            )
+            .componentTemplates(List.of())
+            .priority(randomLong())
+            .version(randomLong())
+            .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
@@ -1610,14 +1640,13 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             null
         );
 
-        ComposableIndexTemplate composableTemplateWithRequireRouting = new ComposableIndexTemplate(
-            List.of("test-*"),
-            new Template(Settings.builder().put(requireRoutingSetting, "hot").build(), null, null),
-            List.of("component-template-without-custom-routing"),
-            randomLong(),
-            randomLong(),
-            null
-        );
+        ComposableIndexTemplate composableTemplateWithRequireRouting = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(new Template(Settings.builder().put(requireRoutingSetting, "hot").build(), null, null))
+            .componentTemplates(List.of("component-template-without-custom-routing"))
+            .priority(randomLong())
+            .version(randomLong())
+            .build();
 
         ComponentTemplate compTemplateWithRequireAndIncludeRoutings = new ComponentTemplate(
             new Template(

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -122,7 +123,7 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
         @Inject
         public TransportCcrStatsStubAction(TransportService transportService, ActionFilters actionFilters) {
-            super(CcrStatsAction.NAME, transportService, actionFilters, CcrStatsAction.Request::new);
+            super(CcrStatsAction.NAME, transportService, actionFilters, CcrStatsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override
@@ -149,7 +150,13 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
         @Inject
         public TransportEnrichStatsStubAction(TransportService transportService, ActionFilters actionFilters) {
-            super(EnrichStatsAction.NAME, transportService, actionFilters, EnrichStatsAction.Request::new);
+            super(
+                EnrichStatsAction.NAME,
+                transportService,
+                actionFilters,
+                EnrichStatsAction.Request::new,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
         }
 
         @Override

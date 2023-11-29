@@ -2,7 +2,8 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-windows
     display-name: "elastic / elasticsearch # %BRANCH% - windows compatibility"
-    description: "Elasticsearch %BRANCH% Windows compatibility testing.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     project-type: matrix
     node: master
     # Use a hard-coded workspace directory to avoid hitting file path limits with auto-generated workspace path
@@ -25,14 +26,14 @@
           type: user-defined
           name: GRADLE_TASK
           values:
-            - 'checkPart1'
-            - 'checkPart2'
-            - 'checkPart3'
-            - 'bwcTestSnapshots'
-            - 'checkRestCompat'
+            - "checkPart1"
+            - "checkPart2"
+            - "checkPart3"
+            - "bwcTestSnapshots"
+            - "checkRestCompat"
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
             JAVA11_HOME=$USERPROFILE\\.java\\java11

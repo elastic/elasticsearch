@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
@@ -91,9 +94,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS));
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS));
-        }
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.PROXY_ADDRESS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS));
@@ -479,7 +480,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         "cluster_1",
                         Collections.singletonList(cluster1Seed.getAddress().toString())
                     );
-                    PlainActionFuture<Void> clusterAdded = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> clusterAdded = new PlainActionFuture<>();
                     // Add the cluster on a different thread to test that we wait for a new cluster to
                     // connect before returning.
                     new Thread(() -> {
@@ -865,7 +866,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    private ActionListener<Void> connectionListener(final CountDownLatch latch) {
+    private ActionListener<RemoteClusterService.RemoteClusterConnectionStatus> connectionListener(final CountDownLatch latch) {
         return ActionTestUtils.assertNoFailureListener(x -> latch.countDown());
     }
 
@@ -1422,6 +1423,53 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals(0, transportService.getConnectionManager().size());
                 }
             }
+        }
+    }
+
+    public void testLogsConnectionResult() throws IOException {
+
+        try (
+            var remote = startTransport("remote", List.of(), VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            var local = startTransport("local", List.of(), VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            var remoteClusterService = new RemoteClusterService(Settings.EMPTY, local)
+        ) {
+            var clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+            remoteClusterService.listenForUpdates(clusterSettings);
+
+            assertThatLogger(
+                () -> clusterSettings.applySettings(
+                    Settings.builder().putList("cluster.remote.remote_1.seeds", remote.getLocalDiscoNode().getAddress().toString()).build()
+                ),
+                RemoteClusterService.class,
+                new MockLogAppender.SeenEventExpectation(
+                    "Should log when connecting to remote",
+                    RemoteClusterService.class.getCanonicalName(),
+                    Level.INFO,
+                    "remote cluster connection [remote_1] updated: CONNECTED"
+                )
+            );
+
+            assertThatLogger(
+                () -> clusterSettings.applySettings(Settings.EMPTY),
+                RemoteClusterService.class,
+                new MockLogAppender.SeenEventExpectation(
+                    "Should log when disconnecting from remote",
+                    RemoteClusterService.class.getCanonicalName(),
+                    Level.INFO,
+                    "remote cluster connection [remote_1] updated: DISCONNECTED"
+                )
+            );
+
+            assertThatLogger(
+                () -> clusterSettings.applySettings(Settings.builder().put(randomIdentifier(), randomIdentifier()).build()),
+                RemoteClusterService.class,
+                new MockLogAppender.UnseenEventExpectation(
+                    "Should not log when changing unrelated setting",
+                    RemoteClusterService.class.getCanonicalName(),
+                    Level.INFO,
+                    "*"
+                )
+            );
         }
     }
 

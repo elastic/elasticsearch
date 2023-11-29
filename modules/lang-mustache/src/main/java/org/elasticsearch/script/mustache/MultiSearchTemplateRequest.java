@@ -41,7 +41,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     MultiSearchTemplateRequest(StreamInput in) throws IOException {
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
-        requests = in.readList(SearchTemplateRequest::new);
+        requests = in.readCollectionAsList(SearchTemplateRequest::new);
     }
 
     /**
@@ -116,7 +116,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
-        out.writeList(requests);
+        out.writeCollection(requests);
     }
 
     @Override

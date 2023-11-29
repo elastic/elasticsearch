@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -50,6 +49,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.now(),
             (withExpiration) ? Instant.now() : null,
             false,
+            null,
             randomAlphaOfLength(4),
             randomAlphaOfLength(5),
             randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
@@ -111,6 +111,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000L),
             Instant.ofEpochMilli(10000000L),
             false,
+            null,
             "user-a",
             "realm-x",
             null,
@@ -124,6 +125,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000L),
             Instant.ofEpochMilli(10000000L),
             true,
+            Instant.ofEpochMilli(100000000L),
             "user-b",
             "realm-y",
             Map.of(),
@@ -137,6 +139,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000L),
             null,
             true,
+            Instant.ofEpochMilli(100000000L),
             "user-c",
             "realm-z",
             Map.of("foo", "bar"),
@@ -160,6 +163,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000L),
             null,
             true,
+            Instant.ofEpochMilli(100000000L),
             "user-c",
             "realm-z",
             Map.of("foo", "bar"),
@@ -193,6 +197,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "creation": 100000,
                   "expiration": 10000000,
                   "invalidated": true,
+                  "invalidation": 100000000,
                   "username": "user-b",
                   "realm": "realm-y",
                   "metadata": {},
@@ -232,6 +237,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   %s
                   "creation": 100000,
                   "invalidated": true,
+                  "invalidation": 100000000,
                   "username": "user-c",
                   "realm": "realm-z",
                   "metadata": {
@@ -298,6 +304,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   %s
                   "creation": 100000,
                   "invalidated": true,
+                  "invalidation": 100000000,
                   "username": "user-c",
                   "realm": "realm-z",
                   "metadata": {
@@ -366,6 +373,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
         Instant creation,
         Instant expiration,
         boolean invalidated,
+        Instant invalidation,
         String username,
         String realm,
         Map<String, Object> metadata,
@@ -379,6 +387,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             creation,
             expiration,
             invalidated,
+            invalidation,
             username,
             realm,
             metadata,
@@ -388,6 +397,6 @@ public class GetApiKeyResponseTests extends ESTestCase {
     }
 
     private String getType(String type) {
-        return TcpTransport.isUntrustedRemoteClusterEnabled() ? "\"type\": \"" + type + "\"," : "";
+        return "\"type\": \"" + type + "\",";
     }
 }

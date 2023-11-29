@@ -23,12 +23,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.LoggingChunkedRestResponseBody;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tracing.SpanId;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.SpanId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +39,7 @@ import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
  * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
  */
-public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
+public class DefaultRestChannel extends AbstractRestChannel {
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
@@ -117,6 +116,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             final HttpResponse httpResponse;
             if (isHeadRequest == false && restResponse.isChunked()) {
                 ChunkedRestResponseBody chunkedContent = restResponse.chunkedContent();
+                toClose.add(chunkedContent);
                 if (httpLogger != null && httpLogger.isBodyTracerEnabled()) {
                     final var loggerStream = httpLogger.openResponseBodyLoggingStream(request.getRequestId());
                     toClose.add(() -> {
@@ -132,8 +132,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 httpResponse = httpRequest.createResponse(restResponse.status(), chunkedContent);
             } else {
                 final BytesReference content = restResponse.content();
-                if (content instanceof Releasable) {
-                    toClose.add((Releasable) content);
+                if (content instanceof Releasable releasable) {
+                    toClose.add(releasable);
+                } else if (restResponse.isChunked()) {
+                    toClose.add(restResponse.chunkedContent());
                 }
                 toClose.add(this::releaseOutputBuffer);
 

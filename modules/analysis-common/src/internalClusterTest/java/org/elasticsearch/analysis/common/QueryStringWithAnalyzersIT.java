@@ -8,7 +8,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.plugins.Plugin;
@@ -50,12 +49,12 @@ public class QueryStringWithAnalyzersIT extends ESIntegTestCase {
                 .setMapping("field1", "type=text,analyzer=my_analyzer", "field2", "type=text,analyzer=my_analyzer")
         );
 
-        client().prepareIndex("test").setId("1").setSource("field1", "foo bar baz", "field2", "not needed").get();
+        prepareIndex("test").setId("1").setSource("field1", "foo bar baz", "field2", "not needed").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(queryStringQuery("foo.baz").defaultOperator(Operator.AND).field("field1").field("field2"))
-            .get();
-        assertHitCount(response, 1L);
+        assertHitCount(
+            prepareSearch("test").setQuery(queryStringQuery("foo.baz").defaultOperator(Operator.AND).field("field1").field("field2")),
+            1L
+        );
     }
 }

@@ -123,7 +123,7 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
             assert 0 < heartbeatTerm : heartbeatTerm;
             this.heartbeatTerm = heartbeatTerm;
             this.rerunListener = listener.delegateFailureAndWrap(
-                (l, scheduleDelay) -> threadPool.schedule(HeartbeatTask.this, scheduleDelay, ThreadPool.Names.GENERIC)
+                (l, scheduleDelay) -> threadPool.schedule(HeartbeatTask.this, scheduleDelay, threadPool.generic())
             );
         }
 

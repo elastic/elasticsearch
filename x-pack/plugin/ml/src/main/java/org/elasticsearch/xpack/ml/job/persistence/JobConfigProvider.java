@@ -22,7 +22,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -120,7 +119,7 @@ public class JobConfigProvider {
      * @param job The anomaly detector job configuration
      * @param listener Index response listener
      */
-    public void putJob(Job job, ActionListener<IndexResponse> listener) {
+    public void putJob(Job job, ActionListener<DocWriteResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = job.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
             IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(Job.documentId(job.getId()))
@@ -748,7 +747,7 @@ public class JobConfigProvider {
         return MlStrings.findMatching(jobIdPatterns, MlTasks.openJobIds(tasksMetadata));
     }
 
-    private void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener) {
+    private static void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener) {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -760,7 +759,7 @@ public class JobConfigProvider {
         }
     }
 
-    private Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
+    private static Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)

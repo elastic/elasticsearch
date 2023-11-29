@@ -467,7 +467,7 @@ public class ESLoggerUsageChecker {
         }
 
         // counts how many times argAndField was called on the method chain
-        private int getChainedParams(AbstractInsnNode startNode) {
+        private static int getChainedParams(AbstractInsnNode startNode) {
             int c = 0;
             AbstractInsnNode current = startNode;
             while (current.getNext() != null) {

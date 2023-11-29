@@ -1,5 +1,0 @@
-pr: 96082
-summary: Support minimum_should_match field for terms_set query
-area: Search
-type: enhancement
-issues: []

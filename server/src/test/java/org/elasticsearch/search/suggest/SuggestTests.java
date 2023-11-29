@@ -9,6 +9,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -238,15 +239,30 @@ public class SuggestTests extends ESTestCase {
         assertTrue(option1.collateMatch());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95607")
     public void testSerialization() throws IOException {
         TransportVersion bwcVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersion.current()
         );
 
         final Suggest suggest = createTestItem();
+        // suggest is disallowed when using rank, but the randomization rarely sets it
+        // we need to make sure CompletionSuggestion$Entry$Option doesn't have "rank" set
+        // because for some older versions it will not serialize.
+        if (bwcVersion.before(TransportVersions.V_8_8_0)) {
+            for (CompletionSuggestion s : suggest.filter(CompletionSuggestion.class)) {
+                for (CompletionSuggestion.Entry entry : s.entries) {
+                    List<CompletionSuggestion.Entry.Option> options = entry.getOptions();
+                    for (CompletionSuggestion.Entry.Option o : entry.getOptions()) {
+                        if (o.getHit() != null) {
+                            o.getHit().setRank(-1);
+                        }
+                    }
+                }
+            }
+        }
+
         final Suggest bwcSuggest;
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());

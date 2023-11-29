@@ -131,5 +131,7 @@ include::{es-repo-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc
 *** {blog-ref}improving-information-retrieval-elastic-stack-benchmarking-passage-retrieval[Part 2: Benchmarking passage retrieval]
 *** {blog-ref}may-2023-launch-information-retrieval-elasticsearch-ai-model[Part 3: Introducing Elastic Learned Sparse Encoder, our new retrieval model]
 *** {blog-ref}improving-information-retrieval-elastic-stack-hybrid[Part 4: Hybrid retrieval]
+* Interactive examples:
+** The https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] repo contains a number of interactive semantic search examples in the form of executable Python notebooks, using the {es} Python client
 
 include::semantic-search-elser.asciidoc[]

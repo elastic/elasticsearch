@@ -9,7 +9,6 @@
 
 package org.elasticsearch.system.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -76,7 +75,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 )
                 .setOrigin(TASKS_ORIGIN)
                 .setVersionMetaKey("version")
-                .setPrimaryIndex(".net-new-system-index-" + Version.CURRENT.major)
+                .setPrimaryIndex(".net-new-system-index-primary")
                 .build(),
             SystemIndexDescriptor.builder()
                 .setIndexPattern(INTERNAL_UNMANAGED_INDEX_NAME)
@@ -99,7 +98,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 )
                 .setOrigin(TASKS_ORIGIN)
                 .setVersionMetaKey("version")
-                .setPrimaryIndex(".internal-managed-index-" + Version.CURRENT.major)
+                .setPrimaryIndex(".internal-managed-index-primary")
                 .setAliasName(".internal-managed-alias")
                 .build()
         );
@@ -110,7 +109,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")
@@ -154,7 +153,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
             return channel -> client.admin()
                 .indices()
-                .create(new CreateIndexRequest(".net-new-system-index-" + Version.CURRENT.major), new RestToXContentListener<>(channel));
+                .create(new CreateIndexRequest(".net-new-system-index-primary"), new RestToXContentListener<>(channel));
         }
 
         @Override
@@ -176,7 +175,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-            IndexRequest indexRequest = new IndexRequest(".net-new-system-index-" + Version.CURRENT.major);
+            IndexRequest indexRequest = new IndexRequest(".net-new-system-index-primary");
             indexRequest.source(request.requiredContent(), request.getXContentType());
             indexRequest.id(request.param("id"));
             indexRequest.setRefreshPolicy(request.param("refresh"));

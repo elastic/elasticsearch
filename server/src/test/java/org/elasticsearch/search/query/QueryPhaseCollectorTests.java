@@ -49,7 +49,8 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
+
+import static org.elasticsearch.search.query.QueryPhaseCollector.resolveTerminateAfterChecker;
 
 public class QueryPhaseCollectorTests extends ESTestCase {
     private static Directory directory;
@@ -98,176 +99,143 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testNullTopDocsCollector() {
-        expectThrows(NullPointerException.class, () -> new QueryPhaseCollector(null, null, 0, null, null));
+        expectThrows(NullPointerException.class, () -> new QueryPhaseCollector(null, null, resolveTerminateAfterChecker(0), null, null));
     }
 
     public void testNegativeTerminateAfter() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new QueryPhaseCollector(new DummyTotalHitCountCollector(), null, randomIntBetween(Integer.MIN_VALUE, -1), null, null)
-        );
-    }
-
-    /**
-     * Collector manager used temporarily to bridge tests and query phase as they have different expectations when it comes to their
-     * return type and how results are retrieved from a collector manager.
-     */
-    private static class CollectorManagerAdapter<C extends Collector, T> implements CollectorManager<Collector, Void> {
-        private final CollectorManager<C, T> wrapped;
-        private T result;
-
-        CollectorManagerAdapter(CollectorManager<C, T> wrapped) {
-            this.wrapped = wrapped;
-        }
-
-        @Override
-        public Collector newCollector() throws IOException {
-            return wrapped.newCollector();
-        }
-
-        @Override
-        public Void reduce(Collection<Collector> collectors) throws IOException {
-            @SuppressWarnings("unchecked")
-            List<C> cs = collectors.stream().map(collector -> (C) collector).toList();
-            result = wrapped.reduce(cs);
-            return null;
-        }
-
-        public T getResult() {
-            return result;
-        }
+        expectThrows(IllegalArgumentException.class, () -> resolveTerminateAfterChecker(randomIntBetween(Integer.MIN_VALUE, -1)));
     }
 
     public void testTopDocsOnly() throws IOException {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topScoreDocManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topScoreDocManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(topScoreDocAdapter, null, 0, null, null);
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topScoreDocManager,
+                null,
+                0,
+                null,
+                null
+            );
+            Result<TopDocs, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numDocs, result.topDocs.totalHits.value);
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topScoreDocManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topScoreDocManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(topScoreDocAdapter, null, 0, null, null);
-            searcher.search(new TermQuery(new Term("field2", "value")), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topScoreDocManager,
+                null,
+                0,
+                null,
+                null
+            );
+            Result<TopDocs, Void> result = searcher.search(new TermQuery(new Term("field2", "value")), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value);
         }
     }
 
     public void testWithAggs() throws IOException {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 0,
-                aggsAdapter,
+                aggsManager,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
-            assertEquals(numDocs, aggsAdapter.getResult().intValue());
+            Result<TopDocs, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numDocs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.aggs.intValue());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 0,
-                aggsAdapter,
+                aggsManager,
                 null
             );
-            searcher.search(new TermQuery(new Term("field2", "value")), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
-            assertEquals(numField2Docs, aggsAdapter.getResult().intValue());
+            Result<TopDocs, Integer> result = searcher.search(new TermQuery(new Term("field2", "value")), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2Docs, result.aggs.intValue());
         }
     }
 
     public void testPostFilterTopDocsOnly() throws IOException {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             TermQuery termQuery = new TermQuery(new Term("field2", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
                 null,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
+            Result<TopDocs, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value);
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             TermQuery termQuery = new TermQuery(new Term("field1", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
                 null,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
+            Result<TopDocs, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numDocs, result.topDocs.totalHits.value);
         }
     }
 
     public void testPostFilterWithAggs() throws IOException {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
             TermQuery termQuery = new TermQuery(new Term("field1", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
-                aggsAdapter,
+                aggsManager,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
-            assertEquals(numDocs, aggsAdapter.getResult().intValue());
+            Result<TopDocs, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numDocs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.aggs.intValue());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
             TermQuery termQuery = new TermQuery(new Term("field2", "value"));
             Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
-                aggsAdapter,
+                aggsManager,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
+            Result<TopDocs, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value);
             // post_filter is not applied to aggs
-            assertEquals(reader.maxDoc(), aggsAdapter.getResult().intValue());
+            assertEquals(reader.maxDoc(), result.aggs.intValue());
         }
     }
 
@@ -291,39 +259,42 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(topScoreDocAdapter, null, 0, null, maxScore);
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
+                null,
+                0,
+                null,
+                maxScore
+            );
+            Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value);
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 0,
                 null,
                 thresholdScore
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
+            Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numDocs, result.topDocs.totalHits.value);
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 0,
                 null,
                 maxScore + 100f
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(0, topScoreDocAdapter.getResult().totalHits.value);
+            Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(0, result.topDocs.totalHits.value);
         }
     }
 
@@ -347,55 +318,49 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 0,
-                aggsAdapter,
+                aggsManager,
                 maxScore
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
+            Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value);
             // min_score is applied to aggs as well as top docs
-            assertEquals(numField2Docs, aggsAdapter.getResult().intValue());
+            assertEquals(numField2Docs, result.aggs.intValue());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 0,
-                aggsAdapter,
+                aggsManager,
                 thresholdScore
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numDocs, topScoreDocAdapter.getResult().totalHits.value);
-            assertEquals(numDocs, aggsAdapter.getResult().intValue());
+            Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numDocs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.aggs.intValue());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 0,
-                aggsAdapter,
+                aggsManager,
                 maxScore + 100f
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(0, topScoreDocAdapter.getResult().totalHits.value);
-            assertEquals(0, aggsAdapter.getResult().intValue());
+            Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(0, result.topDocs.totalHits.value);
+            assertEquals(0, result.aggs.intValue());
         }
     }
 
@@ -421,45 +386,42 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
                 null,
                 maxScore
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2AndField3Docs, topScoreDocAdapter.getResult().totalHits.value);
+            Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2AndField3Docs, result.topDocs.totalHits.value);
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
                 null,
                 thresholdScore
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
+            Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value);
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
                 null,
                 maxScore + 100f
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(0, topScoreDocAdapter.getResult().totalHits.value);
+            Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(0, result.topDocs.totalHits.value);
         }
     }
 
@@ -485,54 +447,48 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
-                aggsAdapter,
+                aggsManager,
                 maxScore
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2AndField3Docs, topScoreDocAdapter.getResult().totalHits.value);
-            assertEquals(numField3Docs, aggsAdapter.getResult().intValue());
+            Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2AndField3Docs, result.topDocs.totalHits.value);
+            assertEquals(numField3Docs, result.aggs.intValue());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
-                aggsAdapter,
+                aggsManager,
                 thresholdScore
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topScoreDocAdapter.getResult().totalHits.value);
-            assertEquals(numDocs, aggsAdapter.getResult().intValue());
+            Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.aggs.intValue());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topScoreDocAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topScoreDocAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 0,
-                aggsAdapter,
+                aggsManager,
                 maxScore + 100f
             );
-            searcher.search(booleanQuery, manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(0, topScoreDocAdapter.getResult().totalHits.value);
-            assertEquals(0, aggsAdapter.getResult().intValue());
+            Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(0, result.topDocs.totalHits.value);
+            assertEquals(0, result.aggs.intValue());
         }
     }
 
@@ -540,25 +496,29 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             int terminateAfter = randomIntBetween(1, numDocs - 1);
             CollectorManager<DummyTotalHitCountCollector, Integer> topDocsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<Integer, Void>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 terminateAfter,
                 null,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertTrue(manager.isTerminatedAfter());
-            assertEquals(terminateAfter, topDocsAdapter.getResult().intValue());
+            Result<Integer, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertTrue(result.terminatedAfter);
+            assertEquals(terminateAfter, result.topDocs.intValue());
         }
         {
             CollectorManager<DummyTotalHitCountCollector, Integer> topDocsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(topDocsAdapter, null, numDocs, null, null);
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numDocs, topDocsAdapter.getResult().intValue());
+            CollectorManager<QueryPhaseCollector, Result<Integer, Void>> manager = createCollectorManager(
+                topDocsManager,
+                null,
+                numDocs,
+                null,
+                null
+            );
+            Result<Integer, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numDocs, result.topDocs.intValue());
         }
     }
 
@@ -566,37 +526,33 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             int terminateAfter = randomIntBetween(1, numDocs - 1);
             CollectorManager<DummyTotalHitCountCollector, Integer> topDocsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<Integer, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 terminateAfter,
-                aggsAdapter,
+                aggsManager,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertTrue(manager.isTerminatedAfter());
-            assertEquals(terminateAfter, topDocsAdapter.getResult().intValue());
-            assertEquals(terminateAfter, aggsAdapter.getResult().intValue());
+            Result<Integer, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertTrue(result.terminatedAfter);
+            assertEquals(terminateAfter, result.topDocs.intValue());
+            assertEquals(terminateAfter, result.aggs.intValue());
         }
         {
             CollectorManager<DummyTotalHitCountCollector, Integer> topDocsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<Integer, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 numDocs,
-                aggsAdapter,
+                aggsManager,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numDocs, topDocsAdapter.getResult().intValue());
-            assertEquals(numDocs, aggsAdapter.getResult().intValue());
+            Result<Integer, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numDocs, result.topDocs.intValue());
+            assertEquals(numDocs, result.aggs.intValue());
         }
     }
 
@@ -606,32 +562,30 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             int terminateAfter = randomIntBetween(1, numField2Docs - 1);
             CollectorManager<DummyTotalHitCountCollector, Integer> topDocsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<Integer, Void>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 terminateAfter,
                 null,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertTrue(manager.isTerminatedAfter());
-            assertEquals(terminateAfter, topDocsAdapter.getResult().intValue());
+            Result<Integer, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertTrue(result.terminatedAfter);
+            assertEquals(terminateAfter, result.topDocs.intValue());
         }
         {
             int terminateAfter = randomIntBetween(numField2Docs, Integer.MAX_VALUE);
             CollectorManager<DummyTotalHitCountCollector, Integer> topDocsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<Integer, Void>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 terminateAfter,
                 null,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topDocsAdapter.getResult().intValue());
+            Result<Integer, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.intValue());
         }
     }
 
@@ -641,40 +595,36 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             int terminateAfter = randomIntBetween(1, numField2Docs - 1);
             CollectorManager<DummyTotalHitCountCollector, Integer> topDocsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<Integer, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 terminateAfter,
-                aggsAdapter,
+                aggsManager,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertTrue(manager.isTerminatedAfter());
-            assertEquals(terminateAfter, topDocsAdapter.getResult().intValue());
+            Result<Integer, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertTrue(result.terminatedAfter);
+            assertEquals(terminateAfter, result.topDocs.intValue());
             // aggs see more docs because they are not filtered
-            assertThat(aggsAdapter.getResult(), Matchers.greaterThanOrEqualTo(terminateAfter));
+            assertThat(result.aggs, Matchers.greaterThanOrEqualTo(terminateAfter));
         }
         {
             int terminateAfter = randomIntBetween(numField2Docs, Integer.MAX_VALUE);
             CollectorManager<DummyTotalHitCountCollector, Integer> topDocsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<Integer, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 terminateAfter,
-                aggsAdapter,
+                aggsManager,
                 null
             );
-            searcher.search(new MatchAllDocsQuery(), manager);
-            assertFalse(manager.isTerminatedAfter());
-            assertEquals(numField2Docs, topDocsAdapter.getResult().intValue());
+            Result<Integer, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(numField2Docs, result.topDocs.intValue());
             // aggs see more docs because they are not filtered
-            assertThat(aggsAdapter.getResult(), Matchers.greaterThanOrEqualTo(numField2Docs));
+            assertThat(result.aggs, Matchers.greaterThanOrEqualTo(numField2Docs));
         }
     }
 
@@ -697,17 +647,16 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             int terminateAfter = randomIntBetween(1, numField2Docs - 1);
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 terminateAfter,
                 null,
                 maxScore
             );
-            searcher.search(booleanQuery, manager);
-            assertTrue(manager.isTerminatedAfter());
-            assertEquals(terminateAfter, topDocsAdapter.getResult().totalHits.value);
+            Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertTrue(result.terminatedAfter);
+            assertEquals(terminateAfter, result.topDocs.totalHits.value);
         }
     }
 
@@ -730,20 +679,18 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             int terminateAfter = randomIntBetween(1, numField2Docs - 1);
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 null,
                 terminateAfter,
-                aggsAdapter,
+                aggsManager,
                 maxScore
             );
-            searcher.search(booleanQuery, manager);
-            assertTrue(manager.isTerminatedAfter());
-            assertEquals(terminateAfter, topDocsAdapter.getResult().totalHits.value);
-            assertEquals(terminateAfter, aggsAdapter.getResult().intValue());
+            Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
+            assertTrue(result.terminatedAfter);
+            assertEquals(terminateAfter, result.topDocs.totalHits.value);
+            assertEquals(terminateAfter, result.aggs.intValue());
         }
     }
 
@@ -768,17 +715,16 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             int terminateAfter = randomIntBetween(1, numField2AndField3Docs - 1);
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Void>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 terminateAfter,
                 null,
                 maxScore
             );
-            searcher.search(booleanQuery, manager);
-            assertTrue(manager.isTerminatedAfter());
-            assertEquals(terminateAfter, topDocsAdapter.getResult().totalHits.value);
+            Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
+            assertTrue(result.terminatedAfter);
+            assertEquals(terminateAfter, result.topDocs.totalHits.value);
         }
     }
 
@@ -803,21 +749,19 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             int terminateAfter = randomIntBetween(1, numField2AndField3Docs - 1);
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = TopScoreDocCollector.createSharedManager(1, null, 1000);
-            CollectorManagerAdapter<TopScoreDocCollector, TopDocs> topDocsAdapter = new CollectorManagerAdapter<>(topDocsManager);
             CollectorManager<DummyTotalHitCountCollector, Integer> aggsManager = DummyTotalHitCountCollector.createManager();
-            CollectorManagerAdapter<DummyTotalHitCountCollector, Integer> aggsAdapter = new CollectorManagerAdapter<>(aggsManager);
-            QueryPhaseCollector.CollectorManager manager = QueryPhaseCollector.createManager(
-                topDocsAdapter,
+            CollectorManager<QueryPhaseCollector, Result<TopDocs, Integer>> manager = createCollectorManager(
+                topDocsManager,
                 filterWeight,
                 terminateAfter,
-                aggsAdapter,
+                aggsManager,
                 maxScore
             );
-            searcher.search(booleanQuery, manager);
-            assertTrue(manager.isTerminatedAfter());
-            assertEquals(terminateAfter, topDocsAdapter.getResult().totalHits.value);
+            Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
+            assertTrue(result.terminatedAfter);
+            assertEquals(terminateAfter, result.topDocs.totalHits.value);
             // aggs see more documents because the filter is not applied to them
-            assertThat(aggsAdapter.getResult(), Matchers.greaterThanOrEqualTo(terminateAfter));
+            assertThat(result.aggs, Matchers.greaterThanOrEqualTo(terminateAfter));
         }
     }
 
@@ -825,7 +769,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         ScoreMode scoreMode = randomFrom(ScoreMode.values());
         Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
-        QueryPhaseCollector qpc = new QueryPhaseCollector(new MockCollector(scoreMode), weight, terminateAfter, null, null);
+        QueryPhaseCollector qpc = new QueryPhaseCollector(
+            new MockCollector(scoreMode),
+            weight,
+            resolveTerminateAfterChecker(terminateAfter),
+            null,
+            null
+        );
         assertEquals(scoreMode, qpc.scoreMode());
     }
 
@@ -833,12 +783,24 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
         {
-            QueryPhaseCollector qpc = new QueryPhaseCollector(new MockCollector(ScoreMode.TOP_SCORES), weight, terminateAfter, null, 100f);
+            QueryPhaseCollector qpc = new QueryPhaseCollector(
+                new MockCollector(ScoreMode.TOP_SCORES),
+                weight,
+                resolveTerminateAfterChecker(terminateAfter),
+                null,
+                100f
+            );
             assertEquals(ScoreMode.TOP_SCORES, qpc.scoreMode());
         }
         {
             ScoreMode scoreMode = randomScoreModeExceptTopScores();
-            QueryPhaseCollector qpc = new QueryPhaseCollector(new MockCollector(scoreMode), weight, terminateAfter, null, 100f);
+            QueryPhaseCollector qpc = new QueryPhaseCollector(
+                new MockCollector(scoreMode),
+                weight,
+                resolveTerminateAfterChecker(terminateAfter),
+                null,
+                100f
+            );
             assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
         }
     }
@@ -850,7 +812,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         QueryPhaseCollector qpc = new QueryPhaseCollector(
             new MockCollector(scoreMode),
             weight,
-            terminateAfter,
+            resolveTerminateAfterChecker(terminateAfter),
             new MockCollector(scoreMode),
             null
         );
@@ -864,7 +826,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         QueryPhaseCollector qpc = new QueryPhaseCollector(
             new MockCollector(scoreMode),
             weight,
-            terminateAfter,
+            resolveTerminateAfterChecker(terminateAfter),
             new MockCollector(scoreMode),
             100f
         );
@@ -878,18 +840,30 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         Collector complete = new MockCollector(ScoreMode.COMPLETE);
         Collector completeNoScores = new MockCollector(ScoreMode.COMPLETE_NO_SCORES);
         {
-            QueryPhaseCollector qpc = new QueryPhaseCollector(complete, weight, terminateAfter, completeNoScores, minScore);
+            QueryPhaseCollector qpc = new QueryPhaseCollector(
+                complete,
+                weight,
+                resolveTerminateAfterChecker(terminateAfter),
+                completeNoScores,
+                minScore
+            );
             assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
         }
         {
-            QueryPhaseCollector qpc = new QueryPhaseCollector(completeNoScores, weight, terminateAfter, complete, minScore);
+            QueryPhaseCollector qpc = new QueryPhaseCollector(
+                completeNoScores,
+                weight,
+                resolveTerminateAfterChecker(terminateAfter),
+                complete,
+                minScore
+            );
             assertEquals(ScoreMode.COMPLETE, qpc.scoreMode());
         }
         {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 complete,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.TOP_DOCS),
                 minScore
             );
@@ -899,7 +873,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 complete,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.TOP_DOCS_WITH_SCORES),
                 minScore
             );
@@ -909,7 +883,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 completeNoScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.TOP_DOCS_WITH_SCORES),
                 minScore
             );
@@ -919,7 +893,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 completeNoScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.TOP_DOCS),
                 null
             );
@@ -929,7 +903,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 completeNoScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.TOP_DOCS),
                 100f
             );
@@ -946,7 +920,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.COMPLETE),
                 minScore
             );
@@ -956,7 +930,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.COMPLETE_NO_SCORES),
                 minScore
             );
@@ -966,7 +940,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.TOP_DOCS),
                 minScore
             );
@@ -976,7 +950,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.TOP_DOCS_WITH_SCORES),
                 minScore
             );
@@ -993,7 +967,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topDocs,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.COMPLETE),
                 minScore
             );
@@ -1003,7 +977,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topDocs,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.TOP_DOCS_WITH_SCORES),
                 minScore
             );
@@ -1013,7 +987,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topDocs,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.COMPLETE_NO_SCORES),
                 null
             );
@@ -1023,7 +997,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topDocs,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.COMPLETE_NO_SCORES),
                 100f
             );
@@ -1040,7 +1014,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topDocsWithScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.COMPLETE),
                 minScore
             );
@@ -1050,7 +1024,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topDocsWithScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.COMPLETE_NO_SCORES),
                 minScore
             );
@@ -1060,7 +1034,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
                 topDocsWithScores,
                 weight,
-                terminateAfter,
+                resolveTerminateAfterChecker(terminateAfter),
                 new MockCollector(ScoreMode.TOP_DOCS),
                 minScore
             );
@@ -1070,7 +1044,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
     public void testWeightIsPropagatedTopDocsOnly() throws IOException {
         MockCollector topDocsCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsCollector, null, 0, null, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+            topDocsCollector,
+            null,
+            resolveTerminateAfterChecker(0),
+            null,
+            null
+        );
         searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
         assertTrue(topDocsCollector.setWeightCalled);
     }
@@ -1078,7 +1058,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testWeightIsPropagatedWithAggs() throws IOException {
         MockCollector topDocsCollector = new MockCollector(randomFrom(ScoreMode.values()));
         MockCollector aggsCollector = new MockCollector(randomScoreModeExceptTopScores());
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsCollector, null, 0, aggsCollector, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+            topDocsCollector,
+            null,
+            resolveTerminateAfterChecker(0),
+            aggsCollector,
+            null
+        );
         searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
         assertTrue(topDocsCollector.setWeightCalled);
         assertTrue(aggsCollector.setWeightCalled);
@@ -1089,7 +1075,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         MockCollector mockCollector = new MockCollector(randomFrom(ScoreMode.values()));
         TermQuery termQuery = new TermQuery(new Term("field2", "value"));
         Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(mockCollector, filterWeight, 0, null, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+            mockCollector,
+            filterWeight,
+            resolveTerminateAfterChecker(0),
+            null,
+            null
+        );
         searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
         assertFalse(mockCollector.setWeightCalled);
     }
@@ -1100,7 +1092,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         MockCollector aggsCollector = new MockCollector(randomScoreModeExceptTopScores());
         TermQuery termQuery = new TermQuery(new Term("field2", "value"));
         Weight filterWeight = termQuery.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsCollector, filterWeight, 0, aggsCollector, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+            topDocsCollector,
+            filterWeight,
+            resolveTerminateAfterChecker(0),
+            aggsCollector,
+            null
+        );
         searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
         assertFalse(topDocsCollector.setWeightCalled);
         assertTrue(aggsCollector.setWeightCalled);
@@ -1109,7 +1107,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testWeightPropagationWithMinScoreTopDocsOnly() throws IOException {
         // the weight is not propagated to the top docs collector
         MockCollector topDocsCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsCollector, null, 0, null, 100f);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+            topDocsCollector,
+            null,
+            resolveTerminateAfterChecker(0),
+            null,
+            100f
+        );
         searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
         assertFalse(queryPhaseCollector.isTerminatedAfter());
         assertFalse(topDocsCollector.setWeightCalled);
@@ -1119,7 +1123,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         // the weight is not propagated to either of the collectors
         MockCollector topDocsCollector = new MockCollector(randomFrom(ScoreMode.values()));
         MockCollector aggsCollector = new MockCollector(randomScoreModeExceptTopScores());
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsCollector, null, 0, aggsCollector, 100f);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+            topDocsCollector,
+            null,
+            resolveTerminateAfterChecker(0),
+            aggsCollector,
+            100f
+        );
         searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
         assertFalse(queryPhaseCollector.isTerminatedAfter());
         assertFalse(topDocsCollector.setWeightCalled);
@@ -1138,7 +1148,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
             new TerminateAfterCollector(collector1, terminateAfter1),
             null,
-            0,
+            resolveTerminateAfterChecker(0),
             new TerminateAfterCollector(collector2, terminateAfter2),
             null
         );
@@ -1166,7 +1176,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             }
         };
 
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(collector1, null, 0, collector2, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+            collector1,
+            null,
+            resolveTerminateAfterChecker(0),
+            collector2,
+            null
+        );
 
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(null);
         leafCollector.setScorer(scorer);
@@ -1208,7 +1224,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             }
         }
         TopScoresCollector topDocs = new TopScoresCollector();
-        Collector queryPhaseCollector = new QueryPhaseCollector(topDocs, filterWeight, terminateAfter, null, minScore);
+        Collector queryPhaseCollector = new QueryPhaseCollector(
+            topDocs,
+            filterWeight,
+            resolveTerminateAfterChecker(terminateAfter),
+            null,
+            minScore
+        );
         LeafReaderContext leafReaderContext = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(leafReaderContext);
         MinCompetitiveScoreScorable scorer = new MinCompetitiveScoreScorable();
@@ -1235,7 +1257,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
         TopScoresCollector topDocs = new TopScoresCollector();
         Collector aggs = new MockCollector(randomBoolean() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES);
-        Collector queryPhaseCollector = new QueryPhaseCollector(topDocs, filterWeight, terminateAfter, aggs, minScore);
+        Collector queryPhaseCollector = new QueryPhaseCollector(
+            topDocs,
+            filterWeight,
+            resolveTerminateAfterChecker(terminateAfter),
+            aggs,
+            minScore
+        );
         LeafReaderContext leafReaderContext = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(leafReaderContext);
         MinCompetitiveScoreScorable scorer = new MinCompetitiveScoreScorable();
@@ -1249,7 +1277,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         // top docs collector may support it, because the top-level score mode wasn't TOP_SCORES
         TopScoresCollector topDocs = new TopScoresCollector();
         Collector aggs = new TerminateAfterCollector(new DummyTotalHitCountCollector(), 0);
-        Collector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, 0, aggs, null);
+        Collector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, resolveTerminateAfterChecker(0), aggs, null);
         LeafReaderContext leafReaderContext = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(leafReaderContext);
         MinCompetitiveScoreScorable scorer = new MinCompetitiveScoreScorable();
@@ -1263,44 +1291,44 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             // single collector => no caching
             Collector c1 = new MockCollector(ScoreMode.COMPLETE, MinCompetitiveScoreScorable.class);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, 0, null, null);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, resolveTerminateAfterChecker(0), null, null);
             queryPhaseCollector.getLeafCollector(ctx).setScorer(new MinCompetitiveScoreScorable());
         }
         {
             // no collector needs scores => no caching
             Collector c1 = new MockCollector(ScoreMode.COMPLETE_NO_SCORES, MinCompetitiveScoreScorable.class);
             Collector c2 = new MockCollector(ScoreMode.COMPLETE_NO_SCORES, MinCompetitiveScoreScorable.class);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, 0, c2, null);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, resolveTerminateAfterChecker(0), c2, null);
             queryPhaseCollector.getLeafCollector(ctx).setScorer(new MinCompetitiveScoreScorable());
         }
         {
             // only one collector needs scores => no caching
             Collector c1 = new MockCollector(ScoreMode.COMPLETE, MinCompetitiveScoreScorable.class);
             Collector c2 = new MockCollector(ScoreMode.COMPLETE_NO_SCORES, MinCompetitiveScoreScorable.class);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, 0, c2, null);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, resolveTerminateAfterChecker(0), c2, null);
             queryPhaseCollector.getLeafCollector(ctx).setScorer(new MinCompetitiveScoreScorable());
         }
         {
             // both collectors need scores => caching
             Collector c1 = new MockCollector(ScoreMode.COMPLETE, ScoreCachingWrappingScorer.class);
             Collector c2 = new MockCollector(ScoreMode.COMPLETE, ScoreCachingWrappingScorer.class);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, 0, c2, null);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, resolveTerminateAfterChecker(0), c2, null);
             queryPhaseCollector.getLeafCollector(ctx).setScorer(new MinCompetitiveScoreScorable());
         }
         {
             // both collectors need scores => caching, but one early terminates
             Collector c1 = new TerminateAfterCollector(new MockCollector(ScoreMode.COMPLETE, MinCompetitiveScoreScorable.class), 0);
             Collector c2 = new MockCollector(ScoreMode.COMPLETE, MinCompetitiveScoreScorable.class);
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, 0, c2, null);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(c1, null, resolveTerminateAfterChecker(0), c2, null);
             queryPhaseCollector.getLeafCollector(ctx).setScorer(new MinCompetitiveScoreScorable());
-            queryPhaseCollector = new QueryPhaseCollector(c2, null, 0, c1, null);
+            queryPhaseCollector = new QueryPhaseCollector(c2, null, resolveTerminateAfterChecker(0), c1, null);
             queryPhaseCollector.getLeafCollector(ctx).setScorer(new MinCompetitiveScoreScorable());
         }
     }
 
     public void testNoWrappingIfUnnecessaryTopDocsOnly() throws IOException {
         MockCollector mockCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(mockCollector, null, 0, null, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(mockCollector, null, resolveTerminateAfterChecker(0), null, null);
         LeafReaderContext context = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
         assertThat(leafCollector, CoreMatchers.sameInstance(mockCollector));
@@ -1309,7 +1337,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testNoWrappingIfUnnecessaryTopDocsEarlyTerminated() throws IOException {
         TerminateAfterCollector topDocsCollector = new TerminateAfterCollector(new MockCollector(randomFrom(ScoreMode.values())), 0);
         MockCollector aggsCollector = new MockCollector(randomScoreModeExceptTopScores());
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsCollector, null, 0, aggsCollector, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+            topDocsCollector,
+            null,
+            resolveTerminateAfterChecker(0),
+            aggsCollector,
+            null
+        );
         LeafReaderContext context = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
         assertThat(leafCollector, CoreMatchers.sameInstance(aggsCollector));
@@ -1320,7 +1354,13 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         // the wrapper calls competitiveIterator when appropriated
         Weight postFilterWeight = searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         MockCollector mockCollector = new MockCollector(randomFrom(ScoreMode.values()));
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(mockCollector, postFilterWeight, 0, null, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+            mockCollector,
+            postFilterWeight,
+            resolveTerminateAfterChecker(0),
+            null,
+            null
+        );
         LeafReaderContext context = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
         leafCollector.competitiveIterator();
@@ -1330,7 +1370,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testCompetitiveIteratorWithAggs() throws IOException {
         MockCollector topDocs = new MockCollector(randomFrom(ScoreMode.values()));
         MockCollector aggs = new MockCollector(randomScoreModeExceptTopScores());
-        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, 0, aggs, null);
+        QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocs, null, resolveTerminateAfterChecker(0), aggs, null);
         LeafReaderContext context = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
         leafCollector.competitiveIterator();
@@ -1345,9 +1385,9 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         TerminateAfterCollector collector2 = new TerminateAfterCollector(aggsMockCollector, 2);
         QueryPhaseCollector queryPhaseCollector;
         if (randomBoolean()) {
-            queryPhaseCollector = new QueryPhaseCollector(collector1, null, 0, collector2, null);
+            queryPhaseCollector = new QueryPhaseCollector(collector1, null, resolveTerminateAfterChecker(0), collector2, null);
         } else {
-            queryPhaseCollector = new QueryPhaseCollector(collector2, null, 0, collector1, null);
+            queryPhaseCollector = new QueryPhaseCollector(collector2, null, resolveTerminateAfterChecker(0), collector1, null);
         }
         LeafReaderContext context = searcher.getLeafContexts().get(0);
         LeafCollector leafCollector = queryPhaseCollector.getLeafCollector(context);
@@ -1372,14 +1412,26 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testLeafCollectorsAreNotPulledOnceTerminatedAfter() throws IOException {
         {
             MockCollector topDocsMockCollector = new MockCollector(randomFrom(ScoreMode.values()));
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsMockCollector, null, 1, null, null);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                topDocsMockCollector,
+                null,
+                resolveTerminateAfterChecker(1),
+                null,
+                null
+            );
             searcher.search(new NonCountingTermQuery(new Term("field1", "value")), queryPhaseCollector);
             assertEquals(1, topDocsMockCollector.leafCollectorsPulled);
         }
         {
             MockCollector topDocsMockCollector = new MockCollector(randomFrom(ScoreMode.values()));
             MockCollector aggsMockCollector = new MockCollector(randomScoreModeExceptTopScores());
-            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(topDocsMockCollector, null, 1, aggsMockCollector, null);
+            QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
+                topDocsMockCollector,
+                null,
+                resolveTerminateAfterChecker(1),
+                aggsMockCollector,
+                null
+            );
             searcher.search(new NonCountingTermQuery(new Term("field1", "value")), queryPhaseCollector);
             assertEquals(1, topDocsMockCollector.leafCollectorsPulled);
         }
@@ -1514,4 +1566,53 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         @Override
         public void collect(int doc) throws IOException {}
     }
+
+    /**
+     * Returns a {@link CollectorManager} that creates {@link QueryPhaseCollector}s and reduces results obtained from the wrapped top docs
+     * and (optional) aggs collector managers. Its purpose is to test QueryPhaseCollector's behaviour in concurrent scenarios.
+     * We don't use {@link QueryPhaseCollectorManager} in this test as that would broaden the scope of this test excessively.
+     *
+     * @param <T> the type of the result obtained from top docs collection
+     * @param <A> the type of the result obtained from the aggs collection
+     */
+    private static <T, A> CollectorManager<QueryPhaseCollector, Result<T, A>> createCollectorManager(
+        CollectorManager<? extends Collector, T> topDocsCollectorManager,
+        Weight postFilterWeight,
+        int terminateAfter,
+        CollectorManager<? extends Collector, A> aggsCollectorManager,
+        Float minScore
+    ) {
+        QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker = resolveTerminateAfterChecker(terminateAfter);
+
+        return new CollectorManager<>() {
+            @Override
+            public QueryPhaseCollector newCollector() throws IOException {
+                return new QueryPhaseCollector(
+                    topDocsCollectorManager.newCollector(),
+                    postFilterWeight,
+                    terminateAfterChecker,
+                    aggsCollectorManager == null ? null : aggsCollectorManager.newCollector(),
+                    minScore
+                );
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public Result<T, A> reduce(Collection<QueryPhaseCollector> collectors) throws IOException {
+                boolean terminatedAfter = collectors.stream().anyMatch(QueryPhaseCollector::isTerminatedAfter);
+                T topDocs = ((CollectorManager<Collector, T>) topDocsCollectorManager).reduce(
+                    collectors.stream().map(QueryPhaseCollector::getTopDocsCollector).toList()
+                );
+                if (aggsCollectorManager != null) {
+                    A aggs = ((CollectorManager<Collector, A>) aggsCollectorManager).reduce(
+                        collectors.stream().map(QueryPhaseCollector::getAggsCollector).toList()
+                    );
+                    return new Result<>(topDocs, aggs, terminatedAfter);
+                }
+                return new Result<>(topDocs, null, terminatedAfter);
+            }
+        };
+    }
+
+    private record Result<T, A>(T topDocs, A aggs, boolean terminatedAfter) {};
 }

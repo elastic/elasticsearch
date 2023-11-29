@@ -9,7 +9,6 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -32,7 +31,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 
 /**
- * This class is responsible for working out if APM tracing is configured and if so, preparing
+ * This class is responsible for working out if APM telemetry is configured and if so, preparing
  * a temporary config file for the APM Java agent and CLI options to the JVM to configure APM.
  * APM doesn't need to be enabled, as that can be toggled at runtime, but some configuration e.g.
  * server URL and secret key can only be provided when Elasticsearch starts.
@@ -44,16 +43,11 @@ class APMJvmOptions {
     // tag::noformat
     private static final Map<String, String> STATIC_CONFIG = Map.of(
         // Identifies the version of Elasticsearch in the captured trace data.
-        "service_version", Version.CURRENT.toString(),
-
-        // Configures a log file to write to. `_AGENT_HOME_` is a placeholder used
-        // by the agent. Don't disable writing to a log file, as the agent will then
-        // require extra Security Manager permissions when it tries to do something
-        // else, and it's just painful.
-        "log_file", "_AGENT_HOME_/../../logs/apm.log",
+        "service_version", Build.current().version(),
 
         // ES does not use auto-instrumentation.
-        "instrument", "false"
+        "instrument", "false",
+        "enable_experimental_instrumentations", "true"
         );
 
     /**
@@ -80,7 +74,8 @@ class APMJvmOptions {
 
         // Logging configuration. Unless you need detailed logs about what the APM
         // is doing, leave this value alone.
-        "log_level", "error",
+        "log_level", "warn",
+        "log_format_file", "JSON",
         "application_packages", "org.elasticsearch,org.apache.lucene",
         "metrics_interval", "120s",
         "breakdown_metrics", "false",
@@ -128,15 +123,17 @@ class APMJvmOptions {
     );
 
     /**
-     * This method works out if APM tracing is enabled, and if so, prepares a temporary config file
+     * This method works out if APM telemetry is enabled, and if so, prepares a temporary config file
      * for the APM Java agent and CLI options to the JVM to configure APM. The config file is temporary
      * because it will be deleted once Elasticsearch starts.
      *
      * @param settings the Elasticsearch settings to consider
      * @param secrets a wrapper to access the secrets, or null if there is no secrets
+     * @param logsDir the directory to write the apm log into
      * @param tmpdir Elasticsearch's temporary directory, where the config file will be written
      */
-    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path tmpdir) throws UserException, IOException {
+    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
+        IOException {
         final Path agentJar = findAgentJar();
 
         if (agentJar == null) {
@@ -144,6 +141,11 @@ class APMJvmOptions {
         }
 
         final Map<String, String> propertiesMap = extractApmSettings(settings);
+
+        // Configures a log file to write to. Don't disable writing to a log file,
+        // as the agent will then require extra Security Manager permissions when
+        // it tries to do something else, and it's just painful.
+        propertiesMap.put("log_file", logsDir.resolve("apm-agent.json").toString());
 
         // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
         if (propertiesMap.containsKey("server_url") == false && propertiesMap.containsKey("server_urls") == false) {

@@ -12,7 +12,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.geo.XYEncodingUtils;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Randomness;
@@ -75,8 +74,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                InternalCartesianBounds bounds = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.left));
@@ -105,8 +103,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                InternalCartesianBounds bounds = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.left));
@@ -140,8 +137,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .missing(missingVal);
 
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                InternalCartesianBounds bounds = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertThat(bounds.top, equalTo(y));
                 assertThat(bounds.bottom, equalTo(y));
                 assertThat(bounds.left, equalTo(x));
@@ -168,10 +164,9 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
             CartesianBoundsAggregationBuilder aggBuilder = new CartesianBoundsAggregationBuilder("my_agg").field("field")
                 .missing("invalid");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
                 IllegalArgumentException exception = expectThrows(
                     IllegalArgumentException.class,
-                    () -> searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType))
+                    () -> searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType))
                 );
                 assertThat(exception.getMessage(), startsWith("Unknown geometry type"));
             }
@@ -256,8 +251,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
             Collections.emptyMap()
         );
         try (IndexReader reader = w.getReader()) {
-            IndexSearcher searcher = new IndexSearcher(reader);
-            InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+            InternalCartesianBounds bounds = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
             assertThat(description + ": top", bounds.top, closeTo(points.top, GEOHASH_TOLERANCE));
             assertThat(description + ": bottom", bounds.bottom, closeTo(points.bottom, GEOHASH_TOLERANCE));
             assertThat(description + ": left", bounds.left, closeTo(points.left, GEOHASH_TOLERANCE));

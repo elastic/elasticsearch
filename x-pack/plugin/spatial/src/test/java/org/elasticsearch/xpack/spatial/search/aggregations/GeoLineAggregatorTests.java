@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -548,9 +547,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             return GeoEncodingUtils.decodeLatitude((int) (encoded & 0xffffffffL));
         }
 
-        private void reset(int index) {
-            super.reset(index, this.x(), this.y());
-        }
     }
 
     /** Allow test to use own objects for internal use in geometry simplifier, so we can track the sort-fields together with the points */
@@ -959,9 +955,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 DirectoryReader unwrapped = DirectoryReader.open(directory);
                 DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
             ) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-                A terms = (A) searchAndReduce(indexSearcher, aggTestConfig);
+                A terms = (A) searchAndReduce(indexReader, aggTestConfig);
                 verify.accept(terms);
             }
         }

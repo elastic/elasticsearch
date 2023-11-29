@@ -14,7 +14,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.13.1"
+  id "com.gradle.enterprise" version "3.14.1"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -106,7 +106,8 @@ List projects = [
   'test:logger-usage',
   'test:test-clusters',
   'test:x-content',
-  'test:yaml-rest-runner'
+  'test:yaml-rest-runner',
+  'test:metadata-extractor'
 ]
 
 /**
@@ -147,6 +148,7 @@ addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack/libs'))
 
 include projects.toArray(new String[0])
 

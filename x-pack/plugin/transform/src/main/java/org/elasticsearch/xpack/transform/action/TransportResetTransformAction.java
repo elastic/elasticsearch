@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.transform.action.ResetTransformAction.Reques
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -58,6 +60,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
     private final Client client;
     private final SecurityContext securityContext;
     private final Settings settings;
+    private final Settings destIndexSettings;
 
     @Inject
     public TransportResetTransformAction(
@@ -68,7 +71,8 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         Client client,
-        Settings settings
+        Settings settings,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         super(
             ResetTransformAction.NAME,
@@ -78,7 +82,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             actionFilters,
             Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.transformConfigManager = transformServices.getConfigManager();
         this.auditor = transformServices.getAuditor();
@@ -87,6 +91,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.settings = settings;
+        this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
     @Override
@@ -131,6 +136,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // dry run
                     false, // check access
                     request.timeout(),
+                    destIndexSettings,
                     updateTransformListener
                 );
             },

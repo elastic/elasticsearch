@@ -17,6 +17,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -39,10 +40,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -125,7 +128,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
     private volatile DocumentMapper mapper;
 
@@ -155,6 +157,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
     }
 
+    @SuppressWarnings("this-escape")
     public MapperService(
         Supplier<TransportVersion> clusterTransportVersion,
         IndexSettings indexSettings,
@@ -183,7 +186,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         this.documentParser = new DocumentParser(
             parserConfiguration,
             this.mappingParserContextSupplier.get(),
@@ -348,13 +350,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Mapping newMapping = parseMapping(mapping.type(), mapping.source());
             final CompressedXContent currentSource = this.mapper.mappingSource();
             final CompressedXContent newSource = newMapping.toCompressedXContent();
-            if (Objects.equals(currentSource, newSource) == false) {
+            if (Objects.equals(currentSource, newSource) == false
+                && mapper.isSyntheticSourceMalformed(currentSource, indexVersionCreated) == false) {
                 throw new IllegalStateException(
                     "expected current mapping [" + currentSource + "] to be the same as new mapping [" + newSource + "]"
                 );
             }
         }
         return true;
+
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
@@ -365,33 +369,186 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    /**
+     * Merging the provided mappings. Actual merging is done in the raw, non-parsed, form of the mappings. This allows to do a proper bulk
+     * merge, where parsing is done only when all raw mapping settings are already merged.
+     */
+    public DocumentMapper merge(String type, List<CompressedXContent> mappingSources, MergeReason reason) {
+        final DocumentMapper currentMapper = this.mapper;
+        if (currentMapper != null && mappingSources.size() == 1 && currentMapper.mappingSource().equals(mappingSources.get(0))) {
+            return currentMapper;
+        }
+
+        Map<String, Object> mergedRawMapping = null;
+        for (CompressedXContent mappingSource : mappingSources) {
+            Map<String, Object> rawMapping = MappingParser.convertToMap(mappingSource);
+
+            // normalize mappings, making sure that all have the provided type as a single root
+            if (rawMapping.containsKey(type)) {
+                if (rawMapping.size() > 1) {
+                    throw new MapperParsingException("cannot merge a map with multiple roots, one of which is [" + type + "]");
+                }
+            } else {
+                rawMapping = Map.of(type, rawMapping);
+            }
+
+            if (mergedRawMapping == null) {
+                mergedRawMapping = rawMapping;
+            } else {
+                XContentHelper.merge(type, mergedRawMapping, rawMapping, RawFieldMappingMerge.INSTANCE);
+            }
+        }
+        if (mergedRawMapping != null && mergedRawMapping.size() > 1) {
+            throw new MapperParsingException("cannot merge mapping sources with different roots");
+        }
+        return (mergedRawMapping != null) ? doMerge(type, reason, mergedRawMapping) : null;
+    }
+
+    /**
+     * A {@link org.elasticsearch.common.xcontent.XContentHelper.CustomMerge} for raw map merges that are suitable for index/field mappings.
+     * The default raw map merge algorithm doesn't override values - if there are multiple values for a key, then:
+     * <ul>
+     *     <li> if the values are of map type, the old and new values will be merged recursively
+     *     <li> otherwise, the original value will be maintained
+     * </ul>
+     * When merging field mappings, we want something else. Specifically:
+     * <ul>
+     *     <li> within field mappings node (which is nested within a {@code properties} node):
+     *     <ul>
+     *         <li> if both the base mapping and the mapping to merge into it are of mergeable types (e.g {@code object -> object},
+     *         {@code object -> nested}), then we only want to merge specific mapping entries:
+     *         <ul>
+     *             <li> {@code properties} node - merging fields from both mappings
+     *             <li> {@code subobjects} entry - since this setting affects an entire subtree, we need to keep it when merging
+     *         </ul>
+     *         <li> otherwise, for any couple of non-mergeable types ((e.g {@code object -> long}, {@code long -> long}) - we just want
+     *         to replace the entire mappings subtree, let the last one win
+     *     </ul>
+     *     <li> any other map values that are not encountered within a {@code properties} node (e.g. "_doc", "_meta" or "properties"
+     *     itself) - apply recursive merge as the default algorithm would apply
+     *     <li> any non-map values - override the value of the base map with the value of the merged map
+     * </ul>
+     */
+    private static class RawFieldMappingMerge implements XContentHelper.CustomMerge {
+        private static final XContentHelper.CustomMerge INSTANCE = new RawFieldMappingMerge();
+
+        private static final Set<String> MERGEABLE_OBJECT_TYPES = Set.of(ObjectMapper.CONTENT_TYPE, NestedObjectMapper.CONTENT_TYPE);
+
+        private RawFieldMappingMerge() {}
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public Object merge(String parent, String key, Object oldValue, Object newValue) {
+            if (oldValue instanceof Map && newValue instanceof Map) {
+                if ("properties".equals(parent)) {
+                    // merging two mappings of the same field, where "key" is the field name
+                    Map<String, Object> baseMap = (Map<String, Object>) oldValue;
+                    Map<String, Object> mapToMerge = (Map<String, Object>) newValue;
+                    if (shouldMergeFieldMappings(baseMap, mapToMerge)) {
+                        // if two field mappings are to be merged, we only want to keep some specific entries from the base mapping and
+                        // let all others be overridden by the second mapping
+                        Map<String, Object> mergedMappings = new HashMap<>();
+                        // we must keep the "properties" node, otherwise our merge has no point
+                        if (baseMap.containsKey("properties")) {
+                            mergedMappings.put("properties", new HashMap<>((Map<String, Object>) baseMap.get("properties")));
+                        }
+                        // the "subobjects" setting affects an entire subtree and not only locally where it is configured
+                        if (baseMap.containsKey("subobjects")) {
+                            mergedMappings.put("subobjects", baseMap.get("subobjects"));
+                        }
+                        // recursively merge these two field mappings
+                        XContentHelper.merge(key, mergedMappings, mapToMerge, INSTANCE);
+                        return mergedMappings;
+                    } else {
+                        // non-mergeable types - replace the entire mapping subtree for this field
+                        return mapToMerge;
+                    }
+                }
+                // anything else (e.g. "_doc", "_meta", "properties") - no custom merge, rely on caller merge logic
+                // field mapping entries of Map type (like "fields" and "meta") are handled above and should never reach here
+                return null;
+            } else {
+                if (key.equals("required")) {
+                    // we look for explicit `_routing.required` settings because we use them to detect contradictions of this setting
+                    // that comes from mappings with such that comes from the optional `data_stream` configuration of composable index
+                    // templates
+                    if ("_routing".equals(parent) && oldValue != newValue) {
+                        throw new MapperParsingException("contradicting `_routing.required` settings");
+                    }
+                }
+                return newValue;
+            }
+        }
+
+        /**
+         * Normally, we don't want to merge raw field mappings, however there are cases where we do, for example - two
+         * "object" (or "nested") mappings.
+         *
+         * @param mappings1 first mapping of a field
+         * @param mappings2 second mapping of a field
+         * @return {@code true} if the second mapping should be merged into the first mapping
+         */
+        private boolean shouldMergeFieldMappings(Map<String, Object> mappings1, Map<String, Object> mappings2) {
+            String type1 = (String) mappings1.get("type");
+            if (type1 == null && mappings1.get("properties") != null) {
+                type1 = ObjectMapper.CONTENT_TYPE;
+            }
+            String type2 = (String) mappings2.get("type");
+            if (type2 == null && mappings2.get("properties") != null) {
+                type2 = ObjectMapper.CONTENT_TYPE;
+            }
+            if (type1 == null || type2 == null) {
+                return false;
+            }
+            return MERGEABLE_OBJECT_TYPES.contains(type1) && MERGEABLE_OBJECT_TYPES.contains(type2);
+        }
+    }
+
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
         final DocumentMapper currentMapper = this.mapper;
         if (currentMapper != null && currentMapper.mappingSource().equals(mappingSource)) {
             return currentMapper;
         }
-        synchronized (this) {
-            Mapping incomingMapping = parseMapping(type, mappingSource);
-            Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
-            // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
-            // We should identify these cases reliably and save expensive serialization here
-            DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
-            if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-                return newMapper;
-            }
-            this.mapper = newMapper;
-            assert assertSerialization(newMapper);
+        Map<String, Object> mappingSourceAsMap = MappingParser.convertToMap(mappingSource);
+        return doMerge(type, reason, mappingSourceAsMap);
+    }
+
+    private synchronized DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
+        Mapping incomingMapping = parseMapping(type, mappingSourceAsMap);
+        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
+        // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
+        // We should identify these cases reliably and save expensive serialization here
+        DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
+        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
             return newMapper;
         }
+        this.mapper = newMapper;
+        assert assertSerialization(newMapper);
+        return newMapper;
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
 
     public Mapping parseMapping(String mappingType, CompressedXContent mappingSource) {
+        try {
+            return mappingParser.parse(mappingType, mappingSource);
+        } catch (Exception e) {
+            throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
+        }
+    }
+
+    /**
+     * A method to parse mapping from a source in a map form.
+     *
+     * @param mappingType   the mapping type
+     * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
+     * @return a parsed mapping
+     */
+    public Mapping parseMapping(String mappingType, Map<String, Object> mappingSource) {
         try {
             return mappingParser.parse(mappingType, mappingSource);
         } catch (Exception e) {
@@ -550,7 +707,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, @Nullable String resource, boolean preview)
         throws IOException {
-        logger.info("reloading search analyzers");
+        logger.debug("reloading search analyzers for index [{}]", indexSettings.getIndex().getName());
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
         return indexAnalyzers.reload(registry, indexSettings, resource, preview);
     }
@@ -562,4 +719,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return documentMapper().mapping().getRoot().dynamicTemplates();
     }
 
+    public MapperRegistry getMapperRegistry() {
+        return mapperRegistry;
+    }
 }

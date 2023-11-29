@@ -34,6 +34,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        assert hasReferences();
         out.writeTimeValue(masterNodeTimeout);
     }
 

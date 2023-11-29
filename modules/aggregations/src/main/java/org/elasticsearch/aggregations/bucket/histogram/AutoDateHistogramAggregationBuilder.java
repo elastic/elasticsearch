@@ -9,6 +9,7 @@
 package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -122,7 +123,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         numBuckets = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
             minimumIntervalExpression = in.readOptionalString();
         }
     }
@@ -130,7 +131,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(numBuckets);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
             out.writeOptionalString(minimumIntervalExpression);
         }
     }
@@ -165,11 +166,6 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     public String getMinimumIntervalExpression() {
         return minimumIntervalExpression;
     }
@@ -177,7 +173,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
         if (minimumIntervalExpression != null && ALLOWED_INTERVALS.containsValue(minimumIntervalExpression) == false) {
             throw new IllegalArgumentException(
-                MINIMUM_INTERVAL_FIELD.getPreferredName() + " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]"
+                MINIMUM_INTERVAL_FIELD.getPreferredName() + " must be one of [" + ALLOWED_INTERVALS.values() + "]"
             );
         }
         this.minimumIntervalExpression = minimumIntervalExpression;
@@ -214,9 +210,8 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         int maxRoundingInterval = Arrays.stream(roundings, 0, roundings.length - 1)
             .map(rounding -> rounding.innerIntervals)
             .flatMapToInt(Arrays::stream)
-            .boxed()
             .reduce(Integer::max)
-            .get();
+            .getAsInt();
         Settings settings = context.getIndexSettings().getNodeSettings();
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
         int bucketCeiling = maxBuckets / maxRoundingInterval;
@@ -268,7 +263,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     public static class RoundingInfo implements Writeable {
@@ -291,7 +286,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             this.innerIntervals = innerIntervals;
             Objects.requireNonNull(dateTimeUnit, "dateTimeUnit cannot be null");
             if (ALLOWED_INTERVALS.containsKey(dateTimeUnit) == false) {
-                throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet().toString());
+                throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet());
             }
             this.dateTimeUnit = ALLOWED_INTERVALS.get(dateTimeUnit);
         }

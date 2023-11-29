@@ -238,7 +238,7 @@ public class ResultsPersisterService {
                 isShutdown ? "node is shutting down." : "machine learning feature is being reset."
             );
         }
-        final PlainActionFuture<BulkResponse> getResponseFuture = PlainActionFuture.newFuture();
+        final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
         bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
         return getResponseFuture.actionGet();
     }
@@ -281,7 +281,7 @@ public class ResultsPersisterService {
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler
     ) {
-        final PlainActionFuture<SearchResponse> getResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<SearchResponse> getResponse = new PlainActionFuture<>();
         final Object key = new Object();
         final ActionListener<SearchResponse> removeListener = ActionListener.runBefore(
             getResponse,
@@ -469,7 +469,7 @@ public class ResultsPersisterService {
                 TimeValue.timeValueMillis(MIN_RETRY_SLEEP_MILLIS),
                 TimeValue.MAX_VALUE,
                 listener,
-                UTILITY_THREAD_POOL_NAME
+                threadPool.executor(UTILITY_THREAD_POOL_NAME)
             );
             this.jobId = jobId;
             this.shouldRetry = shouldRetry;

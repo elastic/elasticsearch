@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -75,7 +76,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             LoadTrainedModelPackageAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
     }
@@ -196,8 +197,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         }, false);
     }
 
-    private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, Exception e) {
-        logAndWriteNotificationAtError(client, modelId, e.toString());
+    private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, ElasticsearchException e) {
+        logAndWriteNotificationAtError(client, modelId, e.getDetailedMessage());
         exceptionRef.set(e);
     }
 

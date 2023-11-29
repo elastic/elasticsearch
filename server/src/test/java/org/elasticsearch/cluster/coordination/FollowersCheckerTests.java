@@ -552,7 +552,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 }
 
                 @Override
-                public void handleResponse(TransportResponse.Empty response) {
+                public void handleResponse() {
                     fail("unexpected success");
                 }
 
@@ -641,7 +641,7 @@ public class FollowersCheckerTests extends ESTestCase {
                     }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse() {
                         fail("unexpected success");
                     }
 
@@ -708,7 +708,7 @@ public class FollowersCheckerTests extends ESTestCase {
                     }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse() {
                         fail("unexpected success");
                     }
 
@@ -744,7 +744,7 @@ public class FollowersCheckerTests extends ESTestCase {
                     }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse() {
                         fail("unexpected success");
                     }
 
@@ -833,13 +833,13 @@ public class FollowersCheckerTests extends ESTestCase {
         }
 
         @Override
-        public void handleResponse(TransportResponse.Empty response) {
+        public void handleResponse() {
             assertTrue(responseReceived.compareAndSet(false, true));
         }
 
         @Override
         public void handleException(TransportException exp) {
-            throw new AssertionError("unexpected", exp);
+            fail(exp);
         }
 
         public boolean succeeded() {

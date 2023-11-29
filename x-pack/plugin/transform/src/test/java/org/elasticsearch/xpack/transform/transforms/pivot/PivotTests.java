@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -31,11 +30,14 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfigTests;
@@ -82,6 +84,7 @@ import static org.mockito.Mockito.when;
 public class PivotTests extends ESTestCase {
 
     private NamedXContentRegistry namedXContentRegistry;
+    private TestThreadPool threadPool;
     private Client client;
 
     // exclude aggregations from the analytics module as we don't have parser for it here
@@ -102,15 +105,16 @@ public class PivotTests extends ESTestCase {
 
     @Before
     public void setupClient() {
-        if (client != null) {
-            client.close();
+        if (threadPool != null) {
+            threadPool.close();
         }
-        client = new MyMockClient(getTestName());
+        threadPool = createThreadPool();
+        client = new MyMockClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
+        threadPool.close();
     }
 
     @Override
@@ -120,14 +124,14 @@ public class PivotTests extends ESTestCase {
 
     public void testValidateExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
 
         assertValidTransform(client, source, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("non_existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -138,7 +142,7 @@ public class PivotTests extends ESTestCase {
         Function pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize),
             new SettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
         assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
@@ -146,7 +150,7 @@ public class PivotTests extends ESTestCase {
         pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null),
             new SettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
         assertThat(pivot.getInitialPageSize(), equalTo(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE));
@@ -159,7 +163,7 @@ public class PivotTests extends ESTestCase {
         // search has failures although they might just be temporary
         SourceConfig source = new SourceConfig("existing_source_index_with_failing_shards");
 
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -173,7 +177,7 @@ public class PivotTests extends ESTestCase {
             Function pivot = new Pivot(
                 getValidPivotConfig(aggregationConfig),
                 new SettingsConfig(),
-                Version.CURRENT,
+                TransformConfigVersion.CURRENT,
                 Collections.emptySet()
             );
             assertValidTransform(client, source, pivot);
@@ -187,7 +191,7 @@ public class PivotTests extends ESTestCase {
             Function pivot = new Pivot(
                 getValidPivotConfig(aggregationConfig),
                 new SettingsConfig(),
-                Version.CURRENT,
+                TransformConfigVersion.CURRENT,
                 Collections.emptySet()
             );
 
@@ -228,7 +232,7 @@ public class PivotTests extends ESTestCase {
         assertThat(groupConfig.validate(null), is(nullValue()));
 
         PivotConfig pivotConfig = new PivotConfig(groupConfig, AggregationConfigTests.randomAggregationConfig(), null);
-        Function pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(pivotConfig, new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
         assertThat(pivot.getPerformanceCriticalFields(), contains("field-A", "field-B", "field-C"));
     }
 
@@ -236,7 +240,7 @@ public class PivotTests extends ESTestCase {
         Function pivot = new Pivot(
             PivotConfigTests.randomPivotConfig(),
             SettingsConfigTests.randomSettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
 
@@ -271,7 +275,7 @@ public class PivotTests extends ESTestCase {
         Function pivot = new Pivot(
             PivotConfigTests.randomPivotConfig(),
             SettingsConfigTests.randomSettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
 
@@ -279,17 +283,17 @@ public class PivotTests extends ESTestCase {
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         final AtomicReference<List<Map<String, Object>>> responseHolder = new AtomicReference<>();
 
-        Client emptyAggregationClient = new MyMockClientWithEmptyAggregation("empty aggregation test for preview");
-        pivot.preview(emptyAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-            responseHolder.set(r);
-            latch.countDown();
-        }, e -> {
-            exceptionHolder.set(e);
-            latch.countDown();
-        }));
-        assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
-        emptyAggregationClient.close();
-
+        try (var threadPool = createThreadPool()) {
+            final var emptyAggregationClient = new MyMockClientWithEmptyAggregation(threadPool);
+            pivot.preview(emptyAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
+                responseHolder.set(r);
+                latch.countDown();
+            }, e -> {
+                exceptionHolder.set(e);
+                latch.countDown();
+            }));
+            assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
+        }
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(responseHolder.get(), is(empty()));
     }
@@ -298,7 +302,7 @@ public class PivotTests extends ESTestCase {
         Function pivot = new Pivot(
             PivotConfigTests.randomPivotConfig(),
             SettingsConfigTests.randomSettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
 
@@ -306,16 +310,17 @@ public class PivotTests extends ESTestCase {
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         final AtomicReference<List<Map<String, Object>>> responseHolder = new AtomicReference<>();
 
-        Client compositeAggregationClient = new MyMockClientWithCompositeAggregation("composite aggregation test for preview");
-        pivot.preview(compositeAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-            responseHolder.set(r);
-            latch.countDown();
-        }, e -> {
-            exceptionHolder.set(e);
-            latch.countDown();
-        }));
-        assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
-        compositeAggregationClient.close();
+        try (var threadPool = createThreadPool()) {
+            final var compositeAggregationClient = new MyMockClientWithCompositeAggregation(threadPool);
+            pivot.preview(compositeAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
+                responseHolder.set(r);
+                latch.countDown();
+            }, e -> {
+                exceptionHolder.set(e);
+                latch.countDown();
+            }));
+            assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
+        }
 
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(responseHolder.get(), is(empty()));
@@ -328,8 +333,8 @@ public class PivotTests extends ESTestCase {
     }
 
     private class MyMockClient extends NoOpClient {
-        MyMockClient(String testName) {
-            super(testName);
+        MyMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")
@@ -383,8 +388,8 @@ public class PivotTests extends ESTestCase {
     }
 
     private class MyMockClientWithEmptyAggregation extends NoOpClient {
-        MyMockClientWithEmptyAggregation(String testName) {
-            super(testName);
+        MyMockClientWithEmptyAggregation(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")
@@ -401,8 +406,8 @@ public class PivotTests extends ESTestCase {
     }
 
     private class MyMockClientWithCompositeAggregation extends NoOpClient {
-        MyMockClientWithCompositeAggregation(String testName) {
-            super(testName);
+        MyMockClientWithCompositeAggregation(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")

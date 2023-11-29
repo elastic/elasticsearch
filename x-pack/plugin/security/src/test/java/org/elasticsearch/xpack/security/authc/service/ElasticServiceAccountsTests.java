@@ -24,9 +24,8 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.MultiSearchAction;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,68 +33,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
-import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
-import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
-import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
-import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
-import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
-import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
-import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
-import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
-import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
-import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
-import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
-import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
-import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
-import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
-import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
-import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
-import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
-import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
-import org.elasticsearch.xpack.core.ml.action.PostDataAction;
-import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
-import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
-import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
-import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
-import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
-import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
@@ -117,7 +54,6 @@ import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ElasticServiceAccount;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -204,14 +140,14 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(index), is(false));
-            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(false));
-            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
         });
 
         final IndexAbstraction profilingIndex = mockIndexAbstraction("profiling-" + randomAlphaOfLengthBetween(1, 20));
         assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(profilingIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(profilingIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(profilingIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(profilingIndex), is(true));
@@ -219,8 +155,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(profilingIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(profilingIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(profilingIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(profilingIndex), is(false));
 
         List.of("synthetics-" + randomAlphaOfLengthBetween(1, 20)).stream().map(this::mockIndexAbstraction).forEach(index -> {
@@ -233,8 +169,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(index), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
         });
 
@@ -256,8 +192,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotFleetIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(dotFleetIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(dotFleetIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(dotFleetIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotFleetIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(dotFleetIndex), is(false));
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetIndex), is(false));
@@ -271,12 +207,17 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetSecretsIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(dotFleetSecretsIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(dotFleetSecretsIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(dotFleetSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(dotFleetSecretsIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
+
+        final TransportRequest request = mock(TransportRequest.class);
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(false));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(false));
 
         final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
         assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(apmSampledTracesIndex), is(true));
@@ -285,8 +226,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(apmSampledTracesIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(apmSampledTracesIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(apmSampledTracesIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(apmSampledTracesIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(apmSampledTracesIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(apmSampledTracesIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(apmSampledTracesIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(apmSampledTracesIndex), is(false));
@@ -431,8 +372,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(enterpriseSearchIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(enterpriseSearchIndex), is(true));
@@ -447,92 +388,5 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             randomFrom(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM)
         );
         return mock;
-    }
-
-    private void assertNoAccessAllowed(Role role, Collection<String> indices) {
-        for (String index : indices) {
-            assertNoAccessAllowed(role, index);
-        }
-    }
-
-    private void assertNoAccessAllowed(Role role, String index) {
-        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(UpdateAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(mockIndexAbstraction(index)), is(false));
-    }
-
-    private void assertRoleHasManageMl(Role role) {
-        final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
-
-        assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteCalendarEventAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteExpiredDataAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteFilterAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteForecastAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteTrainedModelAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(EstimateModelMemoryAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(EvaluateDataFrameAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(ExplainDataFrameAnalyticsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request, authentication), is(false)); // internal use only
-        assertThat(role.cluster().check(FlushJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(ForecastJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetBucketsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetCalendarEventsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetCalendarsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetCategoriesAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetDatafeedsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetDataFrameAnalyticsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetDataFrameAnalyticsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetFiltersAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetInfluencersAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetJobsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetJobsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetModelSnapshotsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetOverallBucketsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetRecordsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetTrainedModelsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetTrainedModelsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(InferModelAction.EXTERNAL_NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(InferModelAction.NAME, request, authentication), is(false)); // internal use only
-        assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request, authentication), is(false)); // internal use only
-        assertThat(role.cluster().check(KillProcessAction.NAME, request, authentication), is(false)); // internal use only
-        assertThat(role.cluster().check(MlInfoAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(OpenJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PersistJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PostCalendarEventsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PostDataAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PreviewDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutCalendarAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutDataFrameAnalyticsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutFilterAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutTrainedModelAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(SetUpgradeModeAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(StartDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(StartDataFrameAnalyticsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(StopDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(StopDataFrameAnalyticsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateFilterAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateProcessAction.NAME, request, authentication), is(false)); // internal use only
-        assertThat(role.cluster().check(ValidateDetectorAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(ValidateJobConfigAction.NAME, request, authentication), is(true));
     }
 }

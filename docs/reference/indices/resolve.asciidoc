@@ -68,8 +68,8 @@ for the target data stream, index, or index alias.
 +
 --
 (Required, string) Comma-separated name(s) or index pattern(s) of the
-indices, aliases, and data streams to resolve. Resources on
-<<remote-clusters,remote clusters>> can be specified using the
+indices, aliases, and data streams to resolve, using <<api-multi-index>>.
+Resources on <<remote-clusters,remote clusters>> can be specified using the
 `<cluster>:<name>` syntax.
 --
 
@@ -79,6 +79,20 @@ indices, aliases, and data streams to resolve. Resources on
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
++
+Defaults to `false`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+`ignore_throttled`::
+(Optional, Boolean) If `true`, concrete, expanded or aliased indices are
+ignored when frozen. Defaults to `false`.
++
+deprecated:[7.16.0]
 
 [[resolve-index-api-example]]
 ==== {api-examples-title}

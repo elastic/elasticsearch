@@ -130,7 +130,9 @@ public class NodeLoadDetectorTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ofBytes(MODEL_MEMORY_REQUIREMENT),
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                                     .addRoutingEntry("_node_id4", new RoutingInfo(1, 1, RoutingState.STARTING, ""))

@@ -1,0 +1,5 @@
+pr: 100862
+summary: Sending an index name to `DocumentParsingObserver` that is not ever null
+area: Ingest Node
+type: bug
+issues: []

@@ -294,23 +294,6 @@ setup:
   - match: { error.root_cause.0.reason: "failed to create query: field [nonexistent] does not exist in the mapping" }
 
 ---
-"Direct kNN queries are disallowed":
-  - skip:
-      version: ' - 8.3.99'
-      reason: 'error message changed in 8.4'
-  - do:
-      catch: bad_request
-      search:
-        index: test-index
-        body:
-          query:
-            knn:
-              field: vector
-              query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
-              num_candidates: 1
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [knn] body parameter instead" }
----
 "KNN Vector similarity search only":
   - skip:
       version: ' - 8.7.99'
@@ -368,3 +351,88 @@ setup:
             filter: {"term": {"name": "cow.jpg"}}
 
   - length: {hits.hits: 0}
+---
+"Knn search with mip":
+  - skip:
+      version: ' - 8.10.99'
+      reason: 'mip similarity added in 8.11'
+      features: close_to
+
+  - do:
+      indices.create:
+        index: mip
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: max_inner_product
+
+  - do:
+      index:
+        index: mip
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+
+  - do:
+      index:
+        index: mip
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [-0.5, 100.0, -13, 14.8, -156.0]
+
+  - do:
+      index:
+        index: mip
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: mip
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+
+  - length: {hits.hits: 3}
+  - match: {hits.hits.0._id: "1"}
+  - close_to: {hits.hits.0._score: {value: 58694.902, error: 0.01}}
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value: 34702.79, error: 0.01}}
+  - match: {hits.hits.2._id: "2"}
+  - close_to: {hits.hits.2._score: {value: 33686.29, error: 0.01}}
+
+  - do:
+      search:
+        index: mip
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            filter: { "term": { "name": "moose.jpg" } }
+
+
+
+  - length: {hits.hits: 1}
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 33686.29, error: 0.01}}

@@ -181,7 +181,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
     public static IndexTemplateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        builder.patterns(in.readStringList());
+        builder.patterns(in.readStringCollectionAsList());
         builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
@@ -206,7 +206,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         out.writeInt(order);
         out.writeStringCollection(patterns);
         settings.writeTo(out);
-        out.writeMap(mappings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(mappings, StreamOutput::writeWriteable);
         out.writeCollection(aliases.values());
         out.writeOptionalVInt(version);
     }
@@ -224,7 +224,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         }
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private static final Set<String> VALID_FIELDS = Set.of("order", "mappings", "settings", "index_patterns", "aliases", "version");
 

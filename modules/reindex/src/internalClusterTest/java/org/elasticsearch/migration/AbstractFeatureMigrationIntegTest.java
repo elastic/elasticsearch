@@ -153,7 +153,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
     public <T extends Plugin> T getPlugin(Class<T> type) {
         final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
-        return pluginsService.filterPlugins(type).stream().findFirst().get();
+        return pluginsService.filterPlugins(type).findFirst().get();
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {
@@ -179,7 +179,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             // managed
             createRequest.setSettings(
                 Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .build()
             );
@@ -192,7 +192,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(ESIntegTestCase.client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
+            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
         indexRandom(true, docs);
         IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();
@@ -209,6 +209,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             {
                 builder.startObject("_meta");
                 builder.field(VERSION_META_KEY, META_VERSION);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                 builder.field(DESCRIPTOR_MANAGED_META_KEY, descriptorManaged);
                 builder.field(DESCRIPTOR_INTERNAL_META_KEY, descriptorInternal);
                 builder.endObject();

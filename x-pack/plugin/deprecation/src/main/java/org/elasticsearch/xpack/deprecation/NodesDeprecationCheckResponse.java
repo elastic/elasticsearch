@@ -33,12 +33,12 @@ public class NodesDeprecationCheckResponse extends BaseNodesResponse<NodesDeprec
 
     @Override
     protected List<NodesDeprecationCheckAction.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodesDeprecationCheckAction.NodeResponse::new);
+        return in.readCollectionAsList(NodesDeprecationCheckAction.NodeResponse::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodesDeprecationCheckAction.NodeResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

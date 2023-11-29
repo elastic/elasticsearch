@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
+
 /**
  * Creates all index-templates and ILM policies that are required for using Elastic Universal Profiling.
  */
@@ -40,7 +42,9 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(ProfilingIndexTemplateRegistry.class);
     // history (please add a comment why you increased the version here)
     // version 1: initial
-    public static final int INDEX_TEMPLATE_VERSION = 1;
+    // version 2: Added 'profiling.host.machine' keyword mapping to profiling-hosts
+    // version 3: Add optional component template 'profiling-ilm@custom' to all ILM-managed index templates
+    public static final int INDEX_TEMPLATE_VERSION = 3;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 1;
@@ -53,7 +57,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final int PROFILING_RETURNPADS_PRIVATE_VERSION = 1;
     public static final int PROFILING_SQ_EXECUTABLES_VERSION = 1;
     public static final int PROFILING_SQ_LEAFFRAMES_VERSION = 1;
-
     public static final String PROFILING_TEMPLATE_VERSION_VARIABLE = "xpack.profiling.template.version";
 
     private volatile boolean templatesEnabled;
@@ -86,17 +89,22 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         return true;
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
         new LifecyclePolicyConfig(
             "profiling-60-days",
             "/profiling/ilm-policy/profiling-60-days.json",
             Map.of(PROFILING_TEMPLATE_VERSION_VARIABLE, String.valueOf(INDEX_TEMPLATE_VERSION))
-        ).load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)
+        )
     );
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
-        return templatesEnabled ? LIFECYCLE_POLICIES : Collections.emptyList();
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICY_CONFIGS;
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        return templatesEnabled ? lifecyclePolicies : Collections.emptyList();
     }
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
@@ -276,7 +284,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private int getVersion(LifecyclePolicy policy, String logicalVersion) {
+    private static int getVersion(LifecyclePolicy policy, String logicalVersion) {
         Map<String, Object> meta = policy.getMetadata();
         try {
             return meta != null ? Integer.parseInt(meta.getOrDefault("version", Integer.MIN_VALUE).toString()) : Integer.MIN_VALUE;
@@ -288,21 +296,37 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    public static boolean isAllResourcesCreated(ClusterState state) {
-        for (String componentTemplate : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
-            if (state.metadata().componentTemplates().containsKey(componentTemplate) == false) {
+    /**
+     * Determines whether all resources (component templates, composable templates and lifecycle policies) have been created. This method
+     * also checks whether resources have been created for the expected version.
+     *
+     * @param state Current cluster state.
+     * @param settings Current cluster settings.
+     * @return <code>true</code> if and only if all resources managed by this registry have been created and are current.
+     */
+    public static boolean isAllResourcesCreated(ClusterState state, Settings settings) {
+        for (String name : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
+            ComponentTemplate componentTemplate = state.metadata().componentTemplates().get(name);
+            if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        for (String composableTemplate : COMPOSABLE_INDEX_TEMPLATE_CONFIGS.keySet()) {
-            if (state.metadata().templatesV2().containsKey(composableTemplate) == false) {
+        for (String name : COMPOSABLE_INDEX_TEMPLATE_CONFIGS.keySet()) {
+            ComposableIndexTemplate composableIndexTemplate = state.metadata().templatesV2().get(name);
+            if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        for (LifecyclePolicy lifecyclePolicy : LIFECYCLE_POLICIES) {
+        if (isDataStreamsLifecycleOnlyMode(settings) == false) {
             IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-            if (ilmMetadata == null || ilmMetadata.getPolicies().containsKey(lifecyclePolicy.getName()) == false) {
+            if (ilmMetadata == null) {
                 return false;
+            }
+            for (LifecyclePolicyConfig lifecyclePolicy : LIFECYCLE_POLICY_CONFIGS) {
+                LifecyclePolicy existingPolicy = ilmMetadata.getPolicies().get(lifecyclePolicy.getPolicyName());
+                if (existingPolicy == null || getVersion(existingPolicy, "current") < INDEX_TEMPLATE_VERSION) {
+                    return false;
+                }
             }
         }
         return true;

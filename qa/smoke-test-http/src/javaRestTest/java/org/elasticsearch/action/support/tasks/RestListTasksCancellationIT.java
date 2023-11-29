@@ -9,7 +9,7 @@
 package org.elasticsearch.action.support.tasks;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
@@ -49,7 +49,7 @@ public class RestListTasksCancellationIT extends HttpSmokeTestCase {
         final PlainActionFuture<Response> tasksFuture = new PlainActionFuture<>();
         final Cancellable tasksCancellable = getRestClient().performRequestAsync(tasksRequest, wrapAsRestResponseListener(tasksFuture));
 
-        awaitTaskWithPrefix(ListTasksAction.NAME + "[n]");
+        awaitTaskWithPrefix(TransportListTasksAction.TYPE.name() + "[n]");
 
         tasksCancellable.cancel();
 
@@ -61,7 +61,7 @@ public class RestListTasksCancellationIT extends HttpSmokeTestCase {
             () -> assertFalse(
                 taskManagers.stream()
                     .flatMap(taskManager -> taskManager.getCancellableTasks().values().stream())
-                    .anyMatch(t -> t.getAction().startsWith(ListTasksAction.NAME))
+                    .anyMatch(t -> t.getAction().startsWith(TransportListTasksAction.TYPE.name()))
             )
         );
 

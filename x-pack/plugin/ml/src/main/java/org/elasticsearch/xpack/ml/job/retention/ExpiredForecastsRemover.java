@@ -10,9 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -98,7 +98,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         searchRequest.source(source);
         searchRequest.setParentTask(parentTaskId);
         client.execute(
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             new ThreadedActionListener<>(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), forecastStatsHandler)
         );
@@ -183,7 +183,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         return forecastsToDelete;
     }
 
-    private DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
+    private static DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setTimeout(DEFAULT_MAX_DURATION);

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -66,7 +67,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             actionFilters,
             UpdateSettingsRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
         this.systemIndices = systemIndices;
@@ -125,6 +126,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         )
             .settings(requestSettings)
             .setPreserveExisting(request.isPreserveExisting())
+            .reopenShards(request.reopen())
             .ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout());
 

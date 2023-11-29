@@ -25,7 +25,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -95,7 +94,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 responseSetOnce.set(restResponse);
             }
         };
-        final ApiKey.Type type = TcpTransport.isUntrustedRemoteClusterEnabled() ? randomFrom(ApiKey.Type.values()) : ApiKey.Type.REST;
+        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
@@ -114,6 +113,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     creation,
                     expiration,
                     false,
+                    null,
                     "user-x",
                     "realm-1",
                     metadata,
@@ -123,7 +123,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             )
         );
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -150,44 +150,38 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     listener.onFailure(new ElasticsearchSecurityException("encountered an error while creating API key"));
                 }
             }
-        }) {
-            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
+        };
+        final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
 
-            restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
+        restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(restResponse.status(), (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
+        final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
+        if (replyEmptyResponse) {
+            assertThat(actual.getApiKeyInfos().length, is(0));
+        } else {
             assertThat(
-                restResponse.status(),
-                (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK)
-            );
-            final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(
-                createParser(XContentType.JSON.xContent(), restResponse.content())
-            );
-            if (replyEmptyResponse) {
-                assertThat(actual.getApiKeyInfos().length, is(0));
-            } else {
-                assertThat(
-                    actual.getApiKeyInfos(),
-                    arrayContaining(
-                        new ApiKey(
-                            "api-key-name-1",
-                            "api-key-id-1",
-                            type,
-                            creation,
-                            expiration,
-                            false,
-                            "user-x",
-                            "realm-1",
-                            metadata,
-                            roleDescriptors,
-                            limitedByRoleDescriptors
-                        )
+                actual.getApiKeyInfos(),
+                arrayContaining(
+                    new ApiKey(
+                        "api-key-name-1",
+                        "api-key-id-1",
+                        type,
+                        creation,
+                        expiration,
+                        false,
+                        null,
+                        "user-x",
+                        "realm-1",
+                        metadata,
+                        roleDescriptors,
+                        limitedByRoleDescriptors
                     )
-                );
-            }
+                )
+            );
         }
-
     }
 
     public void testGetApiKeyOwnedByCurrentAuthenticatedUser() throws Exception {
@@ -218,7 +212,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             }
         };
 
-        final ApiKey.Type type = TcpTransport.isUntrustedRemoteClusterEnabled() ? randomFrom(ApiKey.Type.values()) : ApiKey.Type.REST;
+        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final ApiKey apiKey1 = new ApiKey(
@@ -228,6 +222,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             creation,
             expiration,
             false,
+            null,
             "user-x",
             "realm-1",
             ApiKeyTests.randomMetadata(),
@@ -243,6 +238,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             creation,
             expiration,
             false,
+            null,
             "user-y",
             "realm-1",
             ApiKeyTests.randomMetadata(),
@@ -254,7 +250,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -275,24 +271,21 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     listener.onResponse((Response) getApiKeyResponseExpectedWhenOwnerFlagIsFalse);
                 }
             }
-        }) {
-            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
+        };
+        final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
 
-            restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
+        restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
-            assertThat(restResponse.status(), is(RestStatus.OK));
-            final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(
-                createParser(XContentType.JSON.xContent(), restResponse.content())
-            );
-            if (isGetRequestForOwnedKeysOnly) {
-                assertThat(actual.getApiKeyInfos().length, is(1));
-                assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1));
-            } else {
-                assertThat(actual.getApiKeyInfos().length, is(2));
-                assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
-            }
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(restResponse.status(), is(RestStatus.OK));
+        final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
+        if (isGetRequestForOwnedKeysOnly) {
+            assertThat(actual.getApiKeyInfos().length, is(1));
+            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1));
+        } else {
+            assertThat(actual.getApiKeyInfos().length, is(2));
+            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
         }
     }
 }

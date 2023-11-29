@@ -202,8 +202,8 @@
 ---
 "Simulate template with lifecycle and include defaults":
   - skip:
-      version: " - 8.8.99"
-      reason: "Lifecycle is only available in 8.9+"
+      version: " - 8.10.99"
+      reason: "Lifecycle is only available in 8.11+"
       features: ["default_shards"]
 
   - do:
@@ -221,5 +221,6 @@
         name: my-template
         include_defaults: true
 
+  - match: {template.lifecycle.enabled: true}
   - match: {template.lifecycle.data_retention: "7d"}
   - is_true: template.lifecycle.rollover

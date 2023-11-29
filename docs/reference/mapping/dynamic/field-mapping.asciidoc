@@ -216,6 +216,11 @@ GET my-index-000001/_mapping
 --------------------------------------------------
 ====
 
+[NOTE]
+====
+Epoch formats (`epoch_millis` and `epoch_second`) are not supported as dynamic date formats.
+====
+
 [[numeric-detection]]
 ==== Numeric detection
 

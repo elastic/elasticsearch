@@ -1,0 +1,48 @@
+[discrete]
+[[esql-eval]]
+=== `EVAL`
+
+**Syntax**
+
+[source,esql]
+----
+EVAL column1 = value1[, ..., columnN = valueN]
+----
+
+*Parameters*
+
+`columnX`::
+The column name.
+
+`valueX`::
+The value for the column. Can be a literal, an expression, or a
+<<esql-functions,function>>.
+
+*Description*
+
+The `EVAL` processing command enables you to append new columns with calculated
+values. `EVAL` supports various functions for calculating values. Refer to
+<<esql-functions,Functions>> for more information.
+
+*Examples*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=eval]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=eval-result]
+|===
+
+If the specified column already exists, the existing column will be dropped, and
+the new column will be appended to the table:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=evalReplace]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=evalReplace-result]
+|===

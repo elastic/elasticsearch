@@ -51,10 +51,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
 public class ShardSnapshotsService {
-    private final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
+    private static final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
 
     private final Client client;
     private final RepositoriesService repositoriesService;
@@ -77,23 +76,15 @@ public class ShardSnapshotsService {
     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
         assert shardId != null : "ShardId was null but a value was expected";
 
-        final RepositoriesMetadata currentReposMetadata = clusterService.state()
-            .metadata()
-            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-
-        List<String> repositories = currentReposMetadata.repositories()
+        List<String> repositories = RepositoriesMetadata.get(clusterService.state())
+            .repositories()
             .stream()
             .filter(repositoryMetadata -> BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.get(repositoryMetadata.settings()))
             .map(RepositoryMetadata::name)
             .toList();
 
-        if (repositories.isEmpty() || masterSupportsFetchingLatestSnapshots() == false) {
-            logger.debug(
-                "Unable to use snapshots during peer recovery use_for_peer_recovery_repositories=[{}],"
-                    + " masterSupportsFetchingLatestSnapshots=[{}]",
-                repositories,
-                masterSupportsFetchingLatestSnapshots()
-            );
+        if (repositories.isEmpty()) {
+            logger.debug("Unable to use snapshots during peer recovery use_for_peer_recovery_repositories=[{}]", repositories);
             listener.onResponse(Optional.empty());
             return;
         }
@@ -175,10 +166,6 @@ public class ShardSnapshotsService {
             logger.warn(() -> format("Unable to fetch shard snapshot files for %s", latestShardSnapshot), e);
             return Optional.empty();
         }
-    }
-
-    protected boolean masterSupportsFetchingLatestSnapshots() {
-        return clusterService.state().nodes().getMinNodeVersion().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
     }
 
     private static final class StoreFileMetadataDirectory extends Directory {

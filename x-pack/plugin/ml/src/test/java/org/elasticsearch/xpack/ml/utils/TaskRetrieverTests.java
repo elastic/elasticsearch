@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
@@ -63,7 +63,7 @@ public class TaskRetrieverTests extends ESTestCase {
             actionListener.onFailure(new Exception("error"));
 
             return Void.TYPE;
-        }).when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportListTasksAction.TYPE), any(), any());
 
         var listener = new PlainActionFuture<TaskInfo>();
 
@@ -123,7 +123,7 @@ public class TaskRetrieverTests extends ESTestCase {
             actionListener.onResponse(listTasksResponse);
 
             return Void.TYPE;
-        }).when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportListTasksAction.TYPE), any(), any());
 
         return client;
     }
@@ -150,7 +150,7 @@ public class TaskRetrieverTests extends ESTestCase {
     public static Client mockListTasksClient(Client client) {
         var cluster = client.admin().cluster();
 
-        when(cluster.prepareListTasks()).thenReturn(new ListTasksRequestBuilder(client, ListTasksAction.INSTANCE));
+        when(cluster.prepareListTasks()).thenReturn(new ListTasksRequestBuilder(client, TransportListTasksAction.TYPE));
 
         return client;
     }
@@ -197,6 +197,7 @@ public class TaskRetrieverTests extends ESTestCase {
             list.add(
                 new TaskInfo(
                     new TaskId("test", ID_BASE + i),
+                    "test",
                     "test",
                     "test",
                     "test",

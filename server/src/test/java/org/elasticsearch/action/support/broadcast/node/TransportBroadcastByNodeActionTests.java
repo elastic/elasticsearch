@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support.broadcast.node;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.IndicesRequest;
@@ -45,8 +44,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.rest.RestStatus;
@@ -71,6 +73,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -87,6 +90,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -104,12 +108,39 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     private TransportService transportService;
 
     public static class Request extends BroadcastRequest<Request> {
+        private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
+
         public Request(StreamInput in) throws IOException {
             super(in);
         }
 
         public Request(String... indices) {
             super(indices);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
+
+        @Override
+        public String toString() {
+            return "testrequest" + Arrays.toString(indices);
         }
     }
 
@@ -142,7 +173,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 new ActionFilters(Set.of()),
                 new MyResolver(),
                 Request::new,
-                TEST_THREAD_POOL_NAME
+                transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)
             );
         }
 
@@ -286,7 +317,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName(TEST_CLUSTER));
         stateBuilder.nodes(discoBuilder);
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(TEST_INDEX)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfReplicas(0)
             .numberOfShards(totalIndexShards);
 
@@ -354,6 +385,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         action.doExecute(null, request, listener);
+        request.decRef(); // before the forked tasks complete
         awaitForkedTasks();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
@@ -371,7 +403,18 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
             // check one request was sent to each node
             assertEquals(1, entry.getValue().size());
+            assertThat(
+                entry.getValue().iterator().next().request().toString(),
+                allOf(
+                    containsString('[' + action.transportNodeBroadcastAction + ']'),
+                    containsString('[' + entry.getKey() + ']'),
+                    containsString("[testrequest[" + TEST_INDEX + "]]")
+                )
+            );
         }
+
+        assertFalse(request.hasReferences());
+        assertTrue(capturedRequests.values().stream().flatMap(Collection::stream).noneMatch(cr -> cr.request().hasReferences()));
     }
 
     public void testNoShardOperationsExecutedIfTaskCancelled() throws Exception {
@@ -386,7 +429,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final TransportBroadcastByNodeAction<Request, Response, ShardResult>.BroadcastByNodeTransportRequestHandler handler =
             action.new BroadcastByNodeTransportRequestHandler();
 
-        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
         TestTransportChannel channel = new TestTransportChannel(future);
 
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
@@ -447,7 +490,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final TransportBroadcastByNodeAction<Request, Response, ShardResult>.BroadcastByNodeTransportRequestHandler handler =
             action.new BroadcastByNodeTransportRequestHandler();
 
-        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
         TestTransportChannel channel = new TestTransportChannel(future);
 
         handler.messageReceived(action.new NodeRequest(new Request(), new ArrayList<>(shards), nodeId), channel, null);

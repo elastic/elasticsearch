@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -43,7 +44,9 @@ public class TestFeatureResetIT extends TransformRestTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
-                "logger.org.elasticsearch.xpack.transform": "trace"
+                "logger.org.elasticsearch.xpack.transform": "trace",
+                "logger.org.elasticsearch.xpack.transform.notifications": "debug",
+                "logger.org.elasticsearch.xpack.transform.transforms": "debug"
               }
             }""");
         client().performRequest(settingsRequest);
@@ -55,6 +58,7 @@ public class TestFeatureResetIT extends TransformRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100596")
     public void testTransformFeatureReset() throws Exception {
         String indexName = "basic-crud-reviews";
         String transformId = "batch-transform-feature-reset";
@@ -100,8 +104,19 @@ public class TestFeatureResetIT extends TransformRestTestCase {
         // assert transforms are gone
         assertThat((Integer) getTransforms("_all").get("count"), equalTo(0));
 
+        // assert transform documents are gone
+        Map<String, Object> transformIndicesContents = ESRestTestCase.entityAsMap(
+            adminClient().performRequest(new Request("GET", ".transform-*/_search"))
+        );
+        assertThat(
+            "Indices contents were: " + transformIndicesContents,
+            XContentMapValues.extractValue(transformIndicesContents, "hits", "total", "value"),
+            is(equalTo(0))
+        );
+
         // assert transform indices are gone
-        assertThat(ESRestTestCase.entityAsMap(adminClient().performRequest(new Request("GET", ".transform-*"))), is(anEmptyMap()));
+        Map<String, Object> transformIndices = ESRestTestCase.entityAsMap(adminClient().performRequest(new Request("GET", ".transform-*")));
+        assertThat("Indices were: " + transformIndices, transformIndices, is(anEmptyMap()));
     }
 
 }

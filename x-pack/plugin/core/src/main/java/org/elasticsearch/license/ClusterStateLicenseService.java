@@ -31,6 +31,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.internal.MutableLicenseService;
+import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -96,6 +97,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
         + "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
+    @SuppressWarnings("this-escape")
     public ClusterStateLicenseService(
         Settings settings,
         ThreadPool threadPool,
@@ -122,7 +124,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         this.scheduler.register(this);
         populateExpirationCallbacks();
 
-        threadPool.scheduleWithFixedDelay(xPacklicenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
+        threadPool.scheduleWithFixedDelay(xPacklicenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), threadPool.generic());
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {
@@ -248,7 +250,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                     }
                     Metadata currentMetadata = currentState.metadata();
                     LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
-                    Version trialVersion = null;
+                    TrialLicenseVersion trialVersion = null;
                     if (licensesMetadata != null) {
                         trialVersion = licensesMetadata.getMostRecentTrialVersion();
                     }
@@ -265,7 +267,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    private boolean licenseIsCompatible(License license, Version version) {
+    private static boolean licenseIsCompatible(License license, Version version) {
         final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
         return license.version() <= maxVersion;
     }
@@ -275,7 +277,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         return allowedLicenseTypes.contains(type);
     }
 
-    private TimeValue days(int days) {
+    private static TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
     }
 

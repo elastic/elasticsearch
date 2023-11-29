@@ -42,10 +42,12 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -383,18 +385,8 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
     private void prepareIndices() {
         final Client client = client();
 
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutStoredScript()
-                .setId("my-script")
-                .setContent(
-                    new BytesArray("""
-                        {"script":{"source":"{\\"match\\":{\\"username\\":\\"{{_user.username}}\\"}}","lang":"mustache"}}"""),
-                    XContentType.JSON
-                )
-                .get()
-        );
+        assertAcked(client.admin().cluster().preparePutStoredScript().setId("my-script").setContent(new BytesArray("""
+            {"script":{"source":"{\\"match\\":{\\"username\\":\\"{{_user.username}}\\"}}","lang":"mustache"}}"""), XContentType.JSON));
 
         assertAcked(indicesAdmin().prepareCreate(DLS_INDEX).addAlias(new Alias("dls-alias")).get());
         client.prepareIndex(DLS_INDEX).setId("101").setSource("number", 101, "letter", "A").get();
@@ -405,7 +397,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         client.prepareIndex(FLS_INDEX).setId("202").setSource("public", "Y", "private", "y").get();
 
         assertAcked(
-            indicesAdmin().prepareCreate(INDEX).addAlias(new Alias(ALIAS1)).addAlias(new Alias(ALIAS2)).addAlias(new Alias(ALL_ALIAS)).get()
+            indicesAdmin().prepareCreate(INDEX).addAlias(new Alias(ALIAS1)).addAlias(new Alias(ALIAS2)).addAlias(new Alias(ALL_ALIAS))
         );
         client.prepareIndex(INDEX).setId("1").setSource("number", 1, "letter", "a", "private", "sesame_1", "public", "door_1").get();
         client.prepareIndex(INDEX).setId("2").setSource("number", 2, "letter", "b", "private", "sesame_2", "public", "door_2").get();
@@ -455,6 +447,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
             ),
             null
         );
+        createApiKeyRequest.setRefreshPolicy(randomFrom(WAIT_UNTIL, IMMEDIATE, NONE));
         final CreateApiKeyResponse createApiKeyResponse = limitedClient().execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest).get();
 
         final String base64ApiKey = Base64.getEncoder()
@@ -488,7 +481,4 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         );
     }
 
-    private void clearCache() {
-        assertNoFailures(client().admin().indices().prepareClearCache(DLS_INDEX, FLS_INDEX, INDEX).setRequestCache(true).get());
-    }
 }

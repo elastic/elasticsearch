@@ -16,15 +16,15 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -219,7 +219,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final TimeValue delay = periodicTaskInterval;
                 if (delay.getMillis() > 0L) {
                     final PeriodicMaintenanceTask task = new PeriodicMaintenanceTask(periodicTaskKeepAlive, periodicTaskBatchSize);
-                    periodicTask = threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
+                    periodicTask = threadPool.schedule(task, delay, threadPool.generic());
                 } else {
                     periodicTask = null;
                 }
@@ -435,7 +435,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 if (pointIntTimeId == null) {
                     final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(SNAPSHOT_BLOB_CACHE_INDEX);
                     openRequest.keepAlive(keepAlive);
-                    clientWithOrigin.execute(OpenPointInTimeAction.INSTANCE, openRequest, new ActionListener<>() {
+                    clientWithOrigin.execute(TransportOpenPointInTimeAction.TYPE, openRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(OpenPointInTimeResponse response) {
                             logger.trace("periodic maintenance task initialized with point-in-time id [{}]", response.getPointInTimeId());
@@ -476,7 +476,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     searchSource.pointInTimeBuilder(pointInTime);
                     final SearchRequest searchRequest = new SearchRequest();
                     searchRequest.source(searchSource);
-                    clientWithOrigin.execute(SearchAction.INSTANCE, searchRequest, new ActionListener<>() {
+                    clientWithOrigin.execute(TransportSearchAction.TYPE, searchRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(SearchResponse response) {
                             if (searchAfter == null) {
@@ -506,8 +506,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         final ClusterState state = clusterService.state();
                         // compute the list of existing searchable snapshots and repositories once
                         existingSnapshots = listSearchableSnapshots(state);
-                        existingRepositories = state.metadata()
-                            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                        existingRepositories = RepositoriesMetadata.get(state)
                             .repositories()
                             .stream()
                             .map(RepositoryMetadata::name)
@@ -653,21 +652,25 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final String pitId = pointIntTimeId;
                 if (Strings.hasLength(pitId)) {
                     final ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId);
-                    clientWithOrigin.execute(ClosePointInTimeAction.INSTANCE, closeRequest, ActionListener.runAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClosePointInTimeResponse response) {
-                            if (response.isSucceeded()) {
-                                logger.debug("periodic maintenance task successfully closed point-in-time id [{}]", pitId);
-                            } else {
-                                logger.debug("point-in-time id [{}] not found", pitId);
+                    clientWithOrigin.execute(
+                        TransportClosePointInTimeAction.TYPE,
+                        closeRequest,
+                        ActionListener.runAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(ClosePointInTimeResponse response) {
+                                if (response.isSucceeded()) {
+                                    logger.debug("periodic maintenance task successfully closed point-in-time id [{}]", pitId);
+                                } else {
+                                    logger.debug("point-in-time id [{}] not found", pitId);
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn(() -> "failed to close point-in-time id [" + pitId + "]", e);
-                        }
-                    }, () -> Releasables.close(releasable)));
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn(() -> "failed to close point-in-time id [" + pitId + "]", e);
+                            }
+                        }, () -> Releasables.close(releasable))
+                    );
                     waitForRelease = true;
                 }
             } finally {

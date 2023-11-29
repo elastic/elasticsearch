@@ -18,7 +18,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.Releasable;
@@ -26,6 +28,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
@@ -37,13 +40,13 @@ import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirec
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongConsumer;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.throwEOF;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
@@ -55,7 +58,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.store.input.ChecksumBl
  * Searchable snapshots index input that supports fully caching metadata files as well as header/footer information for each file,
  * consisting of a two-level cache (BlobStoreCacheService and CacheService).
  */
-public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
+public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexInput {
 
     protected static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
@@ -87,7 +90,7 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
     /**
      * Range of bytes that should be cached in the blob cache for the current index input's footer. This footer byte range should only be
      * required for slices of CFS files; regular files already have their footers extracted from the
-     * {@link BlobStoreIndexShardSnapshot.FileInfo} (see method {@link MetadataCachingIndexInput#maybeReadChecksumFromFileInfo}).
+     * {@link BlobStoreIndexShardSnapshot.FileInfo} (see method {@link #maybeReadChecksumFromFileInfo}).
      */
     private final ByteRange footerBlobCacheByteRange;
 
@@ -96,7 +99,7 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
     protected final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
     protected final IOContext context;
     protected final IndexInputStats stats;
-    protected final long offset;
+    private final long offset;
     private final long length;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
@@ -142,6 +145,35 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
         this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
         assert offset >= compoundFileOffset;
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
+    }
+
+    /**
+     * Clone constructor, will mark this as cloned.
+     */
+    protected MetadataCachingIndexInput(MetadataCachingIndexInput input) {
+        this(
+            input.logger,
+            "(clone of) " + input,
+            input.directory,
+            input.fileInfo,
+            input.context,
+            input.stats,
+            input.offset,
+            input.compoundFileOffset,
+            input.length,
+            input.cacheFileReference,
+            input.defaultRangeSize,
+            input.recoveryRangeSize,
+            input.headerBlobCacheByteRange,
+            input.footerBlobCacheByteRange
+        );
+        this.isClone = true;
+        try {
+            seek(input.getFilePointer());
+        } catch (IOException e) {
+            assert false : e;
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -191,6 +223,7 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
             ThreadPool.Names.SNAPSHOT,
             ThreadPool.Names.GENERIC,
             ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_WORKER,
             ThreadPool.Names.SEARCH_THROTTLED,
 
             // Cache asynchronous fetching runs on a dedicated thread pool.
@@ -230,7 +263,6 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
     private void readWithBlobCache(ByteBuffer b, ByteRange blobCacheByteRange) throws Exception {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
-
         final CacheFile cacheFile = cacheFileReference.get();
 
         // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
@@ -239,103 +271,167 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
             assert read == length : read + " vs " + length;
             return read;
         });
-
         if (waitingForRead != null) {
+            // yes, serving directly from disk because we had the bytes on disk already or had an ongoing download running for them
             final Integer read = waitingForRead.get();
             assert read == length;
             return;
         }
 
+        // we did not find the bytes on disk, try the cache index before falling back to the blob store
         final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
-        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= position;
-        assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || length <= cachedBlob.length();
-
         if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
-            // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested
-            // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
-            // {start, end} where positions are relative to the whole file.
-
-            // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
-            // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
-            final Future<Integer> populateCacheFuture = populateAndRead(b, position, length, cacheFile, blobCacheByteRange);
-
-            fillIndexCache(cacheFile, blobCacheByteRange);
-            if (compoundFileOffset > 0L
-                && blobCacheByteRange.equals(headerBlobCacheByteRange)
-                && footerBlobCacheByteRange.isEmpty() == false) {
-                fillIndexCache(cacheFile, footerBlobCacheByteRange);
-            }
-
-            final int bytesRead = populateCacheFuture.get();
-            assert bytesRead == length : bytesRead + " vs " + length;
+            fillBlobCacheIndex(b, blobCacheByteRange, position, cacheFile);
         } else {
-            final int sliceOffset = toIntBytes(position - cachedBlob.from());
-            assert sliceOffset + length <= cachedBlob.to()
-                : "reading " + length + " bytes from " + sliceOffset + " exceed cached blob max position " + cachedBlob.to();
-
-            logger.trace("reading [{}] bytes of file [{}] at position [{}] using cache index", length, fileInfo.physicalName(), position);
-            final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
-            BytesRef bytesRef;
-            int copiedBytes = 0;
-            while ((bytesRef = cachedBytesIterator.next()) != null) {
-                b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                copiedBytes += bytesRef.length;
-            }
-            assert copiedBytes == length : "copied " + copiedBytes + " but expected " + length;
-            stats.addIndexCacheBytesRead(cachedBlob.length());
-
-            try {
-                final ByteRange cachedRange = ByteRange.of(cachedBlob.from(), cachedBlob.to());
-                cacheFile.populateAndRead(
-                    cachedRange,
-                    cachedRange,
-                    channel -> cachedBlob.length(),
-                    (channel, from, to, progressUpdater) -> {
-                        final long startTimeNanos = stats.currentTimeNanos();
-                        final BytesRefIterator iterator = cachedBlob.bytes()
-                            .slice(toIntBytes(from - cachedBlob.from()), toIntBytes(to - from))
-                            .iterator();
-                        long writePosition = from;
-                        BytesRef current;
-                        while ((current = iterator.next()) != null) {
-                            final ByteBuffer byteBuffer = ByteBuffer.wrap(current.bytes, current.offset, current.length);
-                            while (byteBuffer.remaining() > 0) {
-                                writePosition += positionalWrite(channel, writePosition, byteBuffer);
-                                progressUpdater.accept(writePosition);
-                            }
-                        }
-                        assert writePosition == to : writePosition + " vs " + to;
-                        final long endTimeNanos = stats.currentTimeNanos();
-                        stats.addCachedBytesWritten(to - from, endTimeNanos - startTimeNanos);
-                        logger.trace("copied bytes [{}-{}] of file [{}] from cache index to disk", from, to, fileInfo);
-                    },
-                    directory.cacheFetchAsyncExecutor()
-                );
-            } catch (Exception e) {
-                logger.debug(
-                    () -> format(
-                        "failed to store bytes [%s-%s] of file [%s] obtained from index cache",
-                        cachedBlob.from(),
-                        cachedBlob.to(),
-                        fileInfo
-                    ),
-                    e
-                );
-                // oh well, no big deal, at least we can return them to the caller.
-            }
+            readAndCopyFromBlobCacheIndex(b, position, cacheFile, cachedBlob);
         }
     }
 
-    protected Future<Integer> populateAndRead(ByteBuffer b, long position, int length, CacheFile cacheFile, ByteRange rangeToWrite) {
-        final ByteRange rangeToRead = ByteRange.of(position, position + length);
+    /**
+     * Fills {@code b} starting at {@code position} the same way {@link #readAndCopyFromBlobCacheIndex} does but reads directly from the
+     * blob store.
+     * Caches the requested {@code blobCacheByteRange} containing {@code position} from the blob-store and stores it in the internal cache
+     * index as well as writes it to local disk into a {@link CacheFile}. This is used for ranges that should be stored in the internal
+     * cache index but haven't been found during a read attempt.
+     *
+     * @param b buffer to fill with the request byte range
+     * @param blobCacheByteRange byte range to cache in the internal index
+     * @param position position in the file to start reading from
+     * @param cacheFile cache file for this operation
+     * @throws Exception on failure
+     */
+    private void fillBlobCacheIndex(ByteBuffer b, ByteRange blobCacheByteRange, long position, CacheFile cacheFile) throws Exception {
+        // We would have liked to find a cached entry, but we did not find anything: the cache on the disk will be requested,
+        // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
+        // {start, end} where positions are relative to the whole file.
+        final int length = b.remaining();
+        // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
+        // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
+        final Future<Integer> populateCacheFuture = populateAndRead(b, position, cacheFile, blobCacheByteRange);
+
+        fillIndexCache(cacheFile, blobCacheByteRange);
+        if (compoundFileOffset > 0L && blobCacheByteRange.equals(headerBlobCacheByteRange) && footerBlobCacheByteRange.isEmpty() == false) {
+            fillIndexCache(cacheFile, footerBlobCacheByteRange);
+        }
+
+        final int bytesRead = populateCacheFuture.get();
+        assert bytesRead == length : bytesRead + " vs " + length;
+    }
+
+    /**
+     * Copies a byte range found in the internal cache index to a local {@link CacheFile} and reads the section starting from
+     * {@code position} into {@code b}, reading as many bytes as are remaining in {code b}. This is used whenever a range that should be
+     * stored in a local cache file wasn't found in the cache file but could be read from the cache index without having to reach out to
+     * the blob store itself.
+     *
+     * @param b buffer to fill with the request byte range
+     * @param position position in the file to start reading from
+     * @param cacheFile cache file for this operation
+     * @param cachedBlob cached blob found in the internal cache index
+     * @throws IOException on failure
+     */
+    private void readAndCopyFromBlobCacheIndex(ByteBuffer b, long position, CacheFile cacheFile, CachedBlob cachedBlob) throws IOException {
+        final int length = b.remaining();
+        final int sliceOffset = toIntBytes(position - cachedBlob.from());
+        assert sliceOffset + length <= cachedBlob.to()
+            : "reading " + length + " bytes from " + sliceOffset + " exceed cached blob max position " + cachedBlob.to();
+
+        logger.trace("reading [{}] bytes of file [{}] at position [{}] using cache index", length, fileInfo.physicalName(), position);
+        final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
+        BytesRef bytesRef;
+        int copiedBytes = 0;
+        while ((bytesRef = cachedBytesIterator.next()) != null) {
+            b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            copiedBytes += bytesRef.length;
+        }
+        assert copiedBytes == length : "copied " + copiedBytes + " but expected " + length;
+        stats.addIndexCacheBytesRead(cachedBlob.length());
+
+        copyToCacheFile(cacheFile, cachedBlob);
+    }
+
+    /**
+     * Copy a {@code cachedBlob} from internal cache index to the given {@code cacheFile}.
+     * @param cacheFile file to copy to
+     * @param cachedBlob cache blob to copy from
+     */
+    private void copyToCacheFile(CacheFile cacheFile, CachedBlob cachedBlob) {
+        try {
+            final ByteRange cachedRange = ByteRange.of(cachedBlob.from(), cachedBlob.to());
+            cacheFile.populateAndRead(cachedRange, cachedRange, channel -> cachedBlob.length(), (channel, from, to, progressUpdater) -> {
+                final long startTimeNanos = stats.currentTimeNanos();
+                final BytesRefIterator iterator = cachedBlob.bytes()
+                    .slice(toIntBytes(from - cachedBlob.from()), toIntBytes(to - from))
+                    .iterator();
+                long writePosition = from;
+                BytesRef current;
+                while ((current = iterator.next()) != null) {
+                    final ByteBuffer byteBuffer = ByteBuffer.wrap(current.bytes, current.offset, current.length);
+                    while (byteBuffer.remaining() > 0) {
+                        writePosition += positionalWrite(channel, writePosition, byteBuffer);
+                        progressUpdater.accept(writePosition);
+                    }
+                }
+                assert writePosition == to : writePosition + " vs " + to;
+                final long endTimeNanos = stats.currentTimeNanos();
+                stats.addCachedBytesWritten(to - from, endTimeNanos - startTimeNanos);
+                logger.trace("copied bytes [{}-{}] of file [{}] from cache index to disk", from, to, fileInfo);
+            }, directory.cacheFetchAsyncExecutor());
+        } catch (Exception e) {
+            // ignore exceptions during copying, we already read the bytes on another thread so failing to copy to local disk does not
+            // break anything functionally
+            logger.debug(
+                () -> format(
+                    "failed to store bytes [%s-%s] of file [%s] obtained from index cache",
+                    cachedBlob.from(),
+                    cachedBlob.to(),
+                    fileInfo
+                ),
+                e
+            );
+        }
+    }
+
+    /**
+     * Read from given {@code cacheFile} into {@code b}, starting at the given {@code position} and reading as many bytes as are remaining
+     * {@code b} while storing {@code rangeToWrite} in the cache file.
+     *
+     * @param b buffer to read into
+     * @param position position in the file to start reading from
+     * @param cacheFile file to read from
+     * @param rangeToWrite range to read from the blob store and store in the cache file
+     * @return future that resolves to the number of bytes read
+     */
+    protected Future<Integer> populateAndRead(ByteBuffer b, long position, CacheFile cacheFile, ByteRange rangeToWrite) {
+        final ByteRange rangeToRead = ByteRange.of(position, position + b.remaining());
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
-        assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
         return cacheFile.populateAndRead(
             rangeToWrite,
             rangeToRead,
             channel -> readCacheFile(channel, position, b),
-            this::writeCacheFile,
+            (fc, start, end, progressUpdater) -> {
+                assert assertFileChannelOpen(fc);
+                assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+                final ByteBuffer copyBuffer = writeBuffer.get().clear();
+                logger.trace("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference);
+
+                long bytesCopied = 0L;
+                long remaining = end - start;
+                final long startTimeNanos = stats.currentTimeNanos();
+                try (InputStream input = openInputStreamFromBlobStore(start, end - start)) {
+                    while (remaining > 0L) {
+                        final int bytesRead = BlobCacheUtils.readSafe(input, copyBuffer, start, remaining);
+                        positionalWrite(fc, start + bytesCopied, copyBuffer.flip());
+                        copyBuffer.clear();
+                        bytesCopied += bytesRead;
+                        remaining -= bytesRead;
+                        progressUpdater.accept(start + bytesCopied);
+                    }
+                    final long endTimeNanos = stats.currentTimeNanos();
+                    stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
+                }
+            },
             directory.cacheFetchAsyncExecutor()
         );
     }
@@ -350,35 +446,10 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
         assert assertFileChannelOpen(fc);
         final int bytesRead = Channels.readFromFileChannel(fc, position, buffer);
         if (bytesRead == -1) {
-            throwEOF(position, buffer.remaining(), cacheFileReference);
+            throwEOF(position, buffer.remaining());
         }
         stats.addCachedBytesRead(bytesRead);
         return bytesRead;
-    }
-
-    private void writeCacheFile(final FileChannel fc, final long start, final long end, final LongConsumer progressUpdater)
-        throws IOException {
-        assert assertFileChannelOpen(fc);
-        assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-        final long length = end - start;
-        final ByteBuffer copyBuffer = writeBuffer.get().clear();
-        logger.trace("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference);
-
-        long bytesCopied = 0L;
-        long remaining = end - start;
-        final long startTimeNanos = stats.currentTimeNanos();
-        try (InputStream input = openInputStreamFromBlobStore(start, length)) {
-            while (remaining > 0L) {
-                final int bytesRead = BlobCacheUtils.readSafe(input, copyBuffer, start, remaining, cacheFileReference);
-                positionalWrite(fc, start + bytesCopied, copyBuffer.flip());
-                copyBuffer.clear();
-                bytesCopied += bytesRead;
-                remaining -= bytesRead;
-                progressUpdater.accept(start + bytesCopied);
-            }
-            final long endTimeNanos = stats.currentTimeNanos();
-            stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
-        }
     }
 
     private void fillIndexCache(CacheFile cacheFile, ByteRange indexCacheMiss) {
@@ -431,7 +502,7 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
                 try (InputStream input = openInputStreamFromBlobStore(position, length)) {
                     final int bytesRead = Streams.read(input, b, length);
                     if (bytesRead < length) {
-                        throwEOF(position, length - bytesRead, cacheFileReference);
+                        throwEOF(position, length - bytesRead);
                     }
                     final long endTimeNanos = stats.currentTimeNanos();
                     stats.addDirectBytesRead(bytesRead, endTimeNanos - startTimeNanos);
@@ -441,49 +512,55 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
                 e.addSuppressed(inner);
             }
         }
-        throw new IOException("failed to read data from cache", e);
+        throw new IOException("failed to read data from cache for [" + cacheFileReference + "]", e);
     }
 
     /**
      * Opens an {@link InputStream} for the given range of bytes which reads the data directly from the blob store. If the requested range
-     * spans multiple blobs then this stream will request them in turn.
+     * spans multiple blobs then this stream will request them in turn using.
      *
      * @param position The start of the range of bytes to read, relative to the start of the corresponding Lucene file.
      * @param readLength The number of bytes to read
      */
     protected InputStream openInputStreamFromBlobStore(final long position, final long readLength) throws IOException {
-        assert MetadataCachingIndexInput.assertCurrentThreadMayAccessBlobStore();
+        assert assertCurrentThreadMayAccessBlobStore();
         if (fileInfo.numberOfParts() == 1L) {
             assert position + readLength <= fileInfo.length()
                 : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
             stats.addBlobStoreBytesRequested(readLength);
-            return directory.blobContainer().readBlob(fileInfo.name(), position, readLength);
-        } else {
-            final int startPart = getPartNumberForPosition(position);
-            final int endPart = getPartNumberForPosition(position + readLength - 1);
+            return directory.blobContainer().readBlob(OperationPurpose.SNAPSHOT, fileInfo.name(), position, readLength);
+        }
+        return openInputStreamMultipleParts(position, readLength);
+    }
 
-            for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
+    /**
+     * Used by {@link #openInputStreamFromBlobStore} when reading a range that is split across multiple file parts/blobs.
+     * See {@link BlobStoreRepository#chunkSize()}.
+     */
+    private SlicedInputStream openInputStreamMultipleParts(long position, long readLength) {
+        final int startPart = getPartNumberForPosition(position);
+        final int endPart = getPartNumberForPosition(position + readLength - 1);
+
+        for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
+            final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
+            final long endInPart;
+            endInPart = currentPart == endPart ? getRelativePositionInPart(position + readLength - 1) + 1 : fileInfo.partBytes(currentPart);
+            stats.addBlobStoreBytesRequested(endInPart - startInPart);
+        }
+
+        return new SlicedInputStream(endPart - startPart + 1) {
+            @Override
+            protected InputStream openSlice(int slice) throws IOException {
+                final int currentPart = startPart + slice;
                 final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
                 final long endInPart;
                 endInPart = currentPart == endPart
                     ? getRelativePositionInPart(position + readLength - 1) + 1
                     : fileInfo.partBytes(currentPart);
-                stats.addBlobStoreBytesRequested(endInPart - startInPart);
+                return directory.blobContainer()
+                    .readBlob(OperationPurpose.SNAPSHOT, fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
             }
-
-            return new SlicedInputStream(endPart - startPart + 1) {
-                @Override
-                protected InputStream openSlice(int slice) throws IOException {
-                    final int currentPart = startPart + slice;
-                    final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-                    final long endInPart;
-                    endInPart = currentPart == endPart
-                        ? getRelativePositionInPart(position + readLength - 1) + 1
-                        : fileInfo.partBytes(currentPart);
-                    return directory.blobContainer().readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
-                }
-            };
-        }
+        };
     }
 
     /**
@@ -519,12 +596,12 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
 
     @Override
     protected final void readInternal(ByteBuffer b) throws IOException {
-        assert MetadataCachingIndexInput.assertCurrentThreadIsNotCacheFetchAsync();
+        assert assertCurrentThreadIsNotCacheFetchAsync();
 
         final int bytesToRead = b.remaining();
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
-        if (MetadataCachingIndexInput.maybeReadChecksumFromFileInfo(fileInfo, getAbsolutePosition(), isClone, b)) {
+        if (maybeReadChecksumFromFileInfo(fileInfo, getAbsolutePosition(), isClone, b)) {
             logger.trace("read footer of file [{}], bypassing all caches", fileInfo.physicalName());
         } else {
             final long position = getAbsolutePosition();
@@ -562,13 +639,9 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
 
     @Override
     public final void close() throws IOException {
-        if (closed.compareAndSet(false, true)) {
-            if (isClone == false) {
-                stats.incrementCloseCount();
-            }
-            if (isClone == false) {
-                cacheFileReference.releaseOnClose();
-            }
+        if (closed.compareAndSet(false, true) && isClone == false) {
+            stats.incrementCloseCount();
+            cacheFileReference.releaseOnClose();
         }
     }
 
@@ -628,7 +701,7 @@ public abstract class MetadataCachingIndexInput extends BufferedIndexInput {
         }
         final MetadataCachingIndexInput slice = doSlice(
             sliceName,
-            sliceOffset,
+            this.offset + sliceOffset,
             sliceLength,
             sliceHeaderByteRange,
             sliceFooterByteRange,

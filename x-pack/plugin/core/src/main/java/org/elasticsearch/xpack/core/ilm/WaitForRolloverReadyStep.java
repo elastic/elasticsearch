@@ -23,8 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -206,18 +205,16 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
         RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
 
-        getClient().admin()
-            .indices()
-            .rolloverIndex(
-                rolloverRequest,
-                ActionListener.wrap(
-                    response -> listener.onResponse(
-                        rolloverRequest.getConditions().areConditionsMet(response.getConditionStatus()),
-                        EmptyInfo.INSTANCE
-                    ),
-                    listener::onFailure
-                )
-            );
+        getClient().admin().indices().rolloverIndex(rolloverRequest, ActionListener.wrap(response -> {
+            final var conditionStatus = response.getConditionStatus();
+            final var conditionsMet = rolloverRequest.getConditions().areConditionsMet(conditionStatus);
+            if (conditionsMet) {
+                logger.info("index [{}] is ready for rollover, conditions: [{}]", index.getName(), conditionStatus);
+            } else {
+                logger.debug("index [{}] is not ready for rollover, conditions: [{}]", index.getName(), conditionStatus);
+            }
+            listener.onResponse(conditionsMet, EmptyInfo.INSTANCE);
+        }, listener::onFailure));
     }
 
     /**
@@ -271,18 +268,5 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         }
         WaitForRolloverReadyStep other = (WaitForRolloverReadyStep) obj;
         return super.equals(obj) && Objects.equals(conditions, other.conditions);
-    }
-
-    // We currently have no information to provide for this AsyncWaitStep, so this is an empty object
-    private static final class EmptyInfo implements ToXContentObject {
-
-        static final EmptyInfo INSTANCE = new EmptyInfo();
-
-        private EmptyInfo() {}
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-            return builder;
-        }
     }
 }

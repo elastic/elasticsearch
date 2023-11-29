@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -75,7 +74,12 @@ public class IndicesPermissionTests extends ESTestCase {
         Role role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
-        IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
+        IndicesAccessControl permissions = role.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("_index"),
+            lookup,
+            fieldPermissionsCache
+        );
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -87,7 +91,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), null, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -98,7 +102,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(FieldPermissions.DEFAULT, query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
@@ -109,7 +113,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -133,7 +137,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
@@ -159,7 +163,7 @@ public class IndicesPermissionTests extends ESTestCase {
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), fooQuery, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
         Set<BytesReference> bothQueries = Sets.union(fooQuery, query);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -195,7 +199,12 @@ public class IndicesPermissionTests extends ESTestCase {
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .add(new FieldPermissions(fieldPermissionDef(null, null)), null, IndexPrivilege.ALL, randomBoolean(), "*")
             .build();
-        IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
+        IndicesAccessControl permissions = role.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("_index"),
+            lookup,
+            fieldPermissionsCache
+        );
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -239,7 +248,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     // tests that field permissions are merged correctly when we authorize with several groups and don't crash when an index has no group
     public void testCorePermissionAuthorize() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final Metadata metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
             true
@@ -262,13 +271,18 @@ public class IndicesPermissionTests extends ESTestCase {
                 "a1"
             )
             .build();
-        IndicesAccessControl iac = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        IndicesAccessControl iac = core.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("a1", "ba"),
+            lookup,
+            fieldPermissionsCache
+        );
         assertTrue(iac.getIndexPermissions("a1").getFieldPermissions().grantsAccessTo("denied_field"));
         assertTrue(iac.getIndexPermissions("a1").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5)));
         // did not define anything for ba so we allow all
         assertFalse(iac.hasIndexPermissions("ba"));
 
-        assertTrue(core.check(SearchAction.NAME));
+        assertTrue(core.check(TransportSearchAction.TYPE.name()));
         assertTrue(core.check(PutMappingAction.NAME));
         assertTrue(core.check(AutoPutMappingAction.NAME));
         assertFalse(core.check("unknown"));
@@ -303,7 +317,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 "a2"
             )
             .build();
-        iac = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "a2"), lookup, fieldPermissionsCache);
+        iac = core.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("a1", "a2"), lookup, fieldPermissionsCache);
         assertFalse(iac.getIndexPermissions("a1").getFieldPermissions().hasFieldLevelSecurity());
         assertFalse(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo("denied_field2"));
         assertFalse(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo("denied_field"));
@@ -311,7 +325,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertTrue(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5) + "_field2"));
         assertTrue(iac.getIndexPermissions("a2").getFieldPermissions().hasFieldLevelSecurity());
 
-        assertTrue(core.check(SearchAction.NAME));
+        assertTrue(core.check(TransportSearchAction.TYPE.name()));
         assertTrue(core.check(PutMappingAction.NAME));
         assertTrue(core.check(AutoPutMappingAction.NAME));
         assertFalse(core.check("unknown"));
@@ -340,7 +354,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testSecurityIndicesPermissions() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -365,7 +379,7 @@ public class IndicesPermissionTests extends ESTestCase {
             "*"
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             Sets.newHashSet(internalSecurityIndex, SecuritySystemIndices.SECURITY_MAIN_ALIAS),
             lookup,
             fieldPermissionsCache
@@ -385,7 +399,7 @@ public class IndicesPermissionTests extends ESTestCase {
             "*"
         ).build();
         iac = indicesPermission.authorize(
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             Sets.newHashSet(internalSecurityIndex, SecuritySystemIndices.SECURITY_MAIN_ALIAS),
             lookup,
             fieldPermissionsCache
@@ -398,7 +412,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAsyncSearchIndicesPermissions() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String asyncSearchIndex = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
         final Metadata metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder(asyncSearchIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
@@ -416,7 +430,7 @@ public class IndicesPermissionTests extends ESTestCase {
             "*"
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             Sets.newHashSet(asyncSearchIndex),
             lookup,
             fieldPermissionsCache
@@ -433,7 +447,12 @@ public class IndicesPermissionTests extends ESTestCase {
             true,
             "*"
         ).build();
-        iac = indicesPermission.authorize(SearchAction.NAME, Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
+        iac = indicesPermission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet(asyncSearchIndex),
+            lookup,
+            fieldPermissionsCache
+        );
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.hasIndexPermissions(asyncSearchIndex), is(true));
         assertThat(iac.getIndexPermissions(asyncSearchIndex), is(notNullValue()));
@@ -467,7 +486,7 @@ public class IndicesPermissionTests extends ESTestCase {
             dataStreamName
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
             fieldPermissionsCache
@@ -501,7 +520,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAuthorizationForMappingUpdates() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final Metadata.Builder metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder("test1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
             true
@@ -739,7 +758,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     private static IndexMetadata createBackingIndexMetadata(String name) {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", true);
 
         IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)

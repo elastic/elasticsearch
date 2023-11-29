@@ -77,7 +77,7 @@ public class TransformDestIndexSettings implements SimpleDiffable<TransformDestI
     public TransformDestIndexSettings(StreamInput in) throws IOException {
         mappings = in.readMap();
         settings = Settings.readSettingsFromStream(in);
-        aliases = new HashSet<>(in.readList(Alias::new));
+        aliases = new HashSet<>(in.readCollectionAsList(Alias::new));
     }
 
     public Map<String, Object> getMappings() {

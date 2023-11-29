@@ -23,6 +23,12 @@ setup:
         body:
           indices: [ "test-index1" ]
           analytics_collection_name: "test-analytics1"
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
   - do:
       search_application.put:
@@ -30,6 +36,12 @@ setup:
         body:
           indices: [ "test-index2" ]
           analytics_collection_name: "test-analytics2"
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
   - do:
       search_application.put:
@@ -37,6 +49,12 @@ setup:
         body:
           indices: [ "test-index1", "test-index2" ]
           analytics_collection_name: "test-another-analytics"
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
 ---
 teardown:

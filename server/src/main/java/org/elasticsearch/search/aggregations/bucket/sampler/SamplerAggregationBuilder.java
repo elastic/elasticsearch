@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,13 +65,6 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     public SamplerAggregationBuilder shardSize(int shardSize) {
         this.shardSize = shardSize;
         return this;
-    }
-
-    /**
-     * Get the max num docs to be returned from each shard.
-     */
-    public int shardSize() {
-        return shardSize;
     }
 
     @Override
@@ -145,6 +139,6 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

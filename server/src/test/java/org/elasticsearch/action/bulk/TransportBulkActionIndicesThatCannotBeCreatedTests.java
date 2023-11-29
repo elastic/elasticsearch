@@ -8,22 +8,21 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -32,7 +31,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -42,7 +41,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -96,19 +94,13 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
+        when(state.blocks()).thenReturn(mock(ClusterBlocks.class));
         when(clusterService.state()).thenReturn(state);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-
-        DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        when(state.getNodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
 
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(clusterService.localNode()).thenReturn(localNode);
         when(localNode.isIngestNode()).thenReturn(randomBoolean());
-
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
@@ -120,9 +112,11 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             }
         };
 
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         TransportBulkAction action = new TransportBulkAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             clusterService,
             null,
             null,
@@ -156,14 +150,6 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                 }
             }
         };
-        action.doExecute(null, bulkRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(BulkResponse bulkItemResponses) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+        action.doExecute(null, bulkRequest, ActionTestUtils.assertNoFailureListener(bulkItemResponse -> {}));
     }
 }

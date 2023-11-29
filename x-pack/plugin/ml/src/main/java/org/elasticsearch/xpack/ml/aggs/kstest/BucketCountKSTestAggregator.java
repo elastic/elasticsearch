@@ -237,7 +237,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
             }
         );
         if (maybeBucketsValue.isPresent() == false) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
             );
         }

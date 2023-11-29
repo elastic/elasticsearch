@@ -97,12 +97,12 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            followInfos = in.readList(FollowerInfo::new);
+            followInfos = in.readCollectionAsList(FollowerInfo::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(followInfos);
+            out.writeCollection(followInfos);
         }
 
         @Override

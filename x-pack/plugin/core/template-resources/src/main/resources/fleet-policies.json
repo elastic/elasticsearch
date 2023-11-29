@@ -6,7 +6,8 @@
     "_doc" : {
       "dynamic": false,
       "_meta": {
-        "version": "${fleet.version}"
+        "version": "${fleet.version}",
+        "managed_index_mappings_version": ${fleet.managed.index.version}
       },
       "properties": {
         "coordinator_idx": {

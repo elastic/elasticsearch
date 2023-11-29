@@ -30,6 +30,8 @@ public final class XPackField {
     public static final String SETTINGS_NAME = "xpack";
     /** Name constant for the eql feature. */
     public static final String EQL = "eql";
+    /** Name constant for the esql feature. */
+    public static final String ESQL = "esql";
     /** Name constant for the sql feature. */
     public static final String SQL = "sql";
     /** Name constant for the rollup feature. */
@@ -83,6 +85,8 @@ public final class XPackField {
 
     /** Name constant for the redact processor feature. */
     public static final String REDACT_PROCESSOR = "redact_processor";
+    /* Name for Universal Profiling. */
+    public static final String UNIVERSAL_PROFILING = "universal_profiling";
 
     private XPackField() {}
 

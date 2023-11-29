@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -49,7 +50,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -123,6 +123,13 @@ public class SystemIndices {
         new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR))
     ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
+    public static final Map<String, SystemIndexDescriptor.MappingsVersion> SERVER_SYSTEM_MAPPINGS_VERSIONS =
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS.values()
+            .stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+            .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
+
     /**
      * The node's full list of system features is stored here. The map is keyed
      * on the value of {@link Feature#getName()}, and is used for fast lookup of
@@ -147,6 +154,7 @@ public class SystemIndices {
      *                                These features come from plugins and modules. Non-plugin system
      *                                features such as Tasks will be added automatically.
      */
+    @SuppressWarnings("this-escape")
     public SystemIndices(List<Feature> pluginAndModuleFeatures) {
         featureDescriptors = buildFeatureMap(pluginAndModuleFeatures);
         indexDescriptors = featureDescriptors.values()
@@ -522,7 +530,7 @@ public class SystemIndices {
             );
         } else {
             return new IllegalArgumentException(
-                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " use and access is reserved for system operations"
+                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " may not be accessed by product [" + product + "]"
             );
         }
     }
@@ -695,6 +703,12 @@ public class SystemIndices {
 
     Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
+    }
+
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getMappingsVersions() {
+        return getSystemIndexDescriptors().stream()
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+            .collect(Collectors.toMap(SystemIndexDescriptor::getPrimaryIndex, SystemIndexDescriptor::getMappingsVersion));
     }
 
     /**
@@ -915,7 +929,7 @@ public class SystemIndices {
             Metadata metadata = clusterService.state().getMetadata();
 
             final List<Exception> exceptions = new ArrayList<>();
-            final Consumer<ResetFeatureStateStatus> handleResponse = resetFeatureStateStatus -> {
+            final CheckedConsumer<ResetFeatureStateStatus, Exception> handleResponse = resetFeatureStateStatus -> {
                 if (resetFeatureStateStatus.getStatus() == ResetFeatureStateStatus.Status.FAILURE) {
                     synchronized (exceptions) {
                         exceptions.add(resetFeatureStateStatus.getException());

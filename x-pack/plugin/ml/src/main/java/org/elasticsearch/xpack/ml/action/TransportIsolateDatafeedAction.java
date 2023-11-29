@@ -41,7 +41,7 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<
             IsolateDatafeedAction.Request::new,
             IsolateDatafeedAction.Response::new,
             IsolateDatafeedAction.Response::new,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            transportService.getThreadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
     }
 

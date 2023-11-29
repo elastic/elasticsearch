@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -125,7 +125,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         this.withSpecialTokens = in.readBoolean();
         this.maxSequenceLength = in.readVInt();
         this.truncate = in.readEnum(Truncate.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             this.span = in.readInt();
         } else {
             this.span = UNSET_SPAN_VALUE;
@@ -138,7 +138,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         out.writeBoolean(withSpecialTokens);
         out.writeVInt(maxSequenceLength);
         out.writeEnum(truncate);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             out.writeInt(span);
         }
     }

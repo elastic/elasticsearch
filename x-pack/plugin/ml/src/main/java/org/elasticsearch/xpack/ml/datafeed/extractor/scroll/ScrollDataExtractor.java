@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -30,8 +31,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.NoSuchElementException;
@@ -86,6 +85,12 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     @Override
+    public void destroy() {
+        cancel();
+        clearScroll();
+    }
+
+    @Override
     public long getEndTime() {
         return context.end;
     }
@@ -121,7 +126,10 @@ class ScrollDataExtractor implements DataExtractor {
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
         logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return processSearchResponse(searchResponse);
+        scrollId = searchResponse.getScrollId();
+        SearchHit hits[] = searchResponse.getHits().getHits();
+        searchResponse = null;
+        return processAndConsumeSearchHits(hits);
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
@@ -146,7 +154,7 @@ class ScrollDataExtractor implements DataExtractor {
             .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), start, context.end))
             .runtimeMappings(context.runtimeMappings);
 
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE).setScroll(SCROLL_TIMEOUT)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, TransportSearchAction.TYPE).setScroll(SCROLL_TIMEOUT)
             .setIndices(context.indices)
             .setIndicesOptions(context.indicesOptions)
             .setAllowPartialSearchResults(false)
@@ -166,18 +174,24 @@ class ScrollDataExtractor implements DataExtractor {
         return searchRequestBuilder;
     }
 
-    private InputStream processSearchResponse(SearchResponse searchResponse) throws IOException {
+    /**
+     * IMPORTANT: This is not an idempotent method. This method changes the input array by setting each element to <code>null</code>.
+     */
+    private InputStream processAndConsumeSearchHits(SearchHit hits[]) throws IOException {
 
-        scrollId = searchResponse.getScrollId();
-        if (searchResponse.getHits().getHits().length == 0) {
+        if (hits == null || hits.length == 0) {
             hasNext = false;
             clearScroll();
             return null;
         }
 
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        BytesStreamOutput outputStream = new BytesStreamOutput();
+
+        SearchHit lastHit = hits[hits.length - 1];
+        lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
+            for (int i = 0; i < hits.length; i++) {
+                SearchHit hit = hits[i];
                 if (isCancelled) {
                     Long timestamp = context.extractedFields.timeFieldValue(hit);
                     if (timestamp != null) {
@@ -191,11 +205,12 @@ class ScrollDataExtractor implements DataExtractor {
                     }
                 }
                 hitProcessor.process(hit);
+                // hack to remove the reference from object. This object can be big and consume alot of memory.
+                // We are removing it as soon as we process it.
+                hits[i] = null;
             }
-            SearchHit lastHit = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
-            lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         }
-        return new ByteArrayInputStream(outputStream.toByteArray());
+        return outputStream.bytes().streamInput();
     }
 
     private InputStream continueScroll() throws IOException {
@@ -213,7 +228,10 @@ class ScrollDataExtractor implements DataExtractor {
         }
         logger.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return processSearchResponse(searchResponse);
+        scrollId = searchResponse.getScrollId();
+        SearchHit hits[] = searchResponse.getHits().getHits();
+        searchResponse = null;
+        return processAndConsumeSearchHits(hits);
     }
 
     void markScrollAsErrored() {
@@ -232,7 +250,9 @@ class ScrollDataExtractor implements DataExtractor {
             context.headers,
             ClientHelper.ML_ORIGIN,
             client,
-            () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
+            () -> new SearchScrollRequestBuilder(client, TransportSearchScrollAction.TYPE).setScroll(SCROLL_TIMEOUT)
+                .setScrollId(scrollId)
+                .get()
         );
         try {
             checkForSkippedClusters(searchResponse);
@@ -266,7 +286,7 @@ class ScrollDataExtractor implements DataExtractor {
                 context.headers,
                 ClientHelper.ML_ORIGIN,
                 client,
-                () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet()
+                () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
             );
         }
     }

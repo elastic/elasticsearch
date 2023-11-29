@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
@@ -33,7 +34,13 @@ public final class TransportSamlCompleteLogoutAction extends HandledTransportAct
 
     @Inject
     public TransportSamlCompleteLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlCompleteLogoutAction.NAME, transportService, actionFilters, SamlCompleteLogoutRequest::new);
+        super(
+            SamlCompleteLogoutAction.NAME,
+            transportService,
+            actionFilters,
+            SamlCompleteLogoutRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.realms = realms;
     }
 
@@ -49,7 +56,7 @@ public final class TransportSamlCompleteLogoutAction extends HandledTransportAct
         }
     }
 
-    private void processLogoutResponse(
+    private static void processLogoutResponse(
         SamlRealm samlRealm,
         SamlCompleteLogoutRequest request,
         ActionListener<ActionResponse.Empty> listener

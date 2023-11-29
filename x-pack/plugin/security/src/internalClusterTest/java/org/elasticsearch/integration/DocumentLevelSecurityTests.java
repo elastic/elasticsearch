@@ -14,11 +14,10 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -94,8 +93,9 @@ import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -204,44 +204,41 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSimpleQuery() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text"));
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
 
-        SearchResponse response = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-        )
-            .prepareSearch("test")
-            .setQuery(randomBoolean() ? QueryBuilders.termQuery("field1", "value1") : QueryBuilders.matchAllQuery())
-            .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(randomBoolean() ? QueryBuilders.termQuery("field2", "value2") : QueryBuilders.matchAllQuery())
-            .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "2");
-
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(randomBoolean() ? QueryBuilders.termQuery("field1", "value1") : QueryBuilders.matchAllQuery()),
+            "1"
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(randomBoolean() ? QueryBuilders.termQuery("field2", "value2") : QueryBuilders.matchAllQuery()),
+            "2"
+        );
         QueryBuilder combined = QueryBuilders.boolQuery()
             .should(QueryBuilders.termQuery("field2", "value2"))
             .should(QueryBuilders.termQuery("field1", "value1"))
             .minimumShouldMatch(1);
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(randomBoolean() ? combined : QueryBuilders.matchAllQuery())
-            .get();
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "2");
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(randomBoolean() ? combined : QueryBuilders.matchAllQuery()),
+            "1",
+            "2"
+        );
     }
 
     public void testGetApi() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text"));
 
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").get();
-        client().prepareIndex("test").setId("3").setSource("field3", "value3").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").get();
+        prepareIndex("test").setId("3").setSource("field3", "value3").get();
 
         // test documents users can see
         boolean realtime = randomBoolean();
@@ -305,8 +302,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         final boolean realtime = true;
         final boolean refresh = false;
 
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").get();
         // do a realtime get beforehand to flip an internal translog flag so that subsequent realtime gets are
         // served from the translog (this first one is NOT, it internally forces a refresh of the index)
         client().prepareMultiGet().add("test", "1").add("test", "2").setRealtime(realtime).setRefresh(refresh).get();
@@ -314,13 +311,11 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // updates don't change the doc visibility for users
         // but updates populate the translog and the DLS filter must apply to the translog operations as well
         if (randomBoolean()) {
-            client().prepareIndex("test")
-                .setId("1")
+            prepareIndex("test").setId("1")
                 .setSource("field1", "value1", "field3", "value3")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
                 .get();
-            client().prepareIndex("test")
-                .setId("2")
+            prepareIndex("test").setId("2")
                 .setSource("field2", "value2", "field3", "value3")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
                 .get();
@@ -372,9 +367,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     public void testMGetApi() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text"));
 
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").get();
-        client().prepareIndex("test").setId("3").setSource("field3", "value3").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").get();
+        prepareIndex("test").setId("3").setSource("field3", "value3").get();
 
         boolean realtime = randomBoolean();
         MultiGetResponse response = client().filterWithHeader(
@@ -446,80 +441,89 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text", "id", "type=integer")
         );
 
-        client().prepareIndex("test1").setId("1").setSource("field1", "value1", "id", 1).get();
-        client().prepareIndex("test1").setId("2").setSource("field2", "value2", "id", 2).get();
-        client().prepareIndex("test1").setId("3").setSource("field3", "value3", "id", 3).get();
-        client().prepareIndex("test2").setId("1").setSource("field1", "value1", "id", 1).get();
-        client().prepareIndex("test2").setId("2").setSource("field2", "value2", "id", 2).get();
-        client().prepareIndex("test2").setId("3").setSource("field3", "value3", "id", 3).get();
+        prepareIndex("test1").setId("1").setSource("field1", "value1", "id", 1).get();
+        prepareIndex("test1").setId("2").setSource("field2", "value2", "id", 2).get();
+        prepareIndex("test1").setId("3").setSource("field3", "value3", "id", 3).get();
+        prepareIndex("test2").setId("1").setSource("field1", "value1", "id", 1).get();
+        prepareIndex("test2").setId("2").setSource("field2", "value2", "id", 2).get();
+        prepareIndex("test2").setId("3").setSource("field3", "value3", "id", 3).get();
         indicesAdmin().prepareRefresh("test1", "test2").get();
 
-        MultiSearchResponse response = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-        )
-            .prepareMultiSearch()
-            .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
-            .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
-            .get();
-        assertFalse(response.getResponses()[0].isFailure());
-        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
+        {
+            assertResponse(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareMultiSearch()
+                    .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                    .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery())),
+                response -> {
+                    assertFalse(response.getResponses()[0].isFailure());
+                    assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
 
-        assertFalse(response.getResponses()[1].isFailure());
-        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
+                    assertFalse(response.getResponses()[1].isFailure());
+                    assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
+                }
+            );
+        }
+        {
+            assertResponse(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                    .prepareMultiSearch()
+                    .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                    .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery())),
+                response -> {
+                    assertFalse(response.getResponses()[0].isFailure());
+                    assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareMultiSearch()
-            .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
-            .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
-            .get();
-        assertFalse(response.getResponses()[0].isFailure());
-        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
+                    assertFalse(response.getResponses()[1].isFailure());
+                    assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
+                }
+            );
+        }
+        {
+            assertResponse(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                    .prepareMultiSearch()
+                    .add(
+                        prepareSearch("test1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                            .setQuery(QueryBuilders.matchAllQuery())
+                    )
+                    .add(
+                        prepareSearch("test2").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                            .setQuery(QueryBuilders.matchAllQuery())
+                    ),
+                response -> {
+                    assertFalse(response.getResponses()[0].isFailure());
+                    assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(2L));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().size(), is(2));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("field2"), is("value2"));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
 
-        assertFalse(response.getResponses()[1].isFailure());
-        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-            .prepareMultiSearch()
-            .add(
-                client().prepareSearch("test1")
-                    .addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
-                    .setQuery(QueryBuilders.matchAllQuery())
-            )
-            .add(
-                client().prepareSearch("test2")
-                    .addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
-                    .setQuery(QueryBuilders.matchAllQuery())
-            )
-            .get();
-        assertFalse(response.getResponses()[0].isFailure());
-        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(2L));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("field2"), is("value2"));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
-
-        assertFalse(response.getResponses()[1].isFailure());
-        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(2L));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().get("field2"), is("value2"));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
+                    assertFalse(response.getResponses()[1].isFailure());
+                    assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(2L));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().size(), is(2));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().get("field2"), is("value2"));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
+                }
+            );
+        }
     }
 
     public void testPercolateQueryWithIndexedDocWithDLS() {
@@ -528,14 +532,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("message", "type=text", "query", "type=percolator", "field1", "type=text", "field2", "type=text")
         );
         assertAcked(indicesAdmin().prepareCreate("doc_index").setMapping("message", "type=text", "field1", "type=text"));
-        client().prepareIndex("query_index")
-            .setId("1")
+        prepareIndex("query_index").setId("1")
             .setSource("""
                 {"field1": "value1", "field2": "value2", "query": {"match": {"message": "bonsai tree"}}}""", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        client().prepareIndex("doc_index")
-            .setId("1")
+        prepareIndex("doc_index").setId("1")
             .setSource("{\"field1\": \"value1\", \"message\": \"A new bonsai tree in the office\"}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -543,14 +545,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         SearchResponse result = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
         ).prepareSearch("query_index").setQuery(new PercolateQueryBuilder("query", "doc_index", "1", null, null, null)).get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 can access the query_index itself (without performing percolate search)
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("query_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 cannot access doc#1 of the doc_index so the percolate search fails because doc#1 cannot be found
         ResourceNotFoundException e = expectThrows(
@@ -572,14 +574,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             indicesAdmin().prepareCreate("shape_index")
                 .setMapping("shape_field", "type=shape", "field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("search_index")
-            .setId("1")
+        prepareIndex("search_index").setId("1")
             .setSource("""
                 {"field1": "value1", "field2": "value2", "search_field": { "type": "point", "coordinates":[1, 1] }}""", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        client().prepareIndex("shape_index")
-            .setId("1")
+        prepareIndex("shape_index").setId("1")
             .setSource("""
                 {"field1": "value1", "shape_field": { "type": "envelope", "coordinates": [[0, 2], [2, 0]]}}""", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
@@ -598,14 +598,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             requestBuilder.setQuery(shapeQuery);
         }
         result = requestBuilder.get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 does not have access to doc#1 of the shape_index
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("search_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         IllegalArgumentException e;
         if (randomBoolean()) {
@@ -638,82 +638,83 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             indicesAdmin().prepareCreate("lookup_index")
                 .setMapping("lookup_field", "type=keyword", "field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("search_index")
-            .setId("1")
+        prepareIndex("search_index").setId("1")
             .setSource("field1", "value1", "search_field", List.of("value1", "value2", "value3"))
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        client().prepareIndex("search_index")
-            .setId("2")
+        prepareIndex("search_index").setId("2")
             .setSource("field1", "value1", "field2", "value2", "search_field", List.of("value1", "value2"))
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        client().prepareIndex("search_index")
-            .setId("3")
+        prepareIndex("search_index").setId("3")
             .setSource("field1", "value1", "field2", "value1", "search_field", "value1")
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        client().prepareIndex("search_index")
-            .setId("4")
-            .setSource("field2", "value2", "search_field", "value1")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex("search_index")
-            .setId("5")
+        prepareIndex("search_index").setId("4").setSource("field2", "value2", "search_field", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("search_index").setId("5")
             .setSource("field2", "value2", "search_field", List.of("value1", "value2"))
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        client().prepareIndex("lookup_index")
-            .setId("1")
+        prepareIndex("lookup_index").setId("1")
             .setSource("field1", "value1", "field2", "value1", "lookup_field", List.of("value1", "value2"))
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        client().prepareIndex("lookup_index")
-            .setId("2")
+        prepareIndex("lookup_index").setId("2")
             .setSource("field1", "value2", "field2", "value2", "lookup_field", List.of("value2"))
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         // Lookup doc#1 is: visible to user1 and user3, but hidden from user2
         TermsQueryBuilder lookup = QueryBuilders.termsLookupQuery("search_field", new TermsLookup("lookup_index", "1", "lookup_field"));
-        SearchResponse response = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-        ).prepareSearch("search_index").setQuery(lookup).get();
-        assertHitCount(response, 3);
-        assertSearchHits(response, "1", "2", "3");
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 0);
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            "1",
+            "2",
+            "3"
+        );
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 5);
-        assertSearchHits(response, "1", "2", "3", "4", "5");
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            0
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+        );
         // Lookup doc#2 is: hidden from user1, visible to user2 and user3
         lookup = QueryBuilders.termsLookupQuery("search_field", new TermsLookup("lookup_index", "2", "lookup_field"));
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 0);
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 2);
-        assertSearchHits(response, "2", "5");
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 3);
-        assertSearchHits(response, "1", "2", "5");
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup)
+                .get(),
+            0
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            "2",
+            "5"
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            "1",
+            "2",
+            "5"
+        );
     }
 
     public void testTVApi() throws Exception {
@@ -728,9 +729,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     "type=text,term_vector=with_positions_offsets_payloads"
                 )
         );
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
 
         boolean realtime = randomBoolean();
         TermVectorsResponse response = client().filterWithHeader(
@@ -791,9 +792,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     "type=text,term_vector=with_positions_offsets_payloads"
                 )
         );
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
 
         boolean realtime = randomBoolean();
         MultiTermVectorsResponse response = client().filterWithHeader(
@@ -860,8 +861,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings).setMapping(builder));
 
         for (int i = 0; i < 5; i++) {
-            client().prepareIndex("test").setSource("field1", "value1", "other", "valueA", "vector", new float[] { i, i, i }).get();
-            client().prepareIndex("test").setSource("field2", "value2", "other", "valueB", "vector", new float[] { i, i, i }).get();
+            prepareIndex("test").setSource("field1", "value1", "other", "valueA", "vector", new float[] { i, i, i }).get();
+            prepareIndex("test").setSource("field2", "value2", "other", "valueB", "vector", new float[] { i, i, i }).get();
         }
 
         indicesAdmin().prepareRefresh("test").get();
@@ -913,13 +914,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             indicesAdmin().prepareCreate("test")
                 .setMapping("field1", "type=text", "field2", "type=text,fielddata=true", "field3", "type=text")
         );
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
 
-        SearchResponse response = client().prepareSearch("test")
-            .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("field2").field("field2")))
-            .get();
+        SearchResponse response = prepareSearch("test").addAggregation(
+            AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("field2").field("field2"))
+        ).get();
         assertHitCount(response, 3);
         assertSearchHits(response, "1", "2", "3");
 
@@ -993,7 +994,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         ensureGreen();
 
         // index simple data
-        client().prepareIndex("test").setId("p1").setSource("join_field", "parent", "field1", "value1").get();
+        prepareIndex("test").setId("p1").setSource("join_field", "parent", "field1", "value1").get();
 
         Map<String, Object> source = new HashMap<>();
         source.put("field2", "value2");
@@ -1002,27 +1003,24 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         joinField.put("name", "child");
         joinField.put("parent", "p1");
         source.put("join_field", joinField);
-        client().prepareIndex("test").setId("c1").setSource(source).setRouting("p1").get();
+        prepareIndex("test").setId("c1").setSource(source).setRouting("p1").get();
         source.put("id", "c2");
-        client().prepareIndex("test").setId("c2").setSource(source).setRouting("p1").get();
+        prepareIndex("test").setId("c2").setSource(source).setRouting("p1").get();
         source = new HashMap<>();
         source.put("field3", "value3");
         source.put("join_field", joinField);
         source.put("id", "c3");
-        client().prepareIndex("test").setId("c3").setSource(source).setRouting("p1").get();
+        prepareIndex("test").setId("c3").setSource(source).setRouting("p1").get();
         refresh();
         verifyParentChild();
     }
 
     private void verifyParentChild() {
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
-            .get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None)).get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("p1"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(hasParentQuery("parent", matchAllQuery(), false))
+        searchResponse = prepareSearch("test").setQuery(hasParentQuery("parent", matchAllQuery(), false))
             .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(searchResponse, 3L);
@@ -1031,29 +1029,33 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("c3"));
 
         // Both user1 and user2 can't see field1 and field2, no parent/child query should yield results:
-        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None)),
+            0L
+        );
 
-        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None)),
+            0L
+        );
 
-        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasParentQuery("parent", matchAllQuery(), false))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(hasParentQuery("parent", matchAllQuery(), false)),
+            0L
+        );
 
-        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasParentQuery("parent", matchAllQuery(), false))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(hasParentQuery("parent", matchAllQuery(), false)),
+            0L
+        );
 
         // user 3 can see them but not c3
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
@@ -1082,12 +1084,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         final int numInVisible = scaledRandomIntBetween(2, 10);
         int id = 1;
         for (int i = 0; i < numVisible; i++) {
-            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field1", "value1").get();
+            prepareIndex("test").setId(String.valueOf(id++)).setSource("field1", "value1").get();
         }
 
         for (int i = 0; i < numInVisible; i++) {
-            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field2", "value2").get();
-            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field3", "value3").get();
+            prepareIndex("test").setId(String.valueOf(id++)).setSource("field2", "value2").get();
+            prepareIndex("test").setId(String.valueOf(id++)).setSource("field3", "value3").get();
         }
         refresh();
 
@@ -1133,12 +1135,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         final int numInvisible = scaledRandomIntBetween(2, 10);
         int id = 1;
         for (int i = 0; i < numVisible; i++) {
-            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field1", "value1").get();
+            prepareIndex("test").setId(String.valueOf(id++)).setSource("field1", "value1").get();
         }
 
         for (int i = 0; i < numInvisible; i++) {
-            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field2", "value2").get();
-            client().prepareIndex("test").setId(String.valueOf(id++)).setSource("field3", "value3").get();
+            prepareIndex("test").setId(String.valueOf(id++)).setSource("field2", "value2").get();
+            prepareIndex("test").setId(String.valueOf(id++)).setSource("field3", "value3").get();
         }
         refresh();
 
@@ -1161,7 +1163,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
             }
         } finally {
-            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(response.pointInTimeId())).actionGet();
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(response.pointInTimeId())).actionGet();
         }
     }
 
@@ -1171,9 +1173,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").get();
-        client().prepareIndex("test").setId("3").setSource("field3", "value3").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").get();
+        prepareIndex("test").setId("3").setSource("field3", "value3").get();
         refresh();
 
         int max = scaledRandomIntBetween(4, 32);
@@ -1205,7 +1207,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testUpdateApiIsBlocked() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
         // With document level security enabled the update is not allowed:
         try {
@@ -1247,8 +1249,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testNestedInnerHits() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "nested_field", "type=nested"));
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", "value1")
@@ -1263,8 +1264,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", "value2")
@@ -1309,8 +1309,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion")
         );
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", "value1")
@@ -1322,8 +1321,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             )
             .get();
         // A document that is always included by role query of both roles:
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setSource(jsonBuilder().startObject().field("field1", "value1").field("field2", "value2").endObject())
             .get();
         refresh("test");
@@ -1344,9 +1342,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         );
 
         // Term suggester:
-        SearchResponse response = client().prepareSearch("test")
-            .suggest(new SuggestBuilder().setGlobalText("valeu").addSuggestion("_name1", new TermSuggestionBuilder("suggest_field1")))
-            .get();
+        SearchResponse response = prepareSearch("test").suggest(
+            new SuggestBuilder().setGlobalText("valeu").addSuggestion("_name1", new TermSuggestionBuilder("suggest_field1"))
+        ).get();
         assertNoFailures(response);
 
         TermSuggestion termSuggestion = response.getSuggest().getSuggestion("_name1");
@@ -1369,9 +1367,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), equalTo("Suggest isn't supported if document level security is enabled"));
 
         // Phrase suggester:
-        response = client().prepareSearch("test")
-            .suggest(new SuggestBuilder().setGlobalText("valeu").addSuggestion("_name1", new PhraseSuggestionBuilder("suggest_field1")))
-            .get();
+        response = prepareSearch("test").suggest(
+            new SuggestBuilder().setGlobalText("valeu").addSuggestion("_name1", new PhraseSuggestionBuilder("suggest_field1"))
+        ).get();
         assertNoFailures(response);
 
         PhraseSuggestion phraseSuggestion = response.getSuggest().getSuggestion("_name1");
@@ -1390,9 +1388,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), equalTo("Suggest isn't supported if document level security is enabled"));
 
         // Completion suggester:
-        response = client().prepareSearch("test")
-            .suggest(new SuggestBuilder().setGlobalText("valu").addSuggestion("_name1", new CompletionSuggestionBuilder("suggest_field2")))
-            .get();
+        response = prepareSearch("test").suggest(
+            new SuggestBuilder().setGlobalText("valu").addSuggestion("_name1", new CompletionSuggestionBuilder("suggest_field2"))
+        ).get();
         assertNoFailures(response);
 
         CompletionSuggestion completionSuggestion = response.getSuggest().getSuggestion("_name1");
@@ -1420,13 +1418,11 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("field1", "type=text", "other_field", "type=text")
         );
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("field1", "value1").field("other_field", "value").endObject())
             .get();
         // A document that is always included by role query of both roles:
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setSource(jsonBuilder().startObject().field("field1", "value1").field("field2", "value2").endObject())
             .get();
         refresh("test");
@@ -1437,10 +1433,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("field1", "type=text", "other_field", "type=text", "yet_another", "type=text")
         );
 
-        SearchResponse response = client().prepareSearch("test")
-            .setProfile(true)
-            .setQuery(new FuzzyQueryBuilder("other_field", "valeu"))
-            .get();
+        SearchResponse response = prepareSearch("test").setProfile(true).setQuery(new FuzzyQueryBuilder("other_field", "valeu")).get();
         assertNoFailures(response);
 
         assertThat(response.getProfileResults().size(), equalTo(1));

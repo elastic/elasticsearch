@@ -30,6 +30,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * Rest endpoint to retrieve a Role from the security index
+ *
+ * <strong>Note:</strong> This class does not extend {@link NativeRoleBaseRestHandler} because it handles both reserved roles and native
+ * roles, and should still be available even if native role management is disabled.
  */
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetRolesAction extends SecurityBaseRestHandler {

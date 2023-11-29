@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -115,7 +116,9 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         THREAD_POOL = null;
     }
 
-    private class TestTransportBroadcastUnpromotableAction extends TransportBroadcastUnpromotableAction<TestBroadcastUnpromotableRequest> {
+    private class TestTransportBroadcastUnpromotableAction extends TransportBroadcastUnpromotableAction<
+        TestBroadcastUnpromotableRequest,
+        ActionResponse.Empty> {
 
         TestTransportBroadcastUnpromotableAction(ShardStateAction shardStateAction) {
             super(
@@ -125,7 +128,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Set.of()),
                 TestBroadcastUnpromotableRequest::new,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
 
@@ -138,6 +141,20 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             assert false : "not reachable in these tests";
         }
 
+        @Override
+        protected ActionResponse.Empty combineUnpromotableShardResponses(List<ActionResponse.Empty> empties) {
+            return ActionResponse.Empty.INSTANCE;
+        }
+
+        @Override
+        protected ActionResponse.Empty readResponse(StreamInput in) {
+            return ActionResponse.Empty.INSTANCE;
+        }
+
+        @Override
+        protected ActionResponse.Empty emptyResponse() {
+            return ActionResponse.Empty.INSTANCE;
+        }
     }
 
     private static class TestBroadcastUnpromotableRequest extends BroadcastUnpromotableRequest {
@@ -199,7 +216,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     }
 
     private int countRequestsForIndex(ClusterState state, String index) {
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
         state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).iterator().forEachRemaining(shardId -> {
             logger.debug("--> executing for primary shard id: {}", shardId.shardId());
             ActionTestUtils.execute(
@@ -304,7 +321,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         }
         IndexShardRoutingTable wrongRoutingTable = wrongRoutingTableBuilder.build();
 
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
         logger.debug("--> executing for wrong shard routing table: {}", wrongRoutingTable);
 
         // The request fails if we don't mark shards as stale
@@ -360,7 +377,6 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     }
 
     public void testNullIndexShardRoutingTable() {
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
         IndexShardRoutingTable shardRoutingTable = null;
         assertThat(
             expectThrows(

@@ -15,7 +15,8 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/part-3-windows.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/part-3-windows.*'
           github-hooks: true
           status-context: elasticsearch-ci/part-3-windows
           cancel-builds-on-update: true
@@ -24,13 +25,10 @@
             - 7.17
           excluded-regions:
             - ^docs/.*
-          white-list-labels:
-            - 'test-windows'
-          black-list-labels:
-            - '>test-mute'
+            - ^x-pack/docs/.*
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
             JAVA11_HOME=$USERPROFILE\\.java\\java11

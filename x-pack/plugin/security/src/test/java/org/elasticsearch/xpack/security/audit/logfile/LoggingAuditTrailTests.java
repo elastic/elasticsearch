@@ -31,7 +31,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -145,11 +144,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -327,7 +324,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS,
                 Loggers.LOG_LEVEL_SETTING,
-                ApiKeyService.DELETE_RETENTION_PERIOD
+                ApiKeyService.DELETE_RETENTION_PERIOD,
+                ApiKeyService.DELETE_INTERVAL
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -2027,7 +2025,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             randomFrom(AuditLevel.ACCESS_GRANTED, AuditLevel.SYSTEM_ACCESS_GRANTED),
             authentication,
             "_action",
-            randomFrom(randomAlphaOfLengthBetween(1, 4), null),
+            new String[] { randomAlphaOfLengthBetween(1, 4) },
             BulkItemRequest.class.getName(),
             request.remoteAddress(),
             authorizationInfo
@@ -2059,13 +2057,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkedFields, checkedArrayFields);
         clearLog();
 
-        String index = randomFrom(randomAlphaOfLengthBetween(1, 4), null);
+        String[] indices = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         auditTrail.explicitIndexAccessEvent(
             requestId,
             randomFrom(AuditLevel.ACCESS_GRANTED, AuditLevel.SYSTEM_ACCESS_GRANTED),
             authentication,
             "_action",
-            index,
+            indices,
             BulkItemRequest.class.getName(),
             request.remoteAddress(),
             authorizationInfo
@@ -2084,9 +2082,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        if (index != null) {
-            checkedArrayFields.put(LoggingAuditTrail.INDICES_FIELD_NAME, new String[] { index });
-        }
+        checkedArrayFields.put(LoggingAuditTrail.INDICES_FIELD_NAME, indices);
         assertMsg(logger, checkedFields, checkedArrayFields);
     }
 
@@ -2978,13 +2974,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             @Override
             public void clearCredentials() {}
         };
-    }
-
-    private ClusterSettings mockClusterSettings() {
-        final List<Setting<?>> settingsList = new ArrayList<>();
-        LoggingAuditTrail.registerSettings(settingsList);
-        settingsList.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        return new ClusterSettings(settings, new HashSet<>(settingsList));
     }
 
     private Authentication createApiKeyAuthenticationAndMaybeWithRunAs(Authentication authentication) throws Exception {

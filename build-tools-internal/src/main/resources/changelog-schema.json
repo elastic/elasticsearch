@@ -37,6 +37,7 @@
             "Distributed",
             "Downsampling",
             "EQL",
+            "ES|QL",
             "Engine",
             "FIPS",
             "Features",
@@ -74,6 +75,7 @@
             "Ranking",
             "Recovery",
             "Reindex",
+            "Rollup",
             "SQL",
             "Search",
             "Security",
@@ -276,6 +278,7 @@
         "Packaging",
         "Painless",
         "REST API",
+        "Rollup",
         "System requirement",
         "Transform"
       ]

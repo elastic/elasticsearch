@@ -53,7 +53,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(stats, StreamOutput::writeString, StreamOutput::writeVLong);
+        out.writeMap(stats, StreamOutput::writeVLong);
     }
 
     /**

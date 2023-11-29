@@ -77,6 +77,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             Settings.EMPTY,
             null,
+            null,
             client,
             testThreadPool,
             TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
@@ -131,6 +132,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         EnrichPolicyLocks locks = new EnrichPolicyLocks();
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             testSettings,
+            null,
             null,
             client,
             testThreadPool,
@@ -266,6 +268,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             Settings.EMPTY,
             null,
+            null,
             client,
             testThreadPool,
             TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
@@ -274,7 +277,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         );
 
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
-        PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = PlainActionFuture.newFuture();
+        PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = new PlainActionFuture<>();
         testExecutor.coordinatePolicyExecution(
             new ExecuteEnrichPolicyAction.Request(testPolicyName).setWaitForCompletion(false),
             firstTaskResult
@@ -388,6 +391,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             Settings.EMPTY,
             clusterService,
+            null,
             null,
             testThreadPool,
             TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),

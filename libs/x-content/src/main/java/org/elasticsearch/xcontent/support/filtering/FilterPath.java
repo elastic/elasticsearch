@@ -151,7 +151,7 @@ public class FilterPath {
             return buildPath("", root);
         }
 
-        void insertNode(String filter, BuildNode node) {
+        static void insertNode(String filter, BuildNode node) {
             int end = filter.length();
             int splitPosition = -1;
             boolean findEscapes = false;
@@ -184,7 +184,7 @@ public class FilterPath {
             }
         }
 
-        FilterPath buildPath(String segment, BuildNode node) {
+        static FilterPath buildPath(String segment, BuildNode node) {
             Map<String, FilterPath> termsChildren = new HashMap<>();
             List<FilterPath> wildcardChildren = new ArrayList<>();
             for (Map.Entry<String, BuildNode> entry : node.children.entrySet()) {

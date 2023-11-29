@@ -31,6 +31,14 @@ public interface LiveVersionMapArchive {
      */
     long getMinDeleteTimestamp();
 
+    /**
+     * Returns whether the archive has seen an unsafe old map (passed via {@link LiveVersionMapArchive#afterRefresh})
+     * which has not yet been refreshed on the unpromotable shards.
+     */
+    default boolean isUnsafe() {
+        return false;
+    }
+
     LiveVersionMapArchive NOOP_ARCHIVE = new LiveVersionMapArchive() {
         @Override
         public void afterRefresh(LiveVersionMap.VersionLookup old) {}

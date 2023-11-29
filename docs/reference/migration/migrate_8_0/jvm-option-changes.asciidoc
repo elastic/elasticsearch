@@ -2,10 +2,6 @@
 [[breaking_80_jvm_option_changes]]
 ==== JVM option changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 TIP: {ess-skip-section}
 
 [[breaking_80_allocation_change_flood_stage_block_always_removed]]
@@ -56,4 +52,3 @@ system property, and ensure that all nodes of the same version are running
 exactly the same build. Setting this system property will result in an error
 on startup.
 ====
-//end::notable-breaking-changes[]

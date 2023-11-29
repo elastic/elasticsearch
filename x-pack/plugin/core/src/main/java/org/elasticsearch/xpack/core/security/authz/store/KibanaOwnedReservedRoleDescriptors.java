@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
@@ -65,6 +64,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 "manage_saml",
                 "manage_token",
                 "manage_oidc",
+                // For SLO to install enrich policy
+                "manage_enrich",
                 // For Fleet package upgrade
                 "manage_pipeline",
                 "manage_ilm",
@@ -79,6 +80,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 ActivateProfileAction.NAME,
                 SuggestProfilesAction.NAME,
                 ProfileHasPrivilegesAction.NAME,
+                "write_fleet_secrets",
                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                 "manage_ml",
                 // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
@@ -174,8 +176,27 @@ class KibanaOwnedReservedRoleDescriptors {
                     .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-fileds*").privileges("all").allowRestrictedIndices(true).build(),
+                // 8.9 BWC
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-file-data-*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-files-*").privileges("all").allowRestrictedIndices(true).build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-filedelivery-data-*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-filedelivery-meta-*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 // Fleet telemetry queries Agent Logs indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
+                // Fleet publishes Agent metrics in kibana task runner
+                RoleDescriptor.IndicesPrivileges.builder().indices("metrics-fleet_server*").privileges("all").build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),
@@ -281,13 +302,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-ti_*_latest.*")
                     .privileges(
-                        // Require "create_index", "delete_index", "read", "index", "delete", IndicesAliasesAction.NAME, and
-                        // UpdateSettingsAction.NAME for transform
                         "create_index",
                         "delete_index",
                         "read",
                         "index",
                         "delete",
+                        "manage",
                         IndicesAliasesAction.NAME,
                         UpdateSettingsAction.NAME
                     )
@@ -330,6 +350,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".asset-criticality.asset-criticality-*")
+                    .privileges("create_index", "manage", "read")
+                    .build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")
@@ -347,15 +371,13 @@ class KibanaOwnedReservedRoleDescriptors {
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled()
-                ? new RoleDescriptor.RemoteIndicesPrivileges[] {
-                    getRemoteIndicesReadPrivileges(".monitoring-*"),
-                    getRemoteIndicesReadPrivileges("apm-*"),
-                    getRemoteIndicesReadPrivileges("logs-apm.*"),
-                    getRemoteIndicesReadPrivileges("metrics-apm.*"),
-                    getRemoteIndicesReadPrivileges("traces-apm.*"),
-                    getRemoteIndicesReadPrivileges("traces-apm-*") }
-                : null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                getRemoteIndicesReadPrivileges(".monitoring-*"),
+                getRemoteIndicesReadPrivileges("apm-*"),
+                getRemoteIndicesReadPrivileges("logs-apm.*"),
+                getRemoteIndicesReadPrivileges("metrics-apm.*"),
+                getRemoteIndicesReadPrivileges("traces-apm.*"),
+                getRemoteIndicesReadPrivileges("traces-apm-*") },
             null
         );
     }

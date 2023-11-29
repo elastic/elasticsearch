@@ -43,8 +43,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -57,6 +59,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -66,16 +69,23 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
 
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
     private final ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
-    private final TransportGetDesiredBalanceAction transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
-        mock(TransportService.class),
-        mock(ClusterService.class),
-        mock(ThreadPool.class),
-        mock(ActionFilters.class),
-        mock(IndexNameExpressionResolver.class),
-        desiredBalanceShardsAllocator,
-        clusterInfoService,
-        TEST_WRITE_LOAD_FORECASTER
-    );
+    private ThreadPool threadPool = mock(ThreadPool.class);
+    private TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+    private TransportGetDesiredBalanceAction transportGetDesiredBalanceAction;
+
+    @Before
+    public void initialize() {
+        transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
+            transportService,
+            mock(ClusterService.class),
+            threadPool,
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class),
+            desiredBalanceShardsAllocator,
+            clusterInfoService,
+            TEST_WRITE_LOAD_FORECASTER
+        );
+    }
 
     private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) throws Exception {
         return PlainActionFuture.get(
@@ -96,11 +106,10 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
 
     public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
         var clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataWithConfiguredAllocator(BALANCED_ALLOCATOR)).build();
-
         final var action = new TransportGetDesiredBalanceAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             mock(ShardsAllocator.class),
@@ -211,17 +220,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         }
 
         when(desiredBalanceShardsAllocator.getDesiredBalance()).thenReturn(new DesiredBalance(randomInt(1024), shardAssignments));
-        DesiredBalanceStats desiredBalanceStats = new DesiredBalanceStats(
-            randomInt(Integer.MAX_VALUE),
-            randomBoolean(),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE)
-        );
+        DesiredBalanceStats desiredBalanceStats = randomDesiredBalanceStats();
         when(desiredBalanceShardsAllocator.getStats()).thenReturn(desiredBalanceStats);
         ClusterInfo clusterInfo = ClusterInfo.EMPTY;
         when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);

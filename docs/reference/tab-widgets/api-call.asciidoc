@@ -2,12 +2,12 @@
 **Use {kib}**
 
 //tag::kibana-api-ex[]
-. Open {kib}'s main menu and go to **Dev Tools > Console**.
+. Open {kib}'s main menu ("*☰*" near Elastic logo) and go to **Dev Tools > Console**.
 +
 [role="screenshot"]
 image::images/kibana-console.png[{kib} Console,align="center"]
 
-. Run the following example API request in the console:
+. Run the following test API request in Console:
 +
 [source,console]
 ----
@@ -48,21 +48,9 @@ include::api-call.asciidoc[tag=kibana-api-ex]
 To submit an example API request, run the following curl command in a new
 terminal session.
 
-. Copy the `http_ca.crt` security certificate from your Docker container to
-your local machine.
-+
 [source,sh]
 ----
-docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .
-----
-
-. Open a new terminal and verify that you can connect to your {es} cluster by
-making an authenticated call, using the `http_ca.crt` file that you copied from
-your Docker container. Enter the password for the `elastic` user when prompted.
-+
-[source,sh]
-----
-curl --cacert http_ca.crt -u elastic https://localhost:9200
+curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
 ----
 // NOTCONSOLE
 

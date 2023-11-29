@@ -22,8 +22,8 @@ import java.util.function.Supplier;
  */
 public final class IndexNameGenerator {
 
-    static final String ILLEGAL_INDEXNAME_CHARS_REGEX = "[/:\"*?<>|# ,\\\\]+";
-    static final int MAX_GENERATED_UUID_LENGTH = 4;
+    public static final String ILLEGAL_INDEXNAME_CHARS_REGEX = "[/:\"*?<>|# ,\\\\]+";
+    public static final int MAX_GENERATED_UUID_LENGTH = 4;
 
     private IndexNameGenerator() {}
 

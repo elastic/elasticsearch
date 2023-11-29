@@ -248,7 +248,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             );
         }
         this.similarityThreshold = in.readVInt();
-        this.buckets = in.readList(Bucket::new);
+        this.buckets = in.readCollectionAsList(Bucket::new);
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
     }
@@ -266,7 +266,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             );
         }
         out.writeVInt(similarityThreshold);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
     }

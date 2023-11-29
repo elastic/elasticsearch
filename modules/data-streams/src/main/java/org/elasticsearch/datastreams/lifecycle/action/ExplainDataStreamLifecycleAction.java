@@ -33,13 +33,14 @@ import java.util.Objects;
 /**
  * Action for explaining the data stream lifecycle status for one or more indices.
  */
-public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStreamLifecycleAction.Response> {
-    public static final ExplainDataStreamLifecycleAction INSTANCE = new ExplainDataStreamLifecycleAction();
-    public static final String NAME = "indices:admin/data_stream/lifecycle/explain";
+public class ExplainDataStreamLifecycleAction {
 
-    public ExplainDataStreamLifecycleAction() {
-        super(NAME, Response::new);
-    }
+    public static final ActionType<ExplainDataStreamLifecycleAction.Response> INSTANCE = new ActionType<>(
+        "indices:admin/data_stream/lifecycle/explain",
+        Response::new
+    );
+
+    private ExplainDataStreamLifecycleAction() {/* no instances */}
 
     /**
      * Request explaining the data stream lifecycle for one or more indices.
@@ -65,6 +66,11 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -146,7 +152,7 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.indices = in.readList(ExplainIndexDataStreamLifecycle::new);
+            this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
         }
 
@@ -160,7 +166,7 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(indices);
+            out.writeCollection(indices);
             out.writeOptionalWriteable(rolloverConfiguration);
         }
 

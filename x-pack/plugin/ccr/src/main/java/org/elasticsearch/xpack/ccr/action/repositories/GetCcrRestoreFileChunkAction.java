@@ -57,7 +57,13 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             ActionFilters actionFilters,
             CcrRestoreSourceService restoreSourceService
         ) {
-            super(actionName, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
+            super(
+                actionName,
+                transportService,
+                actionFilters,
+                GetCcrRestoreFileChunkRequest::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
+            );
             TransportActionProxy.registerProxyAction(transportService, actionName, false, GetCcrRestoreFileChunkResponse::new);
             this.restoreSourceService = restoreSourceService;
             this.bigArrays = bigArrays;
@@ -79,7 +85,12 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
                     long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
                     long offsetBeforeRead = offsetAfterRead - reference.length();
-                    listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
+                    var chunk = new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference);
+                    try {
+                        listener.onResponse(chunk);
+                    } finally {
+                        chunk.decRef();
+                    }
                 }
             } catch (IOException e) {
                 listener.onFailure(e);

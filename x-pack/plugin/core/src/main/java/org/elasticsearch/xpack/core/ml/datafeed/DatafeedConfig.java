@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -86,7 +87,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  */
 public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXContentObject {
 
-    private static final Version RUNTIME_MAPPINGS_INTRODUCED = Version.V_7_11_0;
+    private static final TransportVersion RUNTIME_MAPPINGS_INTRODUCED = TransportVersions.V_7_11_0;
 
     public static final int DEFAULT_SCROLL_SIZE = 1000;
 
@@ -279,7 +280,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.queryDelay = in.readOptionalTimeValue();
         this.frequency = in.readOptionalTimeValue();
         if (in.readBoolean()) {
-            this.indices = in.readImmutableList(StreamInput::readString);
+            this.indices = in.readCollectionAsImmutableList(StreamInput::readString);
         } else {
             this.indices = null;
         }
@@ -289,7 +290,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
         if (in.readBoolean()) {
-            this.scriptFields = in.readImmutableList(SearchSourceBuilder.ScriptField::new);
+            this.scriptFields = in.readCollectionAsImmutableList(SearchSourceBuilder.ScriptField::new);
         } else {
             this.scriptFields = null;
         }
@@ -340,7 +341,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return scrollSize;
     }
 
-    public Optional<Tuple<Version, String>> minRequiredClusterVersion() {
+    public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
         return runtimeMappings.isEmpty()
             ? Optional.empty()
             : Optional.of(Tuple.tuple(RUNTIME_MAPPINGS_INTRODUCED, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()));
@@ -529,13 +530,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         if (scriptFields != null) {
             out.writeBoolean(true);
-            out.writeList(scriptFields);
+            out.writeCollection(scriptFields);
         } else {
             out.writeBoolean(false);
         }
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalWriteable(delayedDataCheckConfig);
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
@@ -724,7 +725,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return defaultFrequency;
     }
 
-    private TimeValue defaultFrequencyTarget(TimeValue bucketSpan) {
+    private static TimeValue defaultFrequencyTarget(TimeValue bucketSpan) {
         long bucketSpanSeconds = bucketSpan.seconds();
         if (bucketSpanSeconds <= 0) {
             throw new IllegalArgumentException("Bucket span has to be > 0");
@@ -792,7 +793,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.queryDelay = in.readOptionalTimeValue();
             this.frequency = in.readOptionalTimeValue();
             if (in.readBoolean()) {
-                this.indices = in.readImmutableList(StreamInput::readString);
+                this.indices = in.readCollectionAsImmutableList(StreamInput::readString);
             } else {
                 this.indices = null;
             }
@@ -802,7 +803,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
             if (in.readBoolean()) {
-                this.scriptFields = in.readImmutableList(SearchSourceBuilder.ScriptField::new);
+                this.scriptFields = in.readCollectionAsImmutableList(SearchSourceBuilder.ScriptField::new);
             } else {
                 this.scriptFields = null;
             }
@@ -837,13 +838,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
             if (scriptFields != null) {
                 out.writeBoolean(true);
-                out.writeList(scriptFields);
+                out.writeCollection(scriptFields);
             } else {
                 out.writeBoolean(false);
             }
             out.writeOptionalVInt(scrollSize);
             out.writeOptionalWriteable(chunkingConfig);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(headers, StreamOutput::writeString);
             out.writeOptionalWriteable(delayedDataCheckConfig);
             out.writeOptionalVInt(maxEmptySearches);
             out.writeBoolean(indicesOptions != null);

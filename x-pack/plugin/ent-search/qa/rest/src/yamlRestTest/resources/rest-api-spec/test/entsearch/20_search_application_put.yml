@@ -125,6 +125,7 @@ teardown:
   - do:
       search_application.get:
         name: test-search-application
+  - match: { indices: [ "test-index1", "test-index2" ] }
   - match:
       template:
         script:
@@ -183,20 +184,21 @@ teardown:
               type: "string"
 
 ---
-"Update Search Application with null template, results in default template being applied":
-  - do:
-      search_application.put:
-        name: test-updated-search-application
-        body:
-          indices: [ "test-index1", "test-index2" ]
-          template:
-            script:
-              source:
-                query:
-                  query_string:
-                    query: "{{query_string}}"
+"Update Search Application with null template":
+  - skip:
+      features: warnings
 
   - do:
+        warnings:
+          - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
+        search_application.put:
+          name: test-updated-search-application
+          body:
+            indices: [ "test-index1", "test-index2" ]
+
+  - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.put:
         name: test-updated-search-application
         body:
@@ -213,6 +215,8 @@ teardown:
   - match: { test-index4.aliases.test-updated-search-application: { } }
 
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.get:
         name: test-updated-search-application
 
@@ -261,6 +265,12 @@ teardown:
         create: true
         body:
           indices: [ "test-index1" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
   - match: { result: "created" }
 

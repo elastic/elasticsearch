@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -68,7 +69,7 @@ public class RetentionLeaseActions {
                 actionFilters,
                 indexNameExpressionResolver,
                 requestSupplier,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.indicesService = Objects.requireNonNull(indicesService);
         }
@@ -86,7 +87,7 @@ public class RetentionLeaseActions {
                 try (Releasable ignore = releasable) {
                     doRetentionLeaseAction(indexShard, request, delegatedListener);
                 }
-            }), ThreadPool.Names.SAME);
+            }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

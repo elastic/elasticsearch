@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -46,10 +46,13 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexMetadataTests extends ESTestCase {
 
@@ -461,7 +464,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("index").build())
@@ -473,7 +476,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_5_0))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("index").build())
@@ -485,12 +488,58 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testRepairIndexAndAliasWithSameName() {
         final IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_5_0))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("index").build())
             .build(true);
         assertThat(indexMetadata.getAliases(), hasKey("index-alias-corrupted-by-8-5"));
+    }
+
+    public void testPartialIndexReceivesDataFrozenTierPreference() {
+        {
+            // missing data tier preference is configured to data_frozen
+            final IndexMetadata indexMetadata = IndexMetadata.builder("index")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
+                        .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(false);
+            assertThat(indexMetadata.getSettings().get(DataTier.TIER_PREFERENCE), nullValue());
+            assertThat(indexMetadata.getTierPreference(), is(IndexMetadata.PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE));
+        }
+
+        {
+            // wrong data tier preference is changed to data_frozen in the IndexMetadata@tierPreference but not in the actual setting
+            final IndexMetadata indexMetadata = IndexMetadata.builder("index")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(DataTier.TIER_PREFERENCE, DataTier.DATA_CONTENT)
+                        .put(INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
+                        .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(false);
+            assertThat(indexMetadata.getSettings().get(DataTier.TIER_PREFERENCE), is(DataTier.DATA_CONTENT));
+            assertThat(indexMetadata.getTierPreference(), is(IndexMetadata.PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE));
+        }
+
+        {
+            // regular indices do not receive a tier preference when building the index metadata
+            // (we have other ways to make sure they have a tier preference)
+            final IndexMetadata indexMetadata = IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(false);
+            assertThat(DataTier.TIER_PREFERENCE_SETTING.exists(indexMetadata.getSettings()), is(false));
+        }
     }
 
     private static Settings indexSettingsWithDataTier(String dataTier) {

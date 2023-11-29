@@ -11,10 +11,10 @@ package org.elasticsearch.test.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -32,15 +32,17 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -72,6 +74,8 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.junit.Assert.assertNotNull;
 
 /**
  * A mock delegate service that allows to simulate different network topology failures.
@@ -175,16 +179,23 @@ public class MockTransportService extends TransportService {
             new StubbableTransport(transport),
             threadPool,
             interceptor,
-            boundAddress -> new DiscoveryNode(
-                Node.NODE_NAME_SETTING.get(settings),
-                UUIDs.randomBase64UUID(),
-                boundAddress.publishAddress(),
-                Node.NODE_ATTRIBUTES.getAsMap(settings),
-                DiscoveryNode.getRolesFromSettings(settings),
-                version
-            ),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .name(Node.NODE_NAME_SETTING.get(settings))
+                .address(boundAddress.publishAddress())
+                .attributes(Node.NODE_ATTRIBUTES.getAsMap(settings))
+                .roles(DiscoveryNode.getRolesFromSettings(settings))
+                .version(version)
+                .build(),
             clusterSettings,
             createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
+        );
+    }
+
+    public static MockTransportService getInstance(String nodeName) {
+        assertNotNull("nodeName must not be null", nodeName);
+        return ESTestCase.asInstanceOf(
+            MockTransportService.class,
+            ESIntegTestCase.internalCluster().getInstance(TransportService.class, nodeName)
         );
     }
 
@@ -209,11 +220,10 @@ public class MockTransportService extends TransportService {
             new StubbableTransport(transport),
             threadPool,
             interceptor,
-            (boundAddress) -> DiscoveryNode.createLocal(
-                settings,
-                boundAddress.publishAddress(),
-                settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())
-            ),
+            (boundAddress) -> DiscoveryNodeUtils.builder(settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID()))
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
             clusterSettings,
             createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
         );
@@ -531,12 +541,7 @@ public class MockTransportService extends TransportService {
                 request.writeTo(bStream);
                 final TransportRequest clonedRequest;
                 if (request instanceof BytesTransportRequest) {
-                    // Some request handlers read back a BytesTransportRequest
-                    // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
-                    // in those cases we just copy the raw bytes back to a BytesTransportRequest.
-                    // This is only needed for the BwC for JOIN_VALIDATE_ACTION_NAME and can be removed in the next major
-                    assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-                    clonedRequest = new BytesTransportRequest(bStream.bytes().streamInput());
+                    clonedRequest = copyRawBytesForBwC(bStream);
                 } else {
                     RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                     clonedRequest = reg.newRequest(bStream.bytes().streamInput());
@@ -561,9 +566,18 @@ public class MockTransportService extends TransportService {
                         runnable.run();
                     } else {
                         requestsToSendWhenCleared.add(runnable);
-                        threadPool.schedule(runnable, delay, ThreadPool.Names.GENERIC);
+                        threadPool.schedule(runnable, delay, threadPool.generic());
                     }
                 }
+            }
+
+            // Some request handlers read back a BytesTransportRequest
+            // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
+            // in those cases we just copy the raw bytes back to a BytesTransportRequest.
+            // This is only needed for the BwC for JOIN_VALIDATE_ACTION_NAME and can be removed in the next major
+            @UpdateForV9
+            private static TransportRequest copyRawBytesForBwC(BytesStreamOutput bStream) throws IOException {
+                return new BytesTransportRequest(bStream.bytes().streamInput());
             }
 
             @Override

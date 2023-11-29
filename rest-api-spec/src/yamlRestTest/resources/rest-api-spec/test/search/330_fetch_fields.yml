@@ -1124,8 +1124,8 @@ fetch geo_point:
 ---
 "Test with subobjects: false":
   - skip:
-      version: ' - 8.9.1'
-      reason: 'https://github.com/elastic/elasticsearch/issues/96700 fixed after 8.9.0'
+      version: ' - 8.9.99'
+      reason: 'https://github.com/elastic/elasticsearch/issues/96700 fixed in 8.10.0'
 
   - do:
       indices.create:

@@ -9,7 +9,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -72,11 +72,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super(in);
         cause = in.readString();
         name = in.readString();
-        indexPatterns = in.readStringList();
+        indexPatterns = in.readStringCollectionAsList();
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 in.readString();    // type - cannot assert on _doc because 7x allows arbitrary type names
@@ -446,7 +446,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeInt(order);
         out.writeBoolean(create);
         settings.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeVInt(mappings == null ? 0 : 1);
             if (mappings != null) {
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);

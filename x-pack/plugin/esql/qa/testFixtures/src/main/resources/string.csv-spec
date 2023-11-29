@@ -1,0 +1,902 @@
+rowWithStrings
+row a = "hi", b = "", c = "Ünîcødé❗️";
+
+a:keyword | b:keyword | c:keyword
+hi | | Ünîcødé❗️
+;
+
+length
+row a = "hello", b = "" | eval y = length(a) + length(b);
+
+a:keyword | b:keyword | y:integer
+hello | | 5
+;
+
+// note, emojis are encoded with at least two unicode code points
+lengthWithNonAsciiChars
+row a = "¡", b = "❗️" | eval y = length(a) | eval z = length(b);
+
+a:keyword | b:keyword | y:integer | z:integer
+¡ | ❗️ | 1 | 2
+;
+
+foldLength
+row a = 1 | eval b = length("hello");
+
+a:integer | b:integer
+1 | 5
+;
+
+
+length
+from employees | sort emp_no | limit 3 | eval l = length(first_name) | keep emp_no, l;
+
+emp_no:integer | l:integer
+10001 | 6
+10002 | 7
+10003 | 5
+;
+
+startsWithConstant
+from employees | sort emp_no | limit 10 | eval f_S = starts_with(first_name, "S") | keep emp_no, first_name, f_S;
+
+emp_no:integer | first_name:keyword  | f_S:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | false
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | false
+10008 | Saniya    | true
+10009 | Sumant    | true
+10010 | Duangkaew | false
+;
+
+startsWithField
+from employees | where emp_no <= 10010 | eval f_l = starts_with(last_name, gender) | keep emp_no, last_name, gender, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
+10001 | Facello   | M    | false
+10002 | Simmel    | F    | false
+10003 | Bamford   | M    | false
+10004 | Koblick   | M    | false
+10005 | Maliniak  | M    | true
+10006 | Preusig   | F    | false
+10007 | Zielinski | F    | false
+10008 | Kalloufi  | M    | false
+10009 | Peac      | F    | false
+10010 | Piveteau  | null | null
+;
+
+substring
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | keep emp_no, last_name, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | cello
+10002 | Simmel    | mmel
+10003 | Bamford   | mford
+10004 | Koblick   | blick
+10005 | Maliniak  | liniak
+10006 | Preusig   | eusig
+10007 | Zielinski | elinski
+10008 | Kalloufi  | lloufi
+10009 | Peac      | ac
+10010 | Piveteau  | veteau
+;
+
+substring with length
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3, 1) | keep emp_no, last_name, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | c
+10002 | Simmel    | m
+10003 | Bamford   | m
+10004 | Koblick   | b
+10005 | Maliniak  | l
+10006 | Preusig   | e
+10007 | Zielinski | e
+10008 | Kalloufi  | l
+10009 | Peac      | a
+10010 | Piveteau  | v
+;
+
+substring negative start
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, -3) | keep emp_no, last_name, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | llo
+10002 | Simmel    | mel
+10003 | Bamford   | ord
+10004 | Koblick   | ick
+10005 | Maliniak  | iak
+10006 | Preusig   | sig
+10007 | Zielinski | ski
+10008 | Kalloufi  | ufi
+10009 | Peac      | eac
+10010 | Piveteau  | eau
+;
+
+substring nested negative start
+from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | keep emp_no, last_name, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | o
+10002 | Simmel    | l
+10003 | Bamford   | d
+10004 | Koblick   | k
+10005 | Maliniak  | k
+10006 | Preusig   | g
+10007 | Zielinski | i
+10008 | Kalloufi  | i
+10009 | Peac      | c
+10010 | Piveteau  | u
+;
+
+substring length
+from employees | where emp_no <= 10010 | eval f_l = length(substring(last_name, 3)) | keep emp_no, last_name, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_l:integer
+10001 | Facello   | 5
+10002 | Simmel    | 4
+10003 | Bamford   | 5
+10004 | Koblick   | 5
+10005 | Maliniak  | 6
+10006 | Preusig   | 5
+10007 | Zielinski | 7
+10008 | Kalloufi  | 6
+10009 | Peac      | 2
+10010 | Piveteau  | 6
+;
+
+substring pair
+from employees | where emp_no <= 10010 | eval x = substring(last_name, 1, 1), y = 1, z = substring("abcdef", y, y) | keep emp_no, last_name, x, z;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | x:keyword | z:keyword
+10001 | Facello   | F | a
+10002 | Simmel    | S | a
+10003 | Bamford   | B | a
+10004 | Koblick   | K | a
+10005 | Maliniak  | M | a
+10006 | Preusig   | P | a
+10007 | Zielinski | Z | a
+10008 | Kalloufi  | K | a
+10009 | Peac      | P | a
+10010 | Piveteau  | P | a
+;
+
+ltrim
+from employees | sort emp_no | limit 10 | eval name = concat("  ", first_name, "  ") | eval name = ltrim(name) | eval name = concat("'", name, "'") | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | 'Georgi  '
+10002          | 'Bezalel  ' 
+10003          | 'Parto  '
+10004          | 'Chirstian  '
+10005          | 'Kyoichi  '
+10006          | 'Anneke  '
+10007          | 'Tzvetan  '
+10008          | 'Saniya  '
+10009          | 'Sumant  '
+10010          | 'Duangkaew  '
+;
+
+ltrimRow
+// tag::ltrim[]
+ROW message = "   some text  ",  color = " red "
+| EVAL message = LTRIM(message)
+| EVAL color = LTRIM(color)
+| EVAL message = CONCAT("'", message, "'")
+| EVAL color = CONCAT("'", color, "'")
+// end::ltrim[]
+;
+
+// tag::ltrim-result[]
+message:keyword | color:keyword
+'some text  ' | 'red '
+// end::ltrim-result[]
+;
+
+rtrim
+from employees | sort emp_no | limit 10 | eval name = concat("  ", first_name, "  ") | eval name = rtrim(name) | eval name = concat("'", name, "'") | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | '  Georgi'
+10002          | '  Bezalel'
+10003          | '  Parto'
+10004          | '  Chirstian'
+10005          | '  Kyoichi'
+10006          | '  Anneke'
+10007          | '  Tzvetan'
+10008          | '  Saniya'
+10009          | '  Sumant'
+10010          | '  Duangkaew'
+;
+
+rtrimRow
+// tag::rtrim[]
+ROW message = "   some text  ",  color = " red "
+| EVAL message = RTRIM(message)
+| EVAL color = RTRIM(color)
+| EVAL message = CONCAT("'", message, "'")
+| EVAL color = CONCAT("'", color, "'")
+// end::rtrim[]
+;
+
+// tag::rtrim-result[]
+message:keyword | color:keyword
+'   some text' | ' red'
+// end::rtrim-result[]
+;
+
+trim
+from employees | sort emp_no | limit 10 | eval name = concat("      ", first_name, "     ") | eval name = trim(name) | eval name = concat("'", name, "'") | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | 'Georgi'
+10002          | 'Bezalel'
+10003          | 'Parto'
+10004          | 'Chirstian'
+10005          | 'Kyoichi'
+10006          | 'Anneke'
+10007          | 'Tzvetan'
+10008          | 'Saniya'
+10009          | 'Sumant'
+10010          | 'Duangkaew'
+;
+
+trimRow
+// tag::trim[]
+ROW message = "   some text  ",  color = " red "
+| EVAL message = TRIM(message)
+| EVAL color = TRIM(color)
+// end::trim[]
+;
+
+// tag::trim-result[]
+message:s | color:s
+some text | red
+// end::trim-result[]
+;
+
+concat
+from employees | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001 | Georgi Facello
+10002 | Bezalel Simmel
+10003 | Parto Bamford
+10004 | Chirstian Koblick
+10005 | Kyoichi Maliniak
+10006 | Anneke Preusig
+10007 | Tzvetan Zielinski
+10008 | Saniya Kalloufi
+10009 | Sumant Peac
+10010 | Duangkaew Piveteau
+;
+
+concatComplex
+from employees | sort emp_no | limit 10 | eval foo = " - ", x = concat(gender, foo) | eval name = concat(x, first_name, " ", last_name, ", ", concat(first_name, last_name)) | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | M - Georgi Facello, GeorgiFacello
+10002          | F - Bezalel Simmel, BezalelSimmel
+10003          | M - Parto Bamford, PartoBamford
+10004          | M - Chirstian Koblick, ChirstianKoblick
+10005          | M - Kyoichi Maliniak, KyoichiMaliniak
+10006          | F - Anneke Preusig, AnnekePreusig
+10007          | F - Tzvetan Zielinski, TzvetanZielinski
+10008          | M - Saniya Kalloufi, SaniyaKalloufi
+10009          | F - Sumant Peac, SumantPeac
+10010          | null
+;
+
+// Note: no matches in MV returned
+in
+from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
+ignoreOrder:true
+
+emp_no:integer |job_positions:keyword
+10048          |Internship
+10077          |Internship
+;
+
+in3VLNoNull
+// filtering for SVs, since IN uses EQUALS evaluators, that turn MVs into NULL
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship");
+
+emp_no:integer |job_positions:keyword |is_in:boolean
+10024          |Junior Developer      |false
+10025          |Accountant            |true
+10026          |Reporting Analyst     |false
+;
+
+in3VLWithNull
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
+
+emp_no:integer |job_positions:keyword |is_in:boolean
+10024          |Junior Developer      |null
+10025          |Accountant            |true
+10026          |Reporting Analyst     |null
+;
+
+in3VLWithNull-99347_bugfix
+from employees | where emp_no == 10025 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
+
+emp_no:integer |job_positions:keyword |is_in:boolean
+10025          |Accountant            |true
+;
+
+in3VLWithComputedNull
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = job_positions in ("Accountant", "Internship", nil);
+
+emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
+10024          |Junior Developer      |null        |null
+10025          |Accountant            |null        |true
+10026          |Reporting Analyst     |null        |null
+;
+
+in3VLWithNullAsValue
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = null in ("Accountant", "Internship", null);
+
+emp_no:integer |job_positions:keyword |is_in:boolean
+10024          |Junior Developer      |null
+10025          |Accountant            |null
+10026          |Reporting Analyst     |null
+;
+
+in3VLWithComputedNullAsValue
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = nil in ("Accountant", "Internship", null);
+
+emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
+10024          |Junior Developer      |null        |null
+10025          |Accountant            |null        |null
+10026          |Reporting Analyst     |null        |null
+;
+
+split
+// tag::split[]
+ROW words="foo;bar;baz;qux;quux;corge"
+| EVAL word = SPLIT(words, ";")
+// end::split[]
+;
+
+// tag::split-result[]
+             words:keyword | word:keyword
+foo;bar;baz;qux;quux;corge | [foo,bar,baz,qux,quux,corge]
+// end::split-result[]
+;
+
+mvCount
+// tag::mv_count[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL count_a = MV_COUNT(a)
+// end::mv_count[]
+;
+
+// tag::mv_count-result[]
+            a:keyword | count_a:integer
+["foo", "zoo", "bar"] | 3
+// end::mv_count-result[]
+;
+
+mvDedupe
+// tag::mv_dedupe[]
+ROW a=["foo", "foo", "bar", "foo"]
+| EVAL dedupe_a = MV_DEDUPE(a)
+// end::mv_dedupe[]
+;
+
+// tag::mv_dedupe-result[]
+                   a:keyword | dedupe_a:keyword
+["foo", "foo", "bar", "foo"] | ["foo", "bar"]
+// end::mv_dedupe-result[]
+;
+
+mvJoin
+// tag::mv_concat[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL j = MV_CONCAT(a, ", ")
+// end::mv_concat[]
+;
+
+// tag::mv_concat-result[]
+            a:keyword | j:keyword
+["foo", "zoo", "bar"] | "foo, zoo, bar"
+// end::mv_concat-result[]
+;
+
+mvMax
+// tag::mv_max[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL max_a = MV_MAX(a)
+// end::mv_max[]
+;
+
+// tag::mv_max-result[]
+            a:keyword | max_a:keyword
+["foo", "zoo", "bar"] | "zoo"
+// end::mv_max-result[]
+;
+
+mvMin
+// tag::mv_min[]
+ROW a=["foo", "bar"]
+| EVAL min_a = MV_MIN(a)
+// end::mv_min[]
+;
+
+// tag::mv_min-result[]
+     a:keyword | min_a:keyword
+["foo", "bar"] | "bar"
+// end::mv_min-result[]
+;
+
+groupByMv
+from employees | stats min(salary), max(salary) by job_positions | sort job_positions | limit 5;
+
+min(salary):integer | max(salary):integer | job_positions:keyword
+25976               | 74970               | Accountant
+28941               | 69904               | Architect
+29175               | 58121               | Business Analyst
+25945               | 74999               | Data Scientist
+25324               | 58715               | Head Human Resources
+;
+
+convertFromString
+from employees | sort emp_no | eval positions = to_string(job_positions) | keep emp_no, positions, job_positions | limit 5;
+
+emp_no:integer |positions:keyword                                                     |job_positions:keyword
+10001          |[Accountant, Senior Python Developer]                                 |[Accountant, Senior Python Developer]                                 
+10002          |Senior Team Lead                                                      |Senior Team Lead                                                      
+10003          |null                                                                  |null                                                                  
+10004          |[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]|[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+10005          |null                                                                  |null                                                                  
+;
+
+lessThanMultivalue
+from employees | where job_positions < "C" | keep emp_no, job_positions | sort emp_no;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10025          |Accountant
+10068          |Architect
+;
+
+greaterThanMultivalue
+from employees | where job_positions > "C" | keep emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10002          |Senior Team Lead
+10013          |Reporting Analyst
+10018          |Junior Developer
+10019          |Purchase Manager
+10020          |Tech Lead
+10021          |Support Engineer
+;
+
+equalToMultivalue
+from employees | where job_positions == "Accountant" | keep emp_no, job_positions | sort emp_no;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10025          |Accountant
+;
+
+equalToOrEqualToMultivalue
+from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10020          |Tech Lead
+10025          |Accountant
+;
+
+inMultivalue
+from employees | where job_positions in ("Accountant", "Tech Lead") | keep emp_no, job_positions | sort emp_no;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10020          |Tech Lead
+10025          |Accountant
+;
+
+notLessThanMultivalue
+from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10002          |Senior Team Lead
+10013          |Reporting Analyst
+10018          |Junior Developer
+10019          |Purchase Manager
+10020          |Tech Lead
+10021          |Support Engineer
+;
+
+notGreaterThanMultivalue
+from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10025          |Accountant
+10068          |Architect
+;
+
+notEqualToMultivalue
+from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10002          |Senior Team Lead
+10013          |Reporting Analyst
+10018          |Junior Developer
+10019          |Purchase Manager
+10020          |Tech Lead
+10021          |Support Engineer
+;
+
+notEqualToOrEqualToMultivalue-Ignore
+from employees | where not(job_positions == "Accountant" or job_positions == "Tech Lead") | keep emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10020          |Tech Lead  // TODO flip results
+10025          |Accountant
+;
+
+notInMultivalue-Ignore
+from employees | where not(job_positions in ("Accountant", "Tech Lead")) | keep emp_no, job_positions | sort emp_no | limit 6;
+
+// Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
+emp_no:integer |job_positions:keyword
+10020          |Tech Lead  // TODO flip results
+10025          |Accountant
+;
+
+convertFromBoolean
+from employees | sort emp_no | eval rehired = to_string(is_rehired) | keep emp_no, rehired, is_rehired | limit 5;
+
+emp_no:integer |rehired:string              |is_rehired:boolean
+10001          |[false, true]               |[false, true]
+10002          |[false, false]              |[false, false]
+10003          |null                        |null
+10004          |true                        |true
+10005          |[false, false, false, true] |[false, false, false, true]
+;
+
+convertFromDatetime
+from employees | sort emp_no | eval hired_at = to_string(hire_date) | keep emp_no, hired_at, hire_date  | limit 1;
+
+emp_no:integer |hired_at:keyword         |hire_date:date
+10001          |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;
+
+convertFromIP
+from hosts | where host=="epsilon" | eval str0 = to_string(ip0) | keep str0, ip0;
+ignoreOrder:true
+
+str0:keyword                                                                            |ip0:ip
+["fe80::cae2:65ff:fece:feb9", "fe80::cae2:65ff:fece:fec0", "fe80::cae2:65ff:fece:fec1"] |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
+null                                                                                    |null
+["fe81::cae2:65ff:fece:feb9", "fe82::cae2:65ff:fece:fec0"]                              |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+convertFromFloats
+from employees | sort emp_no| eval double = to_string(height), float = to_string(height.float), scaled_float = to_string(height.scaled_float), half_float = to_string(height.half_float) | keep emp_no, double, float, scaled_float, half_float, height  | limit 2;
+
+emp_no:integer |double:keyword |float:keyword     |scaled_float:keyword   |half_float:keyword   |height:double
+10001          |2.03           |2.0299999713897705|2.0300000000000002     |2.029296875          |2.03
+10002          |2.08           |2.0799999237060547|2.08                   |2.080078125          |2.08
+;
+
+convertFromInts
+from employees | sort emp_no| eval byte = to_string(languages.byte), short = to_string(languages.short), long = to_string(languages.long), int = to_string(languages) | keep emp_no, byte, short, long, int, languages  | limit 2;
+
+emp_no:integer |byte:keyword   |short:keyword  |long:keyword |int:keyword |languages:integer
+10001          |2              |2              |2            |2           |2
+10002          |5              |5              |5            |5           |5
+;
+
+convertFromUnsignedLong
+row ul = [9223372036854775808, 9223372036854775807, 1, 0] | eval str = to_str(ul);
+
+                       ul:ul                    |                      str:keyword
+[9223372036854775808, 9223372036854775807, 1, 0]|[9223372036854775808, 9223372036854775807, 1, 0]
+;
+
+convertFromIntSimple
+// tag::to_string[]
+ROW a=10
+| EVAL j = TO_STRING(a)
+// end::to_string[]
+;
+
+// tag::to_string-result[]
+a:integer | j:keyword
+       10 | "10"
+// end::to_string-result[]
+;
+
+convertFromIntMultivalue
+// tag::to_string_multivalue[]
+ROW a=[10, 9, 8]
+| EVAL j = TO_STRING(a)
+// end::to_string_multivalue[]
+;
+
+// tag::to_string_multivalue-result[]
+ a:integer | j:keyword
+[10, 9, 8] | ["10", "9", "8"]
+// end::to_string_multivalue-result[]
+;
+
+mvConcatToString
+// tag::mv_concat-to_string[]
+ROW a=[10, 9, 8]
+| EVAL j = MV_CONCAT(TO_STRING(a), ", ")
+// end::mv_concat-to_string[]
+;
+
+// tag::mv_concat-to_string-result[]
+ a:integer | j:keyword
+[10, 9, 8] | "10, 9, 8"
+// end::mv_concat-to_string-result[]
+;
+
+showTextFields
+from hosts | where host == "beta" | keep host, host_group, description;
+ignoreOrder:true
+
+host:keyword     | host_group:text          | description:text
+beta             | Kubernetes cluster       | beta k8s server
+beta             | Kubernetes cluster       | beta k8s server
+beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2]
+;
+
+lengthOfText
+from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
+ignoreOrder:true
+
+l1:integer             | l2:integer
+null                   | 19
+17                     | null
+17                     | null
+;
+
+startsWithText
+from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
+ignoreOrder:true
+
+l1:boolean             | l2:boolean
+null                   | true
+false                  | null
+false                  | null
+;
+
+substringOfText
+from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
+ignoreOrder:true
+
+l1:keyword             | l2:keyword
+null                   | epsil
+Gatew                  | null
+Gatew                  | null
+;
+
+concatOfText
+from hosts | where host == "epsilon" | eval l1 = concat(host,"/", host_group), l2 = concat(host_group,"/", description) | sort l1 |  keep l1, l2;
+
+l1:keyword                    | l2:keyword
+epsilon/Gateway instances     | null
+epsilon/Gateway instances     | null
+null                          | null
+;
+
+
+grok
+from hosts | where host == "epsilon" | grok host_group "%{WORD:l1} %{WORD:l2}"| sort l1 |  keep l1, l2;
+
+l1:keyword  | l2:keyword  
+Gateway     | instances   
+Gateway     | instances   
+null        | null
+;
+
+
+dissect
+from hosts | where host == "epsilon" | dissect host_group "%{l1} %{l2}"| sort l1 |  keep l1, l2;
+
+l1:keyword  | l2:keyword  
+Gateway     | instances   
+Gateway     | instances   
+null        | null
+;
+
+replaceSimple
+from employees | sort emp_no | limit 1 | eval name = replace(first_name, "Geo", "foo") | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001 | foorgi
+;
+
+replaceText
+from hosts | where host == "epsilon" | limit 1 | eval name = replace(host, "ep", "") | keep name;
+
+name:keyword
+silon
+;
+
+replaceComplex
+from employees | where emp_no <= 10010 | eval f_l = replace(replace(substring(last_name, 1, 20), "al", "AB"), "a", "Z")  | keep emp_no, last_name, f_l | sort emp_no;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | FZcello
+10002 | Simmel    | Simmel
+10003 | Bamford   | BZmford
+10004 | Koblick   | Koblick
+10005 | Maliniak  | MABiniZk
+10006 | Preusig   | Preusig
+10007 | Zielinski | Zielinski
+10008 | Kalloufi  | KABloufi
+10009 | Peac      | PeZc
+10010 | Piveteau  | PiveteZu
+;
+
+replaceComplex2
+from employees | where emp_no <= 10010 | eval f_l = substring(replace(last_name, "a", "Z"), 1, 1)  | keep emp_no, last_name, f_l | sort emp_no;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | F
+10002 | Simmel    | S
+10003 | Bamford   | B
+10004 | Koblick   | K
+10005 | Maliniak  | M
+10006 | Preusig   | P
+10007 | Zielinski | Z
+10008 | Kalloufi  | K
+10009 | Peac      | P
+10010 | Piveteau  | P
+;
+
+replaceComplex3
+FROM employees | eval x = replace(to_string(emp_no), "(0+)", left(first_name, 1)), y = left(first_name, 1), is_match = y == substring(x, 2, 1) | keep first_name, y, x, is_match | sort is_match, x | limit 8;
+
+first_name:keyword|  y:keyword    |  x:keyword    |is_match:boolean    
+Alejandro         |A              |1A59           |true           
+Anneke            |A              |1A6            |true           
+Anoosh            |A              |1A62           |true           
+Amabile           |A              |1A91           |true           
+Arumugam          |A              |1A94           |true           
+Berni             |B              |1B14           |true           
+Bezalel           |B              |1B2            |true           
+Bojan             |B              |1B23           |true
+;
+
+replaceRegex
+from hosts | where host == "epsilon" | eval l1=replace(host_group, "\\s+", "") | sort l1 | keep l1, host_group;
+ 
+   l1:keyword   |host_group:text    
+Gatewayinstances|Gateway instances
+Gatewayinstances|Gateway instances
+null            |null             
+;
+
+left
+// tag::left[]
+FROM employees
+| KEEP last_name
+| EVAL left = LEFT(last_name, 3)
+| SORT last_name ASC
+| LIMIT 5
+// end::left[]
+;
+
+// tag::left-result[]
+last_name:keyword | left:keyword
+Awdeh             |Awd
+Azuma             |Azu
+Baek              |Bae
+Bamford           |Bam
+Bernatsky         |Ber
+// end::left-result[]
+;
+
+right
+// tag::right[]
+FROM employees
+| KEEP last_name
+| EVAL right = RIGHT(last_name, 3)
+| SORT last_name ASC
+| LIMIT 5
+// end::right[]
+;
+
+// tag::right-result[]
+last_name:keyword | right:keyword
+Awdeh             |deh
+Azuma             |uma
+Baek              |aek
+Bamford           |ord
+Bernatsky         |sky
+// end::right-result[]
+;
+
+endsWithConstant
+from employees | sort emp_no | limit 10 | eval f_a = ends_with(first_name, "a") | keep emp_no, first_name, f_a;
+
+emp_no:integer | first_name:keyword  | f_a:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | false
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | false
+10008 | Saniya    | true
+10009 | Sumant    | false
+10010 | Duangkaew | false
+;
+
+endsWithSequence
+from employees | sort emp_no | limit 10 | eval f_a = ends_with(first_name, "an") | keep emp_no, first_name, f_a;
+
+emp_no:integer | first_name:keyword  | f_a:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | true
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | true
+10008 | Saniya    | false
+10009 | Sumant    | false
+10010 | Duangkaew | false
+;
+
+endsWithExpression
+from employees | sort emp_no | limit 10
+| eval last_name_last_letter = right(last_name, 1)
+| eval same_last_letters  = ends_with(first_name, last_name_last_letter)
+| keep emp_no, first_name, last_name, same_last_letters;
+
+emp_no:integer | first_name:keyword  | last_name:keyword | same_last_letters:boolean
+10001 | Georgi    | Facello   | false
+10002 | Bezalel   | Simmel    | true
+10003 | Parto     | Bamford   | false
+10004 | Chirstian | Koblick   | false
+10005 | Kyoichi   | Maliniak  | false
+10006 | Anneke    | Preusig   | false
+10007 | Tzvetan   | Zielinski | false
+10008 | Saniya    | Kalloufi  | false
+10009 | Sumant    | Peac      | false
+10010 | Duangkaew | Piveteau  | false
+;
+
+docsEndsWith
+// tag::endsWith[]
+FROM employees
+| KEEP last_name
+| EVAL ln_E = ENDS_WITH(last_name, "d")
+// end::endsWith[]
+| SORT last_name ASC
+| LIMIT 5
+;
+
+// tag::endsWith-result[]
+last_name:keyword | ln_E:boolean
+Awdeh          |false
+Azuma          |false
+Baek           |false
+Bamford        |true
+Bernatsky      |false
+// end::endsWith-result[]
+;

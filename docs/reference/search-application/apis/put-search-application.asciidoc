@@ -59,6 +59,7 @@ The <<search-template,search template>> associated with this search application.
 (Required, object)
 The associated mustache template.
 
+[[put-search-application-dictionary-param]]
 `dictionary`::
 (Optional, object)
 The dictionary used to validate the parameters used with the <<search-application-search, search application search>> API. The dictionary must be a valid JSON schema.
@@ -79,11 +80,16 @@ Search Application `<name>` exists and `create` is `true`.
 [[put-search-application-example]]
 ==== {api-examples-title}
 
-The following example creates a new Search Application called `my-app`:
+The following example creates or updates a new Search Application called `my-app`:
 
+////
 [source,console]
 ----
-PUT _application/search_application/my-app?create
+PUT /index1
+
+PUT /index2
+
+PUT _application/search_application/my-app
 {
   "indices": [ "index1", "index2" ],
   "template": {
@@ -122,54 +128,27 @@ PUT _application/search_application/my-app?create
   }
 }
 ----
-// TEST[skip:TBD]
+// TESTSETUP
 
-When the above `dictionary` parameter is specified, the <<search-application-search, search application search>> API will perform the following parameter validation:
+//////////////////////////
 
-* It accepts only the `query_string` and `default_field` parameters
-* It verifies that `query_string` and `default_field` are both strings
-* It accepts `default_field` only if it takes the values `title` or `description`
-
-If the parameters are not valid, the the <<search-application-search, search application search>> API will return an error.
 [source,console]
-----
-POST _application/search_application/my-app/_search
-{
-  "params": {
-    "default_field": "author",
-    "query_string": "Jane"
-  }
-}
-----
-// TEST[skip:TBD]
+--------------------------------------------------
+DELETE _application/search_application/my-app
 
-In the above example, the value of the `default_field` parameter is not valid, therefore Elasticsearch will return an error:
+DELETE /index1
 
-[source,console-result]
-----
-{
-  "error": {
-    "root_cause": [
-      {
-        "type": "validation_exception",
-        "reason": "Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];"
-      }
-    ],
-    "type": "validation_exception",
-    "reason": "Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];"
-  },
-  "status": 400
-}
-----
-// TEST[skip:TBD]
+DELETE /index2
+--------------------------------------------------
+// TEARDOWN
 
-The following example creates or updates an existing Search Application called `my-app`:
+////
 
 [source,console]
 ----
 PUT _application/search_application/my-app
 {
-  "indices": [ "index1", "index2", "index3" ],
+  "indices": [ "index1", "index2" ],
   "template": {
     "script": {
       "source": {
@@ -206,4 +185,45 @@ PUT _application/search_application/my-app
   }
 }
 ----
-// TEST[skip:TBD]
+
+When the above `dictionary` parameter is specified, the <<search-application-search, search application search>> API will perform the following parameter validation:
+
+* It accepts only the `query_string` and `default_field` parameters
+* It verifies that `query_string` and `default_field` are both strings
+* It accepts `default_field` only if it takes the values `title` or `description`
+
+If the parameters are not valid, the the <<search-application-search, search application search>> API will return an error.
+[source,console]
+----
+POST _application/search_application/my-app/_search
+{
+  "params": {
+    "default_field": "author",
+    "query_string": "Jane"
+  }
+}
+----
+// TEST[catch:bad_request]
+
+In the above example, the value of the `default_field` parameter is not valid, therefore Elasticsearch will return an error:
+
+[source,JSON]
+----
+{
+  "error": {
+    "root_cause": [
+      {
+        "type": "validation_exception",
+        "reason": 'Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];',
+        "stack_trace": ...
+      }
+    ],
+    "type": "validation_exception",
+    "reason": 'Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];',
+    "stack_trace": ...
+  },
+  "status": 400
+}
+----
+// TESTRESPONSE[s/"stack_trace": \.\.\./"stack_trace": $body.$_path/]
+// Need to use source,JSON above instead console-result, as $ fields are replaced in console-result snippets

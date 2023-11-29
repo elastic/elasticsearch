@@ -454,3 +454,27 @@ setup:
         body:
           query: 'sequence with maxspan=10d [network where user == "ADMIN"] ![network where user == "SYSTEM"] [network where user == "ADMIN"]'
   - match: {hits.total.value: 0}
+
+---
+"Error message missing column - no suggestion":
+
+  - do:
+      catch: "bad_request"
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence with maxspan=10d [network where used == "ADMIN"] [network where id == 123]'
+  - match: { error.root_cause.0.type: "verification_exception" }
+  - match: { error.root_cause.0.reason: "Found 1 problem\nline 1:42: Unknown column [used]" }
+
+---
+"Error message missing column - did you mean functionality":
+
+  - do:
+      catch: "bad_request"
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence with maxspan=10d [network where user == "ADMIN"] ![network where used == "SYSTEM"]'
+  - match: { error.root_cause.0.type: "verification_exception" }
+  - match: { error.root_cause.0.reason: "Found 1 problem\nline 1:75: Unknown column [used], did you mean [user]?" }

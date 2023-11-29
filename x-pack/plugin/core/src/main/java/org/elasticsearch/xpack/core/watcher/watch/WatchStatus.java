@@ -248,7 +248,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
         boolean statusHasHeaders = headers != null && headers.isEmpty() == false;
         out.writeBoolean(statusHasHeaders);
         if (statusHasHeaders) {
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(headers, StreamOutput::writeString);
         }
     }
 

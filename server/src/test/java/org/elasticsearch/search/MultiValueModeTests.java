@@ -222,7 +222,6 @@ public class MultiValueModeTests extends ESTestCase {
                     missingValue,
                     rootDocs,
                     new BitSetIterator(innerDocs, 0L),
-                    maxDoc,
                     maxChildren
                 );
                 int prevRoot = -1;
@@ -424,7 +423,6 @@ public class MultiValueModeTests extends ESTestCase {
                     missingValue,
                     rootDocs,
                     new BitSetIterator(innerDocs, 0L),
-                    maxDoc,
                     maxChildren
                 );
                 int prevRoot = -1;
@@ -610,7 +608,6 @@ public class MultiValueModeTests extends ESTestCase {
                     missingValue,
                     rootDocs,
                     new BitSetIterator(innerDocs, 0L),
-                    maxDoc,
                     maxChildren
                 );
                 int prevRoot = -1;

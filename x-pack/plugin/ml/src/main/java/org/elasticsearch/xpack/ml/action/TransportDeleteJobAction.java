@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -103,7 +104,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             actionFilters,
             DeleteJobAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.persistentTasksService = persistentTasksService;
@@ -279,7 +280,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         killProcess(parentTaskClient, jobId, killJobListener);
     }
 
-    private void killProcess(
+    private static void killProcess(
         ParentTaskAssigningClient parentTaskClient,
         String jobId,
         ActionListener<KillProcessAction.Response> listener
@@ -299,7 +300,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         }
     }
 
-    private void checkJobIsNotOpen(String jobId, ClusterState state) {
+    private static void checkJobIsNotOpen(String jobId, ClusterState state) {
         PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask != null) {

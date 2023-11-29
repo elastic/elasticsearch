@@ -9,15 +9,15 @@ package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -27,9 +27,10 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGrou
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.xpack.core.transform.utils.TransformConfigVersionUtils;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.junit.Before;
@@ -71,6 +73,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     private Clock clock;
     private Client client;
+    private ParentTaskAssigningClient parentTaskClient;
     private IndexBasedTransformConfigManager transformConfigManager;
     private MockTransformAuditor transformAuditor;
 
@@ -78,10 +81,11 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
     public void setUpMocks() {
         clock = mock(Clock.class);
         when(clock.millis()).thenReturn(123456789L);
-        client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        parentTaskClient = new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456"));
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }
@@ -91,7 +95,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             TransformCheckpoint.EMPTY,
-            VersionUtils.randomVersionBetween(random(), Version.V_7_15_0, Version.CURRENT),
+            TransformConfigVersionUtils.randomVersionBetween(random(), TransformConfigVersion.V_7_15_0, TransformConfigVersion.CURRENT),
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -104,7 +108,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             TransformCheckpoint.EMPTY,
-            Version.V_7_14_0,
+            TransformConfigVersion.V_7_14_0,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -118,7 +122,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             1,
             true,
             TransformCheckpoint.EMPTY,
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -131,7 +135,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             new TransformCheckpoint("", 100000000L, 7, emptyMap(), null),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -144,7 +148,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             new TransformCheckpoint("", 100000000L, 7, emptyMap(), 120000000L),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -157,7 +161,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             new TransformCheckpoint("", 100000000L, 7, emptyMap(), 120000000L),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.timeValueMinutes(5),
@@ -169,13 +173,13 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         long totalHits,
         boolean expectedHasChangedValue,
         TransformCheckpoint lastCheckpoint,
-        Version transformVersion,
+        TransformConfigVersion transformVersion,
         String dateHistogramField,
         TimeValue dateHistogramInterval,
         TimeValue delay,
         Tuple<Long, Long> expectedRangeQueryBounds
     ) throws InterruptedException {
-        doAnswer(withResponse(newSearchResponse(totalHits))).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(newSearchResponse(totalHits))).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
         String transformId = getTestName();
         TransformConfig transformConfig = newTransformConfigWithDateHistogram(
             transformId,
@@ -196,7 +200,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
 
         ArgumentCaptor<SearchRequest> searchRequestArgumentCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        verify(client).execute(eq(SearchAction.INSTANCE), searchRequestArgumentCaptor.capture(), any());
+        verify(client).execute(eq(TransportSearchAction.TYPE), searchRequestArgumentCaptor.capture(), any());
         SearchRequest searchRequest = searchRequestArgumentCaptor.getValue();
         BoolQueryBuilder boolQuery = (BoolQueryBuilder) searchRequest.source().query();
         RangeQueryBuilder rangeQuery = (RangeQueryBuilder) boolQuery.filter().get(1);
@@ -256,7 +260,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
         TransformConfig transformConfig = newTransformConfigWithDateHistogram(
             transformId,
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             dateHistogramField,
             dateHistogramInterval,
             delay
@@ -278,7 +282,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
     private TimeBasedCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {
         return new TimeBasedCheckpointProvider(
             clock,
-            client,
+            parentTaskClient,
             new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,
@@ -288,7 +292,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     private static TransformConfig newTransformConfigWithDateHistogram(
         String transformId,
-        Version transformVersion,
+        TransformConfigVersion transformVersion,
         String dateHistogramField,
         TimeValue dateHistogramInterval,
         TimeValue delay
@@ -306,7 +310,9 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
             @Override
             public SingleGroupSource get() {
-                return ++groupCount == 1 ? dateHistogramGroupSource : GroupConfigTests.randomSingleGroupSource(Version.CURRENT);
+                return ++groupCount == 1
+                    ? dateHistogramGroupSource
+                    : GroupConfigTests.randomSingleGroupSource(TransformConfigVersion.CURRENT);
             }
         };
         PivotConfig pivotConfigWithDateHistogramSource = new PivotConfig(

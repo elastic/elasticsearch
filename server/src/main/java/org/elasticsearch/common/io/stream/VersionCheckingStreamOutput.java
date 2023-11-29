@@ -17,7 +17,7 @@ import java.io.IOException;
  * This {@link StreamOutput} writes nowhere. It can be used to check if serialization would
  * be successful writing to a specific version.
  */
-public class VersionCheckingStreamOutput extends StreamOutput {
+public final class VersionCheckingStreamOutput extends StreamOutput {
 
     public VersionCheckingStreamOutput(TransportVersion version) {
         setTransportVersion(version);

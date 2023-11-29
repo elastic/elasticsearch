@@ -51,6 +51,7 @@ public class Exporters extends AbstractLifecycleComponent {
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
 
+    @SuppressWarnings("this-escape")
     public Exporters(
         Settings settings,
         Map<String, Exporter.Factory> factories,
@@ -281,7 +282,7 @@ public class Exporters extends AbstractLifecycleComponent {
      * @param docs The monitoring documents to send.
      * @param listener Returns {@code null} when complete, or failure where relevant.
      */
-    private void doExport(final ExportBulk bulk, final Collection<MonitoringDoc> docs, final ActionListener<Void> listener) {
+    private static void doExport(final ExportBulk bulk, final Collection<MonitoringDoc> docs, final ActionListener<Void> listener) {
         final AtomicReference<ExportException> exceptionRef = new AtomicReference<>();
 
         try {

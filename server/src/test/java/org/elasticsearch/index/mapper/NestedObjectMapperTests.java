@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -1006,7 +1007,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         assertThat(doc.docs().size(), equalTo(3));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper;
-        if (version.before(IndexVersion.V_8_0_0)) {
+        if (version.before(IndexVersions.V_8_0_0)) {
             assertThat(doc.docs().get(0).get("_type"), equalTo(nested1Mapper.nestedTypePath()));
         } else {
             assertThat(doc.docs().get(0).get(NestedPathFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
@@ -1500,18 +1501,21 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     public void testMergeNested() {
         NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current()).includeInParent(true)
             .includeInRoot(true)
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
         NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current()).includeInParent(false)
             .includeInRoot(true)
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
 
-        MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper, MapperBuilderContext.root(false)));
+        MapperException e = expectThrows(
+            MapperException.class,
+            () -> firstMapper.merge(secondMapper, MapperBuilderContext.root(false, false))
+        );
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
         NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
             secondMapper,
             MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         );
         assertFalse(result.isIncludeInParent());
         assertTrue(result.isIncludeInRoot());

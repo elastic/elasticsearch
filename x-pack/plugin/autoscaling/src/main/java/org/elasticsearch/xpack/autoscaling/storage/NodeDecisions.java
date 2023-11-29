@@ -29,7 +29,7 @@ class NodeDecisions implements ToXContentObject, Writeable {
     }
 
     NodeDecisions(StreamInput in) throws IOException {
-        canAllocateDecisions = in.readList(NodeDecision::new);
+        canAllocateDecisions = in.readCollectionAsList(NodeDecision::new);
         canRemainDecision = in.readOptionalWriteable(NodeDecision::new);
     }
 
@@ -44,7 +44,7 @@ class NodeDecisions implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(canAllocateDecisions);
+        out.writeCollection(canAllocateDecisions);
         out.writeOptionalWriteable(canRemainDecision);
     }
 

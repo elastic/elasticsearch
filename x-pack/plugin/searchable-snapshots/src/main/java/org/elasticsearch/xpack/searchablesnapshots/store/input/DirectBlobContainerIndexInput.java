@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
@@ -57,7 +58,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.store.input.MetadataCa
  * {@link InputStream} in {@code streamForSequentialReads}. Clones and slices, however, do not expect to be read sequentially and so make
  * a new request to the {@link BlobContainer} each time their internal buffer needs refilling.
  */
-public final class DirectBlobContainerIndexInput extends BufferedIndexInput {
+public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexInput {
 
     private static final Logger logger = LogManager.getLogger(DirectBlobContainerIndexInput.class);
 
@@ -340,7 +341,7 @@ public final class DirectBlobContainerIndexInput extends BufferedIndexInput {
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {
         assert MetadataCachingIndexInput.assertCurrentThreadMayAccessBlobStore();
         stats.addBlobStoreBytesRequested(length);
-        return blobContainer.readBlob(fileInfo.partName(part), pos, length);
+        return blobContainer.readBlob(OperationPurpose.SNAPSHOT, fileInfo.partName(part), pos, length);
     }
 
     private static class StreamForSequentialReads implements Closeable {

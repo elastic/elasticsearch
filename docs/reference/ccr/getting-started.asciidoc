@@ -159,7 +159,7 @@ cluster with cluster alias `leader`.
     connected to.
 ====
 
-include::../../../x-pack/docs/en/security/authentication/remote-clusters-privileges.asciidoc[tag=configure-ccr-privileges]
+include::{es-repo-dir}/security/authentication/remote-clusters-privileges-cert.asciidoc[tag=configure-ccr-privileges]
 
 [[ccr-getting-started-follower-index]]
 ==== Create a follower index to replicate a specific index

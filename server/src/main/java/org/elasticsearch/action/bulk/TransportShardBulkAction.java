@@ -117,9 +117,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.postWriteAction = WriteAckDelay.create(settings, threadPool);
     }
 
+    private static final TransportRequestOptions TRANSPORT_REQUEST_OPTIONS = TransportRequestOptions.of(
+        null,
+        TransportRequestOptions.Type.BULK
+    );
+
     @Override
     protected TransportRequestOptions transportOptions() {
-        return BulkAction.INSTANCE.transportOptions();
+        return TRANSPORT_REQUEST_OPTIONS;
     }
 
     @Override

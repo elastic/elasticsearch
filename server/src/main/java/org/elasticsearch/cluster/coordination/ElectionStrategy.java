@@ -104,4 +104,11 @@ public abstract class ElectionStrategy {
     public void beforeCommit(long term, long version, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
+
+    public boolean nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
+        final String nodeId = node.getId();
+        return lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
+            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
+            || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId));
+    }
 }

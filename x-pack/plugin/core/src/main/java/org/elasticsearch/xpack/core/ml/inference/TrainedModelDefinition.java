@@ -84,13 +84,13 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
 
     public TrainedModelDefinition(StreamInput in) throws IOException {
         this.trainedModel = in.readNamedWriteable(TrainedModel.class);
-        this.preProcessors = in.readNamedWriteableList(PreProcessor.class);
+        this.preProcessors = in.readNamedWriteableCollectionAsList(PreProcessor.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(trainedModel);
-        out.writeNamedWriteableList(preProcessors);
+        out.writeNamedWriteableCollection(preProcessors);
     }
 
     @Override

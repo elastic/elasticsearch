@@ -46,13 +46,11 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearPrivilegesCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearPrivilegesCacheRequest::new,
             ClearPrivilegesCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.rolesStore = rolesStore;
         this.cacheInvalidatorRegistry = cacheInvalidatorRegistry;

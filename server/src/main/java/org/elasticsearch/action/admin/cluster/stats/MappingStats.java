@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -87,13 +87,17 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                         stats = fieldTypes.computeIfAbsent(type, DenseVectorFieldStats::new);
                         boolean indexed = fieldMapping.containsKey("index") ? (boolean) fieldMapping.get("index") : false;
                         if (indexed) {
-                            ((DenseVectorFieldStats) stats).indexedVectorCount += count;
-                            int dims = (int) fieldMapping.get("dims");
-                            if (dims < ((DenseVectorFieldStats) stats).indexedVectorDimMin) {
-                                ((DenseVectorFieldStats) stats).indexedVectorDimMin = dims;
-                            }
-                            if (dims > ((DenseVectorFieldStats) stats).indexedVectorDimMax) {
-                                ((DenseVectorFieldStats) stats).indexedVectorDimMax = dims;
+                            DenseVectorFieldStats vStats = (DenseVectorFieldStats) stats;
+                            vStats.indexedVectorCount += count;
+                            Object obj = fieldMapping.get("dims");
+                            if (obj != null) {
+                                int dims = (int) obj;
+                                if (vStats.indexedVectorDimMin == DenseVectorFieldStats.UNSET || dims < vStats.indexedVectorDimMin) {
+                                    vStats.indexedVectorDimMin = dims;
+                                }
+                                if (vStats.indexedVectorDimMin == DenseVectorFieldStats.UNSET || dims > vStats.indexedVectorDimMax) {
+                                    vStats.indexedVectorDimMax = dims;
+                                }
                             }
                         }
                     } else {
@@ -207,7 +211,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     }
 
     MappingStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             totalFieldCount = in.readOptionalVLong();
             totalDeduplicatedFieldCount = in.readOptionalVLong();
             totalMappingSizeBytes = in.readOptionalVLong();
@@ -216,13 +220,13 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             totalDeduplicatedFieldCount = null;
             totalMappingSizeBytes = null;
         }
-        fieldTypeStats = in.readImmutableList(FieldStats::new);
-        runtimeFieldStats = in.readImmutableList(RuntimeFieldStats::new);
+        fieldTypeStats = in.readCollectionAsImmutableList(FieldStats::new);
+        runtimeFieldStats = in.readCollectionAsImmutableList(RuntimeFieldStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeOptionalVLong(totalFieldCount);
             out.writeOptionalVLong(totalDeduplicatedFieldCount);
             out.writeOptionalVLong(totalMappingSizeBytes);

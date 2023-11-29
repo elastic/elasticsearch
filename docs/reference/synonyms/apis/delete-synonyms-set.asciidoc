@@ -166,12 +166,12 @@ DELETE _synonyms/my-synonyms-set
     "root_cause": [
       {
         "type": "illegal_argument_exception",
-        "reason": "Synonyms set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2",
+        "reason": "synonyms set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2",
         "stack_trace": ...
       }
     ],
     "type": "illegal_argument_exception",
-    "reason": "Synonyms set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2",
+    "reason": "synonyms set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2",
     "stack_trace": ...
   },
   "status": 400

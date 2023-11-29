@@ -34,6 +34,7 @@ public class ScriptModule {
         LongFieldScript.CONTEXT,
         StringFieldScript.CONTEXT,
         GeoPointFieldScript.CONTEXT,
+        GeometryFieldScript.CONTEXT,
         IpFieldScript.CONTEXT,
         CompositeFieldScript.CONTEXT
     );

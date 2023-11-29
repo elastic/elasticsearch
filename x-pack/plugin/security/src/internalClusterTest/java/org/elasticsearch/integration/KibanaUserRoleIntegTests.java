@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -63,7 +63,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
     public void testFieldMappings() throws Exception {
         final String index = "logstash-20-12-2015";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
+        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
 
         GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings()
             .addIndices("logstash-*")
@@ -85,7 +85,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "event";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
+        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
 
         ValidateQueryResponse response = indicesAdmin().prepareValidateQuery(index).setQuery(QueryBuilders.termQuery(field, "bar")).get();
         assertThat(response.isValid(), is(true));
@@ -100,9 +100,9 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "event";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
+        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
 
-        SearchResponse response = client().prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse response = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).get();
         final long hits = response.getHits().getTotalHits().value;
         assertThat(hits, greaterThan(0L));
         response = client().filterWithHeader(
@@ -110,22 +110,24 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         ).prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).get();
         assertEquals(response.getHits().getTotalHits().value, hits);
 
-        MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-            .add(client().prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()))
-            .get();
-        final long multiHits = multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value;
-        assertThat(hits, greaterThan(0L));
-        multiSearchResponse = client().filterWithHeader(
-            singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
-        ).prepareMultiSearch().add(client().prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())).get();
-        assertEquals(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, multiHits);
+        assertResponse(
+            client().prepareMultiSearch().add(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())),
+            multiSearchResponse -> {
+                final long multiHits = multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value;
+                assertThat(hits, greaterThan(0L));
+                multiSearchResponse = client().filterWithHeader(
+                    singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
+                ).prepareMultiSearch().add(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())).get();
+                assertEquals(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, multiHits);
+            }
+        );
     }
 
     public void testGetIndex() throws Exception {
         final String index = "logstash-20-12-2015";
         final String type = "event";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
+        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
 
         GetIndexResponse response = indicesAdmin().prepareGetIndex().setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
@@ -140,7 +142,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "_doc";
         final String field = "foo";
-        indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
+        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
 
         GetMappingsResponse response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))

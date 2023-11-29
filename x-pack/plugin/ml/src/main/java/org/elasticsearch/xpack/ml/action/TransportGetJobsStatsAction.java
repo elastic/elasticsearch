@@ -84,7 +84,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             GetJobsStatsAction.Request::new,
             GetJobsStatsAction.Response::new,
             in -> new QueryPage<>(in, JobStats::new),
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterService = clusterService;
         this.processManager = processManager;

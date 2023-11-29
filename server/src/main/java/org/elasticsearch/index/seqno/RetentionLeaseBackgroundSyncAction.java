@@ -81,7 +81,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             actionFilters,
             Request::new,
             Request::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 

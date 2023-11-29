@@ -9,7 +9,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -41,7 +41,7 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
         final var client = client();
         client.prepareIndex("no-dot").setSource("{}", XContentType.JSON).execute(new ActionListener<>() {
             @Override
-            public void onResponse(IndexResponse indexResponse) {
+            public void onResponse(DocWriteResponse indexResponse) {
                 try {
                     final var warningHeaders = client.threadPool().getThreadContext().getResponseHeaders().get("Warning");
                     if (warningHeaders != null) {
@@ -68,7 +68,7 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
 
         client.prepareIndex(".has-dot").setSource("{}", XContentType.JSON).execute(new ActionListener<>() {
             @Override
-            public void onResponse(IndexResponse indexResponse) {
+            public void onResponse(DocWriteResponse indexResponse) {
                 try {
                     final var warningHeaders = client.threadPool().getThreadContext().getResponseHeaders().get("Warning");
                     assertNotNull(warningHeaders);

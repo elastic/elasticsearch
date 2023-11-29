@@ -387,7 +387,7 @@ To spider out, you need to specify two things:
  * The set of vertices you already know about that you want to exclude from the
  results of the spidering operation.
 
-You specify this information using `include`and `exclude` clauses. For example,
+You specify this information using `include` and `exclude` clauses. For example,
 the following request starts with the product `1854873` and spiders
 out to find additional search terms associated with that product. The terms
 "midi", "midi keyboard", and "synth" are excluded from the results.

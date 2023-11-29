@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -16,6 +15,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
@@ -61,6 +61,10 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
         return LENIENT_PARSER.apply(parser, null).build();
     }
 
+    public static Builder builder(LearnToRankConfig config) {
+        return new Builder(config);
+    }
+
     private final List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders;
 
     public LearnToRankConfig(Integer numTopFeatureImportanceValues, List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders) {
@@ -80,7 +84,7 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
 
     public LearnToRankConfig(StreamInput in) throws IOException {
         super(in);
-        this.featureExtractorBuilders = in.readNamedWriteableList(LearnToRankFeatureExtractorBuilder.class);
+        this.featureExtractorBuilders = in.readNamedWriteableCollectionAsList(LearnToRankFeatureExtractorBuilder.class);
     }
 
     public List<LearnToRankFeatureExtractorBuilder> getFeatureExtractorBuilders() {
@@ -120,7 +124,7 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeNamedWriteableList(featureExtractorBuilders);
+        out.writeNamedWriteableCollection(featureExtractorBuilders);
     }
 
     @Override
@@ -165,8 +169,8 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
     }
 
     @Override
-    public Version getMinimalSupportedNodeVersion() {
-        return Version.CURRENT;
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return MlConfigVersion.CURRENT;
     }
 
     @Override

@@ -31,13 +31,13 @@ execution.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Required, string) Comma-separated list of indices.
+(Required, string) Comma-separated list of indices or data streams.
 
 [[data-streams-explain-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
 `include_defaults`::
-  (Optional, Boolean) Includes default configurations related to the lifecycle of the target index.
+  (Optional, Boolean) Includes default configurations related to the lifecycle of the target.
   Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -45,7 +45,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[data-streams-explain-lifecycle-example]]
 ==== {api-examples-title}
 
-The following example retrieves the lifecycle state of the index `.ds-metrics-2023.03.22-000001`:
+If you want to retrieve the lifecycle state of all the backing indices of a data stream, you can use the data stream name.
+For simplicity, the following example retrieves the lifecycle state of one backing index `.ds-metrics-2023.03.22-000001`:
 
 [source,console]
 --------------------------------------------------
@@ -105,7 +106,9 @@ index:
       "managed_by_lifecycle" : true,
       "index_creation_date_millis" : 1679475563571,
       "time_since_index_creation" : "843ms",
-      "lifecycle" : { },
+      "lifecycle" : {
+        "enabled": true
+      },
       "error": "{\"type\":\"validation_exception\",\"reason\":\"Validation Failed: 1: this action would add [2] shards, but this cluster
 currently has [4]/[3] maximum normal shards open;\"}"        <1>
   }

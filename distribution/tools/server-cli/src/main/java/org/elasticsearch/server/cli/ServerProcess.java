@@ -219,7 +219,8 @@ public class ServerProcess {
         command.add(esHome.resolve("lib").toString());
         // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
         command.add("--add-modules=jdk.net"); // needed to reflectively set extended socket options
-        command.add("--add-modules=org.elasticsearch.preallocate"); // needed on boot layer as target to open java.io
+        // we control the module path, which may have additional modules not required by server
+        command.add("--add-modules=ALL-MODULE-PATH");
         command.add("-m");
         command.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
 

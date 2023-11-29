@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -69,7 +68,6 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
     @ClassRule
     public static ElasticsearchCluster testCluster = ElasticsearchCluster.local()
         .name("test-cluster")
-        .feature(FeatureFlag.NEW_RCS_MODE)
         .module("analysis-common")
         .module("x-pack-ccr")
         .setting("xpack.license.self_generated.type", "trial")
@@ -288,7 +286,10 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
 
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.Request.INSTANCE).actionGet()
+                () -> remoteClusterClient.execute(
+                    RemoteClusterNodesAction.TYPE,
+                    RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES
+                ).actionGet()
             );
             assertThat(
                 e.getMessage(),

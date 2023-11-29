@@ -35,7 +35,7 @@ starting from the beginning of the cluster state update. Refer to
 
 [[cluster-fault-detection-troubleshooting]]
 ==== Troubleshooting an unstable cluster
-
+//tag::troubleshooting[]
 Normally, a node will only leave a cluster if deliberately shut down. If a node
 leaves the cluster unexpectedly, it's important to address the cause. A cluster
 in which nodes leave unexpectedly is unstable and can create several issues.
@@ -143,6 +143,7 @@ removes the node removed after three consecutively failed health checks. Refer
 to <<modules-discovery-settings>> for information about the settings which
 control this mechanism.
 
+[discrete]
 ===== Diagnosing `disconnected` nodes
 
 Nodes typically leave the cluster with reason `disconnected` when they shut
@@ -181,6 +182,7 @@ In extreme cases, you may need to take packet captures using `tcpdump` to
 determine whether messages between nodes are being dropped or rejected by some
 other device on the network.
 
+[discrete]
 ===== Diagnosing `lagging` nodes
 
 {es} needs every node to process cluster state updates reasonably quickly. If a
@@ -225,6 +227,7 @@ To reconstruct the output, base64-decode the data and decompress it using
 cat lagdetector.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
 ----
 
+[discrete]
 ===== Diagnosing `follower check retry count exceeded` nodes
 
 Nodes sometimes leave the cluster with reason `follower check retry count
@@ -260,6 +263,7 @@ By default the follower checks will time out after 30s, so if node departures
 are unpredictable then capture stack dumps every 15s to be sure that at least
 one stack dump was taken at the right time.
 
+[discrete]
 ===== Diagnosing `ShardLockObtainFailedException` failures
 
 If a node leaves and rejoins the cluster then {es} will usually shut down and
@@ -295,3 +299,4 @@ To reconstruct the output, base64-decode the data and decompress it using
 ----
 cat shardlock.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
 ----
+//end::troubleshooting[]

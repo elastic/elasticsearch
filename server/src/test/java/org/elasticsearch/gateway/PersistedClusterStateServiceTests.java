@@ -58,6 +58,7 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -727,7 +728,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
                                         )
                                 )
@@ -798,7 +799,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
                                         )
                                 )
@@ -932,7 +933,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, updatedIndexUuid)
                                         )
                                 )
@@ -944,7 +945,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, deletedIndexUuid)
                                         )
                                 )
@@ -991,7 +992,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, addedIndexUuid)
                                         )
                                 )
@@ -1041,7 +1042,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                                 Settings.builder()
                                                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                     .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                                             )
                                     )
@@ -1075,7 +1076,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             Settings.builder()
                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                         )
                 );
@@ -1255,7 +1256,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         Settings.builder()
                                             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                             .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
                                     )
                             )
@@ -1370,7 +1371,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                                         )
                                 )
@@ -1489,7 +1490,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final Path[] dataPaths2 = createDataPaths();
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 
-        IndexVersion oldVersion = IndexVersion.fromId(IndexVersion.MINIMUM_COMPATIBLE.id() - 1);
+        IndexVersion oldVersion = IndexVersion.fromId(IndexVersions.MINIMUM_COMPATIBLE.id() - 1);
 
         final IndexVersion[] indexVersions = new IndexVersion[] {
             oldVersion,
@@ -1594,7 +1595,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                     Settings.builder()
                                         .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                         .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                                 )
                         )
@@ -1649,7 +1650,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                     Settings.builder()
                                         .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                         .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                                 )
                         )
@@ -1686,7 +1687,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final String message = expectThrows(CorruptStateException.class, () -> persistedClusterStateService.loadBestOnDiskState())
                 .getCause()
                 .getMessage();
-            assertEquals("java.lang.IllegalArgumentException: mapping with hash [" + hash + "] not found", message);
+            assertEquals("java.lang.IllegalArgumentException: mapping of index [test-1] with hash [" + hash + "] not found", message);
         }
     }
 
@@ -1715,7 +1716,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 Settings.builder()
                                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                             )
                     );
@@ -1742,7 +1743,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 Settings.builder()
                                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                             )
                     );
@@ -1802,7 +1803,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
      * Utility method for applying a consumer to each document (of the given types) associated with a DirectoryReader.
      */
     private static void forEachDocument(DirectoryReader reader, Set<String> types, Consumer<Document> consumer) throws IOException {
-        final IndexSearcher indexSearcher = new IndexSearcher(reader);
+        final IndexSearcher indexSearcher = newSearcher(reader);
         indexSearcher.setQueryCache(null);
         for (String typeName : types) {
             final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));

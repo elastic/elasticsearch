@@ -325,7 +325,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * @return a new {@link SearchExecutionContext} with the provided searcher
      */
     protected static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
-        return serviceHolder.createShardContext(searcher, null);
+        return serviceHolder.createShardContext(searcher);
     }
 
     protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
@@ -344,7 +344,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
     protected static SearchExecutionContext createShardContextWithNoType() {
-        return serviceHolderWithNoType.createShardContext(null, null);
+        return serviceHolderWithNoType.createShardContext(null);
     }
 
     /**
@@ -434,14 +434,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 new Class<?>[] { Client.class },
                 clientInvocationHandler
             );
-            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
+            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class).toList());
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
                 pluginsService.flatMap(Plugin::getSettings).toList(),
                 pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
-            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class).toList());
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
@@ -469,7 +469,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 parserConfiguration,
                 similarityService,
                 mapperRegistry,
-                () -> createShardContext(null, clusterService.getClusterSettings()),
+                () -> createShardContext(null),
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE,
                 () -> DocumentParsingObserver.EMPTY_INSTANCE
@@ -561,12 +561,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         @Override
         public void close() throws IOException {}
 
-        SearchExecutionContext createShardContext(IndexSearcher searcher, ClusterSettings clusterSettings) {
+        SearchExecutionContext createShardContext(IndexSearcher searcher) {
             return new SearchExecutionContext(
                 0,
                 0,
                 idxSettings,
-                clusterSettings == null ? ClusterSettings.createBuiltInClusterSettings() : clusterSettings,
                 bitsetFilterCache,
                 indexFieldDataService::getForField,
                 mapperService,

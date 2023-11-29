@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.action.support.TransportAction;
+
 import java.io.IOException;
 
 /**
@@ -74,6 +76,13 @@ public interface Writeable {
          */
         V read(StreamInput in) throws IOException;
 
+        /**
+         * A {@link Reader} which must never be called, for use in local-only transport actions. See also {@link TransportAction#localOnly}.
+         */
+        // TODO remove this when https://github.com/elastic/elasticsearch/issues/100111 is resolved
+        static <V> Reader<V> localOnly() {
+            return in -> TransportAction.localOnly();
+        }
     }
 
 }

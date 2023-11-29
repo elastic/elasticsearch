@@ -1,0 +1,82 @@
+steps:
+  - group: platform-support-unix
+    steps:
+      - label: "{{matrix.image}} / platform-support-unix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true functionalTests
+        timeout_in_minutes: 420
+        matrix:
+          setup:
+            image:
+              - centos-7
+              - debian-10
+              - debian-11
+              - opensuse-leap-15
+              - oraclelinux-7
+              - oraclelinux-8
+              - sles-12
+              - sles-15
+              - ubuntu-1804
+              - ubuntu-2004
+              - ubuntu-2204
+              - rocky-8
+              - rocky-9
+              - rhel-7
+              - rhel-8
+              - rhel-9
+              - almalinux-8
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          localSsds: 1
+          localSsdInterface: nvme
+          machineType: custom-32-98304
+        env: {}
+  - group: platform-support-windows
+    steps:
+      - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
+        command: |
+          .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
+        timeout_in_minutes: 420
+        matrix:
+          setup:
+            image:
+              - windows-2016
+              - windows-2019
+              - windows-2022
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: n1-standard-32
+          diskType: pd-ssd
+          diskSizeGb: 350
+        env:
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+  - group: platform-support-arm
+    steps:
+      - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-arm"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true {{matrix.GRADLE_TASK}}
+        timeout_in_minutes: 420
+        matrix:
+          setup:
+            image:
+              - almalinux-8-aarch64
+              - ubuntu-2004-aarch64
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - checkRestCompat
+        agents:
+          provider: aws
+          imagePrefix: elasticsearch-{{matrix.image}}
+          instanceType: m6g.8xlarge
+          diskSizeGb: 350
+          diskType: gp3
+          diskName: /dev/sda1
+        env:
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

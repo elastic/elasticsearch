@@ -1,0 +1,207 @@
+---
+"Indexing and searching sparse vectors in >=8.11":
+
+  - skip:
+      version: " - 8.10.99"
+      reason: "sparse_vector field type reintroduced in 8.11"
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            mappings:
+              properties:
+                text:
+                   type: text
+                ml.tokens:
+                   type: sparse_vector
+                embeddings:
+                  type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "running is good for you"
+          ml:
+            tokens:
+              running: 2.4097164
+              good: 2.170997
+              run: 2.052153
+              race: 1.4575411
+              for: 1.1908325
+              runner: 1.1803857
+              exercise: 1.1652642
+              you: 0.9654308
+              training: 0.94999343
+              sports: 0.93650943
+              fitness: 0.83129317
+              best: 0.820365
+              bad: 0.7385934
+              health: 0.7098149
+              marathon: 0.61555296
+              gym: 0.5652374
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          text: "walking is a healthy exercise"
+          ml:
+            tokens:
+              walking: 2.4797723
+              exercise: 2.074234
+              healthy: 1.971596
+              walk: 1.6458614
+              health: 1.5291847
+              walker: 1.4736869
+              activity: 1.0793462
+              good: 1.0597849
+              fitness: 0.91855437
+              training: 0.86342937
+              movement: 0.7657065
+              normal: 0.6694081
+              foot: 0.5892523
+              physical: 0.4926789
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "empty array with no nested values - should not be retrieved in exists queries"
+          ml:
+            tokens: [ ]
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          text: "should still respond to exists queries if when empty"
+          ml:
+            tokens: { }
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          text: "other embeddings available only"
+          embeddings:
+            aardvark: 0.5
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                - term:
+                    ml.tokens:
+                      value: "walk"
+                      boost: 1.9790847
+                - term:
+                    ml.tokens:
+                      value: "walking"
+                      boost: 1.7092685
+                - term:
+                    ml.tokens:
+                      value: "exercise"
+                      boost: 0.84076905
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: ml.tokens
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: embeddings
+  - match: { hits.total: 1 }
+
+---
+"Sparse vector in 7.x":
+  - skip:
+      features: ["allowed_warnings"]
+      version: "8.0.0 - "
+      reason: "sparse_vector field type supported in 7.x"
+  - do:
+      allowed_warnings:
+        - "The [sparse_vector] field type is deprecated and will be removed in 8.0."
+        - "[sparse_vector] field type in old 7.x indices is allowed to contain [sparse_vector] fields, but they cannot be indexed or searched."
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "[sparse_vector] field type in old 7.x indices is allowed to contain [sparse_vector] fields, but they cannot be indexed or searched."
+      search:
+        index: test
+        body:
+          query:
+            exists:
+              field: ml.tokens
+---
+"Sparse vector in 8.0.0 <= x < 8.11.0":
+  - skip:
+      version: " - 7.99.99, 8.11.0 - "
+      reason: "sparse_vector field type not supported in 8.x until 8.11.0"
+  - do:
+      catch: /The \[sparse_vector\] field type .* supported/
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+  - do:
+      catch: /\[sparse_vector\] fields do not support \[exists\] queries|no such index.*/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: ml.tokens

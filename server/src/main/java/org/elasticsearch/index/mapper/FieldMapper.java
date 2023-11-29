@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -36,7 +37,6 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-public abstract class FieldMapper extends Mapper implements Cloneable {
+public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
 
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
@@ -158,6 +158,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * and each value is passed to the mapper for parsing.
      */
     public boolean parsesArrayValue() {
+        return false;
+    }
+
+    /**
+     * Whether this mapper can handle an object value during document parsing.
+     * When the subobjects property is set to false, and we encounter an object while
+     * parsing we need a way to understand if its fieldMapper is able to parse an object.
+     * If that's the case we can provide the entire object to the FieldMapper otherwise its
+     * name becomes the part of the dotted field name of each internal value.
+     */
+    protected boolean supportsParsingObject() {
         return false;
     }
 
@@ -517,7 +528,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public static class CopyTo {
 
-        private static final CopyTo EMPTY = new CopyTo(Collections.emptyList());
+        private static final CopyTo EMPTY = new CopyTo(List.of());
 
         public static CopyTo empty() {
             return EMPTY;
@@ -526,7 +537,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private final List<String> copyToFields;
 
         private CopyTo(List<String> copyToFields) {
-            this.copyToFields = copyToFields;
+            this.copyToFields = List.copyOf(copyToFields);
+        }
+
+        public CopyTo withAddedFields(List<String> fields) {
+            if (fields.isEmpty()) {
+                return this;
+            }
+            return new CopyTo(CollectionUtils.concatLists(copyToFields, fields));
         }
 
         public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
@@ -538,31 +556,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 builder.endArray();
             }
             return builder;
-        }
-
-        public static class Builder {
-            private final List<String> copyToBuilders = new ArrayList<>();
-
-            public Builder add(String field) {
-                copyToBuilders.add(field);
-                return this;
-            }
-
-            public boolean hasValues() {
-                return copyToBuilders.isEmpty() == false;
-            }
-
-            public CopyTo build() {
-                if (copyToBuilders.isEmpty()) {
-                    return EMPTY;
-                }
-                return new CopyTo(Collections.unmodifiableList(copyToBuilders));
-            }
-
-            public void reset(CopyTo copyTo) {
-                copyToBuilders.clear();
-                copyToBuilders.addAll(copyTo.copyToFields);
-            }
         }
 
         public List<String> copyToFields() {
@@ -975,6 +968,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             T defaultValue,
             Class<T> enumClass
         ) {
+            return enumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass);
+        }
+
+        /**
+         * Defines a parameter that takes any of the values of an enumeration.
+         *
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  a supplier for the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass     the enumeration class the parameter takes values from
+         */
+        public static <T extends Enum<T>> Parameter<T> enumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
+            Supplier<T> defaultValue,
+            Class<T> enumClass
+        ) {
             Set<T> acceptedValues = EnumSet.allOf(enumClass);
             return restrictedEnumParam(name, updateable, initializer, defaultValue, enumClass, acceptedValues);
         }
@@ -997,10 +1009,32 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Class<T> enumClass,
             Set<T> acceptedValues
         ) {
+            return restrictedEnumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass, acceptedValues);
+        }
+
+        /**
+         * Defines a parameter that takes one of a restricted set of values from an enumeration.
+         *
+         * @param name            the parameter name
+         * @param updateable      whether the parameter can be changed by a mapping update
+         * @param initializer     a function that reads the parameter value from an existing mapper
+         * @param defaultValue    a supplier for the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass       the enumeration class the parameter takes values from
+         * @param acceptedValues  the set of values that the parameter can take
+         */
+        public static <T extends Enum<T>> Parameter<T> restrictedEnumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
+            Supplier<T> defaultValue,
+            Class<T> enumClass,
+            Set<T> acceptedValues
+        ) {
             assert acceptedValues.size() > 0;
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> {
+            assert defaultValue != null;
+            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> {
                 if (o == null) {
-                    return defaultValue;
+                    return defaultValue.get();
                 }
                 EnumSet<T> enumSet = EnumSet.allOf(enumClass);
                 for (T t : enumSet) {
@@ -1074,7 +1108,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return new Parameter<>(
                 "meta",
                 true,
-                Collections::emptyMap,
+                Map::of,
                 (n, c, o) -> TypeParsers.parseMeta(n, o),
                 m -> m.fieldType().meta(),
                 XContentBuilder::stringStringMap,
@@ -1164,7 +1198,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public abstract static class Builder extends Mapper.Builder implements ToXContentFragment {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
-        protected final CopyTo.Builder copyTo = new CopyTo.Builder();
+        protected CopyTo copyTo = CopyTo.EMPTY;
 
         /**
          * Creates a new Builder with a field name
@@ -1194,7 +1228,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }
-            this.copyTo.reset(in.copyTo);
+            this.copyTo = in.copyTo;
             validate();
         }
 
@@ -1224,7 +1258,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (s != null && multiFieldsBuilder.hasMultiFields()) {
                     throw new MapperParsingException("Cannot define multifields on a field with a script");
                 }
-                if (s != null && copyTo.hasValues()) {
+                if (s != null && copyTo.copyToFields().isEmpty() == false) {
                     throw new MapperParsingException("Cannot define copy_to parameter on a field with a script");
                 }
             });
@@ -1272,12 +1306,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         continue;
                     }
                     case "copy_to" -> {
-                        TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
+                        copyTo = copyTo.withAddedFields(TypeParsers.parseCopyFields(propNode));
                         iterator.remove();
                         continue;
                     }
                     case "boost" -> {
-                        if (parserContext.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
+                        if (parserContext.indexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
                             throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
                         }
                         deprecationLogger.warn(
@@ -1321,7 +1355,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         iterator.remove();
                         continue;
                     }
-                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(IndexVersion.V_8_0_0)) {
+                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(IndexVersions.V_8_0_0)) {
                         // The parameter is unknown, but this mapping is from a dynamic template.
                         // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
                         deprecationLogger.warn(
@@ -1368,7 +1402,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private static final Set<String> DEPRECATED_PARAMS = Set.of("store", "meta", "index", "doc_values", "index_options", "similarity");
 
         private static boolean isDeprecatedParameter(String propName, IndexVersion indexCreatedVersion) {
-            if (indexCreatedVersion.onOrAfter(IndexVersion.V_8_0_0)) {
+            if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
                 return false;
             }
             return DEPRECATED_PARAMS.contains(propName);
@@ -1397,7 +1431,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {}, IndexVersion.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_COMPATIBLE);
         }
 
         /**
@@ -1412,7 +1446,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
-            this(builderFunction, contextValidator, IndexVersion.MINIMUM_COMPATIBLE);
+            this(builderFunction, contextValidator, IndexVersions.MINIMUM_COMPATIBLE);
         }
 
         private TypeParser(

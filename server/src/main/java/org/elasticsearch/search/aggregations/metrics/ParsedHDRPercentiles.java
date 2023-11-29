@@ -52,6 +52,6 @@ public class ParsedHDRPercentiles extends ParsedPercentiles implements Percentil
 
     @Override
     public Iterable<String> valueNames() {
-        return percentiles.keySet().stream().map(d -> d.toString()).toList();
+        return percentiles.keySet().stream().map(Object::toString).toList();
     }
 }

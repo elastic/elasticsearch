@@ -1,0 +1,54 @@
+enrich
+// tag::enrich[]
+ROW language_code = "1"  
+| ENRICH languages_policy
+// end::enrich[]
+;
+
+// tag::enrich-result[]
+language_code:keyword  | language_name:keyword 
+1                      | English 
+// end::enrich-result[]       
+;
+
+
+enrichOn
+// tag::enrich_on[]
+ROW a = "1"  
+| ENRICH languages_policy ON a
+// end::enrich_on[]
+;
+
+// tag::enrich_on-result[]
+a:keyword  | language_name:keyword 
+1          | English 
+// end::enrich_on-result[]       
+;
+
+
+enrichWith
+// tag::enrich_with[]
+ROW a = "1"  
+| ENRICH languages_policy ON a WITH language_name
+// end::enrich_with[]
+;
+
+// tag::enrich_with-result[]
+a:keyword  | language_name:keyword 
+1          | English 
+// end::enrich_with-result[]       
+;
+
+
+enrichRename
+// tag::enrich_rename[]
+ROW a = "1"  
+| ENRICH languages_policy ON a WITH name = language_name
+// end::enrich_rename[]
+;
+
+// tag::enrich_rename-result[]
+a:keyword  | name:keyword 
+1          | English 
+// end::enrich_rename-result[]       
+;

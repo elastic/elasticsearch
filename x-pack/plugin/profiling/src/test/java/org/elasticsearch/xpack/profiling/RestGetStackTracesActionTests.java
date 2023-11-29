@@ -39,7 +39,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetStackTracesRequest.class));
             GetStackTracesRequest getStackTracesRequest = (GetStackTracesRequest) request;
-            assertThat(getStackTracesRequest.getSampleSize(), nullValue());
+            assertThat(getStackTracesRequest.getSampleSize(), is(20_000)); // expect the default value
             assertThat(getStackTracesRequest.getQuery(), nullValue());
             executeCalled.set(true);
             return new GetStackTracesResponse(
@@ -48,7 +48,8 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 0,
-                1.0
+                1.0d,
+                0L
             );
         });
         RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
@@ -64,7 +65,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetStackTracesRequest.class));
             GetStackTracesRequest getStackTracesRequest = (GetStackTracesRequest) request;
-            assertThat(getStackTracesRequest.getSampleSize(), is(10000));
+            assertThat(getStackTracesRequest.getSampleSize(), is(10_000));
             assertThat(getStackTracesRequest.getQuery(), notNullValue(QueryBuilder.class));
             executeCalled.set(true);
             return new GetStackTracesResponse(
@@ -73,7 +74,8 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 0,
-                0.0
+                0.0d,
+                0L
             );
         });
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
@@ -81,6 +83,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
             .withContent(new BytesArray("""
                             {
                               "sample_size": 10000,
+                              "requested_duration": 3600,
                               "query": {
                                 "bool": {
                                   "filter": [

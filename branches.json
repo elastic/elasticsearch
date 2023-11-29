@@ -1,0 +1,14 @@
+{
+  "notice": "This file is not maintained outside of the main branch and should only be used for tooling.",
+  "branches": [
+    {
+      "branch": "main"
+    },
+    {
+      "branch": "8.11"
+    },
+    {
+      "branch": "7.17"
+    }
+  ]
+}

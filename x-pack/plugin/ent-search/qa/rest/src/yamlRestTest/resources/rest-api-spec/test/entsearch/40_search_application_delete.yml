@@ -12,6 +12,12 @@ setup:
         name: test-search-application-to-delete
         body:
           indices: [ "test-index" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
 ---
 teardown:

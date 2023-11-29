@@ -76,6 +76,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -87,12 +88,13 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
 
-public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
+public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
     private static final Logger logger = LogManager.getLogger(ShardFollowTasksExecutor.class);
 
     private final Client client;
     private final ThreadPool threadPool;
+    private final Executor ccrExecutor;
     private final ClusterService clusterService;
     private final IndexScopedSettings indexScopedSettings;
     private final TimeValue retentionLeaseRenewInterval;
@@ -102,6 +104,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
+        this.ccrExecutor = threadPool.executor(getExecutor());
         this.clusterService = clusterService;
         this.indexScopedSettings = settingsModule.getIndexScopedSettings();
         this.retentionLeaseRenewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(settingsModule.getSettings());
@@ -150,11 +153,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     ) {
         ShardFollowTask params = taskInProgress.getParams();
         Client followerClient = wrapClient(client, params.getHeaders(), clusterService.state());
-        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> threadPool.scheduleUnlessShuttingDown(
-            delay,
-            Ccr.CCR_THREAD_POOL_NAME,
-            command
-        );
+        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> threadPool.scheduleUnlessShuttingDown(delay, ccrExecutor, command);
 
         final String recordedLeaderShardHistoryUUID = getLeaderShardHistoryUUID(params);
         return new ShardFollowNodeTask(
@@ -528,7 +527,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         remoteClient(params),
                         listener
                     );
-                }, retentionLeaseRenewInterval, Ccr.CCR_THREAD_POOL_NAME);
+                }, retentionLeaseRenewInterval, ccrExecutor);
             }
 
             private void logRetentionLeaseFailure(final String retentionLeaseId, final Throwable cause) {
@@ -594,7 +593,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     e
                 );
                 try {
-                    threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
+                    threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), ccrExecutor);
                 } catch (EsRejectedExecutionException rex) {
                     rex.addSuppressed(e);
                     shardFollowNodeTask.onFatalFailure(rex);

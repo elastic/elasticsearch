@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -86,7 +87,7 @@ public class RollupJob implements SimpleDiffable<RollupJob>, PersistentTaskParam
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         config.writeTo(out);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
     }
 
     static Diff<RollupJob> readJobDiffFrom(StreamInput in) throws IOException {
@@ -119,6 +120,6 @@ public class RollupJob implements SimpleDiffable<RollupJob>, PersistentTaskParam
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 }

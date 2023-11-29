@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public final class RepositoriesMeteringAction extends ActionType<RepositoriesMeteringResponse> {
     public static final RepositoriesMeteringAction INSTANCE = new RepositoriesMeteringAction();
@@ -15,6 +16,6 @@ public final class RepositoriesMeteringAction extends ActionType<RepositoriesMet
     static final String NAME = "cluster:monitor/xpack/repositories_metering/get_metrics";
 
     RepositoriesMeteringAction() {
-        super(NAME, RepositoriesMeteringResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

@@ -1,0 +1,208 @@
+showInfo
+show info | stats v = count(version);
+
+v:long
+1
+;
+
+showFunctions#[skip:-8.11.99]
+show functions;
+
+       name:keyword      |                        synopsis:keyword          |       argNames:keyword  | argTypes:keyword |             argDescriptions:keyword                |returnType:keyword   |    description:keyword  | optionalArgs:boolean | variadic:boolean                
+abs                      |"integer|long|double|unsigned_long abs(n:integer|long|double|unsigned_long)"      |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |"integer|long|double|unsigned_long"                    | ""                      | false                | false
+acos                     |"double acos(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
+asin                     |"double asin(n:integer|long|double|unsigned_long)"|n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double               | ""                      | false                | false
+atan                     |"double atan(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
+atan2                    |"double atan2(y:integer|long|double|unsigned_long, x:integer|long|double|unsigned_long)"                                       |[y, x]                   |["integer|long|double|unsigned_long", "integer|long|double|unsigned_long"]            |["", ""]                                            |double                    | ""                      | [false, false]       | false
+auto_bucket              |"double|date auto_bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date, to:integer|long|double|date)"           |[field, buckets, from, to] |["integer|long|double|date", "integer", "integer|long|double|date", "integer|long|double|date"]      |["", "", "", ""]                                    | "double|date"                    | ""                      | [false, false, false, false]   | false
+avg                      |? avg(arg1:?)                                           |arg1                     |?                 |   ""                                               |?                    | ""                      | false                | false
+case                     |? case(arg1:?, arg2...:?)                               |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
+ceil                     |"? ceil(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
+cidr_match               |? cidr_match(arg1:?, arg2...:?)                         |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
+coalesce                 |? coalesce(arg1:?, arg2...:?)                           |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
+concat                   |? concat(arg1:?, arg2...:?)                             |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
+cos                      |"double cos(n:integer|long|double|unsigned_long)"      |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
+cosh                     |"double cosh(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
+count                    |? count(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+count_distinct           |? count_distinct(arg1:?, arg2:?)                        |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+date_extract             |? date_extract(arg1:?, arg2:?)                          |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+date_format              |? date_format(arg1:?, arg2:?)                           |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+date_parse               |"date date_parse(?datePattern:keyword, dateString:keyword|text)"|[datePattern, dateString]|["keyword", "keyword|text"]|[A valid date pattern, A string representing a date]|date                 |Parses a string into a date value | [true, false]       | false         
+date_trunc               |? date_trunc(arg1:?, arg2:?)                            |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+e                        |? e()                                                   | null                    | null             | null                                               |?                    | ""                      | null                 | false
+ends_with                |? ends_with(arg1:?, arg2:?)                             |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+floor                    |"? floor(n:integer|long|double|unsigned_long)"    |n                        |"integer|long|double|unsigned_long"    | ""                                                 |?                    | ""                      | false                | false
+greatest                 |"? greatest(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        |[first, rest]            |["integer|long|double|boolean|keyword|text|ip|version", "integer|long|double|boolean|keyword|text|ip|version"]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
+is_finite                |? is_finite(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+is_infinite              |? is_infinite(arg1:?)                                   |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+is_nan                   |? is_nan(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+least                    |"? least(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        |[first, rest]            |["integer|long|double|boolean|keyword|text|ip|version", "integer|long|double|boolean|keyword|text|ip|version"]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
+left                     |"? left(string:keyword, length:integer)"                |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+length                   |? length(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+log10                    |"? log10(n:integer|long|double|unsigned_long)"          |n                        |"integer|long|double|unsigned_long" | ""                                                 |?                    | ""                      | false                | false
+ltrim                    |"keyword|text ltrim(str:keyword|text)"                  |str                      |"keyword|text"    | ""                                                 |"keyword|text"       |Removes leading whitespaces from a string.| false | false
+max                      |? max(arg1:?)                                           |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+median                   |? median(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+median_absolute_deviation|? median_absolute_deviation(arg1:?)                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+min                      |? min(arg1:?)                                           |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+mv_avg                   |? mv_avg(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+mv_concat                |"keyword mv_concat(v:text|keyword, delim:text|keyword)" |[v, delim]               |["text|keyword", "text|keyword"] |["values to join", "delimiter"]      |keyword              | "Reduce a multivalued string field to a single valued field by concatenating all values." | [false, false]       | false
+mv_count                 |"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v      | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" | integer | "Reduce a multivalued field to a single valued field containing the count of values."       | false                | false
+mv_dedupe                |"? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)" |v | "boolean|date|double|ip|text|integer|keyword|version|long" | "" |?   | "Remove duplicate values from a multivalued field."                      | false                | false
+mv_max                   |"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" |?      | "Reduce a multivalued field to a single valued field containing the maximum value." | false                | false
+mv_median                |? mv_median(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+mv_min                   |"? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" |?      | "Reduce a multivalued field to a single valued field containing the minimum value." | false                | false
+mv_sum                   |? mv_sum(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+now                      |? now()                                                 | null                    |null              | null                                               |?                    | ""                      | null                 | false
+percentile               |? percentile(arg1:?, arg2:?)                            |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+pi                       |? pi()                                                  | null                    |  null            | null                                               |?                    | ""                      | null                 | false
+pow                      |"? pow(base:integer|unsigned_long|long|double, exponent:integer|unsigned_long|long|double)" |[base, exponent]         |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]           |["", ""]                                            |?                    | ""                      | [false, false]       | false
+replace                  |"? replace(arg1:?, arg2:?, arg3:?)"                       | [arg1, arg2, arg3]      | [?, ?, ?]        |["", "", ""]                                        |?                    | ""                      | [false, false, false]| false 
+right                    |"? right(string:keyword, length:integer)"     |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+round                    |? round(arg1:?, arg2:?)                                 |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+rtrim                    |"keyword|text rtrim(str:keyword|text)"                  |str                      |"keyword|text"    | ""                                                 |"keyword|text"       |Removes trailing whitespaces from a string.| false | false
+sin                      |"double sin(n:integer|long|double|unsigned_long)" |n                        |"integer|long|double|unsigned_long"           |An angle, in radians                                |double               |Returns the trigonometric sine of an angle  | false      | false
+sinh                     |"double sinh(n:integer|long|double|unsigned_long)"|n                        |"integer|long|double|unsigned_long"           | ""                                                 |double                    | ""                      | false                | false
+split                    |? split(arg1:?, arg2:?)                                 |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+sqrt                     |"? sqrt(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
+starts_with              |? starts_with(arg1:?, arg2:?)                           |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+substring                |? substring(arg1:?, arg2:?, arg3:?)                     |[arg1, arg2, arg3]       |[?, ?, ?]         |["", "", ""]                                        |?                    | ""                      | [false, false, false]| false
+sum                      |? sum(arg1:?)                                           |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+tan                      |"double tan(n:integer|long|double|unsigned_long)"      |n                        |"integer|long|double|unsigned_long"           | ""                      |double               | ""                      | false                | false
+tanh                     |"double tanh(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"           | ""                      |double               | ""                      | false                | false
+tau                      |? tau()                                                 | null                    | null             | null                                               |?                    | ""                      | null                 | false
+to_bool                  |? to_bool(arg1:?)                                       |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_boolean               |? to_boolean(arg1:?)                                    |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_datetime              |? to_datetime(arg1:?)                                   |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_dbl                   |? to_dbl(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_degrees               |? to_degrees(arg1:?)                                    |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_double                |? to_double(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_dt                    |? to_dt(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_int                   |? to_int(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_integer               |? to_integer(arg1:?)                                    |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_ip                    |? to_ip(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_long                  |? to_long(arg1:?)                                       |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_radians               |? to_radians(arg1:?)                                    |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_str                   |"? to_str(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"|v                        |"unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long"                 | ""                                                 |?                    | ""                      | false                | false
+to_string                |"? to_string(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"|v                        |"unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long"                 | ""                                                 |?                    | ""                      | false                | false
+to_ul                    |? to_ul(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_ulong                 |? to_ulong(arg1:?)                                      |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_unsigned_long         |? to_unsigned_long(arg1:?)                              |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_ver                   |"? to_ver(v:keyword|text|version)"                      |v                        |"keyword|text|version"| ""                                             |?                    | ""                      | false                | false
+to_version               |"? to_version(v:keyword|text|version)"                  |v                        |"keyword|text|version"| ""                                             |?                    | ""                      | false                | false
+trim                     |"keyword|text trim(str:keyword|text)"                   |str                      |"keyword|text"    | ""                                                 |"keyword|text"       |Removes leading and trailing whitespaces from a string.| false | false
+;
+
+
+showFunctionsSynopsis#[skip:-8.11.99]
+show functions | keep synopsis;
+
+synopsis:keyword          
+"integer|long|double|unsigned_long abs(n:integer|long|double|unsigned_long)"      
+"double acos(n:integer|long|double|unsigned_long)"     
+"double asin(n:integer|long|double|unsigned_long)"     
+"double atan(n:integer|long|double|unsigned_long)"     
+"double atan2(y:integer|long|double|unsigned_long, x:integer|long|double|unsigned_long)"                                       
+"double|date auto_bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date, to:integer|long|double|date)"
+? avg(arg1:?)                                           
+? case(arg1:?, arg2...:?)                               
+"? ceil(n:integer|long|double|unsigned_long)"     
+? cidr_match(arg1:?, arg2...:?)                         
+? coalesce(arg1:?, arg2...:?)                           
+? concat(arg1:?, arg2...:?)                             
+"double cos(n:integer|long|double|unsigned_long)"      
+"double cosh(n:integer|long|double|unsigned_long)"     
+? count(arg1:?)                                         
+? count_distinct(arg1:?, arg2:?)                        
+? date_extract(arg1:?, arg2:?)                          
+? date_format(arg1:?, arg2:?)                           
+"date date_parse(?datePattern:keyword, dateString:keyword|text)"
+? date_trunc(arg1:?, arg2:?)                            
+? e()                                                   
+? ends_with(arg1:?, arg2:?)                             
+"? floor(n:integer|long|double|unsigned_long)"    
+"? greatest(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        
+? is_finite(arg1:?)                                     
+? is_infinite(arg1:?)                                   
+? is_nan(arg1:?)                                        
+"? least(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        
+"? left(string:keyword, length:integer)"                              
+? length(arg1:?)                                        
+"? log10(n:integer|long|double|unsigned_long)"    
+"keyword|text ltrim(str:keyword|text)"
+? max(arg1:?)                                           
+? median(arg1:?)                                        
+? median_absolute_deviation(arg1:?)                     
+? min(arg1:?)                                           
+? mv_avg(arg1:?)                                        
+"keyword mv_concat(v:text|keyword, delim:text|keyword)"
+"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
+"? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)"
+"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
+? mv_median(arg1:?)                                     
+"? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
+? mv_sum(arg1:?)                                        
+? now()                                                 
+? percentile(arg1:?, arg2:?)                            
+? pi()                                                  
+"? pow(base:integer|unsigned_long|long|double, exponent:integer|unsigned_long|long|double)" 
+"? replace(arg1:?, arg2:?, arg3:?)"
+"? right(string:keyword, length:integer)"     
+? round(arg1:?, arg2:?)                                 
+"keyword|text rtrim(str:keyword|text)"
+"double sin(n:integer|long|double|unsigned_long)" 
+"double sinh(n:integer|long|double|unsigned_long)"
+? split(arg1:?, arg2:?)                                 
+"? sqrt(n:integer|long|double|unsigned_long)"     
+? starts_with(arg1:?, arg2:?)                           
+? substring(arg1:?, arg2:?, arg3:?)                     
+? sum(arg1:?)                                           
+"double tan(n:integer|long|double|unsigned_long)"      
+"double tanh(n:integer|long|double|unsigned_long)"     
+? tau()                                                 
+? to_bool(arg1:?)                                       
+? to_boolean(arg1:?)                                    
+? to_datetime(arg1:?)                                   
+? to_dbl(arg1:?)                                        
+? to_degrees(arg1:?)                                    
+? to_double(arg1:?)                                     
+? to_dt(arg1:?)                                         
+? to_int(arg1:?)                                        
+? to_integer(arg1:?)                                    
+? to_ip(arg1:?)                                         
+? to_long(arg1:?)                                       
+? to_radians(arg1:?)                                    
+"? to_str(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"                 
+"? to_string(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"                 
+? to_ul(arg1:?)                                         
+? to_ulong(arg1:?)                                      
+? to_unsigned_long(arg1:?)                              
+"? to_ver(v:keyword|text|version)"
+"? to_version(v:keyword|text|version)"
+"keyword|text trim(str:keyword|text)"
+;
+
+
+showFunctionsFiltered
+// tag::showFunctionsFiltered[]
+SHOW functions 
+| WHERE STARTS_WITH(name, "is_")
+// end::showFunctionsFiltered[]
+;
+
+// tag::showFunctionsFiltered-result[]
+       name:keyword      |                        synopsis:keyword                |       argNames:keyword  | argTypes:keyword |             argDescriptions:keyword                |  returnType:keyword   |  description:keyword  |   optionalArgs:boolean |  variadic:boolean
+is_finite                |? is_finite(arg1:?)                                     |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
+is_infinite              |? is_infinite(arg1:?)                                   |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
+is_nan                   |? is_nan(arg1:?)                                        |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
+// end::showFunctionsFiltered-result[]
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102120
+countFunctions#[skip:-8.11.99]
+show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
+
+a:long | b:long | c:long
+82     | 82     | 82
+;

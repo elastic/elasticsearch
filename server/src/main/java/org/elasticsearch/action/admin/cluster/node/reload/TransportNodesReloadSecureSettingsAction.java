@@ -55,13 +55,11 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     ) {
         super(
             NodesReloadSecureSettingsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesReloadSecureSettingsRequest::new,
             NodesReloadSecureSettingsRequest.NodeRequest::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.environment = environment;
         this.pluginsService = pluginService;

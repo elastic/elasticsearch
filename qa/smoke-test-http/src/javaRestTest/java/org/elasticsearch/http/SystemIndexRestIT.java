@@ -9,6 +9,7 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
@@ -32,7 +33,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -169,6 +170,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT.toString());
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                     builder.endObject();
 
                     builder.field("dynamic", "strict");
@@ -233,7 +235,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 indexRequest.source(Map.of("some_field", "some_value"));
                 return channel -> client.index(
                     indexRequest,
-                    new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing()))
+                    new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
                 );
             }
         }

@@ -11,6 +11,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.InetAddresses;
@@ -225,8 +226,8 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         SortValue value = SortValue.from(new BytesRef("can't send me!"));
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_0_0,
-            TransportVersion.V_7_10_1
+            TransportVersions.V_7_0_0,
+            TransportVersions.V_7_10_1
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyInstance(value, version));
         assertThat(

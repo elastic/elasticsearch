@@ -37,7 +37,7 @@ To add a node to a cluster running on multiple machines, you must also set
 the rest of its cluster.
 ====
 
-include::../../../x-pack/docs/en/security/enroll-nodes.asciidoc[]
+include::{es-repo-dir}/security/enroll-nodes.asciidoc[]
 
 For more information about discovery and shard allocation, refer to
 <<modules-discovery>> and <<modules-cluster>>.

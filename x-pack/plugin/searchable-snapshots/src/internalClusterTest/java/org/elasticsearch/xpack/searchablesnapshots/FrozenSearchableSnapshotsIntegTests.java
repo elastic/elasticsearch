@@ -15,6 +15,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -44,6 +46,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesRequestCacheUtils;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -67,15 +70,17 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -422,12 +427,11 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             indicesAdmin().prepareCreate("test-index")
                 .setMapping("f", "type=date")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
         indexRandom(
             true,
-            client().prepareIndex("test-index").setSource("f", "2014-03-10T00:00:00.000Z"),
-            client().prepareIndex("test-index").setSource("f", "2014-05-13T00:00:00.000Z")
+            prepareIndex("test-index").setSource("f", "2014-03-10T00:00:00.000Z"),
+            prepareIndex("test-index").setSource("f", "2014-05-13T00:00:00.000Z")
         );
         ensureSearchable("test-index");
 
@@ -465,7 +469,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 dateHistogram("histo").field("f").timeZone(ZoneId.of("+01:00")).minDocCount(0).calendarInterval(DateHistogramInterval.MONTH)
             )
             .get();
-        assertSearchResponse(r1);
+        assertNoFailures(r1);
 
         assertRequestCacheState(client(), "test-index", 0, 1);
 
@@ -486,7 +490,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                         .calendarInterval(DateHistogramInterval.MONTH)
                 )
                 .get();
-            assertSearchResponse(r2);
+            assertNoFailures(r2);
             assertRequestCacheState(client(), "test-index", i + 1, 1);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");
@@ -512,6 +516,60 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 assertThat(key, not(containsString("test-index")));
             }
         }
+    }
+
+    public void testTierPreferenceCannotBeRemovedForFrozenIndex() throws Exception {
+        final String fsRepoName = randomAlphaOfLength(10);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String aliasName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        createRepository(fsRepoName, FsRepository.TYPE);
+
+        final Settings.Builder originalIndexSettings = Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        assertAcked(prepareCreate(indexName, originalIndexSettings));
+        assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
+
+        populateIndex(indexName, 100);
+        final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
+        ensureGreen(indexName);
+
+        assertShardFolders(indexName, false);
+
+        assertAcked(indicesAdmin().prepareClose(indexName));
+        logger.info("--> restoring partial index [{}] with cache enabled", restoredIndexName);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
+        indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+            .putNull(DataTier.TIER_PREFERENCE);
+
+        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            restoredIndexName,
+            fsRepoName,
+            snapshotInfo.snapshotId().getName(),
+            indexName,
+            indexSettingsBuilder.build(),
+            Strings.EMPTY_ARRAY,
+            true,
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
+        );
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+
+        ensureGreen(restoredIndexName);
+
+        UpdateSettingsRequestBuilder settingsRequest = indicesAdmin().prepareUpdateSettings(restoredIndexName);
+        settingsRequest.setSettings(Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+        indicesAdmin().updateSettings(settingsRequest.request()).actionGet();
+
+        // we're expecting the tier preference to not be explicitly set in the settings (as we nullified it) but
+        // the index to still have the default value of `data_frozen`
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(restoredIndexName).get();
+        final Settings settings = getSettingsResponse.getIndexToSettings().get(restoredIndexName);
+        assertThat(settings.get(DataTier.TIER_PREFERENCE), nullValue());
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(settings), is("data_frozen"));
     }
 
     private static void assertRequestCacheState(Client client, String index, long expectedHits, long expectedMisses) {

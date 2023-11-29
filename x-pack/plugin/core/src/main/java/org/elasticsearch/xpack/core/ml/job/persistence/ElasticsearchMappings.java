@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -100,7 +100,7 @@ public class ElasticsearchMappings {
 
     private ElasticsearchMappings() {}
 
-    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) {
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, int minVersion) {
         List<String> indicesToUpdate = new ArrayList<>();
 
         Map<String, MappingMetadata> currentMapping = state.metadata()
@@ -113,22 +113,26 @@ public class ElasticsearchMappings {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> meta = (Map<String, Object>) metadata.sourceAsMap().get("_meta");
                     if (meta != null) {
-                        String versionString = (String) meta.get("version");
-                        if (versionString == null) {
-                            logger.info("Version of mappings for [{}] not found, recreating", index);
+                        Integer systemIndexMappingsVersion = (Integer) meta.get(SystemIndexDescriptor.VERSION_META_KEY);
+                        if (systemIndexMappingsVersion == null) {
+                            logger.info("System index mappings version for [{}] not found, recreating", index);
                             indicesToUpdate.add(index);
                             continue;
                         }
 
-                        Version mappingVersion = Version.fromString(versionString);
-
-                        if (mappingVersion.onOrAfter(minVersion)) {
+                        if (systemIndexMappingsVersion >= minVersion) {
                             continue;
                         } else {
-                            logger.info("Mappings for [{}] are outdated [{}], updating it[{}].", index, mappingVersion, Version.CURRENT);
+                            logger.info(
+                                "Mappings for [{}] are outdated [{}], updating it[{}].",
+                                index,
+                                systemIndexMappingsVersion,
+                                minVersion
+                            );
                             indicesToUpdate.add(index);
                             continue;
                         }
+
                     } else {
                         logger.info("Version of mappings for [{}] not found, recreating", index);
                         indicesToUpdate.add(index);
@@ -153,7 +157,8 @@ public class ElasticsearchMappings {
         Client client,
         ClusterState state,
         TimeValue masterNodeTimeout,
-        ActionListener<Boolean> listener
+        ActionListener<Boolean> listener,
+        int minVersion
     ) {
         IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(alias);
         if (indexAbstraction == null) {
@@ -167,7 +172,7 @@ public class ElasticsearchMappings {
             protected void doRun() throws Exception {
                 String[] concreteIndices = indexAbstraction.getIndices().stream().map(Index::getName).toArray(String[]::new);
 
-                final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
+                final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, minVersion);
                 if (indicesThatRequireAnUpdate.length > 0) {
                     String mapping = mappingSupplier.get();
                     PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);

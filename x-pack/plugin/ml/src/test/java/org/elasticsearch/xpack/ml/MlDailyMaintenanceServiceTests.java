@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -177,6 +177,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         TaskInfo taskInfo = new TaskInfo(
             new TaskId("test", 123),
             "test",
+            "test",
             DeleteJobAction.NAME,
             "delete-job-" + jobId,
             null,
@@ -199,7 +200,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         ).execute(same(GetJobsAction.INSTANCE), any(), any());
         doAnswer(withResponse(new ListTasksResponse(Collections.singletonList(taskInfo), Collections.emptyList(), Collections.emptyList())))
             .when(client)
-            .execute(same(ListTasksAction.INSTANCE), any(), any());
+            .execute(same(TransportListTasksAction.TYPE), any(), any());
 
         CountDownLatch latch = new CountDownLatch(2);
         try (MlDailyMaintenanceService service = createService(latch, client)) {
@@ -209,7 +210,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
 
         verify(client, times(3)).threadPool();
         verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
-        verify(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        verify(client).execute(same(TransportListTasksAction.TYPE), any(), any());
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
         verifyNoMoreInteractions(client, mlAssignmentNotifier);
@@ -236,7 +237,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         ).execute(same(GetJobsAction.INSTANCE), any(), any());
         doAnswer(withResponse(new ListTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()))).when(
             client
-        ).execute(same(ListTasksAction.INSTANCE), any(), any());
+        ).execute(same(TransportListTasksAction.TYPE), any(), any());
         doAnswer(withResponse(AcknowledgedResponse.of(deleted))).when(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
 
         CountDownLatch latch = new CountDownLatch(2);
@@ -247,7 +248,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
 
         verify(client, times(4)).threadPool();
         verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
-        verify(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        verify(client).execute(same(TransportListTasksAction.TYPE), any(), any());
         verify(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());

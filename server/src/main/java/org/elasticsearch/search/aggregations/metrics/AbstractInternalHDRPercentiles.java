@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -58,7 +58,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
         super(in);
         keys = in.readDoubleArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             if (in.readBoolean()) {
                 state = decode(in);
             } else {
@@ -87,7 +87,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             if (this.state != null) {
                 out.writeBoolean(true);
                 encode(this.state, out);
@@ -96,7 +96,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             }
         } else {
             DoubleHistogram state = this.state != null ? this.state
-                : out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0) ? EMPTY_HISTOGRAM_ZERO_DIGITS
+                : out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0) ? EMPTY_HISTOGRAM_ZERO_DIGITS
                 : EMPTY_HISTOGRAM_THREE_DIGITS;
             encode(state, out);
         }
@@ -121,7 +121,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).toList();
+        return Arrays.stream(getKeys()).mapToObj(String::valueOf).toList();
     }
 
     public DocValueFormat formatter() {
@@ -134,7 +134,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
      * Return the internal {@link DoubleHistogram} sketch for this metric.
      */
     public DoubleHistogram getState() {
-        return state;
+        return state == null ? EMPTY_HISTOGRAM_ZERO_DIGITS : state;
     }
 
     /**
@@ -180,7 +180,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
      * @param histogram2 The second histogram to merge
      * @return One of the input histograms such that the one with higher numberOfSignificantValueDigits is used as the one for merging
      */
-    private DoubleHistogram merge(final DoubleHistogram histogram1, final DoubleHistogram histogram2) {
+    private static DoubleHistogram merge(final DoubleHistogram histogram1, final DoubleHistogram histogram2) {
         DoubleHistogram moreDigits = histogram1;
         DoubleHistogram lessDigits = histogram2;
         if (histogram2.getNumberOfSignificantValueDigits() > histogram1.getNumberOfSignificantValueDigits()) {
@@ -207,12 +207,12 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM_ZERO_DIGITS;
+        DoubleHistogram state = getState();
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
-            for (int i = 0; i < keys.length; ++i) {
-                String key = String.valueOf(keys[i]);
-                double value = value(keys[i]);
+            for (double v : keys) {
+                String key = String.valueOf(v);
+                double value = value(v);
                 builder.field(key, state.getTotalCount() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.getTotalCount() > 0) {
                     builder.field(key + "_as_string", format.format(value).toString());
@@ -221,10 +221,10 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             builder.endObject();
         } else {
             builder.startArray(CommonFields.VALUES.getPreferredName());
-            for (int i = 0; i < keys.length; i++) {
-                double value = value(keys[i]);
+            for (double key : keys) {
+                double value = value(key);
                 builder.startObject();
-                builder.field(CommonFields.KEY.getPreferredName(), keys[i]);
+                builder.field(CommonFields.KEY.getPreferredName(), key);
                 builder.field(CommonFields.VALUE.getPreferredName(), state.getTotalCount() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.getTotalCount() > 0) {
                     builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());

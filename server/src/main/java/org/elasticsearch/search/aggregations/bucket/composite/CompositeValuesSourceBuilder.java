@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 /**
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
@@ -55,7 +56,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
         this.missingBucket = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             this.missingOrder = MissingOrder.readFromStream(in);
         }
         this.order = SortOrder.readFromStream(in);
@@ -77,7 +78,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             userValueTypeHint.writeTo(out);
         }
         out.writeBoolean(missingBucket);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             missingOrder.writeTo(out);
         }
         order.writeTo(out);
@@ -324,5 +325,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      */
     protected ZoneId timeZone() {
         return null;
+    }
+
+    /**
+     * Return false if this composite source does not support parallel collection.
+     * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query phase.
+     */
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return true;
     }
 }

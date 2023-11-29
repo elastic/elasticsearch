@@ -19,6 +19,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.rest.Stash;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -29,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiPredicate;
 
 /**
  * Execution context passed across the REST tests.
@@ -49,15 +51,26 @@ public class ClientYamlTestExecutionContext {
     private ClientYamlTestResponse response;
 
     private final boolean randomizeContentType;
+    private final BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate;
 
     public ClientYamlTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
         boolean randomizeContentType
     ) {
+        this(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType, (ignoreApi, ignorePath) -> true);
+    }
+
+    public ClientYamlTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        boolean randomizeContentType,
+        BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
+    ) {
         this.clientYamlTestClient = clientYamlTestClient;
         this.clientYamlTestCandidate = clientYamlTestCandidate;
         this.randomizeContentType = randomizeContentType;
+        this.pathPredicate = pathPredicate;
     }
 
     /**
@@ -183,7 +196,7 @@ public class ClientYamlTestExecutionContext {
         Map<String, String> headers,
         NodeSelector nodeSelector
     ) throws IOException {
-        return clientYamlTestClient(apiName).callApi(apiName, params, entity, headers, nodeSelector);
+        return clientYamlTestClient(apiName).callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
     }
 
     protected ClientYamlTestClient clientYamlTestClient(String apiName) {

@@ -58,7 +58,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -194,11 +193,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         return false; // enable http
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public void testFieldAlias() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("distance", "route_length_miles").get();
 
@@ -323,10 +317,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long"));
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("index-1").setSource("timestamp", "2015-07-08"));
-        reqs.add(client().prepareIndex("index-1").setSource("timestamp", "2018-07-08"));
-        reqs.add(client().prepareIndex("index-2").setSource("timestamp", "2019-10-12"));
-        reqs.add(client().prepareIndex("index-2").setSource("timestamp", "2020-07-08"));
+        reqs.add(prepareIndex("index-1").setSource("timestamp", "2015-07-08"));
+        reqs.add(prepareIndex("index-1").setSource("timestamp", "2018-07-08"));
+        reqs.add(prepareIndex("index-2").setSource("timestamp", "2019-10-12"));
+        reqs.add(prepareIndex("index-2").setSource("timestamp", "2020-07-08"));
         indexRandom(true, reqs);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps("index-*").setFields("*").get();
@@ -421,7 +415,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertEquals(1, response.getFailures().size());
-        assertEquals(2, response.getFailedIndices().length);
+        assertEquals(2, response.getFailedIndicesCount());
         assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
         assertEquals(IllegalArgumentException.class, failure.getClass());
@@ -452,13 +446,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 .setMapping("timestamp", "type=date", "field1", "type=long")
         );
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2015-07-08"));
-        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2018-07-08"));
-        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2020-03-03"));
-        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2020-09-09"));
-        reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2019-10-12"));
-        reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2020-02-02"));
-        reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2020-10-10"));
+        reqs.add(prepareIndex("log-index-1").setSource("timestamp", "2015-07-08"));
+        reqs.add(prepareIndex("log-index-1").setSource("timestamp", "2018-07-08"));
+        reqs.add(prepareIndex("log-index-1").setSource("timestamp", "2020-03-03"));
+        reqs.add(prepareIndex("log-index-1").setSource("timestamp", "2020-09-09"));
+        reqs.add(prepareIndex("log-index-2").setSource("timestamp", "2019-10-12"));
+        reqs.add(prepareIndex("log-index-2").setSource("timestamp", "2020-02-02"));
+        reqs.add(prepareIndex("log-index-2").setSource("timestamp", "2020-10-10"));
         indexRandom(true, reqs);
         ensureGreen("log-index-1", "log-index-2");
         indicesAdmin().prepareRefresh("log-index-1", "log-index-2").get();
@@ -469,17 +463,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         try {
             final AtomicBoolean failedRequest = new AtomicBoolean();
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.addRequestHandlingBehavior(
-                    TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
-                    (handler, request, channel, task) -> {
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
                         if (failedRequest.compareAndSet(false, true)) {
                             channel.sendResponse(new CircuitBreakingException("Simulated", CircuitBreaker.Durability.TRANSIENT));
                         } else {
                             handler.messageReceived(request, channel, task);
                         }
-                    }
-                );
+                    });
             }
             FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
             request.indices("log-index-*");
@@ -495,8 +486,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertThat(response.getField("field1"), hasKey("keyword"));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.clearAllRules();
+                MockTransportService.getInstance(node).clearAllRules();
             }
         }
     }
@@ -559,8 +549,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     assertNotNull(toNode);
                     clusterAdmin().prepareReroute()
                         .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
-                        .execute()
-                        .actionGet();
+                        .get();
                 }
             }
         }
@@ -571,16 +560,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         try {
             final AtomicBoolean relocated = new AtomicBoolean();
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.addRequestHandlingBehavior(
-                    TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
-                    (handler, request, channel, task) -> {
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
                         if (relocated.compareAndSet(false, true)) {
                             moveOrCloseShardsOnNodes(node);
                         }
                         handler.messageReceived(request, channel, task);
-                    }
-                );
+                    });
             }
             FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
             request.indices("log-index-*");
@@ -595,8 +581,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertThat(response.getField("field1"), hasKey("long"));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.clearAllRules();
+                MockTransportService.getInstance(node).clearAllRules();
             }
         }
     }
@@ -652,7 +637,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         ensureGreen(indices);
         assertAcked(indicesAdmin().preparePutMapping(indicesWithExtraField).setSource("extra_field", "type=integer").get());
         for (String index : indicesWithExtraField) {
-            client().prepareIndex(index).setSource("extra_field", randomIntBetween(1, 1000)).get();
+            prepareIndex(index).setSource("extra_field", randomIntBetween(1, 1000)).get();
         }
         FieldCapabilitiesResponse resp = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
         verifyResponse.accept(resp);
@@ -678,7 +663,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 )
             );
             BlockingOnRewriteQueryBuilder.blockOnRewrite();
-            PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Response> future = new PlainActionFuture<>();
             Request restRequest = new Request("POST", "/_field_caps?fields=*");
             restRequest.setEntity(new StringEntity("""
                       {

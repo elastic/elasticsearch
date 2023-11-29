@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -206,9 +205,14 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             msearch,
             InternalAggregationTestCase.emptyReduceContextBuilder()
         );
-        assertNotNull(response);
-        Aggregations responseAggs = response.getAggregations();
-        assertThat(responseAggs.asList().size(), equalTo(0));
+        try {
+            assertNotNull(response);
+            Aggregations responseAggs = response.getAggregations();
+            assertThat(responseAggs.asList().size(), equalTo(0));
+        } finally {
+            // this SearchResponse is not a mock, so must be decRef'd
+            response.decRef();
+        }
     }
 
     public void testMissingRolledIndex() {
@@ -238,6 +242,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         SearchResponse response = mock(SearchResponse.class);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
 
+        // this SearchResponse is a mock, so does not need a decRef call
         SearchResponse finalResponse = RollupResponseTranslator.verifyResponse(item);
         assertThat(finalResponse, equalTo(response));
     }
@@ -281,15 +286,20 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(response.getAggregations()).thenReturn(mockAggs);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
 
+        // this is not a mock, so needs to be decRef'd
         SearchResponse finalResponse = RollupResponseTranslator.translateResponse(
             new MultiSearchResponse.Item[] { item },
             InternalAggregationTestCase.emptyReduceContextBuilder()
         );
-        assertNotNull(finalResponse);
-        Aggregations responseAggs = finalResponse.getAggregations();
-        assertNotNull(finalResponse);
-        Avg avg = responseAggs.get("foo");
-        assertThat(avg.getValue(), equalTo(5.0));
+        try {
+            assertNotNull(finalResponse);
+            Aggregations responseAggs = finalResponse.getAggregations();
+            assertNotNull(finalResponse);
+            Avg avg = responseAggs.get("foo");
+            assertThat(avg.getValue(), equalTo(5.0));
+        } finally {
+            finalResponse.decRef();
+        }
     }
 
     public void testTranslateMissingRollup() {
@@ -410,6 +420,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[] { unrolledResponse, rolledResponse };
 
+        // this SearchResponse is not a mock, so needs a decRef
         SearchResponse response = RollupResponseTranslator.combineResponses(
             msearch,
             InternalAggregationTestCase.emptyReduceContextBuilder(
@@ -417,11 +428,15 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                     .addAggregator(new MaxAggregationBuilder("foo." + RollupField.COUNT_FIELD))
             )
         );
-        assertNotNull(response);
-        Aggregations responseAggs = response.getAggregations();
-        assertNotNull(responseAggs);
-        Avg avg = responseAggs.get("foo");
-        assertThat(avg.getValue(), equalTo(5.0));
+        try {
+            assertNotNull(response);
+            Aggregations responseAggs = response.getAggregations();
+            assertNotNull(responseAggs);
+            Avg avg = responseAggs.get("foo");
+            assertThat(avg.getValue(), equalTo(5.0));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testUnsupported() throws IOException {
@@ -1309,12 +1324,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        try (AggregationContext context = createAggregationContext(indexSearcher, query, fieldType)) {
+        try (AggregationContext context = createAggregationContext(indexReader, query, fieldType)) {
             Aggregator aggregator = createAggregator(aggBuilder, context);
             aggregator.preCollection();
-            indexSearcher.search(query, aggregator.asCollector());
+            context.searcher().search(query, aggregator.asCollector());
             aggregator.postCollection();
             return aggregator.buildTopLevel();
         } finally {

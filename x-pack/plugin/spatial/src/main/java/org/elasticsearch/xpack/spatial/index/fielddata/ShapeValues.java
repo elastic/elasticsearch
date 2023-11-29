@@ -10,7 +10,14 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -90,7 +97,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
      * thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the provided decoder (could be geo or cartesian)
      */
-    protected abstract static class ShapeValue implements ToXContentFragment {
+    protected abstract static class ShapeValue implements ToXContentFragment, GenericNamedWriteable {
         private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         private final CoordinateEncoder encoder;
@@ -111,6 +118,11 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
         public void reset(BytesRef bytesRef) throws IOException {
             this.reader.reset(bytesRef);
             this.boundingBox.reset(reader.getExtent(), encoder);
+        }
+
+        protected void reset(StreamInput in) throws IOException {
+            BytesReference bytes = in.readBytesReference();
+            reset(bytes.toBytesRef());
         }
 
         public BoundingBox boundingBox() {
@@ -186,6 +198,29 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             throw new IllegalArgumentException("cannot write xcontent for geo_shape doc value");
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.SHAPE_VALUE_SERIALIZATION_ADDED;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesReference(new BytesArray(reader.getBytesRef()));
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof ShapeValue other) {
+                return reader.getBytesRef().equals(other.reader.getBytesRef());
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return reader.getBytesRef().hashCode();
         }
     }
 

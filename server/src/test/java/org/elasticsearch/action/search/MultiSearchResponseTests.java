@@ -8,6 +8,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -37,7 +38,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
-            SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+            SearchResponse.Clusters clusters = SearchResponseTests.randomSimpleClusters();
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
             SearchResponse searchResponse = new SearchResponse(
                 internalSearchResponse,
@@ -65,7 +66,7 @@ public class MultiSearchResponseTests extends ESTestCase {
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
-                SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+                SearchResponse.Clusters clusters = SearchResponseTests.randomSimpleClusters();
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
                 SearchResponse searchResponse = new SearchResponse(
                     internalSearchResponse,
@@ -119,6 +120,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             .numberOfTestRuns(20)
             .supportsUnknownFields(supportsUnknownFields())
             .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(RefCounted::decRef)
             .test();
     }
 
@@ -138,6 +140,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             // exceptions are not of the same type whenever parsed back
             .assertToXContentEquivalence(false)
             .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(RefCounted::decRef)
             .test();
     }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -34,12 +34,14 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
@@ -125,7 +127,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             new SettingsConfig.Builder().setUsePit(true).build()
         ).build();
 
-        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
                 new TransformServices(
@@ -137,7 +140,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
                 null,
-                client,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                 mock(TransformIndexerStats.class),
                 config,
                 null,
@@ -218,7 +221,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             new SettingsConfig.Builder().setUsePit(true).build()
         ).build();
 
-        try (PitMockClient client = new PitMockClient(getTestName(), false)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, false);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
                 new TransformServices(
@@ -230,7 +234,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
                 null,
-                client,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                 mock(TransformIndexerStats.class),
                 config,
                 null,
@@ -290,10 +294,12 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     public void testDisablePit() throws InterruptedException {
+        // TransformConfigTests.randomTransformConfig never produces remote indices in the source, hence we are safe here. */
         TransformConfig config = TransformConfigTests.randomTransformConfig();
         boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
 
-        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
                 new TransformServices(
@@ -305,7 +311,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
                 null,
-                client,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                 mock(TransformIndexerStats.class),
                 config,
                 null,
@@ -349,10 +355,71 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testDisablePitWhenThereIsRemoteIndexInSource() throws InterruptedException {
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig())
+            // Remote index is configured within source
+            .setSource(new SourceConfig("remote-cluster:remote-index"))
+            .build();
+        boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
+
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
+                mock(ThreadPool.class),
+                new TransformServices(
+                    mock(IndexBasedTransformConfigManager.class),
+                    mock(TransformCheckpointService.class),
+                    mock(TransformAuditor.class),
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
+                ),
+                mock(CheckpointProvider.class),
+                new AtomicReference<>(IndexerState.STOPPED),
+                null,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
+                mock(TransformIndexerStats.class),
+                config,
+                null,
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    0L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    2L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+                mock(TransformContext.class),
+                false
+            );
+
+            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> assertNull(response.pointInTimeId())
+            );
+
+            // reverse the setting
+            indexer.applyNewSettings(new SettingsConfig.Builder().setUsePit(pitEnabled == false).build());
+
+            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> assertNull(response.pointInTimeId())
+            );
+        }
+    }
+
     public void testHandlePitIndexNotFound() throws InterruptedException {
         // simulate a deleted index due to ILM
-        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
-            ClientTransformIndexer indexer = createTestIndexer(client);
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
             SearchRequest searchRequest = new SearchRequest("deleted-index");
             searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id"));
             Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-index-not-found", searchRequest);
@@ -363,8 +430,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
 
         // simulate a deleted index that is essential, search must fail (after a retry without pit)
-        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
-            ClientTransformIndexer indexer = createTestIndexer(client);
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
             SearchRequest searchRequest = new SearchRequest("essential-deleted-index");
             searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id"));
             Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-index-not-found", searchRequest);
@@ -383,7 +451,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             CheckpointProvider checkpointProvider,
             AtomicReference<IndexerState> initialState,
             TransformIndexerPosition initialPosition,
-            Client client,
+            ParentTaskAssigningClient client,
             TransformIndexerStats initialStats,
             TransformConfig transformConfig,
             TransformProgress transformProgress,
@@ -421,8 +489,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         private final boolean pitSupported;
         private AtomicLong pitContextCounter = new AtomicLong();
 
-        PitMockClient(String testName, boolean pitSupported) {
-            super(testName);
+        PitMockClient(ThreadPool threadPool, boolean pitSupported) {
+            super(threadPool);
             this.pitSupported = pitSupported;
         }
 
@@ -521,7 +589,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
         return createTestIndexer(null);
     }
 
-    private ClientTransformIndexer createTestIndexer(Client client) {
+    private ClientTransformIndexer createTestIndexer(ParentTaskAssigningClient client) {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
@@ -536,7 +604,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
             null,
-            client == null ? mock(Client.class) : client,
+            client == null ? mock(ParentTaskAssigningClient.class) : client,
             mock(TransformIndexerStats.class),
             TransformConfigTests.randomTransformConfig(),
             null,

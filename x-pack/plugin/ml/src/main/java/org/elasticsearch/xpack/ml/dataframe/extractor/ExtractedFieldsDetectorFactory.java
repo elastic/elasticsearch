@@ -17,9 +17,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -141,10 +141,17 @@ public class ExtractedFieldsDetectorFactory {
             );
         }
         SearchRequest searchRequest = new SearchRequest(index).source(searchSourceBuilder);
-        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(),
+            ML_ORIGIN,
+            client,
+            TransportSearchAction.TYPE,
+            searchRequest,
+            searchListener
+        );
     }
 
-    private void buildFieldCardinalitiesMap(
+    private static void buildFieldCardinalitiesMap(
         DataFrameAnalyticsConfig config,
         SearchResponse searchResponse,
         ActionListener<Map<String, Long>> listener

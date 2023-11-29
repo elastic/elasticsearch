@@ -12,10 +12,10 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -209,7 +209,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             );
 
             if (includeIndexCoveringSearchRangeInSearchRequest) {
-                SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+                SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest)
+                    .actionGet();
                 assertThat(searchShardsResponse.getGroups().size(), equalTo(totalShards));
                 List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
                     .stream()
@@ -227,7 +228,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             } else {
                 SearchShardsResponse searchShardsResponse = null;
                 try {
-                    searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+                    searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
                 } catch (SearchPhaseExecutionException e) {
                     // ignore as this is expected to happen
                 }
@@ -290,7 +291,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                     null
                 );
 
-                SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+                SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest)
+                    .actionGet();
                 assertThat(searchShardsResponse.getGroups().size(), equalTo(totalShards));
                 List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
                     .stream()
@@ -324,7 +326,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
                     SearchShardsResponse searchShardsResponse = null;
                     try {
-                        searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+                        searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
                     } catch (SearchPhaseExecutionException e) {
                         // ignore as this is what should happen
                     }
@@ -356,7 +358,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                         null
                     );
 
-                    SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest)
+                    SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest)
                         .actionGet();
                     assertThat(searchShardsResponse.getGroups().size(), equalTo(indexOutsideSearchRangeShardCount));
                     List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
@@ -469,7 +471,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 null
             );
 
-            SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+            SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
             assertThat(searchShardsResponse.getGroups().size(), equalTo(totalShards));
             List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
                 .stream()
@@ -535,7 +537,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 null
             );
 
-            SearchShardsResponse searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+            SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
             assertThat(searchShardsResponse.getGroups().size(), equalTo(totalShards));
             List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
                 .stream()
@@ -637,7 +639,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         {
             SearchShardsResponse searchShardsResponse = null;
             try {
-                client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+                client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
             } catch (SearchPhaseExecutionException e) {
                 // ignore as this is expected to happen
             }
@@ -678,7 +680,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         {
             SearchShardsResponse searchShardsResponse = null;
             try {
-                client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+                client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
             } catch (SearchPhaseExecutionException e) {
                 // ignore as this is expected to happen
             }
@@ -724,18 +726,17 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(indexName)
-                    .setSource(
-                        DataStream.TIMESTAMP_FIELD_NAME,
-                        String.format(
-                            Locale.ROOT,
-                            timestampTemplate,
-                            between(0, 23),
-                            between(0, 59),
-                            between(0, 59),
-                            randomLongBetween(0, 999999999L)
-                        )
+                prepareIndex(indexName).setSource(
+                    DataStream.TIMESTAMP_FIELD_NAME,
+                    String.format(
+                        Locale.ROOT,
+                        timestampTemplate,
+                        between(0, 23),
+                        between(0, 59),
+                        between(0, 59),
+                        randomLongBetween(0, 999999999L)
                     )
+                )
             );
         }
         indexRandom(true, false, indexRequestBuilders);

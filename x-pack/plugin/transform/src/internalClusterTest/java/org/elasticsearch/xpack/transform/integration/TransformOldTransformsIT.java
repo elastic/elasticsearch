@@ -7,22 +7,20 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
@@ -32,6 +30,7 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.core.transform.utils.TransformConfigVersionUtils;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
@@ -51,7 +50,7 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
     }
 
     /**
-     * Create an old transform and check that it can not be started, but updated and than started
+     * Create an old transform and check that it can not be started, but updated and then started
      */
     public void testStopThrowsForDeprecatedTransformConfig() throws Exception {
 
@@ -70,10 +69,10 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
         String transformIndex = "transform-index";
         createSourceIndex(transformIndex);
         String transformId = "transform-throws-for-old-config";
-        Version transformVersion = VersionUtils.randomVersionBetween(
+        TransformConfigVersion transformVersion = TransformConfigVersionUtils.randomVersionBetween(
             random(),
-            Version.V_7_2_0,
-            VersionUtils.getPreviousVersion(TransformDeprecations.MIN_TRANSFORM_VERSION)
+            TransformConfigVersion.V_7_2_0,
+            TransformConfigVersionUtils.getPreviousVersion(TransformDeprecations.MIN_TRANSFORM_VERSION)
         );
         String config = Strings.format("""
             {
@@ -110,7 +109,7 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
         IndexRequest indexRequest = new IndexRequest(OLD_INDEX).id(TransformConfig.documentId(transformId))
             .source(config, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getResult(), is(DocWriteResponse.Result.CREATED));
 
         GetTransformAction.Request getTransformRequest = new GetTransformAction.Request(transformId);

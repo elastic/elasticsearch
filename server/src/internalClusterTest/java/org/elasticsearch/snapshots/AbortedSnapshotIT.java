@@ -63,11 +63,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         clusterAdmin().prepareCreateSnapshot(repoName, "snapshot-1").setWaitForCompletion(false).setPartial(true).get();
         // resulting cluster state has been applied on all nodes, which means the first task for the SNAPSHOT pool is queued up
 
-        final var snapshot = clusterService.state()
-            .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-            .forRepo(repoName)
-            .get(0)
-            .snapshot();
+        final var snapshot = SnapshotsInProgress.get(clusterService.state()).forRepo(repoName).get(0).snapshot();
         final var snapshotShardsService = internalCluster().getInstance(SnapshotShardsService.class, dataNode);
 
         // Run up to 3 snapshot tasks, which are (in order):
@@ -82,7 +78,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             final var shardStatuses = snapshotShardsService.currentSnapshotShards(snapshot);
             assertEquals(1, shardStatuses.size());
-            final var shardStatus = shardStatuses.get(new ShardId(index, 0)).asCopy();
+            final var shardStatus = shardStatuses.get(new ShardId(index, 0));
             logger.info("--> {}", shardStatus);
 
             if (i == 0) {
@@ -105,7 +101,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         stopBlocking.set(true);
         safeAwait(barrier); // release snapshot thread
 
-        assertBusy(() -> assertTrue(clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty()));
+        assertBusy(() -> assertTrue(SnapshotsInProgress.get(clusterService.state()).isEmpty()));
     }
 
 }

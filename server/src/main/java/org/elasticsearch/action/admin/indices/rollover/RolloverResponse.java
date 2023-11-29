@@ -120,7 +120,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         super.writeTo(out);
         out.writeString(oldIndex);
         out.writeString(newIndex);
-        out.writeMap(conditionStatus, StreamOutput::writeString, StreamOutput::writeBoolean);
+        out.writeMap(conditionStatus, StreamOutput::writeBoolean);
         out.writeBoolean(dryRun);
         out.writeBoolean(rolledOver);
         out.writeBoolean(shardsAcknowledged);

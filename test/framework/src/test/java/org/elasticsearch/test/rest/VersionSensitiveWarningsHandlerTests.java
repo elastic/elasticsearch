@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test.rest;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase.VersionSensitiveWarningsHandler;
@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
 
     public void testSameVersionCluster() throws IOException {
-        WarningsHandler handler = expectVersionSpecificWarnings(Set.of(Version.CURRENT), v -> v.current("expectedCurrent1"));
+        WarningsHandler handler = expectVersionSpecificWarnings(Set.of(Build.current().version()), v -> v.current("expectedCurrent1"));
         assertFalse(handler.warningsShouldFailRequest(List.of("expectedCurrent1")));
         assertTrue(handler.warningsShouldFailRequest(List.of("expectedCurrent1", "unexpected")));
         assertTrue(handler.warningsShouldFailRequest(List.of()));
@@ -30,7 +30,7 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
 
     public void testMixedVersionCluster() throws IOException {
         WarningsHandler handler = expectVersionSpecificWarnings(
-            Set.of(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+            Set.of(Build.current().version(), Build.current().minWireCompatVersion()),
             v -> {
                 v.current("expectedCurrent1");
                 v.compatible("Expected legacy warning");
@@ -45,7 +45,7 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
     }
 
     private static WarningsHandler expectVersionSpecificWarnings(
-        Set<Version> nodeVersions,
+        Set<String> nodeVersions,
         Consumer<VersionSensitiveWarningsHandler> expectationsSetter
     ) {
         // Based on EsRestTestCase.expectVersionSpecificWarnings helper method but without ESRestTestCase dependency

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,7 +43,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
     @Override
     public boolean isMinTransportVersionSupported(TransportVersion minNodeVersion) {
-        return minNodeVersion.onOrAfter(TransportVersion.V_8_0_0);
+        return minNodeVersion.onOrAfter(TransportVersions.V_8_0_0);
     }
 
     @Override
@@ -57,7 +58,9 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
                 continue;
             }
             IndexRoutingTable routingTable = latestState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null
+                || routingTable.allPrimaryShardsActive() == false
+                || routingTable.readyForSearch(latestState) == false) {
                 return false;
             }
         }
@@ -71,7 +74,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
     @Override
     public void runUpdate() {
-        PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = PlainActionFuture.newFuture();
+        PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = new PlainActionFuture<>();
         provider.expandDatafeedConfigs("_all", true, null, getdatafeeds);
         List<DatafeedConfig.Builder> datafeedConfigBuilders = getdatafeeds.actionGet();
         List<DatafeedUpdate> updates = datafeedConfigBuilders.stream()
@@ -93,7 +96,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
         List<Exception> failures = new ArrayList<>();
         for (DatafeedUpdate update : updates) {
-            PlainActionFuture<DatafeedConfig> updateDatafeeds = PlainActionFuture.newFuture();
+            PlainActionFuture<DatafeedConfig> updateDatafeeds = new PlainActionFuture<>();
             provider.updateDatefeedConfig(
                 update.getId(),
                 update,

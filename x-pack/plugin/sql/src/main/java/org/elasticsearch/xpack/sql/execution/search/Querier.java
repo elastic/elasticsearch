@@ -12,13 +12,13 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
@@ -156,19 +156,23 @@ public class Querier {
         final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(search.indicesOptions())
             .keepAlive(cfg.pageTimeout());
 
-        client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, wrap(openPointInTimeResponse -> {
-            String pitId = openPointInTimeResponse.getPointInTimeId();
-            search.indices(Strings.EMPTY_ARRAY);
-            search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
-            ActionListener<SearchResponse> closePitOnErrorListener = wrap(searchResponse -> {
-                try {
-                    listener.onResponse(searchResponse);
-                } catch (Exception e) {
-                    closePointInTimeAfterError(client, pitId, e, listener);
-                }
-            }, searchError -> closePointInTimeAfterError(client, pitId, searchError, listener));
-            client.search(search, closePitOnErrorListener);
-        }, listener::onFailure));
+        client.execute(
+            TransportOpenPointInTimeAction.TYPE,
+            openPitRequest,
+            listener.delegateFailureAndWrap((delegate, openPointInTimeResponse) -> {
+                String pitId = openPointInTimeResponse.getPointInTimeId();
+                search.indices(Strings.EMPTY_ARRAY);
+                search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
+                ActionListener<SearchResponse> closePitOnErrorListener = wrap(searchResponse -> {
+                    try {
+                        delegate.onResponse(searchResponse);
+                    } catch (Exception e) {
+                        closePointInTimeAfterError(client, pitId, e, delegate);
+                    }
+                }, searchError -> closePointInTimeAfterError(client, pitId, searchError, delegate));
+                client.search(search, closePitOnErrorListener);
+            })
+        );
     }
 
     private static void closePointInTimeAfterError(Client client, String pointInTimeId, Exception e, ActionListener<?> listener) {
@@ -184,9 +188,9 @@ public class Querier {
             client = client instanceof ParentTaskAssigningClient wrapperClient ? wrapperClient.unwrap() : client;
 
             client.execute(
-                ClosePointInTimeAction.INSTANCE,
+                TransportClosePointInTimeAction.TYPE,
                 new ClosePointInTimeRequest(pointInTimeId),
-                wrap(clearPointInTimeResponse -> listener.onResponse(clearPointInTimeResponse.isSucceeded()), listener::onFailure)
+                listener.delegateFailureAndWrap((l, clearPointInTimeResponse) -> l.onResponse(clearPointInTimeResponse.isSucceeded()))
             );
         } else {
             listener.onResponse(true);

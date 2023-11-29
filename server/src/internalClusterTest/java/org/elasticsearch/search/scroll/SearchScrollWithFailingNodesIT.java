@@ -53,13 +53,12 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> writes = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            writes.add(client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", i).endObject()));
+            writes.add(prepareIndex("test").setSource(jsonBuilder().startObject().field("field", i).endObject()));
         }
         indexRandom(false, writes);
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .setSize(10)
             .setScroll(TimeValue.timeValueMinutes(1))
             .get();
@@ -75,7 +74,7 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
 
         internalCluster().stopRandomNonMasterNode();
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).setScroll(TimeValue.timeValueMinutes(1)).get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).setSize(10).setScroll(TimeValue.timeValueMinutes(1)).get();
         assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));
         numHits = 0;
         int numberOfSuccessfulShards = searchResponse.getSuccessfulShards();

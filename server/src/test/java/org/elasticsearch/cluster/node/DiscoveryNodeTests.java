@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -113,11 +115,11 @@ public class DiscoveryNodeTests extends ESTestCase {
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setTransportVersion(TransportVersion.V_7_11_0);
+            streamOutput.setTransportVersion(TransportVersions.V_7_11_0);
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setTransportVersion(TransportVersion.V_7_11_0);
+            in.setTransportVersion(TransportVersions.V_7_11_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
             final Set<DiscoveryNodeRole> roles = serialized.getRoles();
             assertThat(roles, hasSize(1));
@@ -143,7 +145,10 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     private void runTestDiscoveryNodeIsRemoteClusterClient(final Settings settings, final boolean expected) {
-        final DiscoveryNode node = DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node");
+        final DiscoveryNode node = DiscoveryNodeUtils.builder("node")
+            .applySettings(settings)
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+            .build();
         assertThat(node.isRemoteClusterClient(), equalTo(expected));
         if (expected) {
             assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
@@ -221,7 +226,7 @@ public class DiscoveryNodeTests extends ESTestCase {
                     transportAddress,
                     withExternalId ? "test-external-id" : "test-name",
                     Version.CURRENT,
-                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current()
                 )
             )

@@ -5,8 +5,8 @@ setup:
 
   # Create a new synonyms set
   - do:
-      synonyms.put:
-        synonyms_set: set1
+      synonyms.put_synonym:
+        id: set1
         body:
           synonyms_set:
             - synonyms: "hello, hi"
@@ -74,8 +74,8 @@ setup:
 ---
 "Update the synonym set and auto-reload analyzer":
   - do:
-      synonyms.put:
-        synonyms_set: set1
+      synonyms.put_synonym:
+        id: set1
         body:
           synonyms_set:
             - synonyms: "hello, salute"
@@ -109,9 +109,9 @@ setup:
 ---
 "Update a single synonym rule and auto-reload analyzer":
   - do:
-      synonym_rule.put:
-        synonyms_set: set1
-        synonym_rule: "synonym-rule-1"
+      synonyms.put_synonym_rule:
+        set_id: set1
+        rule_id: "synonym-rule-1"
         body:
           synonyms: "hello, hola"
   - match: { result: "updated" }

@@ -21,7 +21,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -116,7 +115,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
         }
     }
 
-    public void testChunkedEncodingPerIndex() throws IOException {
+    public void testChunkedEncodingPerIndex() {
         final int shards = randomIntBetween(1, 10);
         final List<ShardStats> stats = new ArrayList<>(shards);
         for (int i = 0; i < shards; i++) {
@@ -143,7 +142,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
         AbstractChunkedSerializingTestCase.assertChunkCount(
             indicesStatsResponse,
             new ToXContent.MapParams(Map.of("level", "indices")),
-            ignored -> 4 + shards
+            ignored -> 4 + 2 * shards
         );
     }
 

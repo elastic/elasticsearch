@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -70,8 +71,8 @@ public class JwtAuthenticator implements Releasable {
         final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJWTClaimsSet();
         final JWSHeader jwsHeader = signedJWT.getHeader();
 
-        if (logger.isDebugEnabled()) {
-            logger.debug(
+        if (logger.isTraceEnabled()) {
+            logger.trace(
                 "Realm [{}] successfully parsed JWT token [{}] with header [{}] and claimSet [{}]",
                 realmConfig.name(),
                 tokenPrincipal,

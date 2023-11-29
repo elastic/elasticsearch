@@ -19,7 +19,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -74,6 +74,7 @@ public class RestBulkAction extends BaseRestHandler {
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String defaultPipeline = request.param("pipeline");
+        boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
@@ -88,12 +89,13 @@ public class RestBulkAction extends BaseRestHandler {
             defaultFetchSourceContext,
             defaultPipeline,
             defaultRequireAlias,
+            defaultListExecutedPipelines,
             allowExplicitIndex,
             request.getXContentType(),
             request.getRestApiVersion()
         );
 
-        return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.bulk(bulkRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

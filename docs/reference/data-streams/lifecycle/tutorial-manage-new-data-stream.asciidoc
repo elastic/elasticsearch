@@ -95,14 +95,16 @@ The result will look like this:
     {
       "name": "my-data-stream",<1>
       "lifecycle": {
-        "data_retention": "7d" <2>
+        "enabled": true,       <2>
+        "data_retention": "7d" <3>
       }
     }
   ]
 }
 --------------------------------------------------
 <1> The name of your data stream.
-<2> The retention period of the data indexed in this data stream, this means that the data in this data stream will
+<2> Shows if the data stream lifecycle is enabled for this data stream.
+<3> The retention period of the data indexed in this data stream, this means that the data in this data stream will
 be kept at least for 7 days. After that {es} can delete it at its own discretion.
 
 If you want to see more information about how the data stream lifecycle is applied on individual backing indices use the
@@ -125,6 +127,7 @@ The result will look like this:
       "index_creation_date_millis": 1681918009501,
       "time_since_index_creation": "1.6m",                  <3>
       "lifecycle": {                                        <4>
+        "enabled": true,
         "data_retention": "7d"
       }
     }

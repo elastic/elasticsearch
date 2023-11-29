@@ -210,7 +210,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             }
         }
 
-        public void waitForBlock(int timeout, TimeUnit timeUnit) {
+        public void waitForLock(int timeout, TimeUnit timeUnit) {
             try {
                 assertTrue(shouldBlock.tryAcquire(timeout, timeUnit));
                 shouldBlock.release(1);
@@ -227,7 +227,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
             LogManager.getLogger(AbstractSearchCancellationTestCase.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
             hits.incrementAndGet();
-            waitForBlock(10, TimeUnit.SECONDS);
+            waitForLock(10, TimeUnit.SECONDS);
             return true;
         }
 
@@ -247,7 +247,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             }
             logIfBlocked("Blocking in reduce");
             hits.incrementAndGet();
-            waitForBlock(10, TimeUnit.SECONDS);
+            waitForLock(10, TimeUnit.SECONDS);
             return 42;
         }
 
@@ -258,7 +258,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             }
             logIfBlocked("Blocking in map");
             hits.incrementAndGet();
-            waitForBlock(10, TimeUnit.SECONDS);
+            waitForLock(10, TimeUnit.SECONDS);
             return 1;
         }
 

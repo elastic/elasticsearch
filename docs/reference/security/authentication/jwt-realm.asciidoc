@@ -195,7 +195,7 @@ NOTE: One of the `allowed_subjects` or `allowed_subject_patterns` settings must 
 (and be non-empty) when `token_type` is `access_token`.
 
 NOTE: When both `allowed_subjects` and `allowed_subject_patterns` settings are specified
-an incoming JWT's `sub` claim is validated if it's matched by any of the two lists.
+an incoming JWT's `sub` claim is accepted if it matches any of the two lists.
 
 `required_claims`::
 Specifies a list of key/value pairs for additional verifications to be performed

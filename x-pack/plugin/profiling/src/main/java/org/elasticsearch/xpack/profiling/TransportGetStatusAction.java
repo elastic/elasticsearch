@@ -169,7 +169,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             for (Index index : dataStream.getIndices()) {
                 IndexMetadata meta = state.metadata().index(index);
                 if (meta == null) {
-                    return false;
+                    continue;
                 }
                 // It should not happen that we have index metadata but no corresponding index service. Be extra defensive and skip.
                 IndexService indexService = indicesService.indexService(meta.getIndex());

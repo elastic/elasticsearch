@@ -184,6 +184,7 @@ COUNT(*):long  | server_ip:keyword
 1              |10.1.0.1       
 1              |10.1.0.2       
 1              |10.1.0.3      
+;
 
 emptyPattern#[skip:-8.11.99]
 ROW a="b c d"| DISSECT a "%{b} %{} %{d}";

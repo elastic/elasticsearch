@@ -2132,15 +2132,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return minTransportVersion;
     }
 
-    protected static TransportVersion getTransportVersionWithFallback(String versionString, Object transportVersion) {
-        if (transportVersion instanceof Integer transportVersionId) {
+    protected static TransportVersion getTransportVersionWithFallback(Object versionField, Object transportVersionField) {
+        if (transportVersionField instanceof Integer transportVersionId) {
             return TransportVersion.fromId(transportVersionId);
-        } else if (transportVersion instanceof String transportVersionString) {
+        } else if (transportVersionField instanceof String transportVersionString) {
             return TransportVersion.fromString(transportVersionString);
         } else { // no transport_version field
             // this json might be from a node <8.8.0, but about a node >=8.8.0
             // In that case the transport_version field won't exist. Fall back to version.
-            var version = parseLegacyVersion(versionString);
+            var version = parseLegacyVersion(versionField.toString());
 
             assert version.isPresent() && version.get().before(Version.V_8_8_0);
             return TransportVersion.fromId(version.get().id);

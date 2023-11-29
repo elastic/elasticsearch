@@ -296,8 +296,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     boolean nodeSupportApiKeyRemoteIndices(Map<String, Object> nodeDetails) {
         var transportVersion = getTransportVersionWithFallback(
-            nodeDetails.get("version").toString(),
-            nodeDetails.get("transport_version").toString()
+            nodeDetails.get("version"),
+            nodeDetails.get("transport_version")
         );
         return transportVersion.after(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }

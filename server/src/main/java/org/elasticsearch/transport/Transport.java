@@ -106,7 +106,7 @@ public interface Transport extends LifecycleComponent {
 
         /**
          * Sends the request to the node this connection is associated with
-         * @param requestId see {@link ResponseHandlers#add(ResponseContext)} for details
+         * @param requestId see {@link ResponseHandlers#add(TransportResponseHandler, Connection, String)} for details
          * @param action the action to execute
          * @param request the request to send
          * @param options request options to apply

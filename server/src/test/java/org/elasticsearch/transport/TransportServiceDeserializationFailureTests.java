@@ -28,6 +28,7 @@ import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -116,10 +117,10 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 }
             );
 
-            final Map<Long, Transport.ResponseContext<? extends TransportResponse>> responseContexts = transport.getResponseHandlers()
+            final List<Transport.ResponseContext<? extends TransportResponse>> responseContexts = transport.getResponseHandlers()
                 .prune(ignored -> true);
-            assertThat(responseContexts.entrySet(), hasSize(1));
-            final TransportResponseHandler<? extends TransportResponse> handler = responseContexts.values().iterator().next().handler();
+            assertThat(responseContexts, hasSize(1));
+            final TransportResponseHandler<? extends TransportResponse> handler = responseContexts.get(0).handler();
             assertThat(handler, hasToString(containsString("test handler without parent")));
         }
 
@@ -182,10 +183,10 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 }
             );
 
-            final Map<Long, Transport.ResponseContext<? extends TransportResponse>> responseContexts = transport.getResponseHandlers()
+            final List<Transport.ResponseContext<? extends TransportResponse>> responseContexts = transport.getResponseHandlers()
                 .prune(ignored -> true);
-            assertThat(responseContexts.entrySet(), hasSize(1));
-            final TransportResponseHandler<? extends TransportResponse> handler = responseContexts.values().iterator().next().handler();
+            assertThat(responseContexts, hasSize(1));
+            final TransportResponseHandler<? extends TransportResponse> handler = responseContexts.get(0).handler();
             assertThat(handler, hasToString(allOf(containsString("test handler with parent"), containsString(testActionName))));
         }
     }

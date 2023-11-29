@@ -667,7 +667,7 @@ class NodeConstruction {
             threadPool,
             systemIndices,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
-            telemetryProvider
+            telemetryProvider.get()
         );
         modules.add(clusterModule);
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
@@ -675,7 +675,7 @@ class NodeConstruction {
 
         final Map<String, LongCounter> customTripCounters = new TreeMap<>();
         CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
-            new CircuitBreakerMetrics(telemetryProvider, customTripCounters),
+            new CircuitBreakerMetrics(telemetryProvider.get(), customTripCounters),
             settingsModule.getSettings(),
             settingsModule.getClusterSettings()
         );
@@ -818,7 +818,7 @@ class NodeConstruction {
             circuitBreakerService,
             createUsageService(),
             systemIndices,
-            telemetryProvider.getTracer(),
+            telemetryProvider.get().getTracer(),
             clusterService,
             buildReservedStateHandlers(
                 settingsModule,
@@ -852,7 +852,7 @@ class NodeConstruction {
             restController,
             actionModule::copyRequestHeadersToThreadContext,
             clusterService.getClusterSettings(),
-            telemetryProvider.getTracer()
+            telemetryProvider.get().getTracer()
         );
         Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.map(
             Plugin::getIndexTemplateMetadataUpgrader
@@ -880,7 +880,7 @@ class NodeConstruction {
             localNodeFactory,
             settingsModule.getClusterSettings(),
             taskManager,
-            telemetryProvider.getTracer()
+            telemetryProvider.get().getTracer()
         );
         final GatewayMetaState gatewayMetaState = new GatewayMetaState();
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -1005,7 +1005,7 @@ class NodeConstruction {
             responseCollectorService,
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.getTracer()
+            telemetryProvider.get().getTracer()
         );
 
         modules.add(

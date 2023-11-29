@@ -2,7 +2,7 @@
 = Dependencies and versions
 
 ifeval::["{release-state}"=="unreleased"]
-See https://artifacts.elastic.co/reports/dependencies/dependencies-current.html[Elastic Stack Third-party Dependencices] for the complete list of dependencies for {es}.
+See https://artifacts.elastic.co/reports/dependencies/dependencies-current.html[Elastic Stack Third-party Dependencies] for the complete list of dependencies for {es}.
 endif::[]
 
 ifeval::["{release-state}"=="released"]

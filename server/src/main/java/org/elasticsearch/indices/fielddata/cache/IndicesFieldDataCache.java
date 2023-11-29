@@ -65,7 +65,7 @@ public final class IndicesFieldDataCache implements RemovalListener<IndicesField
         if (sizeInBytes > 0) {
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
-        final TimeValue expire = INDICES_FIELDDATA_CACHE_EXPIRE.exists(settings) ? INDICES_FIELDDATA_CACHE_EXPIRE.get(settings) : null;
+        final TimeValue expire = INDICES_FIELDDATA_CACHE_EXPIRE.get(settings);
         if (expire != null && expire.getNanos() > 0) {
             cacheBuilder.setExpireAfterAccess(expire);
         }

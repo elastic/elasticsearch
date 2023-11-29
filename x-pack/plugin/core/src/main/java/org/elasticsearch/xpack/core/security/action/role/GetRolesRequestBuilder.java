@@ -15,11 +15,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 public class GetRolesRequestBuilder extends ActionRequestBuilder<GetRolesRequest, GetRolesResponse> {
 
     public GetRolesRequestBuilder(ElasticsearchClient client) {
-        this(client, GetRolesAction.INSTANCE);
-    }
-
-    public GetRolesRequestBuilder(ElasticsearchClient client, GetRolesAction action) {
-        super(client, action, new GetRolesRequest());
+        super(client, GetRolesAction.INSTANCE, new GetRolesRequest());
     }
 
     public GetRolesRequestBuilder names(String... names) {

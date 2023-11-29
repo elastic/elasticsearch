@@ -369,7 +369,7 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
+    public static <R extends ActionResponse> void assertResponse(ActionFuture<R> responseFuture, Consumer<R> consumer)
         throws ExecutionException, InterruptedException {
         var res = responseFuture.get();
         try {

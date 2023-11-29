@@ -20,13 +20,6 @@ public class VerifyRepositoryRequestBuilder extends MasterNodeOperationRequestBu
     VerifyRepositoryRequestBuilder> {
 
     /**
-     * Constructs unregister repository request builder
-     */
-    public VerifyRepositoryRequestBuilder(ElasticsearchClient client, VerifyRepositoryAction action) {
-        super(client, action, new VerifyRepositoryRequest());
-    }
-
-    /**
      * Constructs unregister repository request builder with specified repository name
      */
     public VerifyRepositoryRequestBuilder(ElasticsearchClient client, VerifyRepositoryAction action, String name) {

@@ -324,7 +324,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         final ClusterSettings clusterSettings = new ClusterSettings(
             settings,
-            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL)
+            )
         );
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);

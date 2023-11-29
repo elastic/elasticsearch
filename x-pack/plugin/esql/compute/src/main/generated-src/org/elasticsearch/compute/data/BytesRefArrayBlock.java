@@ -144,4 +144,153 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }
+
+    final class Expanded implements BytesRefBlock {
+        private Expanded() {}
+
+        @Override
+        public int getFirstValueIndex(int position) {
+            return position;
+        }
+
+        @Override
+        public int getValueCount(int position) {
+            return isNull(position) ? 0 : 1;
+        }
+
+        @Override
+        public boolean isNull(int position) {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public boolean mayHaveNulls() {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public int nullValuesCount() {
+            // TODO: add null mask
+            return 0;
+        }
+
+        @Override
+        public boolean areAllValuesNull() {
+            return nullValuesCount() == getPositionCount();
+        }
+
+        @Override
+        public BlockFactory blockFactory() {
+            return blockFactory;
+        }
+
+        @Override
+        public int getTotalValueCount() {
+            return getPositionCount();
+        }
+
+        @Override
+        public int getPositionCount() {
+            return BytesRefArrayBlock.this.getTotalValueCount();
+        }
+
+        @Override
+        public boolean mayHaveMultivaluedFields() {
+            return false;
+        }
+
+        @Override
+        public MvOrdering mvOrdering() {
+            return MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
+        }
+
+        @Override
+        public BytesRefVector asVector() {
+            return null;
+        }
+
+        @Override
+        public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
+            return values.get(valueIndex, dest);
+        }
+
+        // TODO: avoid deep copying and incRef instead.
+        @Override
+        public BytesRefBlock filter(int... positions) {
+            final BytesRef scratch = new BytesRef();
+            try (var builder = blockFactory.newBytesRefBlockBuilder(positions.length)) {
+                for (int pos : positions) {
+                    if (isNull(pos)) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
+                }
+                return builder.mvOrdering(mvOrdering()).build();
+            }
+        }
+
+        @Override
+        public ElementType elementType() {
+            return BytesRefArrayBlock.this.elementType();
+        }
+
+        @Override
+        public BytesRefBlock expand() {
+            incRef();
+            return this;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return BytesRefArrayBlock.this.ramBytesUsed();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public int hashCode() {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + values.size() + ']';
+        }
+
+        @Override
+        public boolean isReleased() {
+            return hasReferences() == false;
+        }
+
+        @Override
+        public void incRef() {
+            BytesRefArrayBlock.this.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return BytesRefArrayBlock.this.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return BytesRefArrayBlock.this.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return BytesRefArrayBlock.this.hasReferences();
+        }
+
+        @Override
+        public void close() {
+            BytesRefArrayBlock.this.close();
+        }
+    }
 }

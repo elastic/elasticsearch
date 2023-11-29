@@ -177,4 +177,160 @@ $endif$
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     $endif$
     }
+
+    final class Expanded implements $Type$Block {
+        private Expanded() {}
+
+        @Override
+        public int getFirstValueIndex(int position) {
+            return position;
+        }
+
+        @Override
+        public int getValueCount(int position) {
+            return isNull(position) ? 0 : 1;
+        }
+
+        @Override
+        public boolean isNull(int position) {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public boolean mayHaveNulls() {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public int nullValuesCount() {
+            // TODO: add null mask
+            return 0;
+        }
+
+        @Override
+        public boolean areAllValuesNull() {
+            return nullValuesCount() == getPositionCount();
+        }
+
+        @Override
+        public BlockFactory blockFactory() {
+            return blockFactory;
+        }
+
+        @Override
+        public int getTotalValueCount() {
+            return getPositionCount();
+        }
+
+        @Override
+        public int getPositionCount() {
+            return $Type$ArrayBlock.this.getTotalValueCount();
+        }
+
+        @Override
+        public boolean mayHaveMultivaluedFields() {
+            return false;
+        }
+
+        @Override
+        public MvOrdering mvOrdering() {
+            return MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
+        }
+
+        @Override
+        public $Type$Vector asVector() {
+            return null;
+        }
+
+        @Override
+    $if(BytesRef)$
+        public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
+            return values.get(valueIndex, dest);
+    $else$
+        public $type$ get$Type$(int valueIndex) {
+            return values[valueIndex];
+    $endif$
+        }
+
+        // TODO: avoid deep copying and incRef instead.
+        @Override
+        public $Type$Block filter(int... positions) {
+    $if(BytesRef)$
+            final BytesRef scratch = new BytesRef();
+    $endif$
+            try (var builder = blockFactory.new$Type$BlockBuilder(positions.length)) {
+                for (int pos : positions) {
+                    if (isNull(pos)) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.append$Type$(get$Type$(getFirstValueIndex(pos)$if(BytesRef)$, scratch$endif$));
+                }
+                return builder.mvOrdering(mvOrdering()).build();
+            }
+        }
+
+        @Override
+        public ElementType elementType() {
+            return $Type$ArrayBlock.this.elementType();
+        }
+
+        @Override
+        public $Type$Block expand() {
+            incRef();
+            return this;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return $Type$ArrayBlock.this.ramBytesUsed();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public int hashCode() {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "[positions=" + getPositionCount() $if(BytesRef)$+ ", values=" + values.size()$else$+ ", values=" + Arrays.toString(values)$endif$ + ']';
+        }
+
+        @Override
+        public boolean isReleased() {
+            return hasReferences() == false;
+        }
+
+        @Override
+        public void incRef() {
+            $Type$ArrayBlock.this.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return $Type$ArrayBlock.this.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return $Type$ArrayBlock.this.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return $Type$ArrayBlock.this.hasReferences();
+        }
+
+        @Override
+        public void close() {
+            $Type$ArrayBlock.this.close();
+        }
+    }
 }

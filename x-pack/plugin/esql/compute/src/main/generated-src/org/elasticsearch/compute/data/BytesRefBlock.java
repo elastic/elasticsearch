@@ -19,7 +19,9 @@ import java.io.IOException;
  * Block that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock {
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefArrayBlock.Expanded, BytesRefVectorBlock,
+    // TODO spotless hates variable type lengths.
+    ConstantNullBlock {
 
     BytesRef NULL_VALUE = new BytesRef();
 

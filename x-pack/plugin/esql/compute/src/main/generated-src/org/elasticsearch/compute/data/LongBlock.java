@@ -18,7 +18,9 @@ import java.io.IOException;
  * Block that stores long values.
  * This class is generated. Do not edit it.
  */
-public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock {
+public sealed interface LongBlock extends Block permits LongArrayBlock, LongArrayBlock.Expanded, LongVectorBlock,
+    // TODO spotless hates variable type lengths.
+    ConstantNullBlock {
 
     /**
      * Retrieves the long value stored at the given value index.

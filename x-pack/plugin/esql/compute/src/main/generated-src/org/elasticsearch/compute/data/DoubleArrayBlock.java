@@ -139,4 +139,152 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
     public void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
+
+    final class Expanded implements DoubleBlock {
+        private Expanded() {}
+
+        @Override
+        public int getFirstValueIndex(int position) {
+            return position;
+        }
+
+        @Override
+        public int getValueCount(int position) {
+            return isNull(position) ? 0 : 1;
+        }
+
+        @Override
+        public boolean isNull(int position) {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public boolean mayHaveNulls() {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public int nullValuesCount() {
+            // TODO: add null mask
+            return 0;
+        }
+
+        @Override
+        public boolean areAllValuesNull() {
+            return nullValuesCount() == getPositionCount();
+        }
+
+        @Override
+        public BlockFactory blockFactory() {
+            return blockFactory;
+        }
+
+        @Override
+        public int getTotalValueCount() {
+            return getPositionCount();
+        }
+
+        @Override
+        public int getPositionCount() {
+            return DoubleArrayBlock.this.getTotalValueCount();
+        }
+
+        @Override
+        public boolean mayHaveMultivaluedFields() {
+            return false;
+        }
+
+        @Override
+        public MvOrdering mvOrdering() {
+            return MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
+        }
+
+        @Override
+        public DoubleVector asVector() {
+            return null;
+        }
+
+        @Override
+        public double getDouble(int valueIndex) {
+            return values[valueIndex];
+        }
+
+        // TODO: avoid deep copying and incRef instead.
+        @Override
+        public DoubleBlock filter(int... positions) {
+            try (var builder = blockFactory.newDoubleBlockBuilder(positions.length)) {
+                for (int pos : positions) {
+                    if (isNull(pos)) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.appendDouble(getDouble(getFirstValueIndex(pos)));
+                }
+                return builder.mvOrdering(mvOrdering()).build();
+            }
+        }
+
+        @Override
+        public ElementType elementType() {
+            return DoubleArrayBlock.this.elementType();
+        }
+
+        @Override
+        public DoubleBlock expand() {
+            incRef();
+            return this;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return DoubleArrayBlock.this.ramBytesUsed();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public int hashCode() {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        }
+
+        @Override
+        public boolean isReleased() {
+            return hasReferences() == false;
+        }
+
+        @Override
+        public void incRef() {
+            DoubleArrayBlock.this.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return DoubleArrayBlock.this.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return DoubleArrayBlock.this.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return DoubleArrayBlock.this.hasReferences();
+        }
+
+        @Override
+        public void close() {
+            DoubleArrayBlock.this.close();
+        }
+    }
 }

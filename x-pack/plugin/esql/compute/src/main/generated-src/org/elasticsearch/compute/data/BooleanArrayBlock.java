@@ -139,4 +139,152 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
     public void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
+
+    final class Expanded implements BooleanBlock {
+        private Expanded() {}
+
+        @Override
+        public int getFirstValueIndex(int position) {
+            return position;
+        }
+
+        @Override
+        public int getValueCount(int position) {
+            return isNull(position) ? 0 : 1;
+        }
+
+        @Override
+        public boolean isNull(int position) {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public boolean mayHaveNulls() {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public int nullValuesCount() {
+            // TODO: add null mask
+            return 0;
+        }
+
+        @Override
+        public boolean areAllValuesNull() {
+            return nullValuesCount() == getPositionCount();
+        }
+
+        @Override
+        public BlockFactory blockFactory() {
+            return blockFactory;
+        }
+
+        @Override
+        public int getTotalValueCount() {
+            return getPositionCount();
+        }
+
+        @Override
+        public int getPositionCount() {
+            return BooleanArrayBlock.this.getTotalValueCount();
+        }
+
+        @Override
+        public boolean mayHaveMultivaluedFields() {
+            return false;
+        }
+
+        @Override
+        public MvOrdering mvOrdering() {
+            return MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
+        }
+
+        @Override
+        public BooleanVector asVector() {
+            return null;
+        }
+
+        @Override
+        public boolean getBoolean(int valueIndex) {
+            return values[valueIndex];
+        }
+
+        // TODO: avoid deep copying and incRef instead.
+        @Override
+        public BooleanBlock filter(int... positions) {
+            try (var builder = blockFactory.newBooleanBlockBuilder(positions.length)) {
+                for (int pos : positions) {
+                    if (isNull(pos)) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.appendBoolean(getBoolean(getFirstValueIndex(pos)));
+                }
+                return builder.mvOrdering(mvOrdering()).build();
+            }
+        }
+
+        @Override
+        public ElementType elementType() {
+            return BooleanArrayBlock.this.elementType();
+        }
+
+        @Override
+        public BooleanBlock expand() {
+            incRef();
+            return this;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return BooleanArrayBlock.this.ramBytesUsed();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public int hashCode() {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        }
+
+        @Override
+        public boolean isReleased() {
+            return hasReferences() == false;
+        }
+
+        @Override
+        public void incRef() {
+            BooleanArrayBlock.this.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return BooleanArrayBlock.this.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return BooleanArrayBlock.this.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return BooleanArrayBlock.this.hasReferences();
+        }
+
+        @Override
+        public void close() {
+            BooleanArrayBlock.this.close();
+        }
+    }
 }

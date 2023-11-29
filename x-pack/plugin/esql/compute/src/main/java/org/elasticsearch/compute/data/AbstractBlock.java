@@ -60,6 +60,7 @@ abstract class AbstractBlock implements Block {
     }
 
     /** Gets the index of the first value for the given position. */
+    @Override
     public int getFirstValueIndex(int position) {
         return firstValueIndexes == null ? position : firstValueIndexes[position];
     }

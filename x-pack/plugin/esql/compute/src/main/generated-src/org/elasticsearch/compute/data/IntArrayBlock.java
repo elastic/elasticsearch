@@ -139,4 +139,152 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     public void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
+
+    final class Expanded implements IntBlock {
+        private Expanded() {}
+
+        @Override
+        public int getFirstValueIndex(int position) {
+            return position;
+        }
+
+        @Override
+        public int getValueCount(int position) {
+            return isNull(position) ? 0 : 1;
+        }
+
+        @Override
+        public boolean isNull(int position) {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public boolean mayHaveNulls() {
+            // TODO: add null mask
+            return false;
+        }
+
+        @Override
+        public int nullValuesCount() {
+            // TODO: add null mask
+            return 0;
+        }
+
+        @Override
+        public boolean areAllValuesNull() {
+            return nullValuesCount() == getPositionCount();
+        }
+
+        @Override
+        public BlockFactory blockFactory() {
+            return blockFactory;
+        }
+
+        @Override
+        public int getTotalValueCount() {
+            return getPositionCount();
+        }
+
+        @Override
+        public int getPositionCount() {
+            return IntArrayBlock.this.getTotalValueCount();
+        }
+
+        @Override
+        public boolean mayHaveMultivaluedFields() {
+            return false;
+        }
+
+        @Override
+        public MvOrdering mvOrdering() {
+            return MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
+        }
+
+        @Override
+        public IntVector asVector() {
+            return null;
+        }
+
+        @Override
+        public int getInt(int valueIndex) {
+            return values[valueIndex];
+        }
+
+        // TODO: avoid deep copying and incRef instead.
+        @Override
+        public IntBlock filter(int... positions) {
+            try (var builder = blockFactory.newIntBlockBuilder(positions.length)) {
+                for (int pos : positions) {
+                    if (isNull(pos)) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.appendInt(getInt(getFirstValueIndex(pos)));
+                }
+                return builder.mvOrdering(mvOrdering()).build();
+            }
+        }
+
+        @Override
+        public ElementType elementType() {
+            return IntArrayBlock.this.elementType();
+        }
+
+        @Override
+        public IntBlock expand() {
+            incRef();
+            return this;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return IntArrayBlock.this.ramBytesUsed();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public int hashCode() {
+            throw new AssertionError("TODO");
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        }
+
+        @Override
+        public boolean isReleased() {
+            return hasReferences() == false;
+        }
+
+        @Override
+        public void incRef() {
+            IntArrayBlock.this.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return IntArrayBlock.this.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return IntArrayBlock.this.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return IntArrayBlock.this.hasReferences();
+        }
+
+        @Override
+        public void close() {
+            IntArrayBlock.this.close();
+        }
+    }
 }

@@ -18,7 +18,9 @@ import java.io.IOException;
  * Block that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock {
+public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanArrayBlock.Expanded, BooleanVectorBlock,
+    // TODO spotless hates variable type lengths.
+    ConstantNullBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.

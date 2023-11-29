@@ -47,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,23 +103,20 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         ensureGreen();
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(
-                client().prepareIndex().setIndex(indexOrAlias()).setId("1").setSource("field", 1)
-            )
-                .add(client().prepareIndex().setIndex(indexOrAlias()).setId("2").setSource("field", 2).setCreate(true))
-                .add(client().prepareIndex().setIndex(indexOrAlias()).setId("3").setSource("field", 3))
-                .add(client().prepareIndex().setIndex(indexOrAlias()).setId("4").setSource("field", 4))
-                .add(client().prepareIndex().setIndex(indexOrAlias()).setId("5").setSource("field", 5))
-                .execute()
-                .actionGet();
+            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex(indexOrAlias()).setId("1").setSource("field", 1))
+                .add(prepareIndex(indexOrAlias()).setId("2").setSource("field", 2).setCreate(true))
+                .add(prepareIndex(indexOrAlias()).setId("3").setSource("field", 3))
+                .add(prepareIndex(indexOrAlias()).setId("4").setSource("field", 4))
+                .add(prepareIndex(indexOrAlias()).setId("5").setSource("field", 5))
+                .get();
 
             assertThat(bulkResponse.hasFailures(), equalTo(false));
             assertThat(bulkResponse.getItems().length, equalTo(5));
             for (BulkItemResponse bulkItemResponse : bulkResponse) {
                 assertThat(bulkItemResponse.getIndex(), equalTo("test"));
             }
-
         }
+
         final Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.field += 1", Collections.emptyMap());
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
@@ -148,21 +144,22 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(bulkResponse.getItems()[2].getResponse().getId(), equalTo("3"));
             assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(2L));
 
-            GetResponse getResponse = client().prepareGet().setIndex("test").setId("1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet().setIndex("test").setId("1").get();
             assertThat(getResponse.isExists(), equalTo(true));
             assertThat(getResponse.getVersion(), equalTo(2L));
             assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(2L));
 
-            getResponse = client().prepareGet().setIndex("test").setId("2").execute().actionGet();
+            getResponse = client().prepareGet().setIndex("test").setId("2").get();
             assertThat(getResponse.isExists(), equalTo(true));
             assertThat(getResponse.getVersion(), equalTo(2L));
             assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(3L));
 
-            getResponse = client().prepareGet().setIndex("test").setId("3").execute().actionGet();
+            getResponse = client().prepareGet().setIndex("test").setId("3").get();
             assertThat(getResponse.isExists(), equalTo(true));
             assertThat(getResponse.getVersion(), equalTo(2L));
             assertThat(getResponse.getSource().get("field1").toString(), equalTo("test"));
         }
+
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             BulkResponse bulkResponse = bulkRequestBuilder.add(
                 client().prepareUpdate()
@@ -186,20 +183,20 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(bulkResponse.getItems()[2].getResponse().getId(), equalTo("2"));
             assertThat(bulkResponse.getItems()[2].getResponse().getIndex(), equalTo("test"));
             assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(3L));
-
-            GetResponse getResponse = client().prepareGet().setIndex("test").setId("6").execute().actionGet();
-            assertThat(getResponse.isExists(), equalTo(true));
-            assertThat(getResponse.getVersion(), equalTo(1L));
-            assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(0L));
-
-            getResponse = client().prepareGet().setIndex("test").setId("7").execute().actionGet();
-            assertThat(getResponse.isExists(), equalTo(false));
-
-            getResponse = client().prepareGet().setIndex("test").setId("2").execute().actionGet();
-            assertThat(getResponse.isExists(), equalTo(true));
-            assertThat(getResponse.getVersion(), equalTo(3L));
-            assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(4L));
         }
+
+        GetResponse getResponse = client().prepareGet().setIndex("test").setId("6").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getVersion(), equalTo(1L));
+        assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(0L));
+
+        getResponse = client().prepareGet().setIndex("test").setId("7").get();
+        assertThat(getResponse.isExists(), equalTo(false));
+
+        getResponse = client().prepareGet().setIndex("test").setId("2").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getVersion(), equalTo(3L));
+        assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(4L));
     }
 
     public void testBulkUpdateWithScriptedUpsertAndDynamicMappingUpdate() throws Exception {
@@ -233,28 +230,26 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
             assertThat(bulkResponse.getItems()[1].getResponse().getId(), equalTo("2"));
             assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(1L));
-
-            GetResponse getResponse = client().prepareGet().setIndex("test").setId("1").execute().actionGet();
-            assertThat(getResponse.isExists(), equalTo(true));
-            assertThat(getResponse.getVersion(), equalTo(1L));
-            assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(2L));
-
-            getResponse = client().prepareGet().setIndex("test").setId("2").execute().actionGet();
-            assertThat(getResponse.isExists(), equalTo(true));
-            assertThat(getResponse.getVersion(), equalTo(1L));
-            assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(2L));
         }
+
+        GetResponse getResponse = client().prepareGet().setIndex("test").setId("1").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getVersion(), equalTo(1L));
+        assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(2L));
+
+        getResponse = client().prepareGet().setIndex("test").setId("2").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getVersion(), equalTo(1L));
+        assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(2L));
     }
 
     public void testBulkWithCAS() throws Exception {
         createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
         ensureGreen();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(
-                client().prepareIndex("test").setId("1").setCreate(true).setSource("field", "1")
-            )
-                .add(client().prepareIndex("test").setId("2").setCreate(true).setSource("field", "1"))
-                .add(client().prepareIndex("test").setId("1").setSource("field", "2"))
+            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex("test").setId("1").setCreate(true).setSource("field", "1"))
+                .add(prepareIndex("test").setId("2").setCreate(true).setSource("field", "1"))
+                .add(prepareIndex("test").setId("1").setSource("field", "2"))
                 .get();
 
             assertEquals(DocWriteResponse.Result.CREATED, bulkResponse.getItems()[0].getResponse().getResult());
@@ -282,10 +277,10 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             BulkResponse bulkResponse = bulkRequestBuilder.add(
-                client().prepareIndex("test").setId("e1").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL)
+                prepareIndex("test").setId("e1").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL)
             )
-                .add(client().prepareIndex("test").setId("e2").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
-                .add(client().prepareIndex("test").setId("e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL))
+                .add(prepareIndex("test").setId("e2").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
+                .add(prepareIndex("test").setId("e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL))
                 .get();
 
             assertEquals(DocWriteResponse.Result.CREATED, bulkResponse.getItems()[0].getResponse().getResult());
@@ -318,11 +313,10 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         ensureGreen();
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(client().prepareIndex().setIndex("test").setId("1").setSource("field", 1))
-                .add(client().prepareIndex().setIndex("test").setId("2").setSource("field", 1))
-                .add(client().prepareIndex().setIndex("test").setId("3").setSource("field", 1))
-                .execute()
-                .actionGet();
+            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("field", 1))
+                .add(prepareIndex("test").setId("2").setSource("field", 1))
+                .add(prepareIndex("test").setId("3").setSource("field", 1))
+                .get();
 
             assertThat(bulkResponse.hasFailures(), equalTo(false));
             assertThat(bulkResponse.getItems().length, equalTo(3));
@@ -364,8 +358,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                             )
                         )
                 )
-                .execute()
-                .actionGet();
+                .get();
 
             assertThat(bulkResponse.hasFailures(), equalTo(true));
             assertThat(bulkResponse.getItems().length, equalTo(3));
@@ -420,7 +413,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().sourceAsMap().get("counter"), equalTo(1));
 
                 for (int j = 0; j < 5; j++) {
-                    GetResponse getResponse = client().prepareGet("test", Integer.toString(i)).execute().actionGet();
+                    GetResponse getResponse = client().prepareGet("test", Integer.toString(i)).get();
                     assertThat(getResponse.isExists(), equalTo(true));
                     assertThat(getResponse.getVersion(), equalTo(1L));
                     assertThat(((Number) getResponse.getSource().get("counter")).longValue(), equalTo(1L));
@@ -446,7 +439,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 builder.add(updateBuilder);
             }
 
-            BulkResponse response = builder.execute().actionGet();
+            BulkResponse response = builder.get();
             assertThat(response.hasFailures(), equalTo(false));
             assertThat(response.getItems().length, equalTo(numDocs));
             for (int i = 0; i < numDocs; i++) {
@@ -465,7 +458,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             for (int i = (numDocs / 2); i < maxDocs; i++) {
                 builder.add(client().prepareUpdate().setIndex("test").setId(Integer.toString(i)).setScript(script));
             }
-            BulkResponse response = builder.execute().actionGet();
+            BulkResponse response = builder.get();
             assertThat(response.hasFailures(), equalTo(true));
             assertThat(response.getItems().length, equalTo(numDocs));
             for (int i = 0; i < numDocs; i++) {
@@ -491,7 +484,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                         .setScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"none\"", Collections.emptyMap()))
                 );
             }
-            BulkResponse response = builder.execute().actionGet();
+            BulkResponse response = builder.get();
             assertThat(response.buildFailureMessage(), response.hasFailures(), equalTo(false));
             assertThat(response.getItems().length, equalTo(numDocs));
             for (int i = 0; i < numDocs; i++) {
@@ -511,7 +504,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                         .setScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"delete\"", Collections.emptyMap()))
                 );
             }
-            BulkResponse response = builder.execute().actionGet();
+            BulkResponse response = builder.get();
             assertThat("expected no failures but got: " + response.buildFailureMessage(), response.hasFailures(), equalTo(false));
             assertThat(response.getItems().length, equalTo(numDocs));
             for (int i = 0; i < numDocs; i++) {
@@ -543,7 +536,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs;) {
             try (BulkRequestBuilder builder = client().prepareBulk()) {
                 for (int j = 0; j < bulk && i < numDocs; j++, i++) {
-                    builder.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("val", i));
+                    builder.add(prepareIndex("test").setId(Integer.toString(i)).setSource("val", i));
                 }
                 logger.info("bulk indexing {}-{}", i - bulk, i - 1);
                 BulkResponse response = builder.get();
@@ -582,6 +575,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                     );
                     responses[threadID] = requestBuilder.get();
                 }
+
             });
             threads[threadID].start();
 
@@ -619,7 +613,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 } else {
                     name = "test";
                 }
-                builder.add(client().prepareIndex().setIndex(name).setId("1").setSource("field", 1));
+                builder.add(prepareIndex(name).setId("1").setSource("field", 1));
             }
             BulkResponse bulkResponse = builder.get();
             assertThat(bulkResponse.hasFailures(), is(expectFailure));
@@ -654,6 +648,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 .add(new DeleteRequest("test", "5"))
                 .add(new DeleteRequest("test", "6"))
                 .get();
+
             assertThat("Expected a failure due to month 13: ", bulkItemResponse.hasFailures(), CoreMatchers.is(true));
             assertThat(bulkItemResponse.getItems().length, is(6));
             assertThat(bulkItemResponse.getItems()[0].getOpType(), is(OpType.INDEX));
@@ -682,19 +677,19 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
             client().bulk(bulkRequest).get();
             assertHitCount(prepareSearch("bulkindex*"), 3);
-
-            assertBusy(() -> assertAcked(indicesAdmin().prepareClose("bulkindex2")));
         }
 
-        try (BulkRequest bulkRequest = new BulkRequest()) {
-            bulkRequest.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
+        assertBusy(() -> assertAcked(indicesAdmin().prepareClose("bulkindex2")));
+
+        try (BulkRequest bulkRequest2 = new BulkRequest()) {
+            bulkRequest2.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
                 .add(new IndexRequest("bulkindex2").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
                 .add(new IndexRequest("bulkindex2").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo2"))
                 .add(new UpdateRequest("bulkindex2", "2").doc(Requests.INDEX_CONTENT_TYPE, "foo", "bar"))
                 .add(new DeleteRequest("bulkindex2", "3"))
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
-            BulkResponse bulkResponse = client().bulk(bulkRequest).get();
+            BulkResponse bulkResponse = client().bulk(bulkRequest2).get();
             assertThat(bulkResponse.hasFailures(), is(true));
             assertThat(bulkResponse.getItems().length, is(5));
         }
@@ -704,7 +699,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     public void testFailedRequestsOnClosedIndex() throws Exception {
         createIndex("bulkindex1");
 
-        client().prepareIndex("bulkindex1").setId("1").setSource("text", "test").get();
+        prepareIndex("bulkindex1").setId("1").setSource("text", "test").get();
         assertBusy(() -> assertAcked(indicesAdmin().prepareClose("bulkindex1")));
 
         try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE)) {
@@ -729,7 +724,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     public void testInvalidIndexNamesCorrectOpType() {
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             BulkResponse bulkResponse = bulkRequestBuilder.add(
-                client().prepareIndex().setIndex("INVALID.NAME").setId("1").setSource(Requests.INDEX_CONTENT_TYPE, "field", 1)
+                prepareIndex("INVALID.NAME").setId("1").setSource(Requests.INDEX_CONTENT_TYPE, "field", 1)
             )
                 .add(client().prepareUpdate().setIndex("INVALID.NAME").setId("1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", randomInt()))
                 .add(client().prepareDelete().setIndex("INVALID.NAME").setId("1"))

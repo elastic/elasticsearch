@@ -41,7 +41,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             Map.of("author", "jack", "first_name", "Jack", "last_name", "Austin", "joined", "1999-11-03")
         );
         for (Map<String, String> author : authors) {
-            client().prepareIndex("authors").setSource(author).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
+            prepareIndex("authors").setSource(author).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
         }
         indicesAdmin().prepareRefresh("authors").get();
 
@@ -128,7 +128,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             Map.of("title", "the fifth book", "genre", "science", "author_id", "mike", "publisher_id", "p2", "published_date", "2021-06-30")
         );
         for (Map<String, Object> book : books) {
-            client().prepareIndex("books").setSource(book).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
+            prepareIndex("books").setSource(book).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
         }
         indicesAdmin().prepareRefresh("books").get();
     }

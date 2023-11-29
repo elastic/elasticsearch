@@ -62,12 +62,7 @@ public interface InferenceService extends Closeable {
      * @param taskSettings Settings in the request to override the model's defaults
      * @param listener Inference result listener
      */
-    void infer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        ActionListener<List<? extends InferenceResults>> listener
-    );
+    void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener);
 
     /**
      * Start or prepare the model for use.

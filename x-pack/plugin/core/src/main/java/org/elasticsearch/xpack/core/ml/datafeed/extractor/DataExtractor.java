@@ -42,6 +42,11 @@ public interface DataExtractor {
     void cancel();
 
     /**
+     * Cancels and immediately destroys the data extractor, releasing all its resources.
+     */
+    void destroy();
+
+    /**
      * @return the end time to which this extractor will search
      */
     long getEndTime();

@@ -147,7 +147,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testDurableFlagHasEffect() {
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
@@ -170,7 +170,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         setDurability(shard, Translog.Durability.REQUEST);
         assertFalse(needsSync.test(translog));
         setDurability(shard, Translog.Durability.ASYNC);
-        client().prepareIndex("test").setId("2").setSource("{}", XContentType.JSON).get();
+        prepareIndex("test").setId("2").setSource("{}", XContentType.JSON).get();
         assertTrue(needsSync.test(translog));
         setDurability(shard, Translog.Durability.REQUEST);
         client().prepareDelete("test", "1").get();
@@ -182,7 +182,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         setDurability(shard, Translog.Durability.REQUEST);
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             assertNoFailures(
-                bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{}", XContentType.JSON))
+                bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{}", XContentType.JSON))
                     .add(client().prepareDelete("test", "1"))
                     .get()
             );
@@ -192,7 +192,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         setDurability(shard, Translog.Durability.ASYNC);
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             assertNoFailures(
-                bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{}", XContentType.JSON))
+                bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{}", XContentType.JSON))
                     .add(client().prepareDelete("test", "3"))
                     .get()
             );
@@ -223,7 +223,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, idxPath).build();
         createIndex("test", idxSettings);
         ensureGreen("test");
-        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(client().prepareSearch("test"), 1L);
         indicesAdmin().prepareDelete("test").get();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
@@ -233,7 +233,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testExpectedShardSizeIsPresent() throws InterruptedException {
         assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)));
         for (int i = 0; i < 50; i++) {
-            client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
         ensureGreen("test");
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
@@ -256,7 +256,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
         createIndex(index, Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
-        client().prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen(index);
 
         assertHitCount(client().prepareSearch(index).setSize(0), 1L);
@@ -331,11 +331,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .build()
             )
             .get();
-        client().prepareIndex("test")
-            .setId("0")
-            .setSource("{}", XContentType.JSON)
-            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
-            .get();
+        prepareIndex("test").setId("0").setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
         shard.applyIndexOperationOnPrimary(
             Versions.MATCH_ANY,
@@ -350,11 +346,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
         assertThat(shard.flushStats().getTotal(), equalTo(0L));
-        client().prepareIndex("test")
-            .setId("2")
-            .setSource("{}", XContentType.JSON)
-            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
-            .get();
+        prepareIndex("test").setId("2").setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertThat(shard.getLastKnownGlobalCheckpoint(), equalTo(2L));
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
@@ -457,11 +449,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").build();
         }
         indicesAdmin().prepareUpdateSettings("test").setSettings(settings).get();
-        client().prepareIndex("test")
-            .setId("0")
-            .setSource("{}", XContentType.JSON)
-            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
-            .get();
+        prepareIndex("test").setId("0").setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
         final AtomicBoolean running = new AtomicBoolean(true);
         final int numThreads = randomIntBetween(2, 4);
@@ -484,7 +472,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final CheckedRunnable<Exception> check;
         if (flush) {
             final FlushStats initialStats = shard.flushStats();
-            client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
             check = () -> {
                 assertFalse(shard.shouldPeriodicallyFlush());
                 final FlushStats currentStats = shard.flushStats();
@@ -509,7 +497,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             };
         } else {
             final long generation = getTranslog(shard).currentFileGeneration();
-            client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
             check = () -> {
                 assertFalse(shard.shouldRollTranslogGeneration());
                 assertEquals(generation + 1, getTranslog(shard).currentFileGeneration());
@@ -530,7 +518,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         indicesAdmin().prepareUpdateSettings("test").setSettings(settings).get();
         final int numDocs = between(10, 100);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
         // A flush stats may include the new total count but the old period count - assert eventually.
         assertBusy(() -> {
@@ -541,7 +529,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         settings = Settings.builder().put("index.translog.flush_threshold_size", (String) null).build();
         indicesAdmin().prepareUpdateSettings("test").setSettings(settings).get();
 
-        client().prepareIndex("test").setId(UUIDs.randomBase64UUID()).setSource("{}", XContentType.JSON).get();
+        prepareIndex("test").setId(UUIDs.randomBase64UUID()).setSource("{}", XContentType.JSON).get();
         indicesAdmin().prepareFlush("test").setForce(randomBoolean()).setWaitIfOngoing(true).get();
         final FlushStats flushStats = indicesAdmin().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
         assertThat(flushStats.getTotal(), greaterThan(flushStats.getPeriodic()));
@@ -553,9 +541,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
-        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         client().prepareDelete("test", "0").get();
-        client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         shard.close("simon says", false);
@@ -669,7 +657,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final SearchRequest countRequest = new SearchRequest("test").source(new SearchSourceBuilder().size(0));
         final long numDocs = between(10, 20);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
             if (randomBoolean()) {
                 shard.refresh("test");
             }
@@ -691,7 +679,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final long moreDocs = between(10, 20);
         for (int i = 0; i < moreDocs; i++) {
-            client().prepareIndex("test").setId(Long.toString(i + numDocs)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Long.toString(i + numDocs)).setSource("{}", XContentType.JSON).get();
             if (randomBoolean()) {
                 shard.refresh("test");
             }
@@ -715,7 +703,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         int numOps = between(1, 10);
         for (int i = 0; i < numOps; i++) {
             if (randomBoolean()) {
-                client().prepareIndex("index").setId(randomFrom("1", "2")).setSource("{}", XContentType.JSON).get();
+                prepareIndex("index").setId(randomFrom("1", "2")).setSource("{}", XContentType.JSON).get();
             } else {
                 client().prepareDelete("index", randomFrom("1", "2")).get();
             }

@@ -12,7 +12,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -29,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -48,7 +48,7 @@ public class IndexActionIT extends ESIntegTestCase {
             logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
-                builders.add(client().prepareIndex("test").setSource("field", "value_" + j));
+                builders.add(prepareIndex("test").setSource("field", "value_" + j));
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
@@ -56,17 +56,18 @@ public class IndexActionIT extends ESIntegTestCase {
             for (int j = 0; j < numOfChecks; j++) {
                 try {
                     logger.debug("running search with all types");
-                    SearchResponse response = prepareSearch("test").get();
-                    if (response.getHits().getTotalHits().value != numOfDocs) {
-                        final String message = "Count is "
-                            + response.getHits().getTotalHits().value
-                            + " but "
-                            + numOfDocs
-                            + " was expected. "
-                            + ElasticsearchAssertions.formatShardStatus(response);
-                        logger.error("{}. search response: \n{}", message, response);
-                        fail(message);
-                    }
+                    assertResponse(prepareSearch("test"), response -> {
+                        if (response.getHits().getTotalHits().value != numOfDocs) {
+                            final String message = "Count is "
+                                + response.getHits().getTotalHits().value
+                                + " but "
+                                + numOfDocs
+                                + " was expected. "
+                                + ElasticsearchAssertions.formatShardStatus(response);
+                            logger.error("{}. search response: \n{}", message, response);
+                            fail(message);
+                        }
+                    });
                 } catch (Exception e) {
                     logger.error("search for all docs types failed", e);
                     if (firstError == null) {
@@ -75,17 +76,18 @@ public class IndexActionIT extends ESIntegTestCase {
                 }
                 try {
                     logger.debug("running search with a specific type");
-                    SearchResponse response = prepareSearch("test").get();
-                    if (response.getHits().getTotalHits().value != numOfDocs) {
-                        final String message = "Count is "
-                            + response.getHits().getTotalHits().value
-                            + " but "
-                            + numOfDocs
-                            + " was expected. "
-                            + ElasticsearchAssertions.formatShardStatus(response);
-                        logger.error("{}. search response: \n{}", message, response);
-                        fail(message);
-                    }
+                    assertResponse(prepareSearch("test"), response -> {
+                        if (response.getHits().getTotalHits().value != numOfDocs) {
+                            final String message = "Count is "
+                                + response.getHits().getTotalHits().value
+                                + " but "
+                                + numOfDocs
+                                + " was expected. "
+                                + ElasticsearchAssertions.formatShardStatus(response);
+                            logger.error("{}. search response: \n{}", message, response);
+                            fail(message);
+                        }
+                    });
                 } catch (Exception e) {
                     logger.error("search for all docs of a specific type failed", e);
                     if (firstError == null) {
@@ -104,15 +106,15 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        DocWriteResponse indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_1").get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_2").get();
         assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
 
-        client().prepareDelete("test", "1").execute().actionGet();
+        client().prepareDelete("test", "1").get();
 
-        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_2").get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
     }
@@ -121,14 +123,14 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        DocWriteResponse indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_1").get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        client().prepareDelete("test", "1").execute().actionGet();
+        client().prepareDelete("test", "1").get();
 
         flush();
 
-        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_2").get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
@@ -170,13 +172,11 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        DocWriteResponse indexResponse = client().prepareIndex("test")
-            .setId("1")
+        DocWriteResponse indexResponse = prepareIndex("test").setId("1")
             .setSource("field1", "value1_1")
             .setVersion(123)
             .setVersionType(VersionType.EXTERNAL)
-            .execute()
-            .actionGet();
+            .get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
@@ -184,9 +184,7 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("field1", "value1_1"))
-                .execute()
-                .actionGet();
+            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("field1", "value1_1")).get();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
             assertThat(bulkResponse.getItems().length, equalTo(1));
             IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
@@ -209,7 +207,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT)).setSource("foo", "bar").get();
+            prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT)).setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat(
@@ -221,7 +219,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         try {
             // Catch chars that are more than a single byte
-            client().prepareIndex(
+            prepareIndex(
                 randomAlphaOfLength(MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) + "Ϟ".toLowerCase(
                     Locale.ROOT
                 )
@@ -264,9 +262,7 @@ public class IndexActionIT extends ESIntegTestCase {
     }
 
     public void testDocumentWithBlankFieldName() {
-        Exception e = expectThrows(DocumentParsingException.class, () -> {
-            client().prepareIndex("test").setId("1").setSource("", "value1_2").execute().actionGet();
-        });
+        Exception e = expectThrows(DocumentParsingException.class, () -> prepareIndex("test").setId("1").setSource("", "value1_2").get());
         assertThat(e.getMessage(), containsString("failed to parse"));
         assertThat(e.getCause().getMessage(), containsString("field name cannot be an empty string"));
     }

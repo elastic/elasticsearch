@@ -74,7 +74,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             // Make sure we have a few segments
             try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
                 for (int j = 0; j < 20; j++) {
-                    bulkRequestBuilder.add(client().prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
+                    bulkRequestBuilder.add(prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
                 }
                 assertNoFailures(bulkRequestBuilder.get());
             }

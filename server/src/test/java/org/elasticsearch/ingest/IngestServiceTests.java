@@ -2664,10 +2664,6 @@ public class IngestServiceTests extends ESTestCase {
 
         private final IngestDocument ingestDocument;
 
-        IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, id, 1, null, null, source);
-        }
-
         IngestDocumentMatcher(String index, String type, String id, long version, VersionType versionType, Map<String, Object> source) {
             this.ingestDocument = new IngestDocument(index, id, version, null, versionType, source);
         }

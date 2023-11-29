@@ -65,9 +65,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
+        prepareIndex("index").setId("1").setSource("foo", 3).get();
         try {
-            client().prepareIndex("index").setId("2").setSource("foo", "bar").get();
+            prepareIndex("index").setId("2").setSource("foo", "bar").get();
             fail("Indexing request should have failed!");
         } catch (DocumentParsingException e) {
             // general case, the parsing code complains that it can't parse "bar" as a "long"
@@ -83,13 +83,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testConflictingDynamicMappingsBulk() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
+        prepareIndex("index").setId("1").setSource("foo", 3).get();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(client().prepareIndex("index").setId("1").setSource("foo", 3)).get();
+            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex("index").setId("1").setSource("foo", 3)).get();
             assertFalse(bulkResponse.hasFailures());
         }
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(client().prepareIndex("index").setId("2").setSource("foo", "bar")).get();
+            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex("index").setId("2").setSource("foo", "bar")).get();
             assertTrue(bulkResponse.hasFailures());
         }
     }
@@ -117,7 +117,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                         startLatch.await();
                         assertEquals(
                             DocWriteResponse.Result.CREATED,
-                            client().prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
+                            prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
                         );
                     } catch (Exception e) {
                         error.compareAndSet(null, e);
@@ -168,7 +168,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 XContentType.JSON
             )
             .get();
-        client().prepareIndex("index").setId("1").setSource("nested1", Map.of("foo", "bar"), "nested2", Map.of("foo", "bar")).get();
+        prepareIndex("index").setId("1").setSource("nested1", Map.of("foo", "bar"), "nested2", Map.of("foo", "bar")).get();
 
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
@@ -189,9 +189,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index")
-            .setId("2")
-            .setSource("nested3", Map.of("foo", "bar"));
+        final IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar"));
         try {
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
@@ -205,7 +203,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testTotalFieldsLimitForDynamicMappingsUpdateCheckedAtDocumentParseTime() throws InterruptedException {
         createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
         ensureGreen("index");
-        client().prepareIndex("index").setId("1").setSource("field1", "value1").get();
+        prepareIndex("index").setId("1").setSource("field1", "value1").get();
 
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
@@ -226,7 +224,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId("2").setSource("field2", "value2");
+        final IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("2").setSource("field2", "value2");
         try {
             Exception e = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
             assertThat(e.getMessage(), Matchers.containsString("failed to parse"));
@@ -270,8 +268,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         {
             // introduction of a new object with 2 new sub-fields fails
-            final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index1")
-                .setId("1")
+            final IndexRequestBuilder indexRequestBuilder = prepareIndex("index1").setId("1")
                 .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
             Exception exc = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
@@ -284,7 +281,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         {
             // introduction of a new single field succeeds
-            client().prepareIndex("index1").setId("2").setSource("field3", "value3", "new_field4", 100).get();
+            prepareIndex("index1").setId("2").setSource("field3", "value3", "new_field4", 100).get();
         }
 
         {
@@ -299,8 +296,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 """, XContentType.JSON));
 
             // introduction of a new object with 2 new sub-fields succeeds
-            client().prepareIndex("index1")
-                .setId("1")
+            prepareIndex("index1").setId("1")
                 .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
         }
     }
@@ -309,7 +305,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         createIndex("test");
         final ClusterService clusterService = internalCluster().clusterService();
         final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
-        client().prepareIndex("test").setId("1").setSource("field", "text").get();
+        prepareIndex("test").setId("1").setSource("field", "text").get();
         assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
     }
 
@@ -516,7 +512,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         Exception exception = expectThrows(
             DocumentParsingException.class,
-            () -> client().prepareIndex("test").setSource("obj.runtime", "value").get()
+            () -> prepareIndex("test").setSource("obj.runtime", "value").get()
         );
         assertThat(
             exception.getMessage(),
@@ -548,8 +544,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         // target the same shard where we are sure the mapping update has been applied
         assertEquals(
             RestStatus.CREATED,
-            client().prepareIndex("test")
-                .setSource("obj.runtime.dynamic.number", 1)
+            prepareIndex("test").setSource("obj.runtime.dynamic.number", 1)
                 .setId("id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get()
@@ -561,7 +556,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         // a doc with the same field but a different type causes a conflict
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> client().prepareIndex("test").setId("id").setSource("obj.runtime.dynamic.number", "string").get()
+            () -> prepareIndex("test").setId("id").setSource("obj.runtime.dynamic.number", "string").get()
         );
         assertThat(
             e.getMessage(),

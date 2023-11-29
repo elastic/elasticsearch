@@ -14,13 +14,13 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -241,7 +241,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         final TaskInfo rootTask = client().admin()
             .cluster()
             .prepareListTasks()
-            .setActions(SearchAction.INSTANCE.name())
+            .setActions(TransportSearchAction.TYPE.name())
             .get()
             .getTasks()
             .stream()
@@ -275,7 +275,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             for (TransportService transportService : transportServices) {
                 Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                 for (CancellableTask cancellableTask : cancellableTasks) {
-                    if (cancellableTask.getAction().contains(SearchAction.INSTANCE.name())) {
+                    if (cancellableTask.getAction().contains(TransportSearchAction.TYPE.name())) {
                         assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
                     }
                 }
@@ -531,7 +531,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         {
             QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:my_index");
             SearchShardsRequest request = new SearchShardsRequest(indices, indicesOptions, query, null, null, randomBoolean(), "cluster_a");
-            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(numShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertFalse(group.skipped());
@@ -548,7 +548,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 randomBoolean(),
                 randomFrom("cluster_b", null)
             );
-            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(numShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());
@@ -565,7 +565,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 randomBoolean(),
                 randomFrom("cluster_a", "cluster_b", null)
             );
-            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(numShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());

@@ -241,7 +241,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
                 }
             }""";
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
         refresh();
 
         try {
@@ -300,7 +300,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             jsonBuilder().startObject().field("area", WellKnownText.toWKT(new MultiPolygon(polygons))).endObject()
         );
 
-        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
+        prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Point in polygon
@@ -364,7 +364,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(inverse)).endObject());
-        client().prepareIndex("shapes").setId("2").setSource(data, XContentType.JSON).get();
+        prepareIndex("shapes").setId("2").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // re-check point on polygon hole
@@ -385,7 +385,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         Polygon crossing = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(crossing)).endObject());
-        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
+        prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         // Create a polygon crossing longitude 180 with hole.
@@ -395,7 +395,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(crossing)).endObject());
-        client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
+        prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         assertHitCount(

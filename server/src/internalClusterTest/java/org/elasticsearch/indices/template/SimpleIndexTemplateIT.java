@@ -18,7 +18,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -50,6 +49,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -150,39 +150,38 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getIndexTemplates(), hasSize(2));
 
         // index something into test_index, will match on both templates
-        client().prepareIndex("test_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
-        SearchResponse searchResponse = prepareSearch("test_index").setQuery(termQuery("field1", "value1"))
-            .addStoredField("field1")
-            .addStoredField("field2")
-            .execute()
-            .actionGet();
+        assertResponse(
+            prepareSearch("test_index").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
+            searchResponse -> {
+                assertHitCount(searchResponse, 1);
+                assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
+                // field2 is not stored.
+                assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
+            }
+        );
 
-        assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
-        // field2 is not stored.
-        assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
-
-        client().prepareIndex("text_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("text_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         // now only match on one template (template_1)
-        searchResponse = prepareSearch("text_index").setQuery(termQuery("field1", "value1"))
-            .addStoredField("field1")
-            .addStoredField("field2")
-            .execute()
-            .actionGet();
-        if (searchResponse.getFailedShards() > 0) {
-            logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
-        }
-        assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
-        assertThat(searchResponse.getHits().getAt(0).field("field2").getValue().toString(), equalTo("value 2"));
+        assertResponse(
+            prepareSearch("text_index").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
+            searchResponse -> {
+                if (searchResponse.getFailedShards() > 0) {
+                    logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
+                }
+                assertHitCount(searchResponse, 1);
+                assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
+                assertThat(searchResponse.getHits().getAt(0).field("field2").getValue().toString(), equalTo("value 2"));
+            }
+        );
     }
 
     public void testDeleteIndexTemplate() throws Exception {
-        final int existingTemplates = admin().cluster().prepareState().execute().actionGet().getState().metadata().templates().size();
+        final int existingTemplates = admin().cluster().prepareState().get().getState().metadata().templates().size();
         logger.info("--> put template_1 and template_2");
         indicesAdmin().preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
@@ -204,8 +203,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         indicesAdmin().preparePutTemplate("template_2")
             .setPatterns(Collections.singletonList("test*"))
@@ -223,13 +221,12 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> explicitly delete template_1");
-        indicesAdmin().prepareDeleteTemplate("template_1").execute().actionGet();
+        indicesAdmin().prepareDeleteTemplate("template_1").get();
 
-        ClusterState state = admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = admin().cluster().prepareState().get().getState();
 
         assertThat(state.metadata().templates().size(), equalTo(1 + existingTemplates));
         assertThat(state.metadata().templates().containsKey("template_2"), equalTo(true));
@@ -256,19 +253,15 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> delete template*");
-        indicesAdmin().prepareDeleteTemplate("template*").execute().actionGet();
-        assertThat(
-            admin().cluster().prepareState().execute().actionGet().getState().metadata().templates().size(),
-            equalTo(existingTemplates)
-        );
+        indicesAdmin().prepareDeleteTemplate("template*").get();
+        assertThat(admin().cluster().prepareState().get().getState().metadata().templates().size(), equalTo(existingTemplates));
 
         logger.info("--> delete * with no templates, make sure we don't get a failure");
-        indicesAdmin().prepareDeleteTemplate("*").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metadata().templates().size(), equalTo(0));
+        indicesAdmin().prepareDeleteTemplate("*").get();
+        assertThat(admin().cluster().prepareState().get().getState().metadata().templates().size(), equalTo(0));
     }
 
     public void testThatGetIndexTemplatesWorks() throws Exception {
@@ -294,11 +287,10 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> get template template_1");
-        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1").execute().actionGet();
+        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(1));
         assertThat(getTemplate1Response.getIndexTemplates().get(0), is(notNullValue()));
         assertThat(getTemplate1Response.getIndexTemplates().get(0).patterns(), is(Collections.singletonList("te*")));
@@ -306,7 +298,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getTemplate1Response.getIndexTemplates().get(0).getVersion(), is(123));
 
         logger.info("--> get non-existing-template");
-        GetIndexTemplatesResponse getTemplate2Response = indicesAdmin().prepareGetTemplates("non-existing-template").execute().actionGet();
+        GetIndexTemplatesResponse getTemplate2Response = indicesAdmin().prepareGetTemplates("non-existing-template").get();
         assertThat(getTemplate2Response.getIndexTemplates(), hasSize(0));
     }
 
@@ -332,8 +324,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> put template_2");
         indicesAdmin().preparePutTemplate("template_2")
@@ -356,8 +347,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> put template3");
         indicesAdmin().preparePutTemplate("template3")
@@ -380,11 +370,10 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> get template template_*");
-        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_*").execute().actionGet();
+        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_*").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(2));
 
         List<String> templateNames = new ArrayList<>();
@@ -393,7 +382,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
 
         logger.info("--> get all templates");
-        getTemplate1Response = indicesAdmin().prepareGetTemplates("template*").execute().actionGet();
+        getTemplate1Response = indicesAdmin().prepareGetTemplates("template*").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(3));
 
         templateNames = new ArrayList<>();
@@ -403,7 +392,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2", "template3"));
 
         logger.info("--> get templates template_1 and template_2");
-        getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1", "template_2").execute().actionGet();
+        getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1", "template_2").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(2));
 
         templateNames = new ArrayList<>();
@@ -499,11 +488,11 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
-        client().prepareIndex("test_index").setId("1").setSource("type", "type1", "field", "A value").get();
-        client().prepareIndex("test_index").setId("2").setSource("type", "type2", "field", "B value").get();
-        client().prepareIndex("test_index").setId("3").setSource("type", "typeX", "field", "C value").get();
-        client().prepareIndex("test_index").setId("4").setSource("type", "typeY", "field", "D value").get();
-        client().prepareIndex("test_index").setId("5").setSource("type", "typeZ", "field", "E value").get();
+        prepareIndex("test_index").setId("1").setSource("type", "type1", "field", "A value").get();
+        prepareIndex("test_index").setId("2").setSource("type", "type2", "field", "B value").get();
+        prepareIndex("test_index").setId("3").setSource("type", "typeX", "field", "C value").get();
+        prepareIndex("test_index").setId("4").setSource("type", "typeY", "field", "D value").get();
+        prepareIndex("test_index").setId("5").setSource("type", "typeZ", "field", "E value").get();
 
         GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -515,20 +504,22 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertHitCount(prepareSearch("simple_alias"), 5L);
         assertHitCount(prepareSearch("templated_alias-test_index"), 5L);
 
-        SearchResponse searchResponse = prepareSearch("filtered_alias").get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("type"), equalTo("type2"));
+        assertResponse(prepareSearch("filtered_alias"), response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("type"), equalTo("type2"));
+        });
 
         // Search the complex filter alias
-        searchResponse = prepareSearch("complex_filtered_alias").get();
-        assertHitCount(searchResponse, 3L);
+        assertResponse(prepareSearch("complex_filtered_alias"), response -> {
+            assertHitCount(response, 3L);
 
-        Set<String> types = new HashSet<>();
-        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            types.add(searchHit.getSourceAsMap().get("type").toString());
-        }
-        assertThat(types.size(), equalTo(3));
-        assertThat(types, containsInAnyOrder("typeX", "typeY", "typeZ"));
+            Set<String> types = new HashSet<>();
+            for (SearchHit searchHit : response.getHits().getHits()) {
+                types.add(searchHit.getSourceAsMap().get("type").toString());
+            }
+            assertThat(types.size(), equalTo(3));
+            assertThat(types, containsInAnyOrder("typeX", "typeY", "typeZ"));
+        });
     }
 
     public void testIndexTemplateWithAliasesInSource() {
@@ -553,15 +544,16 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
 
-        client().prepareIndex("test_index").setId("1").setSource("field", "value1").get();
-        client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
+        prepareIndex("test_index").setId("1").setSource("field", "value1").get();
+        prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
         assertHitCount(prepareSearch("test_index"), 2L);
 
-        SearchResponse searchResponse = prepareSearch("my_alias").get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
+        assertResponse(prepareSearch("my_alias"), response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
+        });
     }
 
     public void testIndexTemplateWithAliasesSource() {
@@ -588,16 +580,17 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(3));
 
-        client().prepareIndex("test_index").setId("1").setSource("field", "value1").get();
-        client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
+        prepareIndex("test_index").setId("1").setSource("field", "value1").get();
+        prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
         assertHitCount(prepareSearch("test_index"), 2L);
         assertHitCount(prepareSearch("alias1"), 2L);
 
-        SearchResponse searchResponse = prepareSearch("alias2").get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
+        assertResponse(prepareSearch("alias2"), response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
+        });
     }
 
     public void testDuplicateAlias() throws Exception {
@@ -742,7 +735,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // So the aliases defined in the index template for this index will not fail
         // even though the fields in the alias fields don't exist yet and indexing into
         // an index that doesn't exist yet will succeed
-        client().prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON).get();
+        prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON).get();
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             BulkResponse response = bulkRequestBuilder.add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
@@ -847,33 +840,31 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("ax").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("ax").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
-        client().prepareIndex("bx").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("bx").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
 
         // ax -> matches template
-        SearchResponse searchResponse = prepareSearch("ax").setQuery(termQuery("field1", "value1"))
-            .addStoredField("field1")
-            .addStoredField("field2")
-            .execute()
-            .actionGet();
-
-        assertHitCount(searchResponse, 1);
-        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").getValue().toString());
-        assertNull(searchResponse.getHits().getAt(0).field("field2"));
+        assertResponse(
+            prepareSearch("ax").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
+            response -> {
+                assertHitCount(response, 1);
+                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
+                assertNull(response.getHits().getAt(0).field("field2"));
+            }
+        );
 
         // bx -> matches template
-        searchResponse = prepareSearch("bx").setQuery(termQuery("field1", "value1"))
-            .addStoredField("field1")
-            .addStoredField("field2")
-            .execute()
-            .actionGet();
-
-        assertHitCount(searchResponse, 1);
-        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").getValue().toString());
-        assertNull(searchResponse.getHits().getAt(0).field("field2"));
+        assertResponse(
+            prepareSearch("bx").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
+            response -> {
+                assertHitCount(response, 1);
+                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
+                assertNull(response.getHits().getAt(0).field("field2"));
+            }
+        );
     }
 
     public void testPartitionedTemplate() throws Exception {
@@ -1000,7 +991,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 """, XContentType.JSON)
             .get();
 
-        client().prepareIndex("test").setSource().get();
+        prepareIndex("test").setSource().get();
         FieldCapabilitiesResponse fieldCapabilitiesResponse = client().prepareFieldCaps("test").setFields("*location").get();
         {
             Map<String, FieldCapabilities> field = fieldCapabilitiesResponse.getField("kwm.source.geo.location");

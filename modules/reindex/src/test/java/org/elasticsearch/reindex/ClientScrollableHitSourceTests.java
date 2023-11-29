@@ -14,11 +14,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
@@ -102,17 +102,17 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
         hitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-            client.fail(SearchAction.INSTANCE, new EsRejectedExecutionException());
+            client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
             if (retry >= retries) {
                 return;
             }
             client.awaitOperation();
             ++expectedSearchRetries;
         }
-        client.validateRequest(SearchAction.INSTANCE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
+        client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
         SearchResponse searchResponse = createSearchResponse();
         try {
-            client.respond(SearchAction.INSTANCE, searchResponse);
+            client.respond(TransportSearchAction.TYPE, searchResponse);
 
             for (int i = 0; i < randomIntBetween(1, 10); ++i) {
                 ScrollableHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
@@ -122,13 +122,13 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
                 asyncResponse.done(TimeValue.ZERO);
 
                 for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-                    client.fail(SearchScrollAction.INSTANCE, new EsRejectedExecutionException());
+                    client.fail(TransportSearchScrollAction.TYPE, new EsRejectedExecutionException());
                     client.awaitOperation();
                     ++expectedSearchRetries;
                 }
 
                 searchResponse = createSearchResponse();
-                client.respond(SearchScrollAction.INSTANCE, searchResponse);
+                client.respond(TransportSearchScrollAction.TYPE, searchResponse);
             }
 
             assertEquals(actualSearchRetries.get(), expectedSearchRetries);
@@ -154,7 +154,10 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         );
 
         hitSource.startNextScroll(timeValueSeconds(100));
-        client.validateRequest(SearchScrollAction.INSTANCE, (SearchScrollRequest r) -> assertEquals(r.scroll().keepAlive().seconds(), 110));
+        client.validateRequest(
+            TransportSearchScrollAction.TYPE,
+            (SearchScrollRequest r) -> assertEquals(r.scroll().keepAlive().seconds(), 110)
+        );
     }
 
     private SearchResponse createSearchResponse() {

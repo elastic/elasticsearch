@@ -316,7 +316,7 @@ public class Driver implements Releasable, Describable {
             @Override
             protected void doRun() {
                 if (driver.isFinished()) {
-                    listener.onResponse(null);
+                    onComplete(listener);
                     return;
                 }
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
@@ -339,7 +339,11 @@ public class Driver implements Releasable, Describable {
             @Override
             public void onFailure(Exception e) {
                 driver.drainAndCloseOperators(e);
-                listener.onFailure(e);
+                onComplete(ActionListener.running(() -> listener.onFailure(e)));
+            }
+
+            void onComplete(ActionListener<Void> listener) {
+                driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
             }
         });
     }

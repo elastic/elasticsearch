@@ -161,8 +161,10 @@ import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -2068,7 +2070,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        return PlainActionFuture.get(listener::addListener, 10, TimeUnit.SECONDS);
+        final var future = new PlainActionFuture<T>();
+        listener.addListener(future);
+        try {
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("safeAwait: interrupted", e);
+        } catch (ExecutionException e) {
+            throw new AssertionError("safeAwait: listener was completed exceptionally", e);
+        } catch (TimeoutException e) {
+            throw new AssertionError("safeAwait: listener was not completed within the timeout", e);
+        }
     }
 
     public static void safeSleep(long millis) {

@@ -28,12 +28,12 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         internalCluster().startNode(settings);
 
         createIndex("willwork");
-        clusterAdmin().prepareHealth("willwork").setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth("willwork").setWaitForGreenStatus().get();
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            bulkRequestBuilder.add(client().prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
-            bulkRequestBuilder.add(client().prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON));
-            bulkRequestBuilder.add(client().prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON));
             BulkResponse br = bulkRequestBuilder.get();
             BulkItemResponse[] responses = br.getItems();
             assertEquals(3, responses.length);
@@ -53,7 +53,7 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
     public void testIndexWithDisabledAutoCreateIndex() {
         updateClusterSettings(Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")));
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            final BulkItemResponse itemResponse = bulkRequestBuilder.add(client().prepareIndex("test-index").setSource("foo", "bar"))
+            final BulkItemResponse itemResponse = bulkRequestBuilder.add(prepareIndex("test-index").setSource("foo", "bar"))
                 .get()
                 .getItems()[0];
             assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));

@@ -72,7 +72,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
         createIndex("test");
-        clusterAdmin().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth("test").setWaitForGreenStatus().get();
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
             new IsolateAllNodes(new HashSet<>(nodes)),
@@ -84,7 +84,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final Client clientToMasterlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -230,8 +230,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         prepareCreate("test1").setSettings(indexSettings(1, 2)).get();
         prepareCreate("test2").setSettings(indexSettings(3, 0)).get();
         clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
-        client().prepareIndex("test2").setId("1").setSource("field", "value1").get();
+        prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        prepareIndex("test2").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureSearchable("test1", "test2");
@@ -306,7 +306,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         prepareCreate("test1").setSettings(indexSettings(1, 1)).get();
         clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        prepareIndex("test1").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureGreen("test1");

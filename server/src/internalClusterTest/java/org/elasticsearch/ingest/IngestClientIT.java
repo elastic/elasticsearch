@@ -233,15 +233,14 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
-        client().prepareIndex("test").setId("1").setPipeline("_id").setSource("field", "value", "fail", false).get();
+        prepareIndex("test").setId("1").setPipeline("_id").setSource("field", "value", "fail", false).get();
 
         Map<String, Object> doc = client().prepareGet("test", "1").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value"));
         assertThat(doc.get("processed"), equalTo(true));
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("field", "value2", "fail", false).setPipeline("_id"))
-                .get();
+            bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("field", "value2", "fail", false).setPipeline("_id")).get();
         }
         doc = client().prepareGet("test", "2").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value2"));
@@ -295,7 +294,7 @@ public class IngestClientIT extends ESIntegTestCase {
 
         try (BulkRequestBuilder bulkRequestBuilder = client(masterOnlyNode).prepareBulk()) {
             BulkItemResponse item = bulkRequestBuilder.add(
-                client().prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id")
+                prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id")
             ).get().getItems()[0];
             assertFalse(item.isFailed());
             assertEquals("auto-generated", item.getResponse().getId());
@@ -427,7 +426,7 @@ public class IngestClientIT extends ESIntegTestCase {
             clusterAdmin().putPipeline(putPipelineRequest).get();
         }
 
-        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
+        prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
         Map<String, Object> inserted = client().prepareGet("test", "1").get().getSourceAsMap();
         assertThat(inserted.get("readme"), equalTo("pipeline with id [3] is a bad pipeline"));
     }

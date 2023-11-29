@@ -254,7 +254,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
             assert tsidHashIndex == tsidHash.length;
             try (BytesStreamOutput out = new BytesStreamOutput(tsidHash.length)) {
-                out.write(tsidHash, 0, tsidHash.length);
+                out.writeBytesRef(new BytesRef(tsidHash, 0, tsidHash.length));
                 return out.bytes();
             }
         }

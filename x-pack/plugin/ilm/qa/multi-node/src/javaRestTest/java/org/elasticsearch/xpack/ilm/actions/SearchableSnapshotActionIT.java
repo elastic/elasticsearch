@@ -654,25 +654,25 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // policy. We add the delete phase now to ensure that the index will not be deleted before we verify the above
         // assertions
         createPolicy(
-                client(),
-                policyFrozen,
-                null,
-                null,
-                new Phase(
-                        "cold",
-                        TimeValue.ZERO,
-                        singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
-                ),
-                new Phase(
-                        "frozen",
-                        TimeValue.ZERO,
-                        singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
-                ),
-                new Phase(
-                        "delete",
-                        TimeValue.ZERO, // give time for the checks to happen
-                        singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)
-                )
+            client(),
+            policyFrozen,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            new Phase(
+                "frozen",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            new Phase(
+                "delete",
+                TimeValue.ZERO, // give time for the checks to happen
+                singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)
+            )
         );
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to be deleted...", partiallyMountedIndexName);

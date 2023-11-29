@@ -599,7 +599,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             maxUploadedFileName.getAndAccumulate(nodeTranslogGeneration, Math::max);
             // We lock on ongoingSyncs to ensure that we transition all synced translog files to the validate step.
             synchronized (ongoingSyncs) {
-                if (ongoingSyncs.peek().translog.metadata().generation() == nodeTranslogGeneration) {
+                if (ongoingSyncs.isEmpty() == false && ongoingSyncs.peek().translog.metadata().generation() == nodeTranslogGeneration) {
                     ArrayList<CompoundTranslogMetadata> completedSyncs = new ArrayList<>(2);
                     Iterator<UploadTranslogTask> iterator = ongoingSyncs.iterator();
                     while (iterator.hasNext()) {

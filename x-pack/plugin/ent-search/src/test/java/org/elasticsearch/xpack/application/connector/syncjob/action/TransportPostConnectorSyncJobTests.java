@@ -17,10 +17,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTestUtils;
-import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTriggerMethod;
-import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -65,30 +62,6 @@ public class TransportPostConnectorSyncJobTests extends ESSingleNodeTestCase {
         executeRequest(request);
 
         ensureNoWarnings();
-    }
-
-    public void testPostConnectorSyncJob_WithMissingJobType_ExpectDefaultJobTypeHeaderWarning() throws InterruptedException {
-        PostConnectorSyncJobAction.Request requestMissingJobType = new PostConnectorSyncJobAction.Request(
-            randomAlphaOfLength(10),
-            null,
-            ConnectorSyncJobTriggerMethod.ON_DEMAND
-        );
-
-        executeRequest(requestMissingJobType);
-
-        assertWarnings(ConnectorSyncJob.DEFAULT_JOB_TYPE_USED_WARNING);
-    }
-
-    public void testPostConnectorSyncJob_WithMissingTriggerMethod_ExpectDefaultTriggerMethodHeaderWarning() throws InterruptedException {
-        PostConnectorSyncJobAction.Request requestMissingTriggerMethod = new PostConnectorSyncJobAction.Request(
-            randomAlphaOfLength(10),
-            ConnectorSyncJobType.FULL,
-            null
-        );
-
-        executeRequest(requestMissingTriggerMethod);
-
-        assertWarnings(ConnectorSyncJob.DEFAULT_TRIGGER_METHOD_USED_WARNING);
     }
 
     private void executeRequest(PostConnectorSyncJobAction.Request request) throws InterruptedException {

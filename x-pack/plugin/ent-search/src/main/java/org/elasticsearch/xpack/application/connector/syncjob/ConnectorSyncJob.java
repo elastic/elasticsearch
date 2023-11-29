@@ -89,16 +89,8 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
     public static final ConnectorSyncStatus DEFAULT_INITIAL_STATUS = ConnectorSyncStatus.PENDING;
 
     public static final ConnectorSyncJobType DEFAULT_JOB_TYPE = ConnectorSyncJobType.FULL;
-    public static final String DEFAULT_JOB_TYPE_USED_WARNING = usingDefaultValueForMissingFieldWarning(
-        JOB_TYPE_FIELD,
-        DEFAULT_JOB_TYPE.toString()
-    );
 
     public static final ConnectorSyncJobTriggerMethod DEFAULT_TRIGGER_METHOD = ConnectorSyncJobTriggerMethod.ON_DEMAND;
-    public static final String DEFAULT_TRIGGER_METHOD_USED_WARNING = usingDefaultValueForMissingFieldWarning(
-        TRIGGER_METHOD_FIELD,
-        DEFAULT_TRIGGER_METHOD.toString()
-    );
 
     @Nullable
     private final Instant cancelationRequestedAt;
@@ -339,10 +331,6 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             triggerMethod,
             workerHostname
         );
-    }
-
-    private static String usingDefaultValueForMissingFieldWarning(ParseField parseField, String defaultValue) {
-        return "Missing field '" + parseField.getPreferredName() + "'. Using default value '" + defaultValue + "'.";
     }
 
     public static class Builder {

@@ -25,11 +25,7 @@ setup:
 
 ---
 'Create connector sync job with missing job type':
-  - skip:
-      features: warnings
   - do:
-      warnings:
-        - Missing field 'job_type'. Using default value 'full'.
       connector_sync_job.post:
         body:
           id: test-connector
@@ -39,11 +35,7 @@ setup:
 
 ---
 'Create connector sync job with missing trigger method':
-  - skip:
-      features: warnings
   - do:
-      warnings:
-        - Missing field 'trigger_method'. Using default value 'on_demand'.
       connector_sync_job.post:
         body:
           id: test-connector

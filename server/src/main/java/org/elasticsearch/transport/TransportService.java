@@ -1308,11 +1308,10 @@ public class TransportService extends AbstractLifecycleComponent
             @Override
             public void doRun() {
                 for (Transport.ResponseContext<?> holderToNotify : pruned) {
-                    final long requestId = holderToNotify.requestId();
                     if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
                         tracerLog.trace(
                             "[{}][{}] pruning request because connection to node [{}] closed",
-                            requestId,
+                            holderToNotify.requestId(),
                             holderToNotify.action(),
                             connection.getNode()
                         );

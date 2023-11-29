@@ -155,10 +155,10 @@ public interface Transport extends LifecycleComponent {
     }
 
     /**
-     * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
-     * executed on.
+     * This class represents a response context that encapsulates the actual response handler, the action. the connection it was
+     * executed on, and the request ID.
      */
-    record ResponseContext<T extends TransportResponse> (
+    record ResponseContext<T extends TransportResponse>(
         TransportResponseHandler<T> handler,
         Connection connection,
         String action,

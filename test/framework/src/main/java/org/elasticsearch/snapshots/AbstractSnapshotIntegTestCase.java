@@ -34,6 +34,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -177,8 +178,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return getRepositoryData((Repository) getRepositoryOnMaster(repository));
     }
 
-    protected RepositoryData getRepositoryData(Repository repository) {
-        return PlainActionFuture.get(repository::getRepositoryData);
+    public static RepositoryData getRepositoryData(Repository repository) {
+        return PlainActionFuture.get(
+            listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 
     public static long getFailureCount(String repository) {
@@ -191,9 +196,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void assertFileCount(Path dir, int expectedCount) throws IOException {
+        final List<Path> found = getAllFilesInDirectoryAndDescendants(dir);
+        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
+    }
+
+    protected static List<Path> getAllFilesInDirectoryAndDescendants(Path dir) throws IOException {
         final List<Path> found = new ArrayList<>();
         forEachFileRecursively(dir, ((path, basicFileAttributes) -> found.add(path)));
-        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
+        return found;
     }
 
     protected void stopNode(final String node) throws IOException {
@@ -484,7 +494,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = prepareIndex(index).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh(index);
@@ -654,7 +664,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
@@ -699,7 +709,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {
-        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
+        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = new PlainActionFuture<>();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(count, allSnapshotsDone);
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";

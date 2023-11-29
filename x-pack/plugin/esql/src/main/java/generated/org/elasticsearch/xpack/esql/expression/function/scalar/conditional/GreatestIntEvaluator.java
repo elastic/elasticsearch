@@ -32,27 +32,25 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    Block.Ref[] valuesRefs = new Block.Ref[values.length];
-    try (Releasable valuesRelease = Releasables.wrap(valuesRefs)) {
-      IntBlock[] valuesBlocks = new IntBlock[values.length];
+  public Block eval(Page page) {
+    IntBlock[] valuesBlocks = new IntBlock[values.length];
+    try (Releasable valuesRelease = Releasables.wrap(valuesBlocks)) {
       for (int i = 0; i < valuesBlocks.length; i++) {
-        valuesRefs[i] = values[i].eval(page);
-        valuesBlocks[i] = (IntBlock) valuesRefs[i].block();
+        valuesBlocks[i] = (IntBlock)values[i].eval(page);
       }
       IntVector[] valuesVectors = new IntVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesVectors[i] = valuesBlocks[i].asVector();
         if (valuesVectors[i] == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valuesBlocks));
+          return eval(page.getPositionCount(), valuesBlocks);
         }
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valuesVectors).asBlock());
+      return eval(page.getPositionCount(), valuesVectors).asBlock();
     }
   }
 
   public IntBlock eval(int positionCount, IntBlock[] valuesBlocks) {
-    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -73,7 +71,7 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    try(IntVector.Builder result = IntVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

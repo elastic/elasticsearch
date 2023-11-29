@@ -223,7 +223,7 @@ public final class DateFieldMapper extends FieldMapper {
         return (DateFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -253,7 +253,6 @@ public final class DateFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
 
-        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             Resolution resolution,
@@ -396,11 +395,11 @@ public final class DateFieldMapper extends FieldMapper {
     }, MINIMUM_COMPATIBILITY_VERSION);
 
     public static final class DateFieldType extends MappedFieldType {
-        protected final DateFormatter dateTimeFormatter;
-        protected final DateMathParser dateMathParser;
-        protected final Resolution resolution;
-        protected final String nullValue;
-        protected final FieldValues<Long> scriptValues;
+        final DateFormatter dateTimeFormatter;
+        final DateMathParser dateMathParser;
+        private final Resolution resolution;
+        private final String nullValue;
+        private final FieldValues<Long> scriptValues;
         private final boolean pointsMetadataAvailable;
 
         public DateFieldType(
@@ -776,9 +775,9 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return BlockDocValuesReader.longs(name());
+                return new BlockDocValuesReader.LongsBlockLoader(name());
             }
-            return BlockSourceReader.longs(sourceValueFetcher(blContext.sourcePaths(name())));
+            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

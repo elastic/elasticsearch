@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
@@ -54,6 +53,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,10 +125,10 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     public void testDeleteExpiredDataActionDeletesEmptyStateIndices() throws Exception {
         client().admin().indices().prepareCreate(".ml-state").get();
         client().admin().indices().prepareCreate(".ml-state-000001").get();
-        client().prepareIndex(".ml-state-000001").setSource("field_1", "value_1").get();
+        prepareIndex(".ml-state-000001").setSource("field_1", "value_1").get();
         client().admin().indices().prepareCreate(".ml-state-000003").get();
         client().admin().indices().prepareCreate(".ml-state-000005").get();
-        client().prepareIndex(".ml-state-000005").setSource("field_5", "value_5").get();
+        prepareIndex(".ml-state-000005").setSource("field_5", "value_5").get();
         client().admin().indices().prepareCreate(".ml-state-000007").addAlias(new Alias(".ml-state-write").isHidden(true)).get();
         refresh();
 
@@ -343,28 +343,27 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Verify .ml-state doesn't contain unused state documents
-        SearchResponse stateDocsResponse = prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false)
-            .setTrackTotalHits(true)
-            .setSize(10000)
-            .get();
+        assertResponse(
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
+            stateDocsResponse -> {
+                assertThat(stateDocsResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(5L));
 
-        // Assert at least one state doc for each job
-        assertThat(stateDocsResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(5L));
-
-        int nonExistingJobDocsCount = 0;
-        List<String> nonExistingJobExampleIds = new ArrayList<>();
-        for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
-            if (hit.getId().startsWith("non_existing_job")) {
-                nonExistingJobDocsCount++;
-                if (nonExistingJobExampleIds.size() < 10) {
-                    nonExistingJobExampleIds.add(hit.getId());
+                int nonExistingJobDocsCount = 0;
+                List<String> nonExistingJobExampleIds = new ArrayList<>();
+                for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
+                    if (hit.getId().startsWith("non_existing_job")) {
+                        nonExistingJobDocsCount++;
+                        if (nonExistingJobExampleIds.size() < 10) {
+                            nonExistingJobExampleIds.add(hit.getId());
+                        }
+                    }
                 }
+                assertThat(
+                    "Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
+                    nonExistingJobDocsCount,
+                    equalTo(0)
+                );
             }
-        }
-        assertThat(
-            "Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
-            nonExistingJobDocsCount,
-            equalTo(0)
         );
     }
 

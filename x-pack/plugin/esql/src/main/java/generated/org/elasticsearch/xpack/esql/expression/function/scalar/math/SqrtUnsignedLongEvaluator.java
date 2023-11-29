@@ -32,19 +32,18 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      LongBlock valBlock = (LongBlock) valRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valBlock = (LongBlock) val.eval(page)) {
       LongVector valVector = valBlock.asVector();
       if (valVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+        return eval(page.getPositionCount(), valBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valVector).asBlock());
+      return eval(page.getPositionCount(), valVector).asBlock();
     }
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -57,7 +56,7 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   }
 
   public DoubleVector eval(int positionCount, LongVector valVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Sqrt.processUnsignedLong(valVector.getLong(p)));
       }

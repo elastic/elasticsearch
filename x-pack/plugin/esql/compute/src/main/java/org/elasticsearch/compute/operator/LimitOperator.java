@@ -100,11 +100,12 @@ public class LimitOperator implements Operator {
                 }
                 success = true;
             } finally {
-                Releasables.closeExpectNoException(lastInput::releaseBlocks);
-                lastInput = null;
                 if (success == false) {
-                    Releasables.closeExpectNoException(blocks);
+                    Releasables.closeExpectNoException(lastInput::releaseBlocks, Releasables.wrap(blocks));
+                } else {
+                    lastInput.releaseBlocks();
                 }
+                lastInput = null;
             }
             result = new Page(blocks);
             limitRemaining = 0;

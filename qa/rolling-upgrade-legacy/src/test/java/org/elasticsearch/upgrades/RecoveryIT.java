@@ -8,7 +8,6 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
@@ -54,7 +53,6 @@ import static org.hamcrest.Matchers.oneOf;
 /**
  * In depth testing of the recovery mechanism during a rolling restart.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99778")
 public class RecoveryIT extends AbstractRollingTestCase {
 
     private static String CLUSTER_NAME = System.getProperty("tests.clustername");
@@ -307,7 +305,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
@@ -342,7 +340,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
@@ -365,7 +363,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-                if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                     settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
                 }
                 createIndex(index, settings.build());
@@ -447,9 +445,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
      * time the index was closed.
      */
     public void testCloseIndexDuringRollingUpgrade() throws Exception {
-        final Version minimumNodeVersion = minimumNodeVersion();
-        final String indexName = String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(minimumNodeVersion.id))
-            .toLowerCase(Locale.ROOT);
+        int id = switch (CLUSTER_TYPE) {
+            case OLD -> 1;
+            case MIXED -> 2;
+            case UPGRADED -> 3;
+        };
+        final String indexName = String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(id)).toLowerCase(Locale.ROOT);
 
         if (indexExists(indexName) == false) {
             createIndex(
@@ -463,7 +464,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (minimumNodeVersion.onOrAfter(Version.V_7_2_0)) {
+        if (minimumIndexVersion().onOrAfter(IndexVersions.V_7_2_0)) {
             // index is created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -503,7 +504,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         if (indexVersionCreated(indexName).onOrAfter(IndexVersions.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
-            assertTrue(minimumNodeVersion().onOrAfter(Version.V_7_2_0));
+            assertTrue(minimumIndexVersion().onOrAfter(IndexVersions.V_7_2_0));
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
             if (CLUSTER_TYPE != ClusterType.OLD) {
@@ -650,7 +651,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -702,7 +703,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
     public void testAutoExpandIndicesDuringRollingUpgrade() throws Exception {
         final String indexName = "test-auto-expand-filtering";
-        final Version minimumNodeVersion = minimumNodeVersion();
 
         Response response = client().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
@@ -723,11 +723,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final int numberOfReplicas = Integer.parseInt(
             getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString()
         );
-        if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
-            assertEquals(nodes.size() - 2, numberOfReplicas);
-        } else {
-            assertEquals(nodes.size() - 1, numberOfReplicas);
-        }
+        assertThat(nodes, hasSize(numberOfReplicas + 2));
     }
 
     public void testSoftDeletesDisabledWarning() throws Exception {
@@ -735,7 +731,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             boolean softDeletesEnabled = true;
             Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 softDeletesEnabled = randomBoolean();
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);
             }

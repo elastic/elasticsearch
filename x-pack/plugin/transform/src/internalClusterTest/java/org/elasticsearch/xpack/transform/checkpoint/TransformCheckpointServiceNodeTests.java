@@ -48,6 +48,8 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -82,6 +84,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
     // re-use the mock client for the whole test suite as the underlying thread pool and the
     // corresponding context if recreated cause unreliable test execution
     // see https://github.com/elastic/elasticsearch/issues/45238 and https://github.com/elastic/elasticsearch/issues/42577
+    private static TestThreadPool threadPool;
     private static MockClientForCheckpointing mockClientForCheckpointing = null;
 
     private IndexBasedTransformConfigManager transformsConfigManager;
@@ -96,11 +99,10 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         /**
          * Mock client for checkpointing
          *
-         * @param testName name of the test, used for naming the threadpool
          * @param supportTransformCheckpointApi whether to mock the checkpoint API, if false throws action not found
          */
-        MockClientForCheckpointing(String testName, boolean supportTransformCheckpointApi) {
-            super(testName);
+        MockClientForCheckpointing(ThreadPool threadPool, boolean supportTransformCheckpointApi) {
+            super(threadPool);
             this.supportTransformCheckpointApi = supportTransformCheckpointApi;
         }
 
@@ -156,8 +158,11 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
     @Before
     public void createComponents() {
         // it's not possible to run it as @BeforeClass as clients aren't initialized
+        if (threadPool == null) {
+            threadPool = new TestThreadPool("TransformCheckpointServiceNodeTests");
+        }
         if (mockClientForCheckpointing == null) {
-            mockClientForCheckpointing = new MockClientForCheckpointing("TransformCheckpointServiceNodeTests", randomBoolean());
+            mockClientForCheckpointing = new MockClientForCheckpointing(threadPool, randomBoolean());
         }
         ClusterService clusterService = mock(ClusterService.class);
         transformsConfigManager = new IndexBasedTransformConfigManager(
@@ -185,8 +190,9 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
     @AfterClass
     public static void tearDownClient() {
-        mockClientForCheckpointing.close();
         mockClientForCheckpointing = null;
+        threadPool.close();
+        threadPool = null;
     }
 
     public void testCreateReadDeleteCheckpoint() throws InterruptedException {

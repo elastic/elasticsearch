@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -37,7 +35,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RebalanceAfterActiveTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(RebalanceAfterActiveTests.class);
 
     public void testRebalanceOnlyAfterAllShardsAreActive() {
         final long[] sizes = new long[5];

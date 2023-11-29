@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -92,9 +91,6 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value);
-            for (SearchHit hit : response.getHits()) {
-                logger.debug("[{}] hit [{}]", ctx.id(), hit.getSourceAsMap());
-            }
         }
 
         final Payload payload;

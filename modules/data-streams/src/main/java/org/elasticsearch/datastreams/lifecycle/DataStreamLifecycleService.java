@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -127,6 +128,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    /**
+     * This setting controls how often we signal that an index is in the error state when it comes to its data stream lifecycle
+     * progression.
+     * The signalling is currently logging at the `error` level but in the future it can signify other types of signalling.
+     */
+    public static final Setting<Integer> DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING = Setting.intSetting(
+        "data_streams.lifecycle.signalling.error_retry_interval",
+        10,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
 
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleService.class);
@@ -156,6 +170,17 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final MasterServiceTaskQueue<DeleteSourceAndAddDownsampleToDS> swapSourceWithDownsampleIndexQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
+    /**
+     * The number of retries for a particular index and error after which DSL will emmit a signal (e.g. log statement)
+     */
+    private volatile int signallingErrorRetryInterval;
+
+    /**
+     * The following stats are tracking how the data stream lifecycle runs are performing time wise
+     */
+    private volatile Long lastRunStartedAt = null;
+    private volatile Long lastRunDuration = null;
+    private volatile Long timeBetweenStarts = null;
 
     private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
@@ -194,6 +219,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
         this.targetMergePolicyFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(settings);
+        this.signallingErrorRetryInterval = DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings()
             .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
         this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
@@ -221,6 +247,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING, this::updateMergePolicyFactor);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING, this::updateMergePolicyFloorSegment);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING, this::updateSignallingRetryThreshold);
     }
 
     @Override
@@ -278,6 +306,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     // default visibility for testing purposes
     void run(ClusterState state) {
+        long startTime = nowSupplier.getAsLong();
+        if (lastRunStartedAt != null) {
+            timeBetweenStarts = startTime - lastRunStartedAt;
+        }
+        lastRunStartedAt = startTime;
         int affectedIndices = 0;
         int affectedDataStreams = 0;
         for (DataStream dataStream : state.metadata().dataStreams().values()) {
@@ -375,8 +408,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             affectedIndices += indicesToExcludeForRemainingRun.size();
             affectedDataStreams++;
         }
+        lastRunDuration = nowSupplier.getAsLong() - lastRunStartedAt;
         logger.trace(
-            "Data stream lifecycle service performed operations on [{}] indices, part of [{}] data streams",
+            "Data stream lifecycle service run for {} and performed operations on [{}] indices, part of [{}] data streams",
+            TimeValue.timeValueMillis(lastRunDuration).toHumanReadableString(2),
             affectedIndices,
             affectedDataStreams
         );
@@ -526,7 +561,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     "Data stream lifecycle encountered an error trying to downsample index [%s]. Data stream lifecycle will "
                         + "attempt to downsample the index on its next run.",
                     sourceIndex
-                )
+                ),
+                signallingErrorRetryInterval
             ),
             (req, reqListener) -> downsampleIndex(request, reqListener)
         );
@@ -553,20 +589,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (currentRound.equals(lastRound)) {
                     // target downsampling index exists and is not a downsampling index (name clash?)
                     // we fail now but perhaps we should just randomise the name?
-                    String previousError = errorStore.getError(indexName);
 
-                    errorStore.recordError(indexName, new ResourceAlreadyExistsException(downsampleIndexName));
-                    // To avoid spamming our logs, we only want to log the error once.
-                    if (previousError == null || previousError.equals(errorStore.getError(indexName)) == false) {
-                        logger.error(
-                            "Data stream lifecycle service is unable to downsample backing index [{}] for data stream [{}] and "
-                                + "donwsampling round [{}] because the target downsample index [{}] already exists",
+                    recordAndLogError(
+                        indexName,
+                        errorStore,
+                        new ResourceAlreadyExistsException(downsampleIndexName),
+                        String.format(
+                            Locale.ROOT,
+                            "Data stream lifecycle service is unable to downsample backing index [%s] for data "
+                                + "stream [%s] and donwsampling round [%s] because the target downsample index [%s] already exists",
                             indexName,
                             dataStream.getName(),
                             currentRound,
                             downsampleIndexName
-                        );
-                    }
+                        ),
+                        signallingErrorRetryInterval
+                    );
                 }
                 yield affectedIndices;
             }
@@ -625,7 +663,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     backingIndexName,
                     downsampleIndexName,
                     dataStream
-                )
+                ),
+                signallingErrorRetryInterval
             ),
             (req, reqListener) -> {
                 logger.trace(
@@ -660,7 +699,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 DeleteIndexAction.NAME,
                 indexName,
                 errorStore,
-                Strings.format("Data stream lifecycle encountered an error trying to delete index [%s]", indexName)
+                Strings.format("Data stream lifecycle encountered an error trying to delete index [%s]", indexName),
+                signallingErrorRetryInterval
             ),
             (req, reqListener) -> deleteIndex(deleteIndexRequest, reason, reqListener)
         );
@@ -677,7 +717,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 AddIndexBlockAction.NAME,
                 indexName,
                 errorStore,
-                Strings.format("Data stream lifecycle service encountered an error trying to mark index [%s] as readonly", indexName)
+                Strings.format("Data stream lifecycle service encountered an error trying to mark index [%s] as readonly", indexName),
+                signallingErrorRetryInterval
             ),
             (req, reqListener) -> addIndexBlock(addIndexBlockRequest, reqListener)
         );
@@ -740,7 +781,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     RolloverAction.NAME,
                     writeIndex.getName(),
                     errorStore,
-                    Strings.format("Data stream lifecycle encountered an error trying to rollover data steam [%s]", dataStream.getName())
+                    Strings.format("Data stream lifecycle encountered an error trying to rollover data steam [%s]", dataStream.getName()),
+                    signallingErrorRetryInterval
                 ),
                 (req, reqListener) -> rolloverDataStream(writeIndex.getName(), rolloverRequest, reqListener)
             );
@@ -837,7 +879,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             "Data stream lifecycle encountered an error trying to to update settings [%s] for index [%s]",
                             updateMergePolicySettingsRequest.settings().keySet(),
                             indexName
-                        )
+                        ),
+                        signallingErrorRetryInterval
                     ),
                     (req, reqListener) -> updateIndexSetting(updateMergePolicySettingsRequest, reqListener)
                 );
@@ -855,7 +898,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             "Data stream lifecycle encountered an error trying to force merge index [%s]. Data stream lifecycle will "
                                 + "attempt to force merge the index on its next run.",
                             indexName
-                        )
+                        ),
+                        signallingErrorRetryInterval
                     ),
                     (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
                 );
@@ -1164,6 +1208,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
+     * @return the duration of the last run in millis or null if the service hasn't completed a run yet.
+     */
+    @Nullable
+    public Long getLastRunDuration() {
+        return lastRunDuration;
+    }
+
+    /**
+     * @return the time passed between the start times of the last two consecutive runs or null if the service hasn't started twice yet.
+     */
+    @Nullable
+    public Long getTimeBetweenStarts() {
+        return timeBetweenStarts;
+    }
+
+    /**
      * Action listener that records the encountered failure using the provided recordError callback for the
      * provided target index. If the listener is notified of success it will clear the recorded entry for the provided
      * target index using the clearErrorRecord callback.
@@ -1174,17 +1234,20 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         private final String targetIndex;
         private final DataStreamLifecycleErrorStore errorStore;
         private final String errorLogMessage;
+        private final int signallingErrorRetryThreshold;
 
         ErrorRecordingActionListener(
             String actionName,
             String targetIndex,
             DataStreamLifecycleErrorStore errorStore,
-            String errorLogMessage
+            String errorLogMessage,
+            int signallingErrorRetryThreshold
         ) {
             this.actionName = actionName;
             this.targetIndex = targetIndex;
             this.errorStore = errorStore;
             this.errorLogMessage = errorLogMessage;
+            this.signallingErrorRetryThreshold = signallingErrorRetryThreshold;
         }
 
         @Override
@@ -1195,21 +1258,64 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
         @Override
         public void onFailure(Exception e) {
-            recordAndLogError(targetIndex, errorStore, e, errorLogMessage);
+            recordAndLogError(targetIndex, errorStore, e, errorLogMessage, signallingErrorRetryThreshold);
         }
     }
 
     /**
      * Records the provided error for the index in the error store and logs the error message at `ERROR` level if the error for the index
-     * is different to what's already in the error store.
-     * This allows us to not spam the logs and only log new errors when we're about to record them in the store.
+     * is different to what's already in the error store or if the same error was in the error store for a number of retries divible by
+     * the provided signallingErrorRetryThreshold (i.e. we log to level `error` every signallingErrorRetryThreshold retries, if the error
+     * stays the same)
+     * This allows us to not spam the logs, but signal to the logs if DSL is not making progress.
      */
-    static void recordAndLogError(String targetIndex, DataStreamLifecycleErrorStore errorStore, Exception e, String logMessage) {
-        String previousError = errorStore.recordError(targetIndex, e);
-        if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
+    static void recordAndLogError(
+        String targetIndex,
+        DataStreamLifecycleErrorStore errorStore,
+        Exception e,
+        String logMessage,
+        int signallingErrorRetryThreshold
+    ) {
+        ErrorEntry previousError = errorStore.recordError(targetIndex, e);
+        ErrorEntry currentError = errorStore.getError(targetIndex);
+        if (previousError == null || (currentError != null && previousError.error().equals(currentError.error()) == false)) {
             logger.error(logMessage, e);
         } else {
-            logger.trace(logMessage, e);
+            if (currentError != null) {
+                if (currentError.retryCount() % signallingErrorRetryThreshold == 0) {
+                    logger.error(
+                        String.format(
+                            Locale.ROOT,
+                            "%s\nFailing since [%d], operation retried [%d] times",
+                            logMessage,
+                            currentError.firstOccurrenceTimestamp(),
+                            currentError.retryCount()
+                        ),
+                        e
+                    );
+                } else {
+                    logger.trace(
+                        String.format(
+                            Locale.ROOT,
+                            "%s\nFailing since [%d], operation retried [%d] times",
+                            logMessage,
+                            currentError.firstOccurrenceTimestamp(),
+                            currentError.retryCount()
+                        ),
+                        e
+                    );
+                }
+            } else {
+                logger.trace(
+                    String.format(
+                        Locale.ROOT,
+                        "Index [%s] encountered error [%s] but there's no record in the error store anymore",
+                        targetIndex,
+                        logMessage
+                    ),
+                    e
+                );
+            }
         }
     }
 
@@ -1238,6 +1344,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private void updateMergePolicyFactor(int newFactor) {
         this.targetMergePolicyFactor = newFactor;
+    }
+
+    public void updateSignallingRetryThreshold(int retryThreshold) {
+        this.signallingErrorRetryInterval = retryThreshold;
     }
 
     private void cancelJob() {

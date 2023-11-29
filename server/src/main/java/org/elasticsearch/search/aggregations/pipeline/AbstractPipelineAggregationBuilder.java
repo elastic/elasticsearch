@@ -58,10 +58,6 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-    public String type() {
-        return type;
-    }
-
     protected abstract PipelineAggregator createInternal(Map<String, Object> metadata);
 
     /**

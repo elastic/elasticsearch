@@ -87,7 +87,7 @@ import java.util.function.IntPredicate;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
-public class TextFieldMapper extends FieldMapper {
+public final class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
@@ -678,6 +678,7 @@ public class TextFieldMapper extends FieldMapper {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
             this.isSyntheticSource = isSyntheticSource;
+            // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
             this.syntheticSourceDelegate = syntheticSourceDelegate;
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
@@ -939,25 +940,46 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (syntheticSourceDelegate != null) {
-                return syntheticSourceDelegate.blockLoader(blContext);
+                return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
+                    @Override
+                    protected String delegatingTo() {
+                        return syntheticSourceDelegate.name();
+                    }
+                };
+            }
+            /*
+             * If this is a sub-text field try and return the parent's loader. Text
+             * fields will always be slow to load and if the parent is exact then we
+             * should use that instead.
+             */
+            String parentField = blContext.parentField(name());
+            if (parentField != null) {
+                MappedFieldType parent = blContext.lookup().fieldType(parentField);
+                if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
+                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                            @Override
+                            protected String delegatingTo() {
+                                return kwd.name();
+                            }
+                        };
+                    }
+                }
+            }
+            if (isStored()) {
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
             if (isSyntheticSource) {
-                if (isStored()) {
-                    return BlockStoredFieldsReader.bytesRefsFromStrings(name());
-                }
                 /*
-                 * We *shouldn't fall to this exception. The mapping should be
-                 * rejected because we've enabled synthetic source but not configured
-                 * the index properly. But we give it a nice message anyway just in
-                 * case.
+                 * When we're in synthetic source mode we don't currently
+                 * support text fields that are not stored and are not children
+                 * of perfect keyword fields. We'd have to load from the parent
+                 * field and then convert the result to a string.
                  */
-                throw new IllegalArgumentException(
-                    "fetching values from a text field ["
-                        + name()
-                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
-                );
+                return null;
             }
-            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
         }
 
         @Override
@@ -1019,7 +1041,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "fetching values from a text field ["
                         + name()
-                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
+                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
@@ -1033,6 +1055,10 @@ public class TextFieldMapper extends FieldMapper {
 
         public boolean isSyntheticSource() {
             return isSyntheticSource;
+        }
+
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate() {
+            return syntheticSourceDelegate;
         }
     }
 
@@ -1155,8 +1181,7 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
-    @SuppressWarnings("this-escape")
-    protected TextFieldMapper(
+    private TextFieldMapper(
         String simpleName,
         FieldType fieldType,
         TextFieldType mappedFieldType,

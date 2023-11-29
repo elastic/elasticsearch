@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
@@ -41,7 +42,7 @@ import java.util.Map;
  */
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
-    public SearchRequestBuilder(ElasticsearchClient client, SearchAction action) {
+    public SearchRequestBuilder(ElasticsearchClient client, ActionType<SearchResponse> action) {
         super(client, action, new SearchRequest());
     }
 
@@ -57,15 +58,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * The search type to execute, defaults to {@link org.elasticsearch.action.search.SearchType#DEFAULT}.
      */
     public SearchRequestBuilder setSearchType(SearchType searchType) {
-        request.searchType(searchType);
-        return this;
-    }
-
-    /**
-     * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
-     * one of "dfs_query_then_fetch" or "query_then_fetch".
-     */
-    public SearchRequestBuilder setSearchType(String searchType) {
         request.searchType(searchType);
         return this;
     }
@@ -252,29 +244,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the boost a specific index will receive when the query is executed against it.
-     *
-     * @param index      The index to apply the boost against
-     * @param indexBoost The boost to apply to the index
-     */
-    public SearchRequestBuilder addIndexBoost(String index, float indexBoost) {
-        sourceBuilder().indexBoost(index, indexBoost);
-        return this;
-    }
-
-    /**
      * The stats groups this request will be aggregated under.
      */
     public SearchRequestBuilder setStats(String... statsGroups) {
         sourceBuilder().stats(Arrays.asList(statsGroups));
-        return this;
-    }
-
-    /**
-     * The stats groups this request will be aggregated under.
-     */
-    public SearchRequestBuilder setStats(List<String> statsGroups) {
-        sourceBuilder().stats(statsGroups);
         return this;
     }
 

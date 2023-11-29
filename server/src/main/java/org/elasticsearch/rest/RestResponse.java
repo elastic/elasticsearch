@@ -33,11 +33,10 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 
-public class RestResponse {
+public final class RestResponse {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
 
@@ -112,12 +111,10 @@ public class RestResponse {
         this(channel, ExceptionsHelper.status(e), e);
     }
 
-    @SuppressWarnings("this-escape")
     public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
-        ToXContent.Params params = paramsFromRequest(channel.request());
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
-            // log exception only if it is not returned in the response
+        ToXContent.Params params = channel.request();
+        if (e != null) {
             Supplier<?> messageSupplier = () -> String.format(
                 Locale.ROOT,
                 "path: %s, params: %s, status: %d",
@@ -130,6 +127,14 @@ public class RestResponse {
             } else {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
             }
+        }
+        // if "error_trace" is turned on in the request, we want to render it in the rest response
+        // for that the REST_EXCEPTION_SKIP_STACK_TRACE flag that if "true" omits the stack traces is
+        // switched in the xcontent rendering parameters.
+        // For authorization problems (RestStatus.UNAUTHORIZED) we don't want to do this since this could
+        // leak information to the caller who is unauthorized to make this call
+        if (params.paramAsBoolean("error_trace", false) && status != RestStatus.UNAUTHORIZED) {
+            params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
@@ -162,18 +167,6 @@ public class RestResponse {
 
     public RestStatus status() {
         return this.status;
-    }
-
-    private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
-        ToXContent.Params params = restRequest;
-        if (restRequest.paramAsBoolean("error_trace", REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false) && skipStackTrace() == false) {
-            params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
-        }
-        return params;
-    }
-
-    protected boolean skipStackTrace() {
-        return status() == RestStatus.UNAUTHORIZED;
     }
 
     private static void build(

@@ -2,6 +2,8 @@
 [[put-inference-api]]
 === Create {infer} API
 
+experimental[]
+
 Creates a model to perform an {infer} task.
 
 
@@ -50,18 +52,67 @@ The type of the {infer} task that the model will perform. Available task types:
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
-* `elser`
+* `elser`,
+* `openai`.
 
 `service_settings`::
 (Required, object)
 Settings used to install the {infer} model. These settings are specific to the
 `service` you specified.
++
+.`service_settings` for `elser`
+[%collapsible%closed]
+=====
+`num_allocations`:::
+(Required, integer)
+The number of model allocations to create. 
+
+`num_threads`:::
+(Required, integer)
+The number of threads to use by each model allocation.
+=====
++
+.`service_settings` for `openai`
+[%collapsible%closed]
+=====
+`api_key`:::
+(Required, string)
+A valid API key of your OpenAI account. You can find your OpenAI API keys in 
+your OpenAI account under the 
+https://platform.openai.com/api-keys[API keys section].
+
+IMPORTANT: You need to provide the API key only once, during the {infer} model 
+creation. The <<get-inference-api>> does not retrieve your API key. After 
+creating the {infer} model, you cannot change the associated API key. If you 
+want to use a different API key, delete the {infer} model and recreate it with 
+the same name and the updated API key.
+
+`organization_id`:::
+(Optional, string)
+The unique identifier of your organization. You can find the Organization ID in 
+your OpenAI account under 
+https://platform.openai.com/account/organization[**Settings** > **Organizations**]. 
+
+`url`:::
+(Optional, string)
+The URL endpoint to use for the requests. Can be changed for testing purposes.
+Defaults to `https://api.openai.com/v1/embeddings`.
+=====
 
 `task_settings`::
 (Optional, object)
 Settings to configure the {infer} task. These settings are specific to the
 `<task_type>` you specified.
-
++
+.`task_settings` for `text_embedding`
+[%collapsible%closed]
+=====
+`model`:::
+(Optional, string)
+The name of the model to use for the {infer} task. Refer to the 
+https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
+for the list of available text embedding models.
+=====
 
 [discrete]
 [[put-inference-api-example]]
@@ -101,3 +152,22 @@ Example response:
 }
 ------------------------------------------------------------
 // NOTCONSOLE
+
+
+The following example shows how to create an {infer} model called
+`openai_embeddings` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/openai_embeddings
+{
+    "service": "openai",
+    "service_settings": {
+        "api_key": "<api_key>"
+    },
+    "task_settings": {
+       "model": "text-embedding-ada-002"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]

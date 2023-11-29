@@ -51,7 +51,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +71,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  * @see SearchHits
  */
-public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
+public final class SearchHit implements Writeable, ToXContentObject {
 
     private final transient int docId;
 
@@ -156,18 +155,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
-            documentFields.putAll(in.readMap(DocumentField::new));
-            metaFields.putAll(in.readMap(DocumentField::new));
-        } else {
-            Map<String, DocumentField> fields = readFields(in);
-            fields.forEach(
-                (fieldName, docField) -> (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(
-                    fieldName,
-                    docField
-                )
-            );
-        }
+        documentFields.putAll(in.readMap(DocumentField::new));
+        metaFields.putAll(in.readMap(DocumentField::new));
 
         int size = in.readVInt();
         if (size == 0) {
@@ -213,33 +202,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
-    private static Map<String, DocumentField> readFields(StreamInput in) throws IOException {
-        Map<String, DocumentField> fields;
-        int size = in.readVInt();
-        if (size == 0) {
-            fields = emptyMap();
-        } else if (size == 1) {
-            DocumentField hitField = new DocumentField(in);
-            fields = singletonMap(hitField.getName(), hitField);
-        } else {
-            fields = Maps.newMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                DocumentField field = new DocumentField(in);
-                fields.put(field.getName(), field);
-            }
-            fields = unmodifiableMap(fields);
-        }
-        return fields;
-    }
-
-    private static void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeCollection(fields.values());
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(score);
@@ -263,12 +225,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
-            out.writeMap(documentFields, StreamOutput::writeWriteable);
-            out.writeMap(metaFields, StreamOutput::writeWriteable);
-        } else {
-            writeFields(out, this.getFields());
-        }
+        out.writeMap(documentFields, StreamOutput::writeWriteable);
+        out.writeMap(metaFields, StreamOutput::writeWriteable);
         if (highlightFields == null) {
             out.writeVInt(0);
         } else {
@@ -427,13 +385,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         sourceAsMap = Source.fromBytes(source).source();
         return sourceAsMap;
-    }
-
-    @Override
-    public Iterator<DocumentField> iterator() {
-        // need to join the fields and metadata fields
-        Map<String, DocumentField> allFields = this.getFields();
-        return allFields.values().iterator();
     }
 
     /**
@@ -1001,7 +952,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         Map<String, HighlightField> highlightFields = new HashMap<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             HighlightField highlightField = HighlightField.fromXContent(parser);
-            highlightFields.put(highlightField.getName(), highlightField);
+            highlightFields.put(highlightField.name(), highlightField);
         }
         return highlightFields;
     }

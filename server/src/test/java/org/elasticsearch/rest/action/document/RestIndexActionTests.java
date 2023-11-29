@@ -23,7 +23,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -37,9 +36,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestIndexActionTests extends RestActionTestCase {
+public final class RestIndexActionTests extends RestActionTestCase {
 
-    @SuppressWarnings("this-escape")
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();
@@ -64,13 +62,6 @@ public class RestIndexActionTests extends RestActionTestCase {
 
     public void testAutoIdDefaultsToOptypeCreate() {
         checkAutoIdOpType(Version.CURRENT, DocWriteRequest.OpType.CREATE);
-    }
-
-    public void testAutoIdDefaultsToOptypeIndexForOlderVersions() {
-        checkAutoIdOpType(
-            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(Version.V_7_5_0)),
-            DocWriteRequest.OpType.INDEX
-        );
     }
 
     private void checkAutoIdOpType(Version minClusterVersion, DocWriteRequest.OpType expectedOpType) {

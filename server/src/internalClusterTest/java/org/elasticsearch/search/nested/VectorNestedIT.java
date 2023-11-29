@@ -9,7 +9,6 @@
 package org.elasticsearch.search.nested;
 
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -18,6 +17,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -47,8 +47,7 @@ public class VectorNestedIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startArray("nested")
@@ -63,13 +62,14 @@ public class VectorNestedIT extends ESIntegTestCase {
         waitForRelocation(ClusterHealthStatus.GREEN);
         GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getSourceAsBytes(), notNullValue());
+        assertThat(getResponse.getSourceAsBytesRef(), notNullValue());
         refresh();
 
-        SearchResponse searchResponse = prepareSearch("test").setKnnSearch(
-            List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null))
-        ).setAllowPartialSearchResults(false).get();
-        assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+        assertResponse(
+            prepareSearch("test").setKnnSearch(List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null)))
+                .setAllowPartialSearchResults(false),
+            response -> assertThat(response.getHits().getHits().length, greaterThan(0))
+        );
     }
 
 }

@@ -29,8 +29,8 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -170,7 +170,8 @@ public class ApiKeyService {
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.interval",
         TimeValue.timeValueHours(24L),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Dynamic
     );
     public static final Setting<TimeValue> DELETE_RETENTION_PERIOD = Setting.positiveTimeSetting(
         "xpack.security.authc.api_key.delete.retention_period",
@@ -209,13 +210,10 @@ public class ApiKeyService {
     private final boolean enabled;
     private final Settings settings;
     private final InactiveApiKeysRemover inactiveApiKeysRemover;
-    private final TimeValue deleteInterval;
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
     private final ApiKeyDocCache apiKeyDocCache;
-
-    private volatile long lastExpirationRunMs;
 
     // The API key secret is a Base64 encoded v4 UUID without padding. The UUID is 128 bits, i.e. 16 byte,
     // which requires 22 digits of Base64 characters for encoding without padding.
@@ -244,7 +242,6 @@ public class ApiKeyService {
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
         this.settings = settings;
-        this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client, clusterService);
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
@@ -1217,15 +1214,11 @@ public class ApiKeyService {
         }
     }
 
-    /**
-     * Gets the API Key from the <code>Authorization</code> header if the header begins with
-     * <code>ApiKey </code>
-     */
-    ApiKeyCredentials getCredentialsFromThreadContext(ThreadContext threadContext) {
+    ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {
         if (false == isEnabled()) {
             return null;
         }
-        return getCredentialsFromHeader(threadContext.getHeader("Authorization"), ApiKey.Type.REST);
+        return parseApiKey(apiKeyString, ApiKey.Type.REST);
     }
 
     static ApiKeyCredentials getCredentialsFromHeader(final String header, ApiKey.Type expectedType) {
@@ -1877,15 +1870,12 @@ public class ApiKeyService {
 
     // pkg scoped for testing
     long lastTimeWhenApiKeysRemoverWasTriggered() {
-        return lastExpirationRunMs;
+        return inactiveApiKeysRemover.getLastRunTimestamp();
     }
 
     private void maybeStartApiKeyRemover() {
         if (securityIndex.isAvailable(PRIMARY_SHARDS)) {
-            if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
-                inactiveApiKeysRemover.submit(client.threadPool());
-                lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
-            }
+            inactiveApiKeysRemover.maybeSubmit(client.threadPool());
         }
     }
 
@@ -1949,7 +1939,7 @@ public class ApiKeyService {
                 () -> executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
-                    SearchAction.INSTANCE,
+                    TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
                         final long total = searchResponse.getHits().getTotalHits().value;
@@ -2000,6 +1990,7 @@ public class ApiKeyService {
             Instant.ofEpochMilli(apiKeyDoc.creationTime),
             apiKeyDoc.expirationTime != -1 ? Instant.ofEpochMilli(apiKeyDoc.expirationTime) : null,
             apiKeyDoc.invalidated,
+            apiKeyDoc.invalidation != -1 ? Instant.ofEpochMilli(apiKeyDoc.invalidation) : null,
             (String) apiKeyDoc.creator.get("principal"),
             (String) apiKeyDoc.creator.get("realm"),
             metadata,
@@ -2187,6 +2178,7 @@ public class ApiKeyService {
             builder.declareLong(constructorArg(), new ParseField("creation_time"));
             builder.declareLongOrNull(constructorArg(), -1, new ParseField("expiration_time"));
             builder.declareBoolean(constructorArg(), new ParseField("api_key_invalidated"));
+            builder.declareLong(optionalConstructorArg(), new ParseField("invalidation_time"));
             builder.declareString(constructorArg(), new ParseField("api_key_hash"));
             builder.declareStringOrNull(optionalConstructorArg(), new ParseField("name"));
             builder.declareInt(constructorArg(), new ParseField("version"));
@@ -2202,6 +2194,7 @@ public class ApiKeyService {
         final long creationTime;
         final long expirationTime;
         final Boolean invalidated;
+        final long invalidation;
         final String hash;
         @Nullable
         final String name;
@@ -2218,6 +2211,7 @@ public class ApiKeyService {
             long creationTime,
             long expirationTime,
             Boolean invalidated,
+            @Nullable Long invalidation,
             String hash,
             @Nullable String name,
             int version,
@@ -2236,6 +2230,7 @@ public class ApiKeyService {
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
             this.invalidated = invalidated;
+            this.invalidation = (invalidation == null) ? -1 : invalidation;
             this.hash = hash;
             this.name = name;
             this.version = version;
@@ -2257,6 +2252,7 @@ public class ApiKeyService {
                 creationTime,
                 expirationTime,
                 invalidated,
+                invalidation,
                 hash,
                 name,
                 version,
@@ -2282,6 +2278,7 @@ public class ApiKeyService {
         final long creationTime;
         final long expirationTime;
         final Boolean invalidated;
+        final long invalidation;
         final String hash;
         final String name;
         final int version;
@@ -2296,6 +2293,7 @@ public class ApiKeyService {
             long creationTime,
             long expirationTime,
             Boolean invalidated,
+            long invalidation,
             String hash,
             String name,
             int version,
@@ -2308,6 +2306,7 @@ public class ApiKeyService {
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
             this.invalidated = invalidated;
+            this.invalidation = invalidation;
             this.hash = hash;
             this.name = name;
             this.version = version;
@@ -2324,6 +2323,7 @@ public class ApiKeyService {
                 creationTime,
                 expirationTime,
                 invalidated,
+                invalidation,
                 hash,
                 name,
                 version,

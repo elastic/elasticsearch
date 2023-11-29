@@ -40,11 +40,14 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportDeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.rest.RestDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
@@ -141,6 +144,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
+        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING);
         return pluginSettings;
     }
 
@@ -155,7 +159,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         );
         this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
         components.add(this.updateTimeSeriesRangeService.get());
-        errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore());
+        errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(services.threadPool()::absoluteTimeInMillis));
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,
@@ -188,6 +192,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionHandler<>(GetDataStreamLifecycleAction.INSTANCE, TransportGetDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
+        actions.add(new ActionHandler<>(GetDataStreamLifecycleStatsAction.INSTANCE, TransportGetDataStreamLifecycleStatsAction.class));
         return actions;
     }
 
@@ -217,6 +222,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         handlers.add(new RestGetDataStreamLifecycleAction());
         handlers.add(new RestDeleteDataStreamLifecycleAction());
         handlers.add(new RestExplainDataStreamLifecycleAction());
+        handlers.add(new RestDataStreamLifecycleStatsAction());
         return handlers;
     }
 

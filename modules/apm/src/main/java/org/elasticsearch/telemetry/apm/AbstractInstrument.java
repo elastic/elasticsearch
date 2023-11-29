@@ -25,13 +25,20 @@ import java.util.concurrent.atomic.AtomicReference;
  * @param <T> delegated instrument
  */
 public abstract class AbstractInstrument<T> implements Instrument {
+    private static final int MAX_NAME_LENGTH = 255;
     private final AtomicReference<T> delegate;
     private final String name;
     private final String description;
     private final String unit;
 
+    @SuppressWarnings("this-escape")
     public AbstractInstrument(Meter meter, String name, String description, String unit) {
         this.name = Objects.requireNonNull(name);
+        if (name.length() > MAX_NAME_LENGTH) {
+            throw new IllegalArgumentException(
+                "Instrument name [" + name + "] with length [" + name.length() + "] exceeds maximum length [" + MAX_NAME_LENGTH + "]"
+            );
+        }
         this.description = Objects.requireNonNull(description);
         this.unit = Objects.requireNonNull(unit);
         this.delegate = new AtomicReference<>(doBuildInstrument(meter));

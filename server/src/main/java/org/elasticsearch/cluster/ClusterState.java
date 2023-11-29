@@ -287,6 +287,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ? DiscoveryNodes.EMPTY_NODES : nodes;
     }
 
+    public boolean clusterRecovered() {
+        return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
+    }
+
     public Map<String, CompatibilityVersions> compatibilityVersions() {
         return this.compatibilityVersions;
     }
@@ -814,12 +818,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return nodes;
         }
 
-        // Deprecate to keep downstream projects compiling
-        @Deprecated(forRemoval = true)
-        public Builder putTransportVersion(String nodeId, TransportVersion transportVersion) {
-            return putCompatibilityVersions(nodeId, transportVersion, Map.of());
-        }
-
         public Builder putCompatibilityVersions(
             String nodeId,
             TransportVersion transportVersion,
@@ -834,12 +832,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         public Builder putCompatibilityVersions(String nodeId, CompatibilityVersions versions) {
             compatibilityVersions.put(nodeId, versions);
             return this;
-        }
-
-        // Deprecate to keep downstream projects compiling
-        @Deprecated(forRemoval = true)
-        public Builder compatibilityVersions(Map<String, CompatibilityVersions> versions) {
-            return nodeIdsToCompatibilityVersions(versions);
         }
 
         public Builder nodeIdsToCompatibilityVersions(Map<String, CompatibilityVersions> versions) {
@@ -1043,7 +1035,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         TransportVersion tv;
         if (node.getVersion().before(Version.V_8_8_0)) {
             // 1-to-1 mapping between Version and TransportVersion
-            tv = TransportVersion.fromId(node.getVersion().id);
+            tv = TransportVersion.fromId(node.getPre811VersionId().getAsInt());
         } else {
             // use the lowest value it could be for now
             tv = INFERRED_TRANSPORT_VERSION;

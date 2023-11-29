@@ -107,13 +107,4 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
         return emptyList();
     }
 
-    @Override
-    public UnmappedRareTerms.Bucket getBucketByKey(String term) {
-        return null;
-    }
-
-    @Override
-    protected UnmappedRareTerms.Bucket[] createBucketsArray(int size) {
-        return new UnmappedRareTerms.Bucket[size];
-    }
 }

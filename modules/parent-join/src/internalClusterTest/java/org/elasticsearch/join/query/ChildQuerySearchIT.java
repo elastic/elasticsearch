@@ -511,7 +511,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
 
-        client().prepareIndex("test").setId("3").setSource("p_field", 1).get();
+        prepareIndex("test").setId("3").setSource("p_field", 1).get();
         refresh();
 
         assertHitCountAndNoFailures(
@@ -736,8 +736,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             0L
         );
 
-        client().prepareIndex("test")
-            .setSource(jsonBuilder().startObject().field("text", "value").endObject())
+        prepareIndex("test").setSource(jsonBuilder().startObject().field("text", "value").endObject())
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .get();
 
@@ -761,7 +760,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
         indicesAdmin().prepareFlush("test").get();
 
-        client().prepareIndex("test").setId("3").setSource("p_field", 2).get();
+        prepareIndex("test").setId("3").setSource("p_field", 2).get();
 
         refresh();
         assertNoFailuresAndResponse(
@@ -806,8 +805,10 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
                 SearchHit[] searchHits = response.getHits().getHits()[0].getInnerHits().get("child").getHits();
                 assertThat(searchHits.length, equalTo(1));
-                assertThat(searchHits[0].getHighlightFields().get("c_field").getFragments().length, equalTo(1));
-                assertThat(searchHits[0].getHighlightFields().get("c_field").getFragments()[0].string(), equalTo("foo <em>bar</em>"));
+                HighlightField highlightField1 = searchHits[0].getHighlightFields().get("c_field");
+                assertThat(highlightField1.fragments().length, equalTo(1));
+                HighlightField highlightField = searchHits[0].getHighlightFields().get("c_field");
+                assertThat(highlightField.fragments()[0].string(), equalTo("foo <em>bar</em>"));
             }
         );
     }
@@ -1301,7 +1302,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         String parentId = "p1";
-        client().prepareIndex("test").setId(parentId).setSource("p_field", "1").get();
+        prepareIndex("test").setId(parentId).setSource("p_field", "1").get();
         refresh();
 
         try {
@@ -1407,8 +1408,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .setSize(1)
                 .addStoredField("_id")
                 .setQuery(query)
-                .execute()
-                .actionGet();
+                .get();
 
             assertNoFailures(scrollResponse);
             assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(10L));
@@ -1786,7 +1786,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     assertHitCount(response, 1);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("parent-id"));
                     HighlightField highlightField = response.getHits().getAt(0).getHighlightFields().get("searchText");
-                    assertThat(highlightField.getFragments()[0].string(), equalTo("quick brown <em>fox</em>"));
+                    assertThat(highlightField.fragments()[0].string(), equalTo("quick brown <em>fox</em>"));
                 }
             );
 
@@ -1799,7 +1799,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     assertHitCount(response, 1);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("child-id"));
                     HighlightField highlightField = response.getHits().getAt(0).getHighlightFields().get("searchText");
-                    assertThat(highlightField.getFragments()[0].string(), equalTo("quick brown <em>fox</em>"));
+                    assertThat(highlightField.fragments()[0].string(), equalTo("quick brown <em>fox</em>"));
                 }
             );
         }

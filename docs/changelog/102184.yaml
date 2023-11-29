@@ -1,0 +1,5 @@
+pr: 102184
+summary: Track ESQL enrich memory
+area: ES|QL
+type: enhancement
+issues: []

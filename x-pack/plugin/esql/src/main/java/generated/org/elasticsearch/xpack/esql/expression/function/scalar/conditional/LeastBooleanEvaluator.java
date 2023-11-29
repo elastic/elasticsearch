@@ -32,27 +32,25 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    Block.Ref[] valuesRefs = new Block.Ref[values.length];
-    try (Releasable valuesRelease = Releasables.wrap(valuesRefs)) {
-      BooleanBlock[] valuesBlocks = new BooleanBlock[values.length];
+  public Block eval(Page page) {
+    BooleanBlock[] valuesBlocks = new BooleanBlock[values.length];
+    try (Releasable valuesRelease = Releasables.wrap(valuesBlocks)) {
       for (int i = 0; i < valuesBlocks.length; i++) {
-        valuesRefs[i] = values[i].eval(page);
-        valuesBlocks[i] = (BooleanBlock) valuesRefs[i].block();
+        valuesBlocks[i] = (BooleanBlock)values[i].eval(page);
       }
       BooleanVector[] valuesVectors = new BooleanVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesVectors[i] = valuesBlocks[i].asVector();
         if (valuesVectors[i] == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valuesBlocks));
+          return eval(page.getPositionCount(), valuesBlocks);
         }
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valuesVectors).asBlock());
+      return eval(page.getPositionCount(), valuesVectors).asBlock();
     }
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock[] valuesBlocks) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       boolean[] valuesValues = new boolean[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -73,7 +71,7 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       boolean[] valuesValues = new boolean[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

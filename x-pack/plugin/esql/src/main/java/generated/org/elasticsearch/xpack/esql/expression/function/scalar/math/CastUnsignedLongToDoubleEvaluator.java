@@ -32,19 +32,18 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref vRef = v.eval(page)) {
-      LongBlock vBlock = (LongBlock) vRef.block();
+  public Block eval(Page page) {
+    try (LongBlock vBlock = (LongBlock) v.eval(page)) {
       LongVector vVector = vBlock.asVector();
       if (vVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+        return eval(page.getPositionCount(), vBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   public DoubleBlock eval(int positionCount, LongBlock vBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -57,7 +56,7 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   }
 
   public DoubleVector eval(int positionCount, LongVector vVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Cast.castUnsignedLongToDouble(vVector.getLong(p)));
       }

@@ -137,7 +137,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -184,7 +184,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion indexCreatedVersion;
 
-        @SuppressWarnings("this-escape")
         public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, IndexVersion indexCreatedVersion) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
@@ -581,7 +580,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return BlockDocValuesReader.bytesRefsFromOrds(name());
+                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
             if (isSyntheticSource) {
                 if (false == isStored()) {
@@ -591,9 +590,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                             + "] is only supported in synthetic _source index if it creates doc values or stored fields"
                     );
                 }
-                return BlockStoredFieldsReader.bytesRefsFromBytesRefs(name());
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
-            return BlockSourceReader.bytesRefs(sourceValueFetcher(blContext.sourcePaths(name())));
+            return new BlockSourceReader.BytesRefsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override
@@ -823,6 +822,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                 );
             }
         }
+
+        public boolean hasNormalizer() {
+            return normalizer != Lucene.KEYWORD_ANALYZER;
+        }
     }
 
     private final boolean indexed;
@@ -1008,7 +1011,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return syntheticFieldLoader(simpleName());
     }
 
-    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

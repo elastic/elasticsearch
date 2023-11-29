@@ -33,26 +33,24 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref yRef = y.eval(page)) {
-      DoubleBlock yBlock = (DoubleBlock) yRef.block();
-      try (Block.Ref xRef = x.eval(page)) {
-        DoubleBlock xBlock = (DoubleBlock) xRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock yBlock = (DoubleBlock) y.eval(page)) {
+      try (DoubleBlock xBlock = (DoubleBlock) x.eval(page)) {
         DoubleVector yVector = yBlock.asVector();
         if (yVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), yBlock, xBlock));
+          return eval(page.getPositionCount(), yBlock, xBlock);
         }
         DoubleVector xVector = xBlock.asVector();
         if (xVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), yBlock, xBlock));
+          return eval(page.getPositionCount(), yBlock, xBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), yVector, xVector).asBlock());
+        return eval(page.getPositionCount(), yVector, xVector).asBlock();
       }
     }
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock yBlock, DoubleBlock xBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (yBlock.isNull(p) || yBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -69,7 +67,7 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
       }

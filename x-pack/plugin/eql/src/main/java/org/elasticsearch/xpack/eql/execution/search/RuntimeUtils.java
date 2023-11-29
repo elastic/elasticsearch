@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -21,6 +20,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
@@ -53,7 +53,6 @@ import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
 public final class RuntimeUtils {
 
     static final Logger QUERY_LOG = LogManager.getLogger(QueryClient.class);
-    public static final Version SWITCH_TO_MULTI_VALUE_FIELDS_VERSION = Version.V_7_15_0;
 
     private RuntimeUtils() {}
 
@@ -156,7 +155,7 @@ public final class RuntimeUtils {
                 hitNames.add(he.hitName());
 
                 if (hitNames.size() > 1) {
-                    throw new EqlIllegalArgumentException("Multi-level nested fields [{}] not supported yet", hitNames);
+                    throw new EqlClientException("Multi-level nested fields [{}] not supported yet", hitNames);
                 }
 
                 return new HitExtractorInput(l.source(), l.expression(), he);
@@ -172,7 +171,7 @@ public final class RuntimeUtils {
     }
 
     public static SearchRequest prepareRequest(SearchSourceBuilder source, boolean includeFrozen, String... indices) {
-        SearchRequest searchRequest = new SearchRequest(SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
+        SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);

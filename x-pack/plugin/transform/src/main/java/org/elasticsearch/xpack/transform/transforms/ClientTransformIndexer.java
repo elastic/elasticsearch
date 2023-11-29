@@ -14,18 +14,17 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -244,7 +243,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
+    protected void refreshDestinationIndex(ActionListener<Void> responseListener) {
         // note: this gets executed _without_ the headers of the user as the user might not have the rights to call
         // _refresh for performance reasons. However this refresh is an internal detail of transform and this is only
         // called for the transform destination index
@@ -253,7 +252,22 @@ class ClientTransformIndexer extends TransformIndexer {
             ClientHelper.TRANSFORM_ORIGIN,
             RefreshAction.INSTANCE,
             new RefreshRequest(transformConfig.getDestination().getIndex()),
-            responseListener
+            ActionListener.wrap(refreshResponse -> {
+                if (refreshResponse.getFailedShards() > 0) {
+                    logger.warn(
+                        "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
+                        getJobId()
+                    );
+                }
+                responseListener.onResponse(null);
+            }, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    // We ignore IndexNotFound error. A non-existent index does not need refreshing.
+                    responseListener.onResponse(null);
+                    return;
+                }
+                responseListener.onFailure(e);
+            })
         );
     }
 
@@ -263,7 +277,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             request,
             responseListener
         );
@@ -343,7 +357,7 @@ class ClientTransformIndexer extends TransformIndexer {
                             + statsExc.getMessage()
                     );
 
-                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings()) == false) {
+                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings())) {
                         // get the current seqNo and primary term, however ignore the stored state
                         transformsConfigManager.getTransformStoredDoc(
                             transformConfig.getId(),
@@ -419,7 +433,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            ClosePointInTimeAction.INSTANCE,
+            TransportClosePointInTimeAction.TYPE,
             closePitRequest,
             ActionListener.wrap(response -> {
                 logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit);
@@ -450,12 +464,14 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // no pit, create a new one
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(searchRequest.indices()).keepAlive(PIT_KEEP_ALIVE);
+        // use index filter for better performance
+        pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            OpenPointInTimeAction.INSTANCE,
+            TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             ActionListener.wrap(response -> {
                 PointInTimeBuilder newPit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
@@ -518,7 +534,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(response -> {
                 // did the pit change?
@@ -544,7 +560,7 @@ class ClientTransformIndexer extends TransformIndexer {
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
-                        SearchAction.INSTANCE,
+                        TransportSearchAction.TYPE,
                         searchRequest,
                         listener
                     );
@@ -563,7 +579,7 @@ class ClientTransformIndexer extends TransformIndexer {
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
-                        SearchAction.INSTANCE,
+                        TransportSearchAction.TYPE,
                         searchRequest,
                         listener
                     );

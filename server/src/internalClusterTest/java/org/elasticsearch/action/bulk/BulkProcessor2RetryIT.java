@@ -11,7 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -26,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -136,23 +136,23 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
 
         indicesAdmin().refresh(new RefreshRequest()).get();
 
-        SearchResponse results = prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
-        assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
-        if (rejectedExecutionExpected) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
-        } else if (rejectedAfterAllRetries) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
-        } else {
-            assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
-        }
+        final boolean finalRejectedAfterAllRetries = rejectedAfterAllRetries;
+        assertResponse(prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0), results -> {
+            assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
+            if (rejectedExecutionExpected) {
+                assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
+            } else if (finalRejectedAfterAllRetries) {
+                assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
+            } else {
+                assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
+            }
+        });
     }
 
     private static void indexDocs(BulkProcessor2 processor, int numDocs) {
         for (int i = 1; i <= numDocs; i++) {
             processor.add(
-                client().prepareIndex()
-                    .setIndex(INDEX_NAME)
-                    .setId(Integer.toString(i))
+                prepareIndex(INDEX_NAME).setId(Integer.toString(i))
                     .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
                     .request()
             );

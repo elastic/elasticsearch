@@ -62,6 +62,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
             Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -79,6 +80,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
+            CircuitBreakerMetrics.NOOP.getParentTripCountTotal(),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -127,6 +129,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final AtomicInteger parentTripped = new AtomicInteger(0);
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
             Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -155,6 +158,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, childLimit, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
+            CircuitBreakerMetrics.NOOP.getParentTripCountTotal(),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -219,6 +223,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .build();
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 clusterSettings,
                 Collections.emptyList(),
                 new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -261,6 +266,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         AtomicLong memoryUsage = new AtomicLong();
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -341,6 +347,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE / 2, Long.MAX_VALUE / 2));
         long interval = randomLongBetween(1, 1000);
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -424,6 +431,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         boolean saveTheDay = randomBoolean();
         AtomicBoolean overLimitTriggered = new AtomicBoolean();
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -690,6 +698,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .build();
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 clusterSettings,
                 Collections.emptyList(),
                 new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -732,6 +741,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         try (
             HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 clusterSettings,
                 Collections.emptyList(),
                 new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -763,6 +773,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Collections.singletonList(new BreakerSettings(CircuitBreaker.FIELDDATA, 100, 1.2)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -776,6 +787,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Arrays.asList(new BreakerSettings("foo", 100, 1.2), new BreakerSettings("foo", 200, 0.1)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -790,6 +802,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     public void testCustomCircuitBreakers() {
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Arrays.asList(new BreakerSettings("foo", 100, 1.2), new BreakerSettings("bar", 200, 0.1)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -811,6 +824,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     public void testUpdatingUseRealMemory() {
         try (
             HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Collections.emptyList(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -840,6 +854,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         try (
             HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Collections.emptyList(),
                 clusterSettings

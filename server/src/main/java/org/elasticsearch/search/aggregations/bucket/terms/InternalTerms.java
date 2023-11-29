@@ -93,6 +93,18 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             return docCount;
         }
 
+        public void setDocCount(long docCount) {
+            this.docCount = docCount;
+        }
+
+        public long getBucketOrd() {
+            return bucketOrd;
+        }
+
+        public void setBucketOrd(long bucketOrd) {
+            this.bucketOrd = bucketOrd;
+        }
+
         @Override
         public long getDocCountError() {
             if (showDocCountError == false) {
@@ -102,7 +114,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         @Override
-        protected void setDocCountError(long docCountError) {
+        public void setDocCountError(long docCountError) {
             this.docCountError = docCountError;
         }
 
@@ -119,6 +131,10 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         @Override
         public Aggregations getAggregations() {
             return aggregations;
+        }
+
+        public void setAggregations(InternalAggregations aggregations) {
+            this.aggregations = aggregations;
         }
 
         @Override

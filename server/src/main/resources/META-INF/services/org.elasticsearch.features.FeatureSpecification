@@ -6,4 +6,9 @@
 # Side Public License, v 1.
 #
 
-org.elasticsearch.features.FeaturesSupportedSpecification
+org.elasticsearch.features.FeatureInfrastructureFeatures
+org.elasticsearch.health.HealthFeatures
+org.elasticsearch.cluster.service.TransportFeatures
+org.elasticsearch.cluster.metadata.MetadataFeatures
+org.elasticsearch.rest.RestFeatures
+org.elasticsearch.indices.IndicesFeatures

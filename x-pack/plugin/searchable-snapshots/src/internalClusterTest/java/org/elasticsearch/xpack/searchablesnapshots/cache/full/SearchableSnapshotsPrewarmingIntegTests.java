@@ -137,7 +137,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             if (nbDocs > 0) {
                 final BulkRequestBuilder bulkRequest = client().prepareBulk();
                 for (int i = 0; i < nbDocs; i++) {
-                    bulkRequest.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+                    bulkRequest.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
                 }
                 final BulkResponse bulkResponse = bulkRequest.get();
                 assertThat(bulkResponse.hasFailures(), is(false));
@@ -401,12 +401,11 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
     }
 
     private TrackingRepositoryPlugin getTrackingRepositoryPlugin() {
-        for (RepositoryPlugin plugin : getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)) {
-            if (plugin instanceof TrackingRepositoryPlugin) {
-                return ((TrackingRepositoryPlugin) plugin);
-            }
-        }
-        throw new IllegalStateException("tracking repository missing");
+        return getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)
+            .filter(p -> p instanceof TrackingRepositoryPlugin)
+            .map(p -> (TrackingRepositoryPlugin) p)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("tracking repository missing"));
     }
 
     /**

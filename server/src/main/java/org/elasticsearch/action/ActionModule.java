@@ -202,11 +202,12 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemp
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.bulk.TransportSimulateBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
-import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
@@ -225,15 +226,8 @@ import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
-import org.elasticsearch.action.search.ClearScrollAction;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
-import org.elasticsearch.action.search.MultiSearchAction;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.RestClosePointInTimeAction;
 import org.elasticsearch.action.search.RestOpenPointInTimeAction;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchScrollAction;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
@@ -282,6 +276,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
@@ -438,6 +433,7 @@ import org.elasticsearch.rest.action.info.RestClusterInfoAction;
 import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
 import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
+import org.elasticsearch.rest.action.ingest.RestSimulateIngestAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestCountAction;
@@ -757,15 +753,16 @@ public class ActionModule extends AbstractModule {
         actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class);
         actions.register(TransportShardMultiGetAction.TYPE, TransportShardMultiGetAction.class);
         actions.register(BulkAction.INSTANCE, TransportBulkAction.class);
+        actions.register(SimulateBulkAction.INSTANCE, TransportSimulateBulkAction.class);
         actions.register(TransportShardBulkAction.TYPE, TransportShardBulkAction.class);
-        actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
-        actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
-        actions.register(OpenPointInTimeAction.INSTANCE, TransportOpenPointInTimeAction.class);
-        actions.register(ClosePointInTimeAction.INSTANCE, TransportClosePointInTimeAction.class);
-        actions.register(SearchShardsAction.INSTANCE, TransportSearchShardsAction.class);
-        actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
-        actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);
-        actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
+        actions.register(TransportSearchAction.TYPE, TransportSearchAction.class);
+        actions.register(TransportSearchScrollAction.TYPE, TransportSearchScrollAction.class);
+        actions.register(TransportOpenPointInTimeAction.TYPE, TransportOpenPointInTimeAction.class);
+        actions.register(TransportClosePointInTimeAction.TYPE, TransportClosePointInTimeAction.class);
+        actions.register(TransportSearchShardsAction.TYPE, TransportSearchShardsAction.class);
+        actions.register(TransportMultiSearchAction.TYPE, TransportMultiSearchAction.class);
+        actions.register(TransportExplainAction.TYPE, TransportExplainAction.class);
+        actions.register(TransportClearScrollAction.TYPE, TransportClearScrollAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
         actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
@@ -857,7 +854,7 @@ public class ActionModule extends AbstractModule {
         return new ActionFilters(Set.copyOf(finalFilters));
     }
 
-    public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
+    public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster, Predicate<NodeFeature> clusterSupportsFeature) {
         List<AbstractCatAction> catActions = new ArrayList<>();
         Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
         Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
@@ -889,7 +886,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
-        registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter, nodesInCluster));
+        registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter, clusterSupportsFeature));
         registerHandler.accept(new RestClusterRerouteAction(settingsFilter));
         registerHandler.accept(new RestClusterSearchShardsAction());
         registerHandler.accept(new RestPendingClusterTasksAction());
@@ -943,6 +940,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetComposableIndexTemplateAction());
         registerHandler.accept(new RestDeleteComposableIndexTemplateAction());
         registerHandler.accept(new RestSimulateIndexTemplateAction());
+        registerHandler.accept(new RestSimulateIngestAction());
         registerHandler.accept(new RestSimulateTemplateAction());
 
         registerHandler.accept(new RestPutMappingAction());

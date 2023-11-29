@@ -16,14 +16,19 @@ import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.TestAPMMeterService;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class APMMeterRegistryTests extends ESTestCase {
-    Meter testOtel = OpenTelemetry.noop().getMeter("test");
+    Meter testOtel = new RecordingOtelMeter();
 
     Meter noopOtel = OpenTelemetry.noop().getMeter("noop");
+
+    private Settings TELEMETRY_ENABLED = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
 
     public void testMeterIsSetUponConstruction() {
         // test default
@@ -33,14 +38,13 @@ public class APMMeterRegistryTests extends ESTestCase {
         assertThat(meter, sameInstance(noopOtel));
 
         // test explicitly enabled
-        var settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
-        apmMeter = new APMMeterService(settings, () -> testOtel, () -> noopOtel);
+        apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel);
 
         meter = apmMeter.getMeterRegistry().getMeter();
         assertThat(meter, sameInstance(testOtel));
 
         // test explicitly disabled
-        settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
+        var settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false).build();
         apmMeter = new APMMeterService(settings, () -> testOtel, () -> noopOtel);
 
         meter = apmMeter.getMeterRegistry().getMeter();
@@ -60,9 +64,7 @@ public class APMMeterRegistryTests extends ESTestCase {
     }
 
     public void testLookupByName() {
-        var settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
-
-        var apmMeter = new APMMeterService(settings, () -> testOtel, () -> noopOtel).getMeterRegistry();
+        var apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel).getMeterRegistry();
 
         DoubleCounter registeredCounter = apmMeter.registerDoubleCounter("name", "desc", "unit");
         DoubleCounter lookedUpCounter = apmMeter.getDoubleCounter("name");
@@ -71,8 +73,7 @@ public class APMMeterRegistryTests extends ESTestCase {
     }
 
     public void testNoopIsSetOnStop() {
-        var settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
-        APMMeterService apmMeter = new APMMeterService(settings, () -> testOtel, () -> noopOtel);
+        APMMeterService apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel);
         apmMeter.start();
 
         Meter meter = apmMeter.getMeterRegistry().getMeter();
@@ -84,4 +85,16 @@ public class APMMeterRegistryTests extends ESTestCase {
         assertThat(meter, sameInstance(noopOtel));
     }
 
+    public void testMaxNameLength() {
+        APMMeterService apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel);
+        apmMeter.start();
+        int max_length = 255;
+        var counter = apmMeter.getMeterRegistry().registerLongCounter("a".repeat(max_length), "desc", "count");
+        assertThat(counter, instanceOf(LongCounter.class));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> apmMeter.getMeterRegistry().registerLongCounter("a".repeat(max_length + 1), "desc", "count")
+        );
+        assertThat(iae.getMessage(), containsString("exceeds maximum length [255]"));
+    }
 }

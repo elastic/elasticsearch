@@ -11,7 +11,6 @@ package org.elasticsearch.search.stats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -39,7 +38,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -83,7 +83,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test1").setSettings(indexSettings(shardsIdx1, 0)));
         int docsTest1 = scaledRandomIntBetween(3 * shardsIdx1, 5 * shardsIdx1);
         for (int i = 0; i < docsTest1; i++) {
-            client().prepareIndex("test1").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("test1").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -91,7 +91,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2").setSettings(indexSettings(shardsIdx2, 0)));
         int docsTest2 = scaledRandomIntBetween(3 * shardsIdx2, 5 * shardsIdx2);
         for (int i = 0; i < docsTest2; i++) {
-            client().prepareIndex("test2").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("test2").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -103,16 +103,22 @@ public class SearchStatsIT extends ESIntegTestCase {
         refresh();
         int iters = scaledRandomIntBetween(100, 150);
         for (int i = 0; i < iters; i++) {
-            SearchResponse searchResponse = internalCluster().coordOnlyNodeClient()
-                .prepareSearch()
-                .setQuery(QueryBuilders.termQuery("field", "value"))
-                .setStats("group1", "group2")
-                .highlighter(new HighlightBuilder().field("field"))
-                .addScriptField("script1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap()))
-                .setSize(100)
-                .get();
-            assertHitCount(searchResponse, docsTest1 + docsTest2);
-            assertAllSuccessful(searchResponse);
+            assertResponse(
+                internalCluster().coordOnlyNodeClient()
+                    .prepareSearch()
+                    .setQuery(QueryBuilders.termQuery("field", "value"))
+                    .setStats("group1", "group2")
+                    .highlighter(new HighlightBuilder().field("field"))
+                    .addScriptField(
+                        "script1",
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap())
+                    )
+                    .setSize(100),
+                response -> {
+                    assertHitCount(response, docsTest1 + docsTest2);
+                    assertAllSuccessful(response);
+                }
+            );
         }
 
         IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
@@ -175,11 +181,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         final int docs = scaledRandomIntBetween(20, 50);
         for (int s = 0; s < numAssignedShards(index); s++) {
             for (int i = 0; i < docs; i++) {
-                client().prepareIndex(index)
-                    .setId(Integer.toString(s * docs + i))
-                    .setSource("field", "value")
-                    .setRouting(Integer.toString(s))
-                    .get();
+                prepareIndex(index).setId(Integer.toString(s * docs + i)).setSource("field", "value").setRouting(Integer.toString(s)).get();
             }
         }
         indicesAdmin().prepareRefresh(index).get();
@@ -188,11 +190,15 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
 
         int size = scaledRandomIntBetween(1, docs);
-        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
-            .setSize(size)
-            .setScroll(TimeValue.timeValueMinutes(2))
-            .get();
-        assertNoFailures(searchResponse);
+        final String[] scroll = new String[1];
+        final int[] total = new int[1];
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery()).setSize(size).setScroll(TimeValue.timeValueMinutes(2)),
+            response -> {
+                scroll[0] = response.getScrollId();
+                total[0] = response.getHits().getHits().length;
+            }
+        );
 
         // refresh the stats now that scroll contexts are opened
         indicesStats = indicesAdmin().prepareStats(index).get();
@@ -202,11 +208,14 @@ public class SearchStatsIT extends ESIntegTestCase {
 
         int hits = 0;
         while (true) {
-            if (searchResponse.getHits().getHits().length == 0) {
+            if (total[0] == 0) {
                 break;
             }
-            hits += searchResponse.getHits().getHits().length;
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
+            hits += total[0];
+            assertResponse(client().prepareSearchScroll(scroll[0]).setScroll(TimeValue.timeValueMinutes(2)), response -> {
+                scroll[0] = response.getScrollId();
+                total[0] = response.getHits().getHits().length;
+            });
         }
         long expected = 0;
 
@@ -220,7 +229,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertEquals(hits, docs * numAssignedShards(index));
         assertThat(stats.getQueryCount(), greaterThanOrEqualTo(expected));
 
-        clearScroll(searchResponse.getScrollId());
+        clearScroll(scroll[0]);
 
         indicesStats = indicesAdmin().prepareStats().get();
         stats = indicesStats.getTotal().getSearch().getTotal();

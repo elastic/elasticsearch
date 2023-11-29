@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -52,7 +52,13 @@ public class DriverTaskRunner {
                     new DriverRequest(driver, executor),
                     parentTask,
                     TransportRequestOptions.EMPTY,
-                    TransportResponseHandler.empty(executor, driverListener)
+                    TransportResponseHandler.empty(
+                        executor,
+                        // The TransportResponseHandler can be notified while the Driver is still running during node shutdown
+                        // or the Driver hasn't started when the parent task is canceled. In such cases, we should abort
+                        // the Driver and wait for it to finish.
+                        ActionListener.wrap(driverListener::onResponse, e -> driver.abort(e, driverListener))
+                    )
                 );
             }
         };
@@ -111,7 +117,7 @@ public class DriverTaskRunner {
     private record DriverRequestHandler(TransportService transportService) implements TransportRequestHandler<DriverRequest> {
         @Override
         public void messageReceived(DriverRequest request, TransportChannel channel, Task task) {
-            var listener = new ChannelActionListener<TransportResponse.Empty>(channel);
+            var listener = new OwningChannelActionListener<TransportResponse.Empty>(channel);
             Driver.start(
                 transportService.getThreadPool().getThreadContext(),
                 request.executor,

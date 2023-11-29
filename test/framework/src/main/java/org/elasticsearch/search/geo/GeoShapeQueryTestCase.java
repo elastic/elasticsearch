@@ -10,7 +10,6 @@ package org.elasticsearch.search.geo;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeometryNormalizer;
@@ -37,6 +36,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoShapeQueryBuilder> {
@@ -141,11 +141,11 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
                 }
             }
         );
-
-        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(querySupplier.get()).get();
-        assertEquals(2, response.getHits().getTotalHits().value);
-        assertNotEquals("1", response.getHits().getAt(0).getId());
-        assertNotEquals("1", response.getHits().getAt(1).getId());
+        assertResponse(client().prepareSearch(defaultIndexName).setQuery(querySupplier.get()), response -> {
+            assertEquals(2, response.getHits().getTotalHits().value);
+            assertNotEquals("1", response.getHits().getAt(0).getId());
+            assertNotEquals("1", response.getHits().getAt(1).getId());
+        });
     }
 
     public void testIndexRectangleSpanningDateLine() throws Exception {
@@ -155,7 +155,7 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
         Rectangle envelope = new Rectangle(178, -178, 10, -10);
 
         XContentBuilder docSource = GeoJson.toXContent(envelope, jsonBuilder().startObject().field(defaultFieldName), null).endObject();
-        client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         Point filterShape = new Point(179, 0);
 

@@ -25,13 +25,6 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
     PutRepositoryRequestBuilder> {
 
     /**
-     * Constructs register repository request
-     */
-    public PutRepositoryRequestBuilder(ElasticsearchClient client, PutRepositoryAction action) {
-        super(client, action, new PutRepositoryRequest());
-    }
-
-    /**
      * Constructs register repository request for the repository with a given name
      */
     public PutRepositoryRequestBuilder(ElasticsearchClient client, PutRepositoryAction action, String name) {

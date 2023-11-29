@@ -45,26 +45,24 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref lengthRef = length.eval(page)) {
-        IntBlock lengthBlock = (IntBlock) lengthRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (IntBlock lengthBlock = (IntBlock) length.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, lengthBlock));
+          return eval(page.getPositionCount(), strBlock, lengthBlock);
         }
         IntVector lengthVector = lengthBlock.asVector();
         if (lengthVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, lengthBlock));
+          return eval(page.getPositionCount(), strBlock, lengthBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, lengthVector).asBlock());
+        return eval(page.getPositionCount(), strVector, lengthVector).asBlock();
       }
     }
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock lengthBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
@@ -82,7 +80,7 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector lengthVector) {
-    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(Left.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));

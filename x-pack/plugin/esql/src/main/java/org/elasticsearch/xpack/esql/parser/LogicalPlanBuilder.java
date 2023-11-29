@@ -134,12 +134,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                         referenceKeys.iterator().next()
                     );
                 }
-                List<Attribute> keys = parser.outputKeys()
-                    .stream()
-                    .map(x -> new ReferenceAttribute(src, x, DataTypes.KEYWORD))
-                    .map(Attribute.class::cast)
-                    .toList();
-
+                List<Attribute> keys = new ArrayList<>();
+                for (var x : parser.outputKeys()) {
+                    if (x.isEmpty() == false) {
+                        keys.add(new ReferenceAttribute(src, x, DataTypes.KEYWORD));
+                    }
+                }
                 return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
             } catch (DissectException e) {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);

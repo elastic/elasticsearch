@@ -43,7 +43,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -316,7 +315,7 @@ public class Node implements Closeable {
             injector.getInstance(IndexMetadataVerifier.class),
             injector.getInstance(MetadataUpgrader.class),
             injector.getInstance(PersistedClusterStateService.class),
-            pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class).toList(),
             injector.getInstance(CompatibilityVersions.class)
         );
         // TODO: Do not expect that the legacy metadata file is always present https://github.com/elastic/elasticsearch/issues/95211
@@ -508,8 +507,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
         toClose.add(injector.getInstance(RepositoriesService.class));
-        toClose.add(() -> stopWatch.stop().start("client"));
-        Releasables.close(injector.getInstance(Client.class));
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));
         toClose.add(injector.getInstance(IndicesClusterStateService.class));
         toClose.add(() -> stopWatch.stop().start("indices"));
@@ -543,7 +540,7 @@ public class Node implements Closeable {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
             toClose.add(plugin);
         }
-        toClose.addAll(pluginsService.filterPlugins(Plugin.class));
+        pluginsService.filterPlugins(Plugin.class).forEach(toClose::add);
 
         toClose.add(() -> stopWatch.stop().start("script"));
         toClose.add(injector.getInstance(ScriptService.class));

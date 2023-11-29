@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -198,7 +197,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             public void failureCountChanged() {}
 
             @Override
-            public void fail(String failureMessage, ActionListener<Void> listener) {
+            public void fail(Throwable exception, String failureMessage, ActionListener<Void> listener) {
                 state.set(TransformTaskState.FAILED);
             }
         };
@@ -209,7 +208,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 ? new VersionConflictEngineException(new ShardId("index", "indexUUID", 42), "some_id", 45L, 44L, 43L, 42L)
                 : new ElasticsearchTimeoutException("timeout");
             TransformConfigManager configManager = new FailingToPutStoredDocTransformConfigManager(Set.of(0, 1, 2, 3), exceptionToThrow);
-            try (Client client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
 
                 MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                     mock(ThreadPool.class),
@@ -281,7 +281,6 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     }
                 );
             }
-
         }
 
         // test reset on success
@@ -292,7 +291,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 ? new VersionConflictEngineException(new ShardId("index", "indexUUID", 42), "some_id", 45L, 44L, 43L, 42L)
                 : new ElasticsearchTimeoutException("timeout");
             TransformConfigManager configManager = new FailingToPutStoredDocTransformConfigManager(Set.of(0, 2, 3, 4), exceptionToThrow);
-            try (Client client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                     mock(ThreadPool.class),
                     new TransformServices(
@@ -414,7 +414,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             public void failureCountChanged() {}
 
             @Override
-            public void fail(String failureMessage, ActionListener<Void> listener) {
+            public void fail(Throwable exception, String failureMessage, ActionListener<Void> listener) {
                 state.set(TransformTaskState.FAILED);
             }
         };
@@ -422,7 +422,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
         TransformContext context = new TransformContext(state.get(), null, 0, contextListener);
         TransformConfigManager configManager = new SeqNoCheckingTransformConfigManager();
 
-        try (Client client = new NoOpClient(getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
                 new TransformServices(

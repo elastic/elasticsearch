@@ -35,26 +35,24 @@ public final class LessThanOrEqualLongsEvaluator implements EvalOperator.Express
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      LongBlock lhsBlock = (LongBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        LongBlock rhsBlock = (LongBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (LongBlock lhsBlock = (LongBlock) lhs.eval(page)) {
+      try (LongBlock rhsBlock = (LongBlock) rhs.eval(page)) {
         LongVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         LongVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector).asBlock());
+        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
       }
     }
   }
 
   public BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -71,7 +69,7 @@ public final class LessThanOrEqualLongsEvaluator implements EvalOperator.Express
   }
 
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(LessThanOrEqual.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
       }

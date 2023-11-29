@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -1266,7 +1265,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(1));
@@ -1280,7 +1279,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                     .get()
                     .getTasks()
                     .stream()
-                    .filter(t -> t.action().contains(SearchAction.NAME))
+                    .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                     .collect(Collectors.toList());
                 assertThat(remoteSearchTasks.size(), greaterThan(0));
                 remoteClusterSearchTasks.set(remoteSearchTasks);
@@ -1298,7 +1297,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 for (TransportService transportService : transportServices) {
                     Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                     for (CancellableTask cancellableTask : cancellableTasks) {
-                        if (cancellableTask.getAction().contains(SearchAction.INSTANCE.name())) {
+                        if (cancellableTask.getAction().contains(TransportSearchAction.TYPE.name())) {
                             assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
                         }
                     }
@@ -1311,7 +1310,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .get()
                 .getTasks()
                 .stream()
-                .filter(t -> t.action().contains(SearchAction.INSTANCE.name()))
+                .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                 .toList();
             for (TaskInfo taskInfo : remoteSearchTasksAfterCancellation) {
                 assertTrue(taskInfo.description(), taskInfo.cancelled());
@@ -1385,7 +1384,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(1));
@@ -1398,7 +1397,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                     .get()
                     .getTasks()
                     .stream()
-                    .filter(t -> t.action().contains(SearchAction.NAME))
+                    .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                     .collect(Collectors.toList());
                 assertThat(remoteSearchTasks.size(), greaterThan(0));
                 remoteClusterSearchTasks.set(remoteSearchTasks);
@@ -1416,7 +1415,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 for (TransportService transportService : transportServices) {
                     Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                     for (CancellableTask cancellableTask : cancellableTasks) {
-                        if (cancellableTask.getAction().contains(SearchAction.INSTANCE.name())) {
+                        if (cancellableTask.getAction().contains(TransportSearchAction.TYPE.name())) {
                             assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
                         }
                     }
@@ -1429,7 +1428,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .get()
                 .getTasks()
                 .stream()
-                .filter(t -> t.action().contains(SearchAction.INSTANCE.name()))
+                .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                 .toList();
             for (TaskInfo taskInfo : remoteSearchTasksAfterCancellation) {
                 assertTrue(taskInfo.description(), taskInfo.cancelled());
@@ -1489,7 +1488,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(1));
@@ -1502,7 +1501,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                     .get()
                     .getTasks()
                     .stream()
-                    .filter(t -> t.action().contains(SearchAction.NAME))
+                    .filter(t -> t.action().contains(TransportSearchAction.TYPE.name()))
                     .collect(Collectors.toList());
                 assertThat(remoteSearchTasks.size(), greaterThan(0));
                 remoteClusterSearchTasks.set(remoteSearchTasks);
@@ -1524,7 +1523,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(0));
@@ -1532,7 +1531,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse remoteTasksResponse = client(REMOTE_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> remoteTasks = remoteTasksResponse.getTasks();
             assertThat(remoteTasks.size(), equalTo(0));
@@ -1554,7 +1553,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks();
             assertThat(tasks.size(), equalTo(0));
@@ -1562,7 +1561,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             ListTasksResponse remoteTasksResponse = client(REMOTE_CLUSTER).admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(SearchAction.INSTANCE.name())
+                .setActions(TransportSearchAction.TYPE.name())
                 .get();
             List<TaskInfo> remoteTasks = remoteTasksResponse.getTasks();
             assertThat(remoteTasks.size(), equalTo(0));

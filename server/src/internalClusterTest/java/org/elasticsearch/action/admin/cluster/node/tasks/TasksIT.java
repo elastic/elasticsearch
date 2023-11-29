@@ -26,8 +26,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
@@ -349,8 +349,8 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testSearchTaskDescriptions() {
-        registerTaskManagerListeners(SearchAction.NAME);  // main task
-        registerTaskManagerListeners(SearchAction.NAME + "[*]");  // shard task
+        registerTaskManagerListeners(TransportSearchAction.TYPE.name());  // main task
+        registerTaskManagerListeners(TransportSearchAction.TYPE.name() + "[*]");  // shard task
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         prepareIndex("test").setId("test_id")
@@ -365,14 +365,14 @@ public class TasksIT extends ESIntegTestCase {
         assertNoFailures(client().filterWithHeader(headers).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()));
 
         // the search operation should produce one main task
-        List<TaskInfo> mainTask = findEvents(SearchAction.NAME, Tuple::v1);
+        List<TaskInfo> mainTask = findEvents(TransportSearchAction.TYPE.name(), Tuple::v1);
         assertEquals(1, mainTask.size());
         assertThat(mainTask.get(0).description(), startsWith("indices[test], search_type["));
         assertThat(mainTask.get(0).description(), containsString("\"query\":{\"match_all\""));
         assertTaskHeaders(mainTask.get(0));
 
         // check that if we have any shard-level requests they all have non-zero length description
-        List<TaskInfo> shardTasks = findEvents(SearchAction.NAME + "[*]", Tuple::v1);
+        List<TaskInfo> shardTasks = findEvents(TransportSearchAction.TYPE.name() + "[*]", Tuple::v1);
         for (TaskInfo taskInfo : shardTasks) {
             assertThat(taskInfo.parentTaskId(), notNullValue());
             assertEquals(mainTask.get(0).taskId(), taskInfo.parentTaskId());

@@ -10,9 +10,9 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -104,7 +104,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 );
                 final SearchShardsResponse searchShardsResponse = PlainActionFuture.get(
                     future -> client.execute(
-                        SearchShardsAction.INSTANCE,
+                        TransportSearchShardsAction.TYPE,
                         searchShardsRequest,
                         ActionListener.runBefore(
                             future,
@@ -169,7 +169,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                             null
                         );
                         client.execute(
-                            SearchShardsAction.INSTANCE,
+                            TransportSearchShardsAction.TYPE,
                             searchShardsRequest,
                             ActionListener.runBefore(
                                 future,

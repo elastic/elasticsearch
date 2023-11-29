@@ -28,10 +28,10 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -271,7 +271,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(clock.instant()).thenReturn(Instant.ofEpochMilli(now));
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         when(client.threadPool()).thenReturn(threadPool);
-        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE));
+        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, TransportSearchAction.TYPE));
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(searchRequestBuilder);
         final ApiKeyService service = createApiKeyService(settings);
         final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
@@ -332,7 +332,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testInvalidateApiKeys() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         when(client.threadPool()).thenReturn(threadPool);
-        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE));
+        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, TransportSearchAction.TYPE));
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(searchRequestBuilder);
         final ApiKeyService service = createApiKeyService(settings);
         final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
@@ -406,7 +406,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         // Mock the search request for keys to invalidate
         when(client.threadPool()).thenReturn(threadPool);
-        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE));
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client, TransportSearchAction.TYPE));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
             final var searchHit = new SearchHit(docId, apiKeyId);
@@ -739,7 +739,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Instant now = Instant.now();
         when(clock.instant()).thenReturn(now);
         when(client.threadPool()).thenReturn(threadPool);
-        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE));
+        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, TransportSearchAction.TYPE));
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(searchRequestBuilder);
 
         final List<SearchHit> searchHits = new ArrayList<>();
@@ -2426,7 +2426,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL))
         );
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -2563,7 +2563,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL))
         );
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -2628,7 +2628,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL))
         );
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -2805,7 +2805,10 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build();
         final ClusterSettings clusterSettings = new ClusterSettings(
             settings,
-            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL)
+            )
         );
         final ApiKeyService service = new ApiKeyService(
             settings,

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -195,7 +195,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(mockThreadPool);
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(
-            Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE))
+            Mockito.spy(new SearchRequestBuilder(client, TransportSearchAction.TYPE))
         );
         final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
             "mapping",
@@ -239,7 +239,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(mockThreadPool);
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(
-            Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE))
+            Mockito.spy(new SearchRequestBuilder(client, TransportSearchAction.TYPE))
         );
         final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
             "mapping",
@@ -303,7 +303,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(mockThreadPool);
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(
-            Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE))
+            Mockito.spy(new SearchRequestBuilder(client, TransportSearchAction.TYPE))
         );
         final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
             "mapping",

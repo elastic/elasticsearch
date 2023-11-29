@@ -39,11 +39,14 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.common.xcontent.XContentHelper.mergeDefaults;
 import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
@@ -103,9 +106,6 @@ public class LearnToRankService {
             null,
             ActionListener.wrap(trainedModelConfig -> {
                 if (trainedModelConfig.getInferenceConfig() instanceof LearnToRankConfig retrievedInferenceConfig) {
-                    for (LearnToRankFeatureExtractorBuilder builder : retrievedInferenceConfig.getFeatureExtractorBuilders()) {
-                        builder.validate();
-                    }
                     listener.onResponse(applyParams(retrievedInferenceConfig, params));
                     return;
                 }
@@ -131,15 +131,18 @@ public class LearnToRankService {
      *
      * @throws IOException
      */
-    private LearnToRankConfig applyParams(LearnToRankConfig config, Map<String, Object> params) throws IOException {
+    private LearnToRankConfig applyParams(LearnToRankConfig config, Map<String, Object> params) throws Exception {
         if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) == false) {
             return config;
         }
 
         List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders = new ArrayList<>();
 
+        Map<String, Object> mergedParams = new HashMap<>(Objects.requireNonNullElse(params, Map.of()));
+        mergeDefaults(mergedParams, config.getParamsDefaults());
+
         for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : config.getFeatureExtractorBuilders()) {
-            featureExtractorBuilders.add(applyParams(featureExtractorBuilder, params));
+            featureExtractorBuilders.add(applyParams(featureExtractorBuilder, mergedParams));
         }
 
         return LearnToRankConfig.builder(config).setLearnToRankFeatureExtractorBuilders(featureExtractorBuilders).build();
@@ -157,10 +160,12 @@ public class LearnToRankService {
     private LearnToRankFeatureExtractorBuilder applyParams(
         LearnToRankFeatureExtractorBuilder featureExtractorBuilder,
         Map<String, Object> params
-    ) throws IOException {
+    ) throws Exception {
         if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
-            return applyParams(queryExtractorBuilder, params);
+            featureExtractorBuilder = applyParams(queryExtractorBuilder, params);
         }
+
+        featureExtractorBuilder.validate();
 
         return featureExtractorBuilder;
     }

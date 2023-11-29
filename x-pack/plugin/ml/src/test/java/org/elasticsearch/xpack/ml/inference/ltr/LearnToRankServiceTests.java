@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.ltr;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.ltr.MlLTRNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.QueryProviderTests;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -37,8 +35,11 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -51,8 +52,6 @@ import static org.mockito.Mockito.verify;
 public class LearnToRankServiceTests extends ESTestCase {
     public static final String GOOD_MODEL = "modelId";
     public static final String BAD_MODEL = "badModel";
-    public static final String TEMPLATED_GOOD_MODEL = "templatedModelId";
-    private static final Map<String, Float> DEFAULT_SCORES = Map.ofEntries(Map.entry("feature_1", 0f), Map.entry("feature_2", 1.5f));
     public static final TrainedModelConfig GOOD_MODEL_CONFIG = TrainedModelConfig.builder()
         .setModelId(GOOD_MODEL)
         .setInput(new TrainedModelInput(List.of("field1", "field2")))
@@ -63,16 +62,8 @@ public class LearnToRankServiceTests extends ESTestCase {
             new LearnToRankConfig(
                 2,
                 List.of(
-                    new QueryExtractorBuilder(
-                        "feature_1",
-                        QueryProviderTests.createRandomValidQueryProvider("field_1", "foo"),
-                        DEFAULT_SCORES.get("feature_1")
-                    ),
-                    new QueryExtractorBuilder(
-                        "feature_2",
-                        QueryProviderTests.createRandomValidQueryProvider("field_2", "bar"),
-                        DEFAULT_SCORES.get("feature_2")
-                    )
+                    new QueryExtractorBuilder("feature_1", QueryProviderTests.createTestQueryProvider("field_1", "foo")),
+                    new QueryExtractorBuilder("feature_2", QueryProviderTests.createTestQueryProvider("field_2", "bar"))
                 ),
                 Map.of()
             )
@@ -87,37 +78,9 @@ public class LearnToRankServiceTests extends ESTestCase {
         .setInferenceConfig(new RegressionConfig(null, null))
         .build();
 
-    public static final TrainedModelConfig TEMPLATED_GOOD_MODEL_CONFIG = new TrainedModelConfig.Builder(GOOD_MODEL_CONFIG).setModelId(
-        TEMPLATED_GOOD_MODEL
-    )
-        .setInferenceConfig(
-            new LearnToRankConfig(
-                2,
-                List.of(
-                    new QueryExtractorBuilder(
-                        "feature_1",
-                        QueryProviderTests.createRandomValidQueryProvider("field_1", "{{foo_param}}"),
-                        DEFAULT_SCORES.get("feature_1")
-                    ),
-                    new QueryExtractorBuilder(
-                        "feature_2",
-                        QueryProviderTests.createRandomValidQueryProvider("field_2", "{{bar_param}}"),
-                        DEFAULT_SCORES.get("feature_2")
-                    )
-                ),
-                Map.of()
-            )
-        )
-        .build();
-
     @SuppressWarnings("unchecked")
     public void testLoadLearnToRankConfig() throws Exception {
-        LearnToRankService learnToRankService = new LearnToRankService(
-            mockModelLoadingService(),
-            mockTrainedModelProvider(),
-            mockScriptService(),
-            xContentRegistry()
-        );
+        LearnToRankService learnToRankService = getTestLearnToRankService();
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig(GOOD_MODEL, Map.of(), listener);
 
@@ -126,12 +89,7 @@ public class LearnToRankServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLoadMissingLearnToRankConfig() throws Exception {
-        LearnToRankService learnToRankService = new LearnToRankService(
-            mockModelLoadingService(),
-            mockTrainedModelProvider(),
-            mockScriptService(),
-            xContentRegistry()
-        );
+        LearnToRankService learnToRankService = getTestLearnToRankService();
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig("non-existing-model", Map.of(), listener);
 
@@ -140,12 +98,7 @@ public class LearnToRankServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLoadBadLearnToRankConfig() throws Exception {
-        LearnToRankService learnToRankService = new LearnToRankService(
-            mockModelLoadingService(),
-            mockTrainedModelProvider(),
-            mockScriptService(),
-            xContentRegistry()
-        );
+        LearnToRankService learnToRankService = getTestLearnToRankService();
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig(BAD_MODEL, Map.of(), listener);
 
@@ -154,59 +107,73 @@ public class LearnToRankServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLoadLearnToRankConfigWithTemplate() throws Exception {
-        LearnToRankService learnToRankService = new LearnToRankService(
-            mockModelLoadingService(),
-            mockTrainedModelProvider(),
-            mockScriptService(),
-            xContentRegistry()
+        LearnToRankConfig learnToRankConfig = new LearnToRankConfig(
+            0,
+            List.of(new QueryExtractorBuilder("feature_1", QueryProviderTests.createTestQueryProvider("field_1", "{{foo_param}}"))),
+            Map.of()
         );
 
-        // When no parameters are provided we expect query to be rewritten into a match_none query.
-        {
-            ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
-            SetOnce<LearnToRankConfig> retrievedConfig = new SetOnce<>();
+        LearnToRankService learnToRankService = getTestLearnToRankService(learnToRankConfig);
+        ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
 
-            doAnswer(i -> {
-                retrievedConfig.set(i.getArgument(0, LearnToRankConfig.class));
-                return null;
-            }).when(listener).onResponse(any());
-            learnToRankService.loadLearnToRankConfig(TEMPLATED_GOOD_MODEL, null, listener);
+        learnToRankService.loadLearnToRankConfig("model-id", Map.ofEntries(Map.entry("foo_param", "foo")), listener);
+        verify(listener).onResponse(argThat(retrievedConfig -> {
+            assertThat(retrievedConfig.getFeatureExtractorBuilders(), hasSize(1));
+            QueryExtractorBuilder queryExtractorBuilder = retrievedConfig.getQueryFeatureExtractorBuilders().get(0);
+            assertEquals(queryExtractorBuilder.featureName(), "feature_1");
+            assertEquals(queryExtractorBuilder.query(), QueryProviderTests.createTestQueryProvider("field_1", "foo"));
+            return true;
+        }));
+    }
 
-            assertNotNull(retrievedConfig.get());
-            assertThat(retrievedConfig.get().getFeatureExtractorBuilders(), hasSize(2));
+    @SuppressWarnings("unchecked")
+    public void testLoadLearnToRankConfigWithMissingTemplateParams() throws Exception {
+        LearnToRankConfig learnToRankConfig = new LearnToRankConfig(
+            0,
+            List.of(
+                new QueryExtractorBuilder("feature_1", QueryProviderTests.createTestQueryProvider("field_1", "foo")),
+                new QueryExtractorBuilder("feature_2", QueryProviderTests.createTestQueryProvider("field_1", "{{foo_param}}")),
+                new QueryExtractorBuilder("feature_3", QueryProviderTests.createTestQueryProvider("field_1", "{{bar_param}}"), 1.5f),
+                new QueryExtractorBuilder("feature_4", QueryProviderTests.createTestQueryProvider("field_1", "{{baz_param}}"))
+            ),
+            Map.of("baz_param", "default_value")
+        );
 
+        LearnToRankService learnToRankService = getTestLearnToRankService(learnToRankConfig);
+        ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
+
+        learnToRankService.loadLearnToRankConfig("model-id", randomBoolean() ? null : Map.of(), listener);
+        verify(listener).onResponse(argThat(retrievedConfig -> {
+            // Check all features are present.
+            assertThat(retrievedConfig.getFeatureExtractorBuilders(), hasSize(4));
+
+            Map<String, QueryExtractorBuilder> queryExtractorBuilders = retrievedConfig.getQueryFeatureExtractorBuilders()
+                .stream()
+                .collect(Collectors.toMap(QueryExtractorBuilder::featureName, Function.identity()));
+
+            // feature_1 will be extracted using the provided query since no params are missing for it
+            assertThat(queryExtractorBuilders, hasKey("feature_1"));
+            assertEquals(queryExtractorBuilders.get("feature_1").query(), QueryProviderTests.createTestQueryProvider("field_1", "foo"));
+
+            // feature_2 will be extracted using a match_none query because {{foo_params}} is missing
+            assertThat(queryExtractorBuilders, hasKey("feature_2"));
+            assertEquals(queryExtractorBuilders.get("feature_2").query().getParsedQuery(), new MatchNoneQueryBuilder());
+
+            // feature_3 will be extracted using a match_all query with a boost because:
+            // - {{bar_param}} is missing
+            // - a default_score is provided for the query extractor
+            assertThat(queryExtractorBuilders, hasKey("feature_3"));
+            assertEquals(queryExtractorBuilders.get("feature_3").query().getParsedQuery(), new MatchAllQueryBuilder().boost(1.5f));
+
+            // feature_4 will be extracted using the default value for the {{baz_param}}
+            assertThat(queryExtractorBuilders, hasKey("feature_4"));
             assertEquals(
-                retrievedConfig.get(),
-                LearnToRankConfig.builder((LearnToRankConfig) TEMPLATED_GOOD_MODEL_CONFIG.getInferenceConfig())
-                    .setLearnToRankFeatureExtractorBuilders(
-                        List.of(
-                            new QueryExtractorBuilder("feature_1", QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder()), 0),
-                            new QueryExtractorBuilder(
-                                "feature_2",
-                                QueryProvider.fromParsedQuery(new MatchAllQueryBuilder().boost(DEFAULT_SCORES.get("feature_2"))),
-                                DEFAULT_SCORES.get("feature_2")
-                            )
-                        )
-                    )
-                    .build()
-            );
-        }
-
-        // Now testing when providing all the params of the template.
-        {
-            ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
-            learnToRankService.loadLearnToRankConfig(
-                TEMPLATED_GOOD_MODEL,
-                Map.ofEntries(Map.entry("foo_param", "foo"), Map.entry("bar_param", "bar")),
-                listener
+                queryExtractorBuilders.get("feature_4").query(),
+                QueryProviderTests.createTestQueryProvider("field_1", "default_value")
             );
 
-            verify(listener).onResponse(argThat(retrievedConfig -> {
-                assertThat(retrievedConfig.getFeatureExtractorBuilders(), hasSize(2));
-                assertEquals(retrievedConfig, GOOD_MODEL_CONFIG.getInferenceConfig());
-                return true;
-            }));
-        }
+            return true;
+        }));
     }
 
     @Override
@@ -231,7 +198,6 @@ public class LearnToRankServiceTests extends ESTestCase {
             ActionListener<TrainedModelConfig> l = invocation.getArgument(3, ActionListener.class);
             switch (modelId) {
                 case GOOD_MODEL -> l.onResponse(GOOD_MODEL_CONFIG);
-                case TEMPLATED_GOOD_MODEL -> l.onResponse(TEMPLATED_GOOD_MODEL_CONFIG);
                 case BAD_MODEL -> l.onResponse(BAD_MODEL_CONFIG);
                 default -> l.onFailure(new ResourceNotFoundException("missing model"));
             }
@@ -242,7 +208,40 @@ public class LearnToRankServiceTests extends ESTestCase {
         return trainedModelProvider;
     }
 
-    private ScriptService mockScriptService() {
+    private LearnToRankService getTestLearnToRankService() {
+        return getTestLearnToRankService(mockTrainedModelProvider());
+    }
+
+    @SuppressWarnings("unchecked")
+    private LearnToRankService getTestLearnToRankService(LearnToRankConfig learnToRankConfig) {
+        TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
+
+        doAnswer(invocation -> {
+            String modelId = invocation.getArgument(0);
+            ActionListener<TrainedModelConfig> l = invocation.getArgument(3, ActionListener.class);
+
+            l.onResponse(
+                TrainedModelConfig.builder()
+                    .setModelId(modelId)
+                    .setInput(new TrainedModelInput(List.of("field1", "field2")))
+                    .setEstimatedOperations(1)
+                    .setModelSize(2)
+                    .setModelType(TrainedModelType.TREE_ENSEMBLE)
+                    .setInferenceConfig(learnToRankConfig)
+                    .build()
+            );
+            return null;
+
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
+
+        return getTestLearnToRankService(trainedModelProvider);
+    }
+
+    private LearnToRankService getTestLearnToRankService(TrainedModelProvider trainedModelProvider) {
+        return new LearnToRankService(mockModelLoadingService(), trainedModelProvider, getTestScriptService(), xContentRegistry());
+    }
+
+    private ScriptService getTestScriptService() {
         ScriptEngine scriptEngine = new MustacheScriptEngine();
         return new ScriptService(Settings.EMPTY, Map.of(DEFAULT_TEMPLATE_LANG, scriptEngine), ScriptModule.CORE_CONTEXTS, () -> 1L);
     }

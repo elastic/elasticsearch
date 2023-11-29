@@ -61,6 +61,10 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query, flo
         return lenient ? LENIENT_PARSER.apply(parser, null) : PARSER.apply(parser, null);
     }
 
+    public QueryExtractorBuilder(String featureName, QueryProvider query) {
+        this(featureName, query, 0);
+    }
+
     public QueryExtractorBuilder(String featureName, QueryProvider query, float defaultScore) {
         this.featureName = requireNonNull(featureName, FEATURE_NAME);
         this.query = requireNonNull(query, QUERY);

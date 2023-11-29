@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
@@ -102,6 +103,17 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
 
     public List<LearnToRankFeatureExtractorBuilder> getFeatureExtractorBuilders() {
         return featureExtractorBuilders;
+    }
+
+    public List<QueryExtractorBuilder> getQueryFeatureExtractorBuilders() {
+        List<QueryExtractorBuilder> queryExtractorBuilders = new ArrayList<>();
+        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : featureExtractorBuilders) {
+            if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
+                queryExtractorBuilders.add(queryExtractorBuilder);
+            }
+        }
+
+        return queryExtractorBuilders;
     }
 
     @Override

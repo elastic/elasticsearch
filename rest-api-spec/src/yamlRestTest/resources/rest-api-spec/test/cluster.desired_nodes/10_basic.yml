@@ -1035,7 +1035,7 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
-"Test processors range min rejects 0.0":
+"Test processors range min rejects negative number":
   - do:
       cluster.state: {}
 
@@ -1053,7 +1053,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 0.0, max: 1.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: -1.0, max: 1.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---

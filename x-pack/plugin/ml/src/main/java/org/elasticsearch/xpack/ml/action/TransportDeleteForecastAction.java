@@ -249,12 +249,15 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                 );
             }
         } else {
-            if (e instanceof ElasticsearchStatusException){
-                listener.onFailure(new ElasticsearchStatusException("An error occurred while searching forecasts to delete",
-                    ((ElasticsearchStatusException) e).status(),
-                    e)
+            if (e instanceof ElasticsearchStatusException) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "An error occurred while searching forecasts to delete",
+                        ((ElasticsearchStatusException) e).status(),
+                        e
+                    )
                 );
-            }else{
+            } else {
                 listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e));
             }
         }

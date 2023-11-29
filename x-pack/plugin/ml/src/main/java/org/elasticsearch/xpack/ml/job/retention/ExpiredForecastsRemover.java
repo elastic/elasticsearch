@@ -78,9 +78,13 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
             searchResponse -> deleteForecasts(searchResponse, requestsPerSec, listener, isTimedOutSupplier),
             e -> {
-                listener.onFailure(new ElasticsearchStatusException("An error occurred while searching forecasts to delete",
-                    RestStatus.TOO_MANY_REQUESTS,
-                    e));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "An error occurred while searching forecasts to delete",
+                        RestStatus.TOO_MANY_REQUESTS,
+                        e
+                    )
+                );
             }
         );
 
@@ -149,11 +153,14 @@ public class ExpiredForecastsRemover implements MlDataRemover {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof ElasticsearchStatusException){
-                    listener.onFailure(new ElasticsearchStatusException(
-                        "Failed to remove expired forecasts",
-                        ((ElasticsearchStatusException) e).status(),
-                        e));
+                if (e instanceof ElasticsearchStatusException) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Failed to remove expired forecasts",
+                            ((ElasticsearchStatusException) e).status(),
+                            e
+                        )
+                    );
                 } else {
                     listener.onFailure(new ElasticsearchException("Failed to remove expired forecasts", e));
                 }

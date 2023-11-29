@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -232,10 +231,14 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchStatusException("[{}] Search for expired snapshots failed",
-                    RestStatus.TOO_MANY_REQUESTS,
-                    e,
-                    job.getId()));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "[{}] Search for expired snapshots failed",
+                        RestStatus.TOO_MANY_REQUESTS,
+                        e,
+                        job.getId()
+                    )
+                );
             }
         };
     }

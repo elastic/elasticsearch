@@ -17,10 +17,7 @@ import java.util.List;
 
 public class ExceptionCollectionHandling {
 
-    public static ElasticsearchStatusException exceptionArrayToStatusException(
-        AtomicArray<Exception> failures,
-        String message
-    ) {
+    public static ElasticsearchStatusException exceptionArrayToStatusException(AtomicArray<Exception> failures, String message) {
 
         List<Exception> caughtExceptions = failures.asList();
         if (caughtExceptions.isEmpty()) {
@@ -44,13 +41,12 @@ public class ExceptionCollectionHandling {
                     allSameCode = false;
                 }
 
-                if (elasticsearchStatusException.status().getStatus() < 400 ||
-                    elasticsearchStatusException.status().getStatus() >= 500) {
+                if (elasticsearchStatusException.status().getStatus() < 400 || elasticsearchStatusException.status().getStatus() >= 500) {
                     allElasticsearchStatusException4xx = false;
                 }
             }
 
-            assert allElasticsearchStatusException; //TODO Remove this
+            assert allElasticsearchStatusException; // TODO Remove this
 
             if (allElasticsearchStatusException && allElasticsearchStatusException4xx) {
                 if (allSameCode) {
@@ -60,18 +56,11 @@ public class ExceptionCollectionHandling {
                         caughtExceptions.get(0)
                     );
                 } else {
-                    return new ElasticsearchStatusException(
-                        message,
-                        RestStatus.REQUEST_TIMEOUT
-                    );
+                    return new ElasticsearchStatusException(message, RestStatus.REQUEST_TIMEOUT);
                 }
             } else {
-                return new ElasticsearchStatusException(
-                    message,
-                    RestStatus.INTERNAL_SERVER_ERROR
-                );
+                return new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
             }
-
 
         }
 

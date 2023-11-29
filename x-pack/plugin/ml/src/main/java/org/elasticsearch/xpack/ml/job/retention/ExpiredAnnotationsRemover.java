@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -102,9 +101,13 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchStatusException("Failed to remove expired annotations for job [" + job.getId() + "]",
-                    RestStatus.TOO_MANY_REQUESTS,
-                    e));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Failed to remove expired annotations for job [" + job.getId() + "]",
+                        RestStatus.TOO_MANY_REQUESTS,
+                        e
+                    )
+                );
             }
         });
     }

@@ -116,10 +116,14 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof ElasticsearchStatusException){
-                    listener.onFailure(new ElasticsearchStatusException("Failed to remove expired results for job [" + job.getId() + "]",
-                        ((ElasticsearchStatusException) e).status(),
-                        e));
+                if (e instanceof ElasticsearchStatusException) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Failed to remove expired results for job [" + job.getId() + "]",
+                            ((ElasticsearchStatusException) e).status(),
+                            e
+                        )
+                    );
                 } else {
                     listener.onFailure(new ElasticsearchException("Failed to remove expired results for job [" + job.getId() + "]", e));
                 }

@@ -635,7 +635,12 @@ public class JobResultsProvider {
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                     if (CollectionUtils.isEmpty(shardFailures) == false) {
                         LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
-                        listener.onFailure(new ElasticsearchStatusException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures), RestStatus.TOO_MANY_REQUESTS));
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),
+                                RestStatus.TOO_MANY_REQUESTS
+                            )
+                        );
                         return;
                     }
                     if (unavailableShards > 0) {
@@ -740,8 +745,12 @@ public class JobResultsProvider {
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                     if (CollectionUtils.isEmpty(shardFailures) == false) {
                         LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
-                        errorHandler.accept(new ElasticsearchStatusException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),
-                            RestStatus.TOO_MANY_REQUESTS));
+                        errorHandler.accept(
+                            new ElasticsearchStatusException(
+                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),
+                                RestStatus.TOO_MANY_REQUESTS
+                            )
+                        );
                         return;
                     }
                     if (unavailableShards > 0) {

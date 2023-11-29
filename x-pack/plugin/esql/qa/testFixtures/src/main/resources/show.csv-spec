@@ -49,9 +49,9 @@ mv_avg                   |? mv_avg(arg1:?)                                      
 mv_concat                |"keyword mv_concat(v:text|keyword, delim:text|keyword)" |[v, delim]               |["text|keyword", "text|keyword"] |["values to join", "delimiter"]      |keyword              | "Reduce a multivalued string field to a single valued field by concatenating all values." | [false, false]       | false
 mv_count                 |"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)" |v      | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point" | "" | integer | "Reduce a multivalued field to a single valued field containing the count of values."       | false                | false
 mv_dedupe                |"? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)" |v | "boolean|date|double|ip|text|integer|keyword|version|long" | "" |?   | "Remove duplicate values from a multivalued field."                      | false                | false
-mv_max                   |"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point" | "" |?      | "Reduce a multivalued field to a single valued field containing the maximum value." | false                | false
+mv_max                   |"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" |?      | "Reduce a multivalued field to a single valued field containing the maximum value." | false                | false
 mv_median                |? mv_median(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-mv_min                   |"? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point" | "" |?      | "Reduce a multivalued field to a single valued field containing the minimum value." | false                | false
+mv_min                   |"? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" |?      | "Reduce a multivalued field to a single valued field containing the minimum value." | false                | false
 mv_sum                   |? mv_sum(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 now                      |? now()                                                 | null                    |null              | null                                               |?                    | ""                      | null                 | false
 percentile               |? percentile(arg1:?, arg2:?)                            |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
@@ -140,9 +140,9 @@ synopsis:keyword
 "keyword mv_concat(v:text|keyword, delim:text|keyword)"
 "integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"
 "? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)"
-"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"
+"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
 ? mv_median(arg1:?)                                     
-"? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"
+"? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
 ? mv_sum(arg1:?)                                        
 ? now()                                                 
 ? percentile(arg1:?, arg2:?)                            

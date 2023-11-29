@@ -86,6 +86,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Cartesian;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
 import static org.hamcrest.Matchers.either;
@@ -799,7 +800,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword")
+        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword"),
+        Map.entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
+        Map.entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial")
     );
 
     private static String expectedType(Set<DataType> validTypes) {
@@ -817,8 +820,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return named;
     }
 
-    private static Stream<DataType> representable() {
+    protected static Stream<DataType> representable() {
         return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
+    }
+
+    protected static DataType[] representableTypes() {
+        return representable().toArray(DataType[]::new);
+    }
+
+    protected static Stream<DataType> representableNonSpatial() {
+        return representable().filter(t -> isSpatial(t) == false);
+    }
+
+    protected static DataType[] representableNonSpatialTypes() {
+        return representableNonSpatial().toArray(DataType[]::new);
     }
 
     @AfterClass

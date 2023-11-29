@@ -79,17 +79,24 @@ public class ConnectorIndexService {
      * @param listener    The action listener to invoke on response/failure.
      */
     public void getConnector(String connectorId, ActionListener<Connector> listener) {
+        try {
+            final GetRequest getRequest = new GetRequest(CONNECTOR_INDEX_NAME).id(connectorId).realtime(true);
 
-        final GetRequest getRequest = new GetRequest(CONNECTOR_INDEX_NAME).id(connectorId).realtime(true);
-
-        clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, getResponse) -> {
-            if (getResponse.isExists() == false) {
-                l.onFailure(new ResourceNotFoundException(connectorId));
-                return;
-            }
-            final Connector connector = Connector.fromXContentBytes(getResponse.getSourceAsBytesRef(), XContentType.JSON);
-            l.onResponse(connector);
-        }));
+            clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, getResponse) -> {
+                if (getResponse.isExists() == false) {
+                    l.onFailure(new ResourceNotFoundException(connectorId));
+                    return;
+                }
+                try {
+                    final Connector connector = Connector.fromXContentBytes(getResponse.getSourceAsBytesRef(), XContentType.JSON);
+                    l.onResponse(connector);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -138,7 +145,12 @@ public class ConnectorIndexService {
             clientWithOrigin.search(req, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    listener.onResponse(mapSearchResponseToConnectorList(searchResponse));
+                    try {
+                        listener.onResponse(mapSearchResponseToConnectorList(searchResponse));
+                    }
+                    catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
 
                 @Override

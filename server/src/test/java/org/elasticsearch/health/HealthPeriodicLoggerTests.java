@@ -26,6 +26,8 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -50,6 +52,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -75,6 +78,10 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     private HealthService getMockedHealthService() {
         return mock(HealthService.class);
     }
+
+    private MeterRegistry getMockedMeterRegistry() {return mock(MeterRegistry.class);}
+
+    private TelemetryProvider getMockedTelemetryProvider() {return mock(TelemetryProvider.class);}
 
     @Before
     public void setupServices() {
@@ -467,7 +474,10 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         HealthService testHealthService,
         boolean enabled
     ) {
-        testHealthPeriodicLogger = HealthPeriodicLogger.create(Settings.EMPTY, clusterService, this.client, testHealthService);
+        var provider = getMockedTelemetryProvider();
+        var registry = getMockedMeterRegistry();
+        doReturn(registry).when(provider).getMeterRegistry();
+        testHealthPeriodicLogger = HealthPeriodicLogger.create(Settings.EMPTY, clusterService, this.client, testHealthService, provider);
         if (enabled) {
             clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
         }

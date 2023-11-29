@@ -185,25 +185,24 @@ public class Connector implements Writeable, ToXContentObject {
         this.syncNow = in.readBoolean();
     }
 
-    protected static final ParseField ID_FIELD = new ParseField("connector_id");
-    protected static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
-    protected static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
-    protected static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
-    protected static final ParseField DESCRIPTION_FIELD = new ParseField("description");
-    protected static final ParseField ERROR_FIELD = new ParseField("error");
-    protected static final ParseField FEATURES_FIELD = new ParseField("features");
-    protected static final ParseField FILTERING_FIELD = new ParseField("filtering");
-    protected static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
-    protected static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
-    protected static final ParseField LANGUAGE_FIELD = new ParseField("language");
-
-    protected static final ParseField NAME_FIELD = new ParseField("name");
-    protected static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
-    protected static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
-    protected static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
-    protected static final ParseField STATUS_FIELD = new ParseField("status");
-    protected static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
-    protected static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
+    static final ParseField ID_FIELD = new ParseField("connector_id");
+    static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
+    static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
+    static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
+    static final ParseField DESCRIPTION_FIELD = new ParseField("description");
+    static final ParseField ERROR_FIELD = new ParseField("error");
+    static final ParseField FEATURES_FIELD = new ParseField("features");
+    static final ParseField FILTERING_FIELD = new ParseField("filtering");
+    static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
+    static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
+    static final ParseField LANGUAGE_FIELD = new ParseField("language");
+    static final ParseField NAME_FIELD = new ParseField("name");
+    static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
+    static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
+    static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
+    static final ParseField STATUS_FIELD = new ParseField("status");
+    static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
+    static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Connector, Void> PARSER = new ConstructingObjectParser<>("connector", true, (args) -> {

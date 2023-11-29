@@ -1,6 +1,6 @@
 pr: 102767
 summary: "ESQL: remove `time_zone` request parameter"
 area: ES|QL
-type: bug
+type: tech debt
 issues:
  - 102159

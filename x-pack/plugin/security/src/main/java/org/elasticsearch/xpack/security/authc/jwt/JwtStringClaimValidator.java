@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;

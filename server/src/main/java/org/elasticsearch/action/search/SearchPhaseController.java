@@ -241,7 +241,7 @@ public final class SearchPhaseController {
             final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            checkSameSortTypes(results, firstTopDocs.fields);
+            checkSameSortTypes(results);
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
@@ -252,16 +252,21 @@ public final class SearchPhaseController {
         return mergedTopDocs;
     }
 
-    private static void checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
+    private static void checkSameSortTypes(Collection<TopDocs> results) {
         if (results.size() < 2) return;
 
-        SortField.Type[] firstTypes = new SortField.Type[firstSortFields.length];
+        SortField.Type[] firstTypes = null;
         boolean isFirstResult = true;
         for (TopDocs topDocs : results) {
+            // We don't actually merge in empty score docs, so ignore potentially mismatched types if there are no docs
+            if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) {
+                continue;
+            }
             SortField[] curSortFields = ((TopFieldDocs) topDocs).fields;
             if (isFirstResult) {
+                firstTypes = new SortField.Type[curSortFields.length];
                 for (int i = 0; i < curSortFields.length; i++) {
-                    firstTypes[i] = getType(firstSortFields[i]);
+                    firstTypes[i] = getType(curSortFields[i]);
                     if (firstTypes[i] == SortField.Type.CUSTOM) {
                         // for custom types that we can't resolve, we can't do the check
                         return;

@@ -23,6 +23,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
@@ -78,6 +79,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
@@ -330,6 +332,13 @@ public class NodeTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));
         shard.store().decRef();
         assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
+    }
+
+    public void testStartOnClosedTransport() throws IOException {
+        try (Node node = new MockNode(baseSettings().build(), basePlugins())) {
+            node.injector().getInstance(HttpServerTransport.class).close();
+            expectThrows(AssertionError.class, node::start);    // this would be IllegalStateException in a real Node with assertions off
+        }
     }
 
     public void testCreateWithCircuitBreakerPlugins() throws IOException {

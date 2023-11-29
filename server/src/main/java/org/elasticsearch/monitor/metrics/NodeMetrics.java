@@ -38,45 +38,13 @@ public class NodeMetrics {
         // Agent should poll stats every 4 minutes and being this cache lazy we need a
         // number high enough so that the cache does not update during the same poll
         // period and that expires before a new poll period, therefore we choose 1 minute.
-        this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1), getNodeStats());
+        this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1));
         registerAsyncMetrics(meterRegistry);
     }
 
     /**
-     * Retrieves the current NodeStats for the Elasticsearch node with specific flags.
-     *
-     * @return The current NodeStats.
-     */
-    private NodeStats getNodeStats() {
-        CommonStatsFlags flags = new CommonStatsFlags(
-            CommonStatsFlags.Flag.Get,
-            CommonStatsFlags.Flag.Search,
-            CommonStatsFlags.Flag.Merge,
-            CommonStatsFlags.Flag.Translog
-        );
-        return nodeService.stats(
-            flags,
-            true,
-            false,
-            false,
-            true,
-            false,
-            true,
-            true,
-            true,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false
-        );
-    }
-
-    /**
-     * Registers async metrics in the provided MeterRegistry.
+     * Registers async metrics in the provided MeterRegistry. We are using the lazy NodeStatCache to retrieve
+     * the NodeStats once per pool period instead of for every callback if we were not to use it.
      *
      * @param registry The MeterRegistry used to register and collect metrics.
      */
@@ -130,7 +98,7 @@ public class NodeMetrics {
             () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations())
         );
 
-        registry.registerLongAsyncCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.translog.size",
             "Size, in bytes, of the transaction log.",
             "bytes",
@@ -179,21 +147,21 @@ public class NodeMetrics {
             () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getTxSize().getBytes())
         );
 
-        registry.registerLongAsyncCounter(
+        registry.registerLongGauge(
             "es.node.stats.jvm.mem.pools.young.used",
             "Memory, in bytes, used by the young generation heap.",
             "bytes",
             () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.YOUNG))
         );
 
-        registry.registerLongAsyncCounter(
+        registry.registerLongGauge(
             "es.node.stats.jvm.mem.pools.survivor.used",
             "Memory, in bytes, used by the survivor space.",
             "bytes",
             () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.SURVIVOR))
         );
 
-        registry.registerLongAsyncCounter(
+        registry.registerLongGauge(
             "es.node.stats.jvm.mem.pools.old.used",
             "Memory, in bytes, used by the old generation heap.",
             "bytes",
@@ -201,7 +169,7 @@ public class NodeMetrics {
         );
 
         registry.registerLongAsyncCounter(
-            "es.node.stats.fs.io_stats.total.io_time",
+            "es.node.stats.fs.io_stats.io_time.total",
             "The total time in millis spent performing I/O operations across all devices used by Elasticsearch.",
             "milliseconds",
             () -> new LongWithAttributes(stats.getOrRefresh().getFs().getIoStats().getTotalIOTimeMillis())
@@ -226,14 +194,47 @@ public class NodeMetrics {
     }
 
     /**
+     * Retrieves the current NodeStats for the Elasticsearch node.
+     *
+     * @return The current NodeStats.
+     */
+    private NodeStats getNodeStats() {
+        CommonStatsFlags flags = new CommonStatsFlags(
+            CommonStatsFlags.Flag.Get,
+            CommonStatsFlags.Flag.Search,
+            CommonStatsFlags.Flag.Merge,
+            CommonStatsFlags.Flag.Translog
+        );
+        return nodeService.stats(
+            flags,
+            true,
+            false,
+            false,
+            true,
+            false,
+            true,
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        );
+    }
+
+    /**
      * A very simple NodeStats cache that allows non-blocking refresh calls
      * lazily triggered by expiry time. When getOrRefresh() is called either
      * the cached NodeStats is returned if refreshInterval didn't expire or
      * refresh() is called, cache is updated and the new instance returned.
      */
     private class NodeStatsCache extends SingleObjectCache<NodeStats> {
-        NodeStatsCache(TimeValue interval, NodeStats initValue) {
-            super(interval, initValue);
+        NodeStatsCache(TimeValue interval) {
+            super(interval, getNodeStats());
         }
 
         @Override

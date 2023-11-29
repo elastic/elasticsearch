@@ -237,15 +237,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         int upperBound,
         List<String> warnings
     ) {
-        forUnaryInt(
-            suppliers,
-            expectedEvaluatorToString,
-            expectedType,
-            expectedValue,
-            lowerBound,
-            upperBound,
-            unused -> warnings
-        );
+        forUnaryInt(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
     }
 
     /**

@@ -227,7 +227,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
-                if (lifecycleExecutionState.snapshotName() == null) {
+                SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
+                if (lifecycleExecutionState.snapshotName() == null && searchableSnapshotMetadata == null) {
                     // No name exists, so it must be generated
                     logger.trace(
                         "no snapshot name for index [{}] in policy [{}] exists, so one will be generated",
@@ -236,8 +237,20 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     );
                     return false;
                 }
+                String snapshotIndexName;
+                String snapshotName;
+                String repoName;
+                if (lifecycleExecutionState.snapshotName() != null) {
+                    snapshotIndexName = lifecycleExecutionState.snapshotIndexName();
+                    snapshotName = lifecycleExecutionState.snapshotName();
+                    repoName = lifecycleExecutionState.snapshotRepository();
+                } else {
+                    snapshotIndexName = searchableSnapshotMetadata.indexName;
+                    snapshotName = searchableSnapshotMetadata.snapshotName;
+                    repoName = searchableSnapshotMetadata.repositoryName;
+                }
 
-                if (this.snapshotRepository.equals(lifecycleExecutionState.snapshotRepository()) == false) {
+                if (this.snapshotRepository.equals(repoName) == false) {
                     // A different repository is being used
                     // TODO: allow this behavior instead of throwing an exception
                     throw new IllegalArgumentException("searchable snapshot indices may be converted only within the same repository");
@@ -248,9 +261,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 logger.debug(
                     "an existing snapshot [{}] in repository [{}] (index name: [{}]) "
                         + "will be used for mounting [{}] as a searchable snapshot",
-                    lifecycleExecutionState.snapshotName(),
-                    lifecycleExecutionState.snapshotRepository(),
-                    lifecycleExecutionState.snapshotIndexName(),
+                    snapshotName,
+                    snapshotRepository,
+                    snapshotIndexName,
                     index.getName()
                 );
                 return true;

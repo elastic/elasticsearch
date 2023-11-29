@@ -648,16 +648,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             assertTrue(indexExists(partiallyMountedIndexName));
         }, 30, TimeUnit.SECONDS);
 
-        assertBusy(() -> {
-            logger.info("--> waiting for [{}] to be deleted...", partiallyMountedIndexName);
-            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), partiallyMountedIndexName);
-            assertThat(stepKeyForIndex.phase(), is("frozen"));
-            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
-        }, 30, TimeUnit.SECONDS);
-
         // Ensure the searchable snapshot is not deleted when the index was deleted because it was not created by this
         // policy
         assertBusy(() -> {
+            logger.info("--> waiting for [{}] to be deleted...", partiallyMountedIndexName);
             assertThat(indexExists(partiallyMountedIndexName), is(false));
             Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
             Map<String, Object> responseMap = responseAsMap(client().performRequest(getSnaps));

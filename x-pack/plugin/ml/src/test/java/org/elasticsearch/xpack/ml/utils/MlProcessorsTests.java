@@ -168,19 +168,6 @@ public class MlProcessorsTests extends ESTestCase {
         assertThat(processor.count(), equalTo(0.0));
     }
 
-    public void testGetTotalMlNodeProcessorsWithHalfAProcessor() {
-        var nodes = DiscoveryNodes.builder()
-            .add(
-                DiscoveryNodeUtils.builder("n1")
-                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
-                    .attributes(Map.of(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, "0.5"))
-                    .build()
-            )
-            .build();
-        var processor = MlProcessors.getTotalMlNodeProcessors(nodes, 1);
-        assertThat(processor.count(), equalTo(0.0));
-    }
-
     public void testGetTotalMlNodeProcessorsWithScale() {
         var nodes = DiscoveryNodes.builder()
             .add(
@@ -209,7 +196,7 @@ public class MlProcessorsTests extends ESTestCase {
             )
             .build();
         var processor = MlProcessors.getTotalMlNodeProcessors(nodes, 2);
-        assertThat(processor.count(), equalTo(7.0));
+        assertThat(processor.count(), equalTo(8.0));
     }
 
     public void testGetTotalMlNodeProcessorsWithNull() {
@@ -240,6 +227,6 @@ public class MlProcessorsTests extends ESTestCase {
             )
             .build();
         var processor = MlProcessors.getTotalMlNodeProcessors(nodes, null);
-        assertThat(processor.count(), equalTo(13.0));
+        assertThat(processor.count(), equalTo(14.0));
     }
 }

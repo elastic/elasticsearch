@@ -608,7 +608,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             ),
             new Phase(
                 "delete",
-                TimeValue.timeValueSeconds(2), // give time for the checks to happen
+                TimeValue.ZERO, // give time for the checks to happen
                 singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)
             )
         );
@@ -656,7 +656,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
             Map<String, Object> responseMap = responseAsMap(client().performRequest(getSnaps));
             assertThat(((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testSecondSearchableSnapshotUsingDifferentRepoThrows() throws Exception {

@@ -7,7 +7,13 @@
 
 package org.elasticsearch.xpack.ml.mapper;
 
+import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -18,6 +24,8 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,7 +34,6 @@ import java.util.Map;
 public class SemanticTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "semantic_text";
-
 
     private static SemanticTextFieldMapper toType(FieldMapper in) {
         return (SemanticTextFieldMapper) in;
@@ -55,10 +62,6 @@ public class SemanticTextFieldMapper extends FieldMapper {
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { modelId, meta };
-        }
-
-        private SemanticTextFieldType buildFieldType(MapperBuilderContext context) {
-            return new SemanticTextFieldType(context.buildFullName(name), modelId.getValue(), meta.getValue());
         }
 
         @Override
@@ -105,6 +108,29 @@ public class SemanticTextFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             return sparseVectorFieldType.termQuery(value, context);
+        }
+
+        public Query textExpansionQuery(TextExpansionResults expansionResults, SearchExecutionContext context) {
+            String fieldName = name() + "." + "inference";
+            BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+            for (var weightedToken : expansionResults.getWeightedTokens()) {
+                queryBuilder.add(
+                    new BooleanClause(
+                        FeatureField.newLinearQuery(fieldName, indexedValueForSearch(weightedToken.token()), weightedToken.weight()),
+                        BooleanClause.Occur.SHOULD
+                    )
+                );
+            }
+            queryBuilder.setMinimumNumberShouldMatch(1);
+            var parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+            return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, name());
+        }
+
+        private static String indexedValueForSearch(Object value) {
+            if (value instanceof BytesRef) {
+                return ((BytesRef) value).utf8ToString();
+            }
+            return value.toString();
         }
 
         @Override

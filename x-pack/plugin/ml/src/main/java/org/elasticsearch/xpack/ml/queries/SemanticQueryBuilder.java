@@ -5,10 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.queries;
+package org.elasticsearch.xpack.ml.queries;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -16,20 +15,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.inference.action.InferenceAction;
+import org.elasticsearch.xpack.ml.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +44,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private final String fieldName;
     private final String query;
-    private QueryBuilder innerQueryBuilder;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
@@ -67,14 +64,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.fieldName = other.fieldName;
         this.query = other.query;
         this.inferenceResultsSupplier = inferenceResultsSupplier;
-        this.innerQueryBuilder = other.innerQueryBuilder;
     }
 
     public SemanticQueryBuilder(SemanticQueryBuilder other, QueryBuilder innerQueryBuilder) {
         this.fieldName = other.fieldName;
         this.query = other.query;
         this.inferenceResultsSupplier = other.inferenceResultsSupplier;
-        this.innerQueryBuilder = innerQueryBuilder;
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {
@@ -86,13 +81,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (inferenceResultsSupplier != null) {
-            if (inferenceResultsSupplier.get() == null) {
-                // Inference still not returned
-                return this;
-            }
-            if (innerQueryBuilder == null) {
-                return inferenceResultsToQuery(fieldName, inferenceResultsSupplier.get());
-            }
             return this;
         }
 
@@ -152,8 +140,25 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        var parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
-        return new ESToParentBlockJoinQuery(innerQueryBuilder.toQuery(context), parentFilter, ScoreMode.Total, fieldName);
+        List<? extends InferenceResults> inferenceResultsList = inferenceResultsSupplier.get();
+        if (inferenceResultsList == null) {
+            throw new IllegalArgumentException("No inference retrieved for field " + fieldName);
+        }
+        if (inferenceResultsList.size() != 1) {
+            throw new IllegalArgumentException("received multiple inference results for field " + fieldName);
+        }
+
+        InferenceResults inferenceResults = inferenceResultsList.get(0);
+        if (inferenceResults instanceof TextExpansionResults expansionResults) {
+            SemanticTextFieldMapper.SemanticTextFieldType mapper = (SemanticTextFieldMapper.SemanticTextFieldType) context.getFieldType(
+                fieldName
+            );
+            return mapper.textExpansionQuery(expansionResults, context);
+        }
+
+        throw new IllegalArgumentException(
+            "field [" + fieldName + "] does not use a model that outputs sparse vector inference results"
+        );
     }
 
     @Override

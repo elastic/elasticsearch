@@ -35,18 +35,14 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
         int fetchSize = randomIntBetween(5, 20);
         logger.info("Fetching {} records at a time", fetchSize);
-        SqlQueryResponse sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test")
-            .fetchSize(fetchSize)
-            .get();
+        SqlQueryResponse sqlQueryResponse = new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").fetchSize(fetchSize).get();
         assertEquals(fetchSize, sqlQueryResponse.size());
 
         assertThat(getNumberOfSearchContexts(), greaterThan(0L));
         assertThat(sqlQueryResponse.cursor(), notNullValue());
         assertThat(sqlQueryResponse.cursor(), not(equalTo(Cursor.EMPTY)));
 
-        SqlClearCursorResponse cleanCursorResponse = new SqlClearCursorRequestBuilder(client(), SqlClearCursorAction.INSTANCE).cursor(
-            sqlQueryResponse.cursor()
-        ).get();
+        SqlClearCursorResponse cleanCursorResponse = new SqlClearCursorRequestBuilder(client()).cursor(sqlQueryResponse.cursor()).get();
         assertTrue(cleanCursorResponse.isSucceeded());
 
         assertEquals(0, getNumberOfSearchContexts());
@@ -67,9 +63,7 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
             int fetchSize = randomIntBetween(5, 20);
             logger.info("Fetching {} records at a time", fetchSize);
-            SqlQueryResponse sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test")
-                .fetchSize(fetchSize)
-                .get();
+            SqlQueryResponse sqlQueryResponse = new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").fetchSize(fetchSize).get();
             assertEquals(fetchSize, sqlQueryResponse.size());
 
             assertThat(getNumberOfSearchContexts(), greaterThan(0L));
@@ -78,14 +72,12 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
             long fetched = sqlQueryResponse.size();
             do {
-                sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).cursor(sqlQueryResponse.cursor()).get();
+                sqlQueryResponse = new SqlQueryRequestBuilder(client()).cursor(sqlQueryResponse.cursor()).get();
                 fetched += sqlQueryResponse.size();
             } while (sqlQueryResponse.cursor().isEmpty() == false);
             assertEquals(indexSize, fetched);
 
-            SqlClearCursorResponse cleanCursorResponse = new SqlClearCursorRequestBuilder(client(), SqlClearCursorAction.INSTANCE).cursor(
-                sqlQueryResponse.cursor()
-            ).get();
+            SqlClearCursorResponse cleanCursorResponse = new SqlClearCursorRequestBuilder(client()).cursor(sqlQueryResponse.cursor()).get();
             assertFalse(cleanCursorResponse.isSucceeded());
 
             assertEquals(0, getNumberOfSearchContexts());

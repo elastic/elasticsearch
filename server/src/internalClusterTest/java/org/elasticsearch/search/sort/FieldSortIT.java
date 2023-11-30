@@ -151,7 +151,7 @@ public class FieldSortIT extends ESIntegTestCase {
         );
     }
 
-    public void testIssue6614() throws ExecutionException, InterruptedException {
+    public void testIssue6614() throws InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();
         final int numIndices = randomIntBetween(2, 25); // at most 25 days in the month
@@ -2147,4 +2147,19 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
+    public void testSortMixedFieldTypesWithNoDocsForOneType() {
+        assertAcked(prepareCreate("index_long").setMapping("foo", "type=long").get());
+        assertAcked(prepareCreate("index_other").setMapping("bar", "type=keyword").get());
+        assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
+
+        prepareIndex("index_long").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_long").setId("2").setSource("foo", "124").get();
+        prepareIndex("index_other").setId("1").setSource("bar", "124").get();
+        refresh();
+
+        assertNoFailures(
+            prepareSearch("index_long", "index_double", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean"))
+                .setSize(10)
+        );
+    }
 }

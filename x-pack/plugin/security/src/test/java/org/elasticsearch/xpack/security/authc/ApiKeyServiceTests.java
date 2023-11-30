@@ -24,16 +24,13 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -245,8 +242,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             .realmRef(new RealmRef("file", "file", "node-1"))
             .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
-        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        try (BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client, BulkAction.INSTANCE)) {
+        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
+        try (BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client)) {
             when(client.prepareBulk()).thenReturn(bulkRequestBuilder);
             when(client.threadPool()).thenReturn(threadPool);
             final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
@@ -273,7 +270,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(clock.instant()).thenReturn(Instant.ofEpochMilli(now));
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         when(client.threadPool()).thenReturn(threadPool);
-        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, TransportSearchAction.TYPE));
+        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client));
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(searchRequestBuilder);
         final ApiKeyService service = createApiKeyService(settings);
         final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
@@ -334,7 +331,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testInvalidateApiKeys() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         when(client.threadPool()).thenReturn(threadPool);
-        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, TransportSearchAction.TYPE));
+        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client));
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(searchRequestBuilder);
         final ApiKeyService service = createApiKeyService(settings);
         final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
@@ -408,7 +405,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         // Mock the search request for keys to invalidate
         when(client.threadPool()).thenReturn(threadPool);
-        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client, TransportSearchAction.TYPE));
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
             final var searchHit = new SearchHit(docId, apiKeyId);
@@ -447,8 +444,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
         // Capture the Update request so that we can verify it is configured as expected
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
-        final var updateRequestBuilder = Mockito.spy(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        final var updateRequestBuilder = Mockito.spy(new UpdateRequestBuilder(client));
         when(client.prepareUpdate(eq(SECURITY_MAIN_ALIAS), eq(apiKeyId))).thenReturn(updateRequestBuilder);
 
         // Stub bulk and cache clearing calls so that the entire action flow can complete (not strictly necessary but nice to have)
@@ -504,8 +501,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             .realmRef(new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)))
             .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
-        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
+        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
@@ -741,7 +738,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Instant now = Instant.now();
         when(clock.instant()).thenReturn(now);
         when(client.threadPool()).thenReturn(threadPool);
-        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, TransportSearchAction.TYPE));
+        SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client));
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(searchRequestBuilder);
 
         final List<SearchHit> searchHits = new ArrayList<>();

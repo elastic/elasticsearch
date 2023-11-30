@@ -33,12 +33,12 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
         WriteRequestBuilder<BulkRequestBuilder>,
         Releasable {
 
-    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action, @Nullable String globalIndex) {
-        super(client, action, new BulkRequest(globalIndex));
+    public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
+        super(client, BulkAction.INSTANCE, new BulkRequest(globalIndex));
     }
 
-    public BulkRequestBuilder(ElasticsearchClient client, BulkAction action) {
-        super(client, action, new BulkRequest());
+    public BulkRequestBuilder(ElasticsearchClient client) {
+        super(client, BulkAction.INSTANCE, new BulkRequest());
     }
 
     /**

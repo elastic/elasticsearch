@@ -80,6 +80,7 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
     @Override
     public LongBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values

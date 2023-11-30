@@ -57,8 +57,11 @@ import org.elasticsearch.xpack.application.connector.action.TransportListConnect
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.RestDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestPostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.TransportDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportPostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
@@ -119,6 +122,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     public static final String QUERY_RULES_API_ENDPOINT = "_query_rules";
 
     public static final String CONNECTOR_API_ENDPOINT = "_connector";
+
+    public static final String CONNECTOR_SYNC_JOB_API_ENDPOINT = CONNECTOR_API_ENDPOINT + "/_sync_job";
 
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
@@ -181,7 +186,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(UpdateConnectorSchedulingAction.INSTANCE, TransportUpdateConnectorSchedulingAction.class),
 
                     // SyncJob API
-                    new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class)
+                    new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class),
+                    new ActionHandler<>(DeleteConnectorSyncJobAction.INSTANCE, TransportDeleteConnectorSyncJobAction.class)
                 )
             );
         }
@@ -240,7 +246,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestUpdateConnectorSchedulingAction(),
 
                     // SyncJob API
-                    new RestPostConnectorSyncJobAction()
+                    new RestPostConnectorSyncJobAction(),
+                    new RestDeleteConnectorSyncJobAction()
                 )
             );
         }

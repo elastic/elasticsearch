@@ -2151,14 +2151,14 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index_other").setMapping("bar", "type=keyword").get());
         assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
 
-        prepareIndex("index_long").setId("1").setSource("foo", "123").get();
-        prepareIndex("index_long").setId("2").setSource("foo", "124").get();
-        prepareIndex("index_other").setId("1").setSource("bar", "124").get();
+        client().prepareIndex("index_long").setId("1").setSource("foo", "123").get();
+        client().prepareIndex("index_long").setId("2").setSource("foo", "124").get();
+        client().prepareIndex("index_other").setId("1").setSource("bar", "124").get();
         refresh();
 
         assertNoFailures(
-            prepareSearch("index_long", "index_double", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean"))
-                .setSize(10)
+            client().prepareSearch("index_long", "index_double", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean"))
+                .setSize(10).get()
         );
     }
 }

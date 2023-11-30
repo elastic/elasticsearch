@@ -538,6 +538,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.clusterInfo = Collections.emptyMap();  // will never be used if created from this constructor
         }
 
+        @SuppressWarnings("this-escape")
         public Clusters(StreamInput in) throws IOException {
             this.total = in.readVInt();
             int successfulTemp = in.readVInt();

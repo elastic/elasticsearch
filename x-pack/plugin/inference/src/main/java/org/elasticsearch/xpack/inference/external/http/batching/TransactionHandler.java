@@ -7,6 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.batching;
 
-public record TransactionHandler<GroupingKey, Response>(RequestCreator<GroupingKey> creator, ResponseHandler2<Response> responseHandler) {
+public record TransactionHandler<GroupingKey>(RequestCreator<GroupingKey> creator, ResponseHandler2 responseHandler) {
 
 }

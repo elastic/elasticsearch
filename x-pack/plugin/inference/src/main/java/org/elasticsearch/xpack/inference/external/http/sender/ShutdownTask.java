@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandl
 
 import java.util.List;
 
-class ShutdownTask<K, R> implements Task<K, R> {
+class ShutdownTask<K> implements Task<K> {
     @Override
     public boolean shouldShutdown() {
         return true;
@@ -25,7 +25,7 @@ class ShutdownTask<K, R> implements Task<K, R> {
     }
 
     @Override
-    public TransactionHandler<K, R> handler() {
+    public TransactionHandler<K> handler() {
         return null;
     }
 

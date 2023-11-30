@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.util.List;
 
-public interface BatchableRequest<K, R> {
-    TransactionHandler<K, R> handler();
+public interface BatchableRequest<K> {
+    TransactionHandler<K> handler();
 
     List<String> input();
 

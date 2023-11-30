@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 
@@ -24,7 +23,7 @@ import java.util.Objects;
 // TODO TextExpansionResults shouldn't be here, the batcher must handle ALL response types
 // we could have the InferenceServiceResults interface require a subList method that splits up the results or something
 // or maybe the response types just implement two interfaces InferenceServiceResults and Splitable or something
-public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAccount, TextExpansionResults> {
+public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAccount> {
     private final HashMap<HuggingFaceAccount, Entry> entries = new LinkedHashMap<>();
 
     private final BatchingComponents components;
@@ -40,7 +39,7 @@ public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAcco
     }
 
     @Override
-    public void add(BatchableRequest<HuggingFaceAccount, TextExpansionResults> request) {
+    public void add(BatchableRequest<HuggingFaceAccount> request) {
         entries.compute(request.handler().creator().key(), (account, entry) -> {
             if (entry == null) {
                 return new Entry(
@@ -57,13 +56,13 @@ public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAcco
     }
 
     @Override
-    public void add(List<BatchableRequest<HuggingFaceAccount, TextExpansionResults>> requests) {
+    public void add(List<? extends BatchableRequest<HuggingFaceAccount>> requests) {
         for (var request : requests) {
             add(request);
         }
     }
 
-    public record Entry(TransactionHandler<HuggingFaceAccount, TextExpansionResults> handler, int total, List<InternalRequest> requests) {
+    public record Entry(TransactionHandler<HuggingFaceAccount> handler, int total, List<InternalRequest> requests) {
 
     }
 
@@ -88,6 +87,7 @@ public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAcco
 
             // TODO make a new ActionListener class that takes multiple listeners
             ActionListener<HttpResult> otherListener = ActionListener.wrap(result -> {
+
                 // TODO: loop through the entry.requests and use List.subList to to extract the results for each listener and call
                 // onResponse
             }, e -> {
@@ -98,9 +98,9 @@ public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAcco
         }
     }
 
-    public record Factory(BatchingComponents components) implements RequestBatcherFactory<HuggingFaceAccount, TextExpansionResults> {
+    public record Factory(BatchingComponents components) implements RequestBatcherFactory<HuggingFaceAccount> {
         @Override
-        public RequestBatcher<HuggingFaceAccount, TextExpansionResults> create(HttpClientContext context) {
+        public RequestBatcher<HuggingFaceAccount> create(HttpClientContext context) {
             return new HuggingFaceRequestBatcher(components, context);
         }
     }

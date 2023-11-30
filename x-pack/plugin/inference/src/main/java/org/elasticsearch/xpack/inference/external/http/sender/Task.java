@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.xpack.inference.external.http.batching.BatchableRequest;
 
-public interface Task<K, R> extends BatchableRequest<K, R> {
+public interface Task<K> extends BatchableRequest<K> {
     boolean shouldShutdown();
 
     boolean hasFinished();

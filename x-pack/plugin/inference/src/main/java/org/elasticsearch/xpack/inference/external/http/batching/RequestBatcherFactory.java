@@ -9,6 +9,6 @@ package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.apache.http.client.protocol.HttpClientContext;
 
-public interface RequestBatcherFactory<K, R> {
-    RequestBatcher<K, R> create(HttpClientContext context);
+public interface RequestBatcherFactory<K> {
+    RequestBatcher<K> create(HttpClientContext context);
 }

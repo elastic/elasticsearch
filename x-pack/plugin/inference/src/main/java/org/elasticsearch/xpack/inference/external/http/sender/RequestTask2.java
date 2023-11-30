@@ -22,15 +22,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-class RequestTask2<K, R> implements Task<K, R> {
+class RequestTask2<K> implements Task<K> {
 
     private final AtomicBoolean finished = new AtomicBoolean();
-    private final TransactionHandler<K, R> handler;
+    private final TransactionHandler<K> handler;
     private final List<String> input;
     private final ActionListener<HttpResult> listener;
 
     RequestTask2(
-        TransactionHandler<K, R> handler,
+        TransactionHandler<K> handler,
         List<String> input,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
@@ -67,6 +67,8 @@ class RequestTask2<K, R> implements Task<K, R> {
         );
     }
 
+    // TODO if this times out technically the retrying sender could still be retrying. We should devise a way
+    // to cancel the retryer task
     private void onTimeout(ActionListener<HttpResult> listener) {
         finished.set(true);
         listener.onFailure(new ElasticsearchTimeoutException("Request timed out waiting to be sent"));
@@ -98,7 +100,7 @@ class RequestTask2<K, R> implements Task<K, R> {
     }
 
     @Override
-    public TransactionHandler<K, R> handler() {
+    public TransactionHandler<K> handler() {
         return handler;
     }
 }

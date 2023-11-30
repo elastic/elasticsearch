@@ -23,8 +23,8 @@ import java.util.List;
  *      - A request can have multiple input but they should all be associated with a single request when onResponse is called for that listener
  *      - We'll need to track a range within the array for that
  */
-public interface RequestBatcher<GroupingKey, Response> extends Iterable<Runnable> {
-    void add(BatchableRequest<GroupingKey, Response> request);
+public interface RequestBatcher<GroupingKey> extends Iterable<Runnable> {
+    void add(BatchableRequest<GroupingKey> request);
 
-    void add(List<BatchableRequest<GroupingKey, Response>> request);
+    void add(List<? extends BatchableRequest<GroupingKey>> requests);
 }

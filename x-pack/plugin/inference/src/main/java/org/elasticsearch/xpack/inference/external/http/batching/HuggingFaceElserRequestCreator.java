@@ -23,6 +23,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * This must be constructed in the HuggingFaceAction
+ */
 public class HuggingFaceElserRequestCreator implements RequestCreator<HuggingFaceAccount> {
 
     private static final Logger logger = LogManager.getLogger(HuggingFaceElserRequestCreator.class);
@@ -61,6 +64,7 @@ public class HuggingFaceElserRequestCreator implements RequestCreator<HuggingFac
         @Override
         public void run() {
             try {
+                // TODO instead of leveraging the httpClient here maybe this should be the retrying sender?
                 components.httpClient().send(request, context, listener);
             } catch (Exception e) {
                 logger.warn(format("Failed to send request [%s] via the http client", request.getRequestLine()), e);

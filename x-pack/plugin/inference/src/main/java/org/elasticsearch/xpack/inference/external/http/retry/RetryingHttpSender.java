@@ -46,6 +46,7 @@ public class RetryingHttpSender implements Retrier {
 
     // For testing only
     RetryingHttpSender(
+        // TODO I think this will need to take the http client directly
         Sender sender,
         ThrottlerManager throttlerManager,
         Logger logger,

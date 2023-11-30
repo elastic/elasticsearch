@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
 import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandler;
 
@@ -51,11 +52,11 @@ import static org.elasticsearch.core.Strings.format;
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-class HttpRequestExecutorService<K, R> implements ExecutorService {
+class HttpRequestExecutorService<K> implements ExecutorService {
     private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
 
     private final String serviceName;
-    private final BlockingQueue<Task<K, R>> queue;
+    private final BlockingQueue<Task<K>> queue;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
     private final HttpClientContext httpContext;
@@ -63,7 +64,7 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
     private final HttpClient httpClient;
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
-    private final RequestBatcherFactory<K, R> batcherFactory;
+    private final RequestBatcherFactory<K> batcherFactory;
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(
@@ -71,7 +72,7 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         HttpClient httpClient,
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
-        RequestBatcherFactory<K, R> batcherFactory
+        RequestBatcherFactory<K> batcherFactory
     ) {
         this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(), startupLatch, batcherFactory);
     }
@@ -83,7 +84,7 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         ThreadPool threadPool,
         int capacity,
         @Nullable CountDownLatch startupLatch,
-        RequestBatcherFactory<K, R> batcherFactory
+        RequestBatcherFactory<K> batcherFactory
     ) {
         this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch, batcherFactory);
     }
@@ -96,9 +97,9 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         String serviceName,
         HttpClient httpClient,
         ThreadPool threadPool,
-        BlockingQueue<Task<K, R>> queue,
+        BlockingQueue<Task<K>> queue,
         @Nullable CountDownLatch startupLatch,
-        RequestBatcherFactory<K, R> batcherFactory
+        RequestBatcherFactory<K> batcherFactory
     ) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
@@ -156,18 +157,40 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         }
     }
 
-    private void batchRequests(Task<K, R> initialTask) {
+    private void batchRequests(Task<K> initialTask) {
         try {
             var batcher = batcherFactory.create(httpContext);
             batcher.add(initialTask);
 
             // TODO make this a setting
+            // or make this auto adjustable some how
             int batchSize = 20;
-            List<Task<K, R>> batchList = new ArrayList<>(batchSize);
-            queue.drainTo(batchList, batchSize);
+            List<Task<K>> requests = new ArrayList<>(batchSize);
+            queue.drainTo(requests, batchSize);
 
+            if (hasAShutdownTask(requests)) {
+                running.set(false);
+                logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
+
+                rejectTasks(requests);
+                return;
+            }
+
+            batcher.add(requests);
+
+            runBatch(batcher);
         } catch (Exception e) {
             logger.warn(format("Http executor service [%s] failed to execute request [%s]", serviceName, initialTask), e);
+        }
+    }
+
+    private static <K> boolean hasAShutdownTask(List<Task<K>> requests) {
+        return requests.stream().anyMatch(Task::shouldShutdown);
+    }
+
+    private static <K> void runBatch(RequestBatcher<K> batcher) {
+        for (var runnable : batcher) {
+            runnable.run();
         }
     }
 
@@ -175,10 +198,10 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         assert isShutdown() : "Requests should only be notified if the executor is shutting down";
 
         try {
-            List<Task<K, R>> notExecuted = new ArrayList<>();
+            List<Task<K>> notExecuted = new ArrayList<>();
             queue.drainTo(notExecuted);
 
-            for (Task<K, R> task : notExecuted) {
+            for (Task<K> task : notExecuted) {
                 rejectTask(task);
             }
         } catch (Exception e) {
@@ -186,7 +209,13 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         }
     }
 
-    private void rejectTask(Task<K, R> task) {
+    private void rejectTasks(List<Task<K>> tasks) {
+        for (var task : tasks) {
+            rejectTask(task);
+        }
+    }
+
+    private void rejectTask(Task<K> task) {
         try {
             task.onRejection(
                 new EsRejectedExecutionException(
@@ -234,13 +263,8 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
     }
 
     // TODO: change the listener type to be correct
-    public void send2(
-        TransactionHandler<K, R> handler,
-        List<String> input,
-        @Nullable TimeValue timeout,
-        ActionListener<HttpResult> listener
-    ) {
-        RequestTask2<K, R> task = new RequestTask2<>(handler, input, timeout, threadPool, listener);
+    public void send2(TransactionHandler<K> handler, List<String> input, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+        RequestTask2<K> task = new RequestTask2<>(handler, input, timeout, threadPool, listener);
 
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(

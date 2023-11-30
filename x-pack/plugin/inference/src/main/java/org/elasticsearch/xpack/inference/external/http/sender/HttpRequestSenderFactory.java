@@ -55,9 +55,9 @@ public class HttpRequestSenderFactory {
         this.settings = Objects.requireNonNull(settings);
     }
 
-    public <K, R> HttpRequestSender<K, R> createSender(
+    public <K> HttpRequestSender<K> createSender(
         String serviceName,
-        Function<BatchingComponents, RequestBatcherFactory<K, R>> factoryCreator
+        Function<BatchingComponents, RequestBatcherFactory<K>> factoryCreator
     ) {
         return new HttpRequestSender<>(
             serviceName,
@@ -73,7 +73,7 @@ public class HttpRequestSenderFactory {
      * A class for providing a more friendly interface for sending an {@link HttpUriRequest}. This leverages the queuing logic for sending
      * a request.
      */
-    public static final class HttpRequestSender<K, R> implements Sender {
+    public static final class HttpRequestSender<K> implements Sender {
         private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
         private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
@@ -91,7 +91,7 @@ public class HttpRequestSenderFactory {
 
         private final ThreadPool threadPool;
         private final HttpClientManager manager;
-        private final HttpRequestExecutorService<K, R> service;
+        private final HttpRequestExecutorService<K> service;
         private final AtomicBoolean started = new AtomicBoolean(false);
         private volatile TimeValue maxRequestTimeout;
         private final CountDownLatch startCompleted = new CountDownLatch(2);
@@ -102,7 +102,7 @@ public class HttpRequestSenderFactory {
             HttpClientManager httpClientManager,
             ClusterService clusterService,
             Settings settings,
-            RequestBatcherFactory<K, R> batcherFactory
+            RequestBatcherFactory<K> batcherFactory
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);

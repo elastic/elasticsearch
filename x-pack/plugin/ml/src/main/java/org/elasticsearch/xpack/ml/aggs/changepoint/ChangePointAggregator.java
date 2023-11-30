@@ -137,7 +137,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     static TestStats testForChange(double[] timeWindow, int[] candidateChangePoints, double pValueThreshold) {
 
-        logger.debug("timeWindow: [{}]", Arrays.toString(timeWindow));
+        logger.trace("timeWindow: [{}]", Arrays.toString(timeWindow));
 
         double[] timeWindowWeights = outlierWeights(timeWindow);
         RunningStats dataRunningStats = RunningStats.from(timeWindow, i -> timeWindowWeights[i]);
@@ -155,7 +155,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
 
         TestStats trendVsStationary = testTrendVs(stationary, timeWindow, timeWindowWeights);
-        logger.debug("trend vs stationary: [{}]", trendVsStationary);
+        logger.trace("trend vs stationary: [{}]", trendVsStationary);
 
         TestStats best = stationary;
         HashSet<Integer> discoveredChangePoints = new HashSet<>(4, 1.0f);
@@ -163,7 +163,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             // Check if there is a change in the trend.
             TestStats trendChangeVsTrend = testTrendChangeVs(trendVsStationary, timeWindow, timeWindowWeights, candidateChangePoints);
             discoveredChangePoints.add(trendChangeVsTrend.changePoint());
-            logger.debug("trend change vs trend: [{}]", trendChangeVsTrend);
+            logger.trace("trend change vs trend: [{}]", trendChangeVsTrend);
 
             if (trendChangeVsTrend.accept(pValueThreshold)) {
                 // Check if modeling a trend change adds much over modeling a step change.
@@ -176,7 +176,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             // Check if there is a step change.
             TestStats stepChangeVsStationary = testStepChangeVs(stationary, timeWindow, timeWindowWeights, candidateChangePoints);
             discoveredChangePoints.add(stepChangeVsStationary.changePoint());
-            logger.debug("step change vs stationary: [{}]", stepChangeVsStationary);
+            logger.trace("step change vs stationary: [{}]", stepChangeVsStationary);
 
             if (stepChangeVsStationary.accept(pValueThreshold)) {
                 // Check if modeling a trend change adds much over modeling a step change.
@@ -187,7 +187,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                     candidateChangePoints
                 );
                 discoveredChangePoints.add(stepChangeVsStationary.changePoint());
-                logger.debug("trend change vs step change: [{}]", trendChangeVsStepChange);
+                logger.trace("trend change vs step change: [{}]", trendChangeVsStepChange);
                 if (trendChangeVsStepChange.accept(pValueThreshold)) {
                     best = trendChangeVsStepChange;
                 } else {
@@ -198,14 +198,14 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 // Check if there is a trend change.
                 TestStats trendChangeVsStationary = testTrendChangeVs(stationary, timeWindow, timeWindowWeights, candidateChangePoints);
                 discoveredChangePoints.add(stepChangeVsStationary.changePoint());
-                logger.debug("trend change vs stationary: [{}]", trendChangeVsStationary);
+                logger.trace("trend change vs stationary: [{}]", trendChangeVsStationary);
                 if (trendChangeVsStationary.accept(pValueThreshold)) {
                     best = trendChangeVsStationary;
                 }
             }
         }
 
-        logger.debug("best: [{}]", best.pValueVsStationary());
+        logger.trace("best: [{}]", best.pValueVsStationary());
 
         // We're not very confident in the change point, so check if a distribution change fits the data better.
         if (best.pValueVsStationary() > 1e-5) {
@@ -216,7 +216,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 candidateChangePoints,
                 discoveredChangePoints
             );
-            logger.debug("distribution change: [{}]", distChange);
+            logger.trace("distribution change: [{}]", distChange);
             if (distChange.pValue() < Math.min(pValueThreshold, 0.1 * best.pValueVsStationary())) {
                 best = distChange;
             }
@@ -443,8 +443,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
         // Note that statistical tests become increasingly powerful as the number of samples
         // increases. We are not interested in detecting visually small distribution changes
-        // in splits of long windows so we randomly downsample the data to at most 500 samples
-        // before running the tests.
+        // in splits of long windows so we randomly downsample the data if it is too large
+        // before we run the tests.
         SampleData sampleData = sample(values, weights, discoveredChangePoints);
         final double[] sampleValues = sampleData.values();
         final double[] sampleWeights = sampleData.weights();

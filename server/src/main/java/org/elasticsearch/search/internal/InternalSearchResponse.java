@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,7 +25,7 @@ import java.io.IOException;
  */
 public class InternalSearchResponse extends SearchResponseSections implements Writeable {
     public static final InternalSearchResponse EMPTY_WITH_TOTAL_HITS = new InternalSearchResponse(
-        SearchHits.EMPTY_WITH_TOTAL_HITS,
+        new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
         null,
         null,
         null,
@@ -34,7 +35,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
     );
 
     public static final InternalSearchResponse EMPTY_WITHOUT_TOTAL_HITS = new InternalSearchResponse(
-        SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
+        new SearchHits(SearchHits.EMPTY, null, 0),
         null,
         null,
         null,
@@ -65,6 +66,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             in.readOptionalWriteable(SearchProfileResults::new),
             in.readVInt()
         );
+        hits.decRef(); // TODO: meh
     }
 
     @Override

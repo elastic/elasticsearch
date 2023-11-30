@@ -67,8 +67,12 @@ public final class FetchPhase {
 
         if (docIdsToLoad == null || docIdsToLoad.length == 0) {
             // no individual hits to process, so we shortcut
-            SearchHits hits = new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
-            context.fetchResult().shardResult(hits, null);
+            SearchHits hits = new SearchHits(SearchHits.EMPTY, context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
+            try {
+                context.fetchResult().shardResult(hits, null);
+            } finally {
+                hits.decRef();
+            }
             return;
         }
 
@@ -77,11 +81,17 @@ public final class FetchPhase {
         try {
             hits = buildSearchHits(context, docIdsToLoad, profiler);
         } finally {
-            // Always finish profiling
-            ProfileResult profileResult = profiler.finish();
-            // Only set the shardResults if building search hits was successful
-            if (hits != null) {
-                context.fetchResult().shardResult(hits, profileResult);
+            try {
+                // Always finish profiling
+                ProfileResult profileResult = profiler.finish();
+                // Only set the shardResults if building search hits was successful
+                if (hits != null) {
+                    context.fetchResult().shardResult(hits, profileResult);
+                }
+            } finally {
+                if (hits != null) {
+                    hits.decRef();
+                }
             }
         }
     }
@@ -166,14 +176,24 @@ public final class FetchPhase {
             }
         };
 
+        boolean success = false;
         SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), docIdsToLoad);
+        try {
 
-        if (context.isCancelled()) {
-            throw new TaskCancelledException("cancelled");
+            if (context.isCancelled()) {
+                throw new TaskCancelledException("cancelled");
+            }
+
+            TotalHits totalHits = context.getTotalHits();
+            success = true;
+            return new SearchHits(hits, totalHits, context.getMaxScore());
+        } finally {
+            if (success == false) {
+                for (SearchHit hit : hits) {
+                    hit.decRef();
+                }
+            }
         }
-
-        TotalHits totalHits = context.getTotalHits();
-        return new SearchHits(hits, totalHits, context.getMaxScore());
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {

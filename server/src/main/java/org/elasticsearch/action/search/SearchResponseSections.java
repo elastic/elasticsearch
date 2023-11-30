@@ -11,11 +11,14 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -31,7 +34,7 @@ import java.util.Map;
  * to parse aggregations into, which are not serializable. This is the common part that can be
  * shared between core and client.
  */
-public class SearchResponseSections implements ChunkedToXContent {
+public class SearchResponseSections implements ChunkedToXContent, RefCounted {
 
     protected final SearchHits hits;
     protected final Aggregations aggregations;
@@ -40,6 +43,13 @@ public class SearchResponseSections implements ChunkedToXContent {
     protected final boolean timedOut;
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
+
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            hits.decRef();
+        }
+    });
 
     public SearchResponseSections(
         SearchHits hits,
@@ -51,6 +61,7 @@ public class SearchResponseSections implements ChunkedToXContent {
         int numReducePhases
     ) {
         this.hits = hits;
+        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
@@ -126,5 +137,25 @@ public class SearchResponseSections implements ChunkedToXContent {
 
     protected void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 }

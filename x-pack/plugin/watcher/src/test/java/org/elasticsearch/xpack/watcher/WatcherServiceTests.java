@@ -174,7 +174,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         // empty scroll response, no further scrolling needed
         SearchResponseSections scrollSearchSections = new SearchResponseSections(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
             null,
             null,
             false,

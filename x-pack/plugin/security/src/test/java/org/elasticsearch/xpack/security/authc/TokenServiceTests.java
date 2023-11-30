@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
@@ -1243,7 +1244,7 @@ public class TokenServiceTests extends ESTestCase {
                     hit.sourceRef(docSource);
                     hits = new SearchHits(new SearchHit[] { hit }, null, 1);
                 } else {
-                    hits = SearchHits.EMPTY_WITH_TOTAL_HITS;
+                    hits = new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
                 }
                 when(response.getHits()).thenReturn(hits);
                 listener.onResponse(response);

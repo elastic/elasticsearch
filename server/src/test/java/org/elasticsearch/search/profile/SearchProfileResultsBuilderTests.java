@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.profile;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
@@ -96,7 +97,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
 
     private static FetchSearchResult fetchResult(SearchShardTarget target, ProfileResult profileResult) {
         FetchSearchResult fetchResult = new FetchSearchResult();
-        fetchResult.shardResult(SearchHits.EMPTY_WITH_TOTAL_HITS, profileResult);
+        fetchResult.shardResult(new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), profileResult);
         fetchResult.setSearchShardTarget(target);
         return fetchResult;
     }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -342,7 +343,7 @@ public class RollupResponseTranslator {
         }
 
         InternalSearchResponse combinedInternal = new InternalSearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
             aggs,
             null,
             null,

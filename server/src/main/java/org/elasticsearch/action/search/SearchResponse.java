@@ -20,7 +20,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
@@ -32,6 +34,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -76,6 +79,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            internalResponse.decRef();
+        }
+    });
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -127,6 +137,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         String pointInTimeId
     ) {
         this.internalResponse = internalResponse;
+        internalResponse.incRef();
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
         this.clusters = clusters;
@@ -444,6 +455,26 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 
     /**

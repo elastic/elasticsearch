@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -354,7 +355,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistQuantilesSync_QuantilesDocumentCreated() {
-        testPersistQuantilesSync(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
+        testPersistQuantilesSync(new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), ".ml-state-write");
     }
 
     public void testPersistQuantilesSync_QuantilesDocumentUpdated() {
@@ -393,7 +394,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistQuantilesAsync_QuantilesDocumentCreated() {
-        testPersistQuantilesAsync(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
+        testPersistQuantilesAsync(new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), ".ml-state-write");
     }
 
     public void testPersistQuantilesAsync_QuantilesDocumentUpdated() {

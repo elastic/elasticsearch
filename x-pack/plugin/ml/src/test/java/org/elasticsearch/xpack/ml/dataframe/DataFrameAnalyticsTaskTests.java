@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -239,7 +240,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testPersistProgress_ProgressDocumentCreated() throws IOException {
-        testPersistProgress(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
+        testPersistProgress(new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), ".ml-state-write");
     }
 
     public void testPersistProgress_ProgressDocumentUpdated() throws IOException {
@@ -283,7 +284,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(SearchHits.EMPTY_WITH_TOTAL_HITS);
+        when(searchResponse.getHits()).thenReturn(new SearchHits(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0));
         doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);

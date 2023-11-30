@@ -241,14 +241,14 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     ) {
         try {
             final InternalSearchResponse internalResponse = SearchPhaseController.merge(true, queryPhase, fetchResults);
-            // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
-            // such that we can talk to them again in the next roundtrip.
-            String scrollId = null;
-            if (request.scroll() != null) {
-                scrollId = request.scrollId();
-            }
-            listener.onResponse(
-                new SearchResponse(
+            try {
+                // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
+                // such that we can talk to them again in the next roundtrip.
+                String scrollId = null;
+                if (request.scroll() != null) {
+                    scrollId = request.scrollId();
+                }
+                var response = new SearchResponse(
                     internalResponse,
                     scrollId,
                     this.scrollId.getContext().length,
@@ -258,8 +258,15 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                     buildShardFailures(),
                     SearchResponse.Clusters.EMPTY,
                     null
-                )
-            );
+                );
+                try {
+                    listener.onResponse(response);
+                } finally {
+                    response.decRef();
+                }
+            } finally {
+                internalResponse.decRef();
+            }
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
         }

@@ -53,6 +53,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         this.size = size;
         this.topDocs = topDocs;
         this.searchHits = searchHits;
+        searchHits.incRef();
     }
 
     /**

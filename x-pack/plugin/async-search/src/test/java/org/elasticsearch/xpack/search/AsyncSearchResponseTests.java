@@ -210,7 +210,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long took = 22968L;
         long expectedCompletionTime = startTimeMillis + took;
 
-        SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
+        SearchHits hits = new SearchHits(SearchHits.EMPTY, null, 0);
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 2);
         SearchResponse searchResponse = new SearchResponse(
             sections,
@@ -315,7 +315,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long expirationTimeMillis = 1689784924517L;
         long took = 22968L;
 
-        SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
+        SearchHits hits = new SearchHits(SearchHits.EMPTY, null, 0);
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 2);
 
         SearchResponse.Clusters clusters = createCCSClusterObjects(3, 3, true);
@@ -461,7 +461,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long took = 22968L;
         long expectedCompletionTime = startTimeMillis + took;
 
-        SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
+        SearchHits hits = new SearchHits(SearchHits.EMPTY, null, 0);
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, true, null, null, 2);
         SearchResponse.Clusters clusters = createCCSClusterObjects(4, 3, true);
 
@@ -658,7 +658,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long expirationTimeMillis = 1689784924517L;
         long took = 22968L;
 
-        SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
+        SearchHits hits = new SearchHits(SearchHits.EMPTY, null, 0);
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 2);
         SearchResponse searchResponse = new SearchResponse(
             sections,

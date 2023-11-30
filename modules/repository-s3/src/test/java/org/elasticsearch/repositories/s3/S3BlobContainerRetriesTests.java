@@ -522,12 +522,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_max_retries"), new FlakyReadHandler());
 
-        try (
-            InputStream inputStream = blobContainer.readBlob(
-                randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose),
-                "read_blob_max_retries"
-            )
-        ) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_max_retries")) {
             final int readLimit;
             final InputStream wrappedStream;
             if (randomBoolean()) {
@@ -584,6 +579,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
         // some attempts make meaningful progress and do not count towards the max retry limit
         return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
+    }
+
+    @Override
+    protected OperationPurpose randomRetryingPurpose() {
+        return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
     }
 
     /**

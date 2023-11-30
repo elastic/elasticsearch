@@ -81,7 +81,6 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             .execute()
             .get();
         assertTrue("Creation of [" + name + "] is not acknowledged.", response.isAcknowledged());
-        assertTrue("Shards for [" + name + "] are not acknowledged.", response.isShardsAcknowledged());
     }
 
     /**

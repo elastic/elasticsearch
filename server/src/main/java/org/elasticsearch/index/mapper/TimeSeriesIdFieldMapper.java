@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -40,6 +41,8 @@ import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -337,5 +340,40 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         byte[] bytes = new byte[bytesRef.length];
         System.arraycopy(bytesRef.bytes, 0, bytes, 0, bytesRef.length);
         return BASE64_ENCODER.encodeToString(bytes);
+    }
+
+    public static Map<String, Object> decodeTsid2(BytesRef bytesRef) {
+        try (StreamInput input = new BytesArray(bytesRef).streamInput()) {
+            return decodeTsid2(input);
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("Dimension field cannot be deserialized.", ex);
+        }
+    }
+
+    public static Map<String, Object> decodeTsid2(StreamInput in) {
+        try {
+            int size = in.readVInt();
+            Map<String, Object> result = new LinkedHashMap<>(size);
+
+            for (int i = 0; i < size; i++) {
+                String name = in.readBytesRef().utf8ToString();
+
+                int type = in.read();
+                switch (type) {
+                    case (byte) 's' -> // parse a string
+                        result.put(name, in.readBytesRef().utf8ToString());
+                    case (byte) 'l' -> // parse a long
+                        result.put(name, in.readLong());
+                    case (byte) 'u' -> { // parse an unsigned_long
+                        Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
+                        result.put(name, ul);
+                    }
+                    default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
+                }
+            }
+            return result;
+        } catch (IOException | IllegalArgumentException e) {
+            throw new IllegalArgumentException("Error formatting " + NAME + ": " + e.getMessage(), e);
+        }
     }
 }

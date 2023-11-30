@@ -34,7 +34,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
@@ -194,7 +193,7 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
     }
 
     private static void assertTimeSeriesAggregation(final InternalTimeSeries timeSeriesAggregation) {
-        final List<Object> dimensions = timeSeriesAggregation.getBuckets().stream().map(InternalTimeSeries.InternalBucket::getKey).toList();
+        final var dimensions = timeSeriesAggregation.getBuckets().stream().map(InternalTimeSeries.InternalBucket::getKey).toList();
         // NOTE: only two time series expected as a result of having just two distinct values for the last dimension
         assertEquals(2, dimensions.size());
 

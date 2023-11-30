@@ -347,8 +347,10 @@ This query will result in:
   "aggregations": {
     "path": {
       "buckets": {
-        "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA": {
-          "key": "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA",
+        "{city=Paris}": {
+          "key": {
+            "city": "Paris"
+          },
           "doc_count": 2,
           "museum_tour": {
             "type": "Feature",
@@ -361,13 +363,15 @@ This query will result in:
             }
           }
         },
-        "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA": {
-          "key": "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA",
-          "doc_count": 5,
+        "{city=Antwerp}": {
+          "key": {
+            "city": "Antwerp"
+          },
+          "doc_count": 3,
           "museum_tour": {
             "type": "Feature",
             "geometry": {
-              "coordinates": [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ],
+              "coordinates": [ [ 4.401384, 51.220292 ], [ 4.405819, 51.221758 ], [ 4.4052, 51.2229 ] ],
               "type": "LineString"
             },
             "properties": {
@@ -375,13 +379,15 @@ This query will result in:
             }
           }
         },
-        "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw": {
-          "key": "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw",
-          "doc_count": 3,
+        "{city=Amsterdam}": {
+          "key": {
+            "city": "Amsterdam"
+          },
+          "doc_count": 5,
           "museum_tour": {
             "type": "Feature",
             "geometry": {
-              "coordinates": [ [ 4.401384, 51.220292 ], [ 4.405819, 51.221758 ], [ 4.4052, 51.2229 ] ],
+              "coordinates": [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ],
               "type": "LineString"
             },
             "properties": {

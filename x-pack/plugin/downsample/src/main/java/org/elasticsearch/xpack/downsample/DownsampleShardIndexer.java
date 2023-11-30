@@ -362,12 +362,12 @@ class DownsampleShardIndexer {
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
                     task.addNumReceived(1);
-                    final BytesRef tsid = aggCtx.getTsid();
-                    assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
-                    final int tsidOrd = aggCtx.getTsidOrd();
+                    final BytesRef tsidHash = aggCtx.getTsidHash();
+                    assert tsidHash != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
+                    final int tsidHashOrd = aggCtx.getTsidHashOrd();
                     final long timestamp = timestampField.resolution().roundDownToMillis(aggCtx.getTimestamp());
 
-                    boolean tsidChanged = tsidOrd != downsampleBucketBuilder.tsidOrd();
+                    boolean tsidChanged = tsidHashOrd != downsampleBucketBuilder.tsidOrd();
                     if (tsidChanged || timestamp < lastHistoTimestamp) {
                         lastHistoTimestamp = Math.max(
                             rounding.round(timestamp),
@@ -381,7 +381,7 @@ class DownsampleShardIndexer {
                         logger.trace(
                             "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> downsample bucket ts: [{}]",
                             docId,
-                            DocValueFormat.TIME_SERIES_ID.format(tsid),
+                            DocValueFormat.TIME_SERIES_ID.format(tsidHash),
                             timestampFormat.format(timestamp),
                             timestampFormat.format(lastHistoTimestamp)
                         );
@@ -393,13 +393,13 @@ class DownsampleShardIndexer {
                      * - @timestamp must be sorted in descending order within the same _tsid
                      */
                     BytesRef lastTsid = downsampleBucketBuilder.tsid();
-                    assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
+                    assert lastTsid == null || lastTsid.compareTo(tsidHash) <= 0
                         : "_tsid is not sorted in ascending order: ["
                             + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
                             + "] -> ["
-                            + DocValueFormat.TIME_SERIES_ID.format(tsid)
+                            + DocValueFormat.TIME_SERIES_ID.format(tsidHash)
                             + "]";
-                    assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp
+                    assert tsidHash.equals(lastTsid) == false || lastTimestamp >= timestamp
                         : "@timestamp is not sorted in descending order: ["
                             + timestampFormat.format(lastTimestamp)
                             + "] -> ["
@@ -416,7 +416,7 @@ class DownsampleShardIndexer {
 
                         // Create new downsample bucket
                         if (tsidChanged) {
-                            downsampleBucketBuilder.resetTsid(tsid, tsidOrd, lastHistoTimestamp);
+                            downsampleBucketBuilder.resetTsid(tsidHash, tsidHashOrd, lastHistoTimestamp);
                         } else {
                             downsampleBucketBuilder.resetTimestamp(lastHistoTimestamp);
                         }

@@ -81,8 +81,8 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
         }
 
         @Override
-        public Object getKey() {
-            return TimeSeriesIdFieldMapper.decodeTsid(key);
+        public Map<String, Object> getKey() {
+            return TimeSeriesIdFieldMapper.decodeTsid2(key);
         }
 
         @Override
@@ -221,7 +221,6 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
             ? ((TimeSeriesAggregationBuilder) reduceContext.builder()).getSize()
             : null; // tests may use a fake builder
         List<InternalBucket> bucketsWithSameKey = new ArrayList<>(aggregations.size());
-        BytesRef prevTsid = null;
         while (pq.size() > 0) {
             reduceContext.consumeBucketsAndMaybeBreak(1);
             bucketsWithSameKey.clear();
@@ -247,13 +246,10 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
             } else {
                 reducedBucket = reduceBucket(bucketsWithSameKey, reduceContext);
             }
-            BytesRef tsid = reducedBucket.key;
-            assert prevTsid == null || tsid.compareTo(prevTsid) > 0;
             reduced.buckets.add(reducedBucket);
             if (size != null && reduced.buckets.size() >= size) {
                 break;
             }
-            prevTsid = tsid;
         }
         return reduced;
     }

@@ -54,8 +54,8 @@ setup:
 ---
 "Basic test":
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.6.99"
+      reason: Time series result serialization changed in 8.6.0
 
   - do:
       search:
@@ -76,7 +76,7 @@ setup:
   - match: { hits.total.value: 1 }
   - length: { aggregations: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: "JEMc3XgEDWzF216sBF5nxwWv9hou4__k9oZfeombF5dLPwkqUA" }
+  - match: { aggregations.ts.buckets.0.key: { "key": "foo" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
 
 ---
@@ -107,8 +107,8 @@ setup:
 ---
 "Size test":
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.6.99"
+      reason: Size added in 8.7.0
 
   - do:
       search:
@@ -126,7 +126,7 @@ setup:
                 size: 1
 
   - length: { aggregations.ts.buckets: 1 }
-  - match: { aggregations.ts.buckets.0.key: "JEMc3XgEDWzF216sBF5nxwWKf_6WZzMy4zeMjdIBoQC3xHGkjg" }
+  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
 
   - do:
       search:
@@ -144,9 +144,9 @@ setup:
                 size: 3
 
   - length: { aggregations.ts.buckets: 3 }
-  - match: { aggregations.ts.buckets.0.key: "JEMc3XgEDWzF216sBF5nxwWKf_6WZzMy4zeMjdIBoQC3xHGkjg" }
-  - match: { aggregations.ts.buckets.1.key: "JEMc3XgEDWzF216sBF5nxwWv9hou4__k9oZfeombF5dLPwkqUA" }
-  - match: { aggregations.ts.buckets.2.key: "JEMc3XgEDWzF216sBF5nxwW5AZB2-M4K_VYiHrKDjUNX3zHVkw" }
+  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
+  - match: { aggregations.ts.buckets.1.key: { "key": "baz" } }
+  - match: { aggregations.ts.buckets.2.key: { "key": "foo" } }
 
 ---
 "Score test filter some":
@@ -311,8 +311,8 @@ setup:
 ---
 "Number for keyword routing field":
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.10.99"
+      reason: "Fix in 8.11"
 
   - do:
       bulk:
@@ -341,5 +341,5 @@ setup:
   - match: { hits.total.value: 2 }
   - length: { aggregations: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: "JEMc3XgEDWzF216sBF5nxwW6KPQ_9D8hCF3DOnGNi7WMdDeQmw" }
+  - match: { aggregations.ts.buckets.0.key: { "key": "10" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }

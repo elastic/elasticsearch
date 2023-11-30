@@ -53,7 +53,7 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
                 builder.addString(entry.getKey(), (String) entry.getValue());
             }
             try {
-                var key = builder.withHash().toBytesRef();
+                var key = builder.withoutHash().toBytesRef();
                 bucketList.add(new InternalBucket(key, docCount, aggregations, keyed));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -89,12 +89,11 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void assertReduced(InternalTimeSeries reduced, List<InternalTimeSeries> inputs) {
-        Map<String, Long> keys = new HashMap<>();
+        Map<Map<String, Object>, Long> keys = new HashMap<>();
         for (InternalTimeSeries in : inputs) {
             for (InternalBucket bucket : in.getBuckets()) {
-                keys.compute((String) bucket.getKey(), (k, v) -> {
+                keys.compute(bucket.getKey(), (k, v) -> {
                     if (v == null) {
                         return bucket.docCount;
                     } else {

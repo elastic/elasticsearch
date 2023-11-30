@@ -657,18 +657,25 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("keyword doesn't support ignore_malformed", ignoreMalformed);
-        return new KeywordSyntheticSourceSupport(randomBoolean(), usually() ? null : randomAlphaOfLength(2), true);
+        return new KeywordSyntheticSourceSupport(
+            randomBoolean() ? null : between(10, 100),
+            randomBoolean(),
+            usually() ? null : randomAlphaOfLength(2),
+            true
+        );
     }
 
     static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
-        private final boolean allIgnored = ignoreAbove != null && rarely();
+        private final Integer ignoreAbove;
+        private final boolean allIgnored;
         private final boolean store;
         private final boolean docValues;
         private final String nullValue;
         private final boolean exampleSortsUsingIgnoreAbove;
 
-        KeywordSyntheticSourceSupport(boolean store, String nullValue, boolean exampleSortsUsingIgnoreAbove) {
+        KeywordSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean exampleSortsUsingIgnoreAbove) {
+            this.ignoreAbove = ignoreAbove;
+            this.allIgnored = ignoreAbove != null && rarely();
             this.store = store;
             this.nullValue = nullValue;
             this.exampleSortsUsingIgnoreAbove = exampleSortsUsingIgnoreAbove;

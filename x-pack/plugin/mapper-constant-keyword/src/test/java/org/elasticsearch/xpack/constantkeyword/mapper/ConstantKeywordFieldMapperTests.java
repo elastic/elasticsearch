@@ -248,6 +248,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             public Set<String> sourcePaths(String name) {
                 return mapper.mappingLookup().sourcePaths(name);
             }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
         });
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
@@ -256,7 +261,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 TestBlock block = (TestBlock) loader.columnAtATimeReader(reader.leaves().get(0))
-                    .read(TestBlock.FACTORY, new BlockLoader.Docs() {
+                    .read(TestBlock.factory(reader.numDocs()), new BlockLoader.Docs() {
                         @Override
                         public int count() {
                             return 1;

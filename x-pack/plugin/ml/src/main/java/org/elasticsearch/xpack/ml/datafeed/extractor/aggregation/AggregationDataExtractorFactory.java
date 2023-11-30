@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
@@ -30,7 +29,7 @@ public record AggregationDataExtractorFactory(
 ) implements DataExtractorFactory {
 
     public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices, IndicesOptions indicesOptions) {
-        return (searchSourceBuilder) -> new SearchRequestBuilder(client, SearchAction.INSTANCE).setSource(searchSourceBuilder)
+        return (searchSourceBuilder) -> new SearchRequestBuilder(client).setSource(searchSourceBuilder)
             .setIndicesOptions(indicesOptions)
             .setAllowPartialSearchResults(false)
             .setIndices(indices);

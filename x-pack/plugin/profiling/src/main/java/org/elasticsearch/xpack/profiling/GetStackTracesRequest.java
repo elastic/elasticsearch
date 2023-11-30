@@ -41,7 +41,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public static final ParseField AWS_COST_FACTOR_FIELD = new ParseField("aws_cost_factor");
     public static final ParseField CUSTOM_CO2_PER_KWH = new ParseField("co2_per_kwh");
     public static final ParseField CUSTOM_DATACENTER_PUE = new ParseField("datacenter_pue");
-    public static final ParseField CUSTOM_PER_CORE_WATT = new ParseField("per_core_watt");
+    public static final ParseField CUSTOM_PER_CORE_WATT_X86 = new ParseField("per_core_watt_x86");
+    public static final ParseField CUSTOM_PER_CORE_WATT_ARM64 = new ParseField("per_core_watt_arm64");
+    public static final ParseField CUSTOM_COST_PER_CORE_HOUR = new ParseField("cost_per_core_hour");
     private static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private QueryBuilder query;
@@ -52,7 +54,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private Double awsCostFactor;
     private Double customCO2PerKWH;
     private Double customDatacenterPUE;
-    private Double customPerCoreWatt;
+    private Double customPerCoreWattX86;
+    private Double customPerCoreWattARM64;
+    private Double customCostPerCoreHour;
 
     // We intentionally don't expose this field via the REST API, but we can control behavior within Elasticsearch.
     // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
@@ -60,7 +64,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private Boolean adjustSampleCount;
 
     public GetStackTracesRequest() {
-        this(null, null, null, null, null, null, null, null, null);
+        this(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public GetStackTracesRequest(
@@ -72,7 +76,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         String stackTraceIds,
         Double customCO2PerKWH,
         Double customDatacenterPUE,
-        Double customPerCoreWatt
+        Double customPerCoreWattX86,
+        Double customPerCoreWattARM64,
+        Double customCostPerCoreHour
     ) {
         this.sampleSize = sampleSize;
         this.requestedDuration = requestedDuration;
@@ -82,7 +88,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.stackTraceIds = stackTraceIds;
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
-        this.customPerCoreWatt = customPerCoreWatt;
+        this.customPerCoreWattX86 = customPerCoreWattX86;
+        this.customPerCoreWattARM64 = customPerCoreWattX86;
+        this.customCostPerCoreHour = customCostPerCoreHour;
     }
 
     public GetStackTracesRequest(StreamInput in) throws IOException {
@@ -95,7 +103,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.stackTraceIds = in.readOptionalString();
         this.customCO2PerKWH = in.readOptionalDouble();
         this.customDatacenterPUE = in.readOptionalDouble();
-        this.customPerCoreWatt = in.readOptionalDouble();
+        this.customPerCoreWattX86 = in.readOptionalDouble();
+        this.customPerCoreWattARM64 = in.readOptionalDouble();
+        this.customCostPerCoreHour = in.readOptionalDouble();
     }
 
     @Override
@@ -109,7 +119,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         out.writeOptionalString(stackTraceIds);
         out.writeOptionalDouble(customCO2PerKWH);
         out.writeOptionalDouble(customDatacenterPUE);
-        out.writeOptionalDouble(customPerCoreWatt);
+        out.writeOptionalDouble(customPerCoreWattX86);
+        out.writeOptionalDouble(customPerCoreWattARM64);
+        out.writeOptionalDouble(customCostPerCoreHour);
     }
 
     public Integer getSampleSize() {
@@ -132,8 +144,16 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         return customDatacenterPUE;
     }
 
-    public Double getCustomPerCoreWatt() {
-        return customPerCoreWatt;
+    public Double getCustomPerCoreWattX86() {
+        return customPerCoreWattX86;
+    }
+
+    public Double getCustomPerCoreWattARM64() {
+        return customPerCoreWattARM64;
+    }
+
+    public Double getCustomCostPerCoreHour() {
+        return customCostPerCoreHour;
     }
 
     public QueryBuilder getQuery() {
@@ -185,8 +205,12 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     this.customCO2PerKWH = parser.doubleValue();
                 } else if (CUSTOM_DATACENTER_PUE.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customDatacenterPUE = parser.doubleValue();
-                } else if (CUSTOM_PER_CORE_WATT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    this.customPerCoreWatt = parser.doubleValue();
+                } else if (CUSTOM_PER_CORE_WATT_X86.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customPerCoreWattX86 = parser.doubleValue();
+                } else if (CUSTOM_PER_CORE_WATT_ARM64.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customPerCoreWattARM64 = parser.doubleValue();
+                } else if (CUSTOM_COST_PER_CORE_HOUR.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customCostPerCoreHour = parser.doubleValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -243,7 +267,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         validationException = requirePositive(AWS_COST_FACTOR_FIELD, awsCostFactor, validationException);
         validationException = requirePositive(CUSTOM_CO2_PER_KWH, customCO2PerKWH, validationException);
         validationException = requirePositive(CUSTOM_DATACENTER_PUE, customDatacenterPUE, validationException);
-        validationException = requirePositive(CUSTOM_PER_CORE_WATT, customPerCoreWatt, validationException);
+        validationException = requirePositive(CUSTOM_PER_CORE_WATT_X86, customPerCoreWattX86, validationException);
+        validationException = requirePositive(CUSTOM_PER_CORE_WATT_ARM64, customPerCoreWattARM64, validationException);
+        validationException = requirePositive(CUSTOM_COST_PER_CORE_HOUR, customCostPerCoreHour, validationException);
         return validationException;
     }
 
@@ -270,7 +296,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 appendField(sb, "aws_cost_factor", awsCostFactor);
                 appendField(sb, "co2_per_kwh", customCO2PerKWH);
                 appendField(sb, "datacenter_pue", customDatacenterPUE);
-                appendField(sb, "per_core_watt", customPerCoreWatt);
+                appendField(sb, "per_core_watt_x86", customPerCoreWattX86);
+                appendField(sb, "per_core_watt_arm64", customPerCoreWattARM64);
+                appendField(sb, "cost_per_core_hour", customCostPerCoreHour);
                 appendField(sb, "query", query);
                 return sb.toString();
             }

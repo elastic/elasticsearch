@@ -80,6 +80,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
     @Override
     public DoubleBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values

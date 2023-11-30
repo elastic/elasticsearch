@@ -14,9 +14,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
@@ -76,7 +76,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             for (int j = 0; j < numTasks; j++) {
                 PlainActionFuture<SearchResponse> actionFuture = new PlainActionFuture<>();
                 RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
-                threadPool.generic().submit(() -> client.execute(SearchAction.INSTANCE, new SearchRequest(), actionFuture));
+                threadPool.generic().submit(() -> client.execute(TransportSearchAction.TYPE, new SearchRequest(), actionFuture));
                 futures.add(actionFuture);
             }
         }
@@ -106,7 +106,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             totalSearches += numTasks;
             RestCancellableNodeClient client = new RestCancellableNodeClient(nodeClient, channel);
             for (int j = 0; j < numTasks; j++) {
-                client.execute(SearchAction.INSTANCE, new SearchRequest(), null);
+                client.execute(TransportSearchAction.TYPE, new SearchRequest(), null);
             }
             assertEquals(numTasks, RestCancellableNodeClient.getNumTasks(channel));
         }
@@ -139,7 +139,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
             for (int j = 0; j < numTasks; j++) {
                 // here the channel will be first registered, then straight-away removed from the map as the close listener is invoked
-                client.execute(SearchAction.INSTANCE, new SearchRequest(), null);
+                client.execute(TransportSearchAction.TYPE, new SearchRequest(), null);
             }
         }
         assertEquals(initialHttpChannels, RestCancellableNodeClient.getNumChannels());
@@ -177,7 +177,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                     }
                     return task;
                 }
-                case SearchAction.NAME -> {
+                case TransportSearchAction.NAME -> {
                     searchRequests.incrementAndGet();
                     Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
                     if (timeout == false) {

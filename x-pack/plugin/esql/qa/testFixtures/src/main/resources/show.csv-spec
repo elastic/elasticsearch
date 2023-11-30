@@ -47,7 +47,7 @@ median_absolute_deviation|? median_absolute_deviation(arg1:?)                   
 min                      |? min(arg1:?)                                           |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 mv_avg                   |? mv_avg(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 mv_concat                |"keyword mv_concat(v:text|keyword, delim:text|keyword)" |[v, delim]               |["text|keyword", "text|keyword"] |["values to join", "delimiter"]      |keyword              | "Reduce a multivalued string field to a single valued field by concatenating all values." | [false, false]       | false
-mv_count                 |"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v      | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" | integer | "Reduce a multivalued field to a single valued field containing the count of values."       | false                | false
+mv_count                 |"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)" |v      | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point" | "" | integer | "Reduce a multivalued field to a single valued field containing the count of values."       | false                | false
 mv_dedupe                |"? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)" |v | "boolean|date|double|ip|text|integer|keyword|version|long" | "" |?   | "Remove duplicate values from a multivalued field."                      | false                | false
 mv_max                   |"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" |?      | "Reduce a multivalued field to a single valued field containing the maximum value." | false                | false
 mv_median                |? mv_median(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
@@ -73,18 +73,20 @@ tanh                     |"double tanh(n:integer|long|double|unsigned_long)"    
 tau                      |? tau()                                                 | null                    | null             | null                                               |?                    | ""                      | null                 | false
 to_bool                  |? to_bool(arg1:?)                                       |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_boolean               |? to_boolean(arg1:?)                                    |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_cartesianpoint        |? to_cartesianpoint(arg1:?)                             |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_datetime              |? to_datetime(arg1:?)                                   |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_dbl                   |? to_dbl(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_degrees               |? to_degrees(arg1:?)                                    |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_double                |? to_double(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_dt                    |? to_dt(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_geopoint              |? to_geopoint(arg1:?)                                   |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_int                   |? to_int(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_integer               |? to_integer(arg1:?)                                    |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_ip                    |? to_ip(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_long                  |? to_long(arg1:?)                                       |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_radians               |? to_radians(arg1:?)                                    |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-to_str                   |"? to_str(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"|v                        |"unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long"                 | ""                                                 |?                    | ""                      | false                | false
-to_string                |"? to_string(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"|v                        |"unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long"                 | ""                                                 |?                    | ""                      | false                | false
+to_str                   |"? to_str(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"|v    |"unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point"                 | ""                                                 |?                    | ""                      | false                | false
+to_string                |"? to_string(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"|v |"unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point"                 | ""                                                 |?                    | ""                      | false                | false
 to_ul                    |? to_ul(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_ulong                 |? to_ulong(arg1:?)                                      |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_unsigned_long         |? to_unsigned_long(arg1:?)                              |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
@@ -136,7 +138,7 @@ synopsis:keyword
 ? min(arg1:?)                                           
 ? mv_avg(arg1:?)                                        
 "keyword mv_concat(v:text|keyword, delim:text|keyword)"
-"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
+"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"
 "? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)"
 "? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
 ? mv_median(arg1:?)                                     
@@ -162,18 +164,20 @@ synopsis:keyword
 ? tau()                                                 
 ? to_bool(arg1:?)                                       
 ? to_boolean(arg1:?)                                    
+? to_cartesianpoint(arg1:?)
 ? to_datetime(arg1:?)                                   
 ? to_dbl(arg1:?)                                        
 ? to_degrees(arg1:?)                                    
 ? to_double(arg1:?)                                     
 ? to_dt(arg1:?)                                         
+? to_geopoint(arg1:?)
 ? to_int(arg1:?)                                        
 ? to_integer(arg1:?)                                    
 ? to_ip(arg1:?)                                         
 ? to_long(arg1:?)                                       
 ? to_radians(arg1:?)                                    
-"? to_str(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"                 
-"? to_string(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"                 
+"? to_str(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"                 
+"? to_string(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"                 
 ? to_ul(arg1:?)                                         
 ? to_ulong(arg1:?)                                      
 ? to_unsigned_long(arg1:?)                              
@@ -204,5 +208,5 @@ countFunctions#[skip:-8.11.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-82     | 82     | 82
+84     | 84     | 84
 ;

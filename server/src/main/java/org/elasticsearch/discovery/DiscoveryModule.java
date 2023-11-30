@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -63,7 +64,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 /**
  * A module for loading classes for node discovery.
  */
-public class DiscoveryModule {
+public class DiscoveryModule extends AbstractModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
     public static final String MULTI_NODE_DISCOVERY_TYPE = "multi-node";
@@ -288,6 +289,12 @@ public class DiscoveryModule {
 
     public static boolean isSingleNodeDiscovery(Settings settings) {
         return SINGLE_NODE_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));
+    }
+
+    @Override
+    protected void configure() {
+        bind(Coordinator.class).toInstance(coordinator);
+        bind(Reconfigurator.class).toInstance(reconfigurator);
     }
 
     public Coordinator getCoordinator() {

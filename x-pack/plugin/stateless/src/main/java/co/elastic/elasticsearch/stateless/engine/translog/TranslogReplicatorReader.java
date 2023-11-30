@@ -26,6 +26,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.Translog;
@@ -49,17 +52,23 @@ import static org.elasticsearch.core.Strings.format;
 public class TranslogReplicatorReader implements Translog.Snapshot {
 
     private static final Logger logger = LogManager.getLogger(TranslogReplicatorReader.class);
+    public static final TimeValue NINETY_SECONDS = TimeValue.timeValueSeconds(90);
 
     private final ShardId shardId;
     private final long fromSeqNo;
     private final long toSeqNo;
+    private final long translogRecoveryStartFile;
 
     private final BlobContainer translogBlobContainer;
     private final Iterator<? extends Translog.Operation> operations;
-    private boolean shortCircuitDueToHole = false;
-    private long previousTranslogShardGeneration = -1;
     private final List<BlobMetadata> blobsToRead;
     private final List<BlobMetadata> blobsMissed = new ArrayList<>();
+    private final long startNanos;
+    private boolean shortCircuitDueToHole = false;
+    private long previousTranslogShardGeneration = -1;
+    private long filesWithShardOperations = 0;
+    private long operationBytesRead = 0;
+    private long operationsRead = 0;
 
     /**
      * Creates the reader and captures the compound translog files from the object store that will be read when iterating.
@@ -80,6 +89,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         final long toSeqNo,
         final long translogRecoveryStartFile
     ) throws IOException {
+        this.translogRecoveryStartFile = translogRecoveryStartFile;
         assert fromSeqNo <= toSeqNo : fromSeqNo + " > " + toSeqNo;
         assert fromSeqNo >= 0 : "fromSeqNo must be non-negative " + fromSeqNo;
         this.shardId = shardId;
@@ -95,6 +105,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             .toList();
         Iterator<BlobMetadata> blobs = blobsToRead.iterator();
         operations = Iterators.flatMap(blobs, this::readBlobTranslogOperations);
+        this.startNanos = System.nanoTime();
     }
 
     /**
@@ -192,6 +203,10 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                         eligibleOperations.add(operation);
                     }
                 }
+
+                filesWithShardOperations++;
+                operationsRead += numOps;
+                operationBytesRead += translogMetadata.size();
                 return eligibleOperations.iterator();
             }
         }
@@ -210,5 +225,24 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     }
 
     @Override
-    public void close() throws IOException {}
+    public void close() throws IOException {
+        TimeValue recoveryTime = TimeValue.timeValueNanos(System.nanoTime() - startNanos);
+        if (recoveryTime.compareTo(NINETY_SECONDS) >= 0) {
+            int blobCount = blobsToRead.size();
+            logger.warn(
+                "slow [{}] stateless translog recovery [translogRecoveryStartFile={}, blobsToRead_count={}, blobsToRead_first={}, "
+                    + "blobsToRead_last={}, blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, operationBytesRead={}]",
+                recoveryTime,
+                translogRecoveryStartFile,
+                blobCount,
+                blobCount > 0 ? blobsToRead.get(0).name() : "N/A",
+                blobCount > 0 ? blobsToRead.get(blobCount - 1).name() : "N/A",
+                new ByteSizeValue(blobsToRead.stream().mapToLong(BlobMetadata::length).sum(), ByteSizeUnit.BYTES),
+                filesWithShardOperations,
+                operationsRead,
+                new ByteSizeValue(operationBytesRead, ByteSizeUnit.BYTES)
+            );
+        }
+
+    }
 }

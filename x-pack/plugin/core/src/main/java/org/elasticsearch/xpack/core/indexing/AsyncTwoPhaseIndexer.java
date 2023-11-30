@@ -557,6 +557,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     }
                 } catch (Exception e) {
                     finishWithFailure(e);
+                } finally {
+                    bulkRequest.close();
                 }
             }
         } catch (Exception e) {

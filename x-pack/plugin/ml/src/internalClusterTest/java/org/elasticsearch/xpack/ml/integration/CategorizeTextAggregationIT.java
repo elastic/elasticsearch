@@ -100,43 +100,44 @@ public class CategorizeTextAggregationIT extends BaseMlIntegTestCase {
 
         long nowMillis = System.currentTimeMillis();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis(), "msg", "Node 1 started", "part", "nodes");
-        bulkRequestBuilder.add(indexRequest);
-        indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source(
-            "time",
-            nowMillis - TimeValue.timeValueHours(2).millis() + 1,
-            "msg",
-            "Failed to shutdown [error org.aaaa.bbbb.Cccc line 54 caused by foo exception]",
-            "part",
-            "shutdowns"
-        );
-        bulkRequestBuilder.add(indexRequest);
-        indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source(
-            "time",
-            nowMillis - TimeValue.timeValueHours(2).millis() + 1,
-            "msg",
-            "Failed to shutdown [error org.aaaa.bbbb.Cccc line 55 caused by foo exception]",
-            "part",
-            "shutdowns"
-        );
-        bulkRequestBuilder.add(indexRequest);
-        indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(1).millis(), "msg", "Node 2 started", "part", "nodes");
-        bulkRequestBuilder.add(indexRequest);
-        indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis, "msg", "Node 3 started", "part", "nodes");
-        bulkRequestBuilder.add(indexRequest);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
+            indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis(), "msg", "Node 1 started", "part", "nodes");
+            bulkRequestBuilder.add(indexRequest);
+            indexRequest = new IndexRequest(DATA_INDEX);
+            indexRequest.source(
+                "time",
+                nowMillis - TimeValue.timeValueHours(2).millis() + 1,
+                "msg",
+                "Failed to shutdown [error org.aaaa.bbbb.Cccc line 54 caused by foo exception]",
+                "part",
+                "shutdowns"
+            );
+            bulkRequestBuilder.add(indexRequest);
+            indexRequest = new IndexRequest(DATA_INDEX);
+            indexRequest.source(
+                "time",
+                nowMillis - TimeValue.timeValueHours(2).millis() + 1,
+                "msg",
+                "Failed to shutdown [error org.aaaa.bbbb.Cccc line 55 caused by foo exception]",
+                "part",
+                "shutdowns"
+            );
+            bulkRequestBuilder.add(indexRequest);
+            indexRequest = new IndexRequest(DATA_INDEX);
+            indexRequest.source("time", nowMillis - TimeValue.timeValueHours(1).millis(), "msg", "Node 2 started", "part", "nodes");
+            bulkRequestBuilder.add(indexRequest);
+            indexRequest = new IndexRequest(DATA_INDEX);
+            indexRequest.source("time", nowMillis, "msg", "Node 3 started", "part", "nodes");
+            bulkRequestBuilder.add(indexRequest);
 
-        indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis, "msg", "Node 3 stopped", "part", "nodes");
-        bulkRequestBuilder.add(indexRequest);
+            indexRequest = new IndexRequest(DATA_INDEX);
+            indexRequest.source("time", nowMillis, "msg", "Node 3 stopped", "part", "nodes");
+            bulkRequestBuilder.add(indexRequest);
 
-        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertThat(bulkResponse.hasFailures(), is(false));
+            BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            assertThat(bulkResponse.hasFailures(), is(false));
+        }
     }
 
 }

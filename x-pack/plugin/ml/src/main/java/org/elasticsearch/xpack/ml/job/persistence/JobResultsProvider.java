@@ -1962,7 +1962,11 @@ public class JobResultsProvider {
                     ActionListener.releaseAfter(updateCalendarsListener, bulkUpdate)
                 );
             } else {
-                listener.onResponse(true);
+                try {
+                    listener.onResponse(true);
+                } finally {
+                    bulkUpdate.close();
+                }
             }
         }, listener::onFailure);
 

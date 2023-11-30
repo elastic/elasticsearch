@@ -233,6 +233,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
+            // this will fail because the only valid formats are {"embeddings": [[...]]} or [[...]]
             String responseJson = """
                 [
                     {
@@ -265,7 +266,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse object: expecting token of type [START_OBJECT] but found [START_ARRAY]")
+                is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
             );
 
             assertThat(webServer.requests(), hasSize(1));

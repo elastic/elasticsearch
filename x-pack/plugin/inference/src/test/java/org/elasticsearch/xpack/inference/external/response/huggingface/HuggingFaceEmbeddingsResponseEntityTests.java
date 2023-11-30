@@ -21,7 +21,24 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
-    public void testFromResponse_CreatesResultsForASingleItem() throws IOException {
+    public void testFromResponse_CreatesResultsForASingleItem_ArrayFormat() throws IOException {
+        String responseJson = """
+            [
+                  [
+                      0.014539449,
+                      -0.015288644
+                  ]
+            ]
+            """;
+
+        TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(0.014539449F, -0.015288644F)))));
+    }
+
+    public void testFromResponse_CreatesResultsForASingleItem_ObjectFormat() throws IOException {
         String responseJson = """
             {
               "embeddings": [
@@ -40,7 +57,36 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(0.014539449F, -0.015288644F)))));
     }
 
-    public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
+    public void testFromResponse_CreatesResultsForMultipleItems_ArrayFormat() throws IOException {
+        String responseJson = """
+            [
+                  [
+                      0.014539449,
+                      -0.015288644
+                  ],
+                  [
+                      0.0123,
+                      -0.0123
+                  ]
+            ]
+            """;
+
+        TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(
+            parsedResults.embeddings(),
+            is(
+                List.of(
+                    new TextEmbeddingResults.Embedding(List.of(0.014539449F, -0.015288644F)),
+                    new TextEmbeddingResults.Embedding(List.of(0.0123F, -0.0123F))
+                )
+            )
+        );
+    }
+
+    public void testFromResponse_CreatesResultsForMultipleItems_ObjectFormat() throws IOException {
         String responseJson = """
             {
               "embeddings": [
@@ -68,6 +114,26 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
                     new TextEmbeddingResults.Embedding(List.of(0.0123F, -0.0123F))
                 )
             )
+        );
+    }
+
+    public void testFromResponse_FailsWhenArrayOfObjects() {
+        String responseJson = """
+            [
+                  {}
+            ]
+            """;
+
+        var thrownException = expectThrows(
+            ParsingException.class,
+            () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
         );
     }
 
@@ -118,7 +184,29 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         );
     }
 
-    public void testFromResponse_FailsWhenEmbeddingValueIsAString() {
+    public void testFromResponse_FailsWhenEmbeddingValueIsAString_ArrayFormat() {
+        String responseJson = """
+            [
+                  [
+                      "abc"
+                  ]
+            ]
+            """;
+
+        var thrownException = expectThrows(
+            ParsingException.class,
+            () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]")
+        );
+    }
+
+    public void testFromResponse_FailsWhenEmbeddingValueIsAString_ObjectFormat() {
         String responseJson = """
             {
               "embeddings": [
@@ -142,7 +230,23 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         );
     }
 
-    public void testFromResponse_SucceedsWhenEmbeddingValueIsInt() throws IOException {
+    public void testFromResponse_SucceedsWhenEmbeddingValueIsInt_ArrayFormat() throws IOException {
+        String responseJson = """
+            [
+                  [
+                      1
+                  ]
+            ]
+            """;
+
+        TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(1.0F)))));
+    }
+
+    public void testFromResponse_SucceedsWhenEmbeddingValueIsInt_ObjectFormat() throws IOException {
         String responseJson = """
             {
               "embeddings": [
@@ -160,7 +264,23 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(1.0F)))));
     }
 
-    public void testFromResponse_SucceedsWhenEmbeddingValueIsLong() throws IOException {
+    public void testFromResponse_SucceedsWhenEmbeddingValueIsLong_ArrayFormat() throws IOException {
+        String responseJson = """
+            [
+                  [
+                      40294967295
+                  ]
+            ]
+            """;
+
+        TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(4.0294965E10F)))));
+    }
+
+    public void testFromResponse_SucceedsWhenEmbeddingValueIsLong_ObjectFormat() throws IOException {
         String responseJson = """
             {
               "embeddings": [
@@ -178,7 +298,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(4.0294965E10F)))));
     }
 
-    public void testFromResponse_FailsWhenEmbeddingValueIsAnObject() {
+    public void testFromResponse_FailsWhenEmbeddingValueIsAnObject_ObjectFormat() {
         String responseJson = """
             {
               "embeddings": [
@@ -200,5 +320,20 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             thrownException.getMessage(),
             is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
         );
+    }
+
+    public void testFromResponse_FailsWithUnknownToken() {
+        String responseJson = """
+            "super"
+            """;
+
+        var thrownException = expectThrows(
+            ParsingException.class,
+            () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(thrownException.getMessage(), is("Failed to parse object: unexpected token [VALUE_STRING] found"));
     }
 }

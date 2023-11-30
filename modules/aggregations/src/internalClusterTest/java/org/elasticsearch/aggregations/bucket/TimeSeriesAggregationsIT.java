@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
@@ -502,23 +503,26 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
             ).setMapping("key", "type=keyword,time_series_dimension=true", "val", "type=double")
         );
 
-        client().prepareBulk()
-            .add(prepareIndex("test").setId("2").setSource("key", "bar", "val", 2, "@timestamp", "2021-01-01T00:00:10Z"))
-            .add(prepareIndex("test").setId("1").setSource("key", "bar", "val", 10, "@timestamp", "2021-01-01T00:00:00Z"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        client().prepareBulk()
-            .add(prepareIndex("test").setId("4").setSource("key", "bar", "val", 50, "@timestamp", "2021-01-01T00:00:30Z"))
-            .add(prepareIndex("test").setId("3").setSource("key", "bar", "val", 40, "@timestamp", "2021-01-01T00:00:20Z"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        client().prepareBulk()
-            .add(prepareIndex("test").setId("7").setSource("key", "foo", "val", 20, "@timestamp", "2021-01-01T00:00:00Z"))
-            .add(prepareIndex("test").setId("8").setSource("key", "foo", "val", 30, "@timestamp", "2021-01-01T00:10:00Z"))
-            .add(prepareIndex("test").setId("5").setSource("key", "baz", "val", 20, "@timestamp", "2021-01-01T00:00:00Z"))
-            .add(prepareIndex("test").setId("6").setSource("key", "baz", "val", 30, "@timestamp", "2021-01-01T00:10:00Z"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("key", "bar", "val", 2, "@timestamp", "2021-01-01T00:00:10Z"))
+                .add(prepareIndex("test").setId("1").setSource("key", "bar", "val", 10, "@timestamp", "2021-01-01T00:00:00Z"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("key", "bar", "val", 50, "@timestamp", "2021-01-01T00:00:30Z"))
+                .add(prepareIndex("test").setId("3").setSource("key", "bar", "val", 40, "@timestamp", "2021-01-01T00:00:20Z"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(prepareIndex("test").setId("7").setSource("key", "foo", "val", 20, "@timestamp", "2021-01-01T00:00:00Z"))
+                .add(prepareIndex("test").setId("8").setSource("key", "foo", "val", 30, "@timestamp", "2021-01-01T00:10:00Z"))
+                .add(prepareIndex("test").setId("5").setSource("key", "baz", "val", 20, "@timestamp", "2021-01-01T00:00:00Z"))
+                .add(prepareIndex("test").setId("6").setSource("key", "baz", "val", 30, "@timestamp", "2021-01-01T00:10:00Z"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
 
         QueryBuilder queryBuilder = QueryBuilders.rangeQuery("@timestamp").lte("2021-01-01T00:10:00Z");
 

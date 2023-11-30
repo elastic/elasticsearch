@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -725,13 +726,14 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // index some data
         String index = "inference-agg-licence-test";
         client().admin().indices().prepareCreate(index).setMapping("feature1", "type=double", "feature2", "type=keyword").get();
-        client().prepareBulk(index)
-            .add(new IndexRequest().source("feature1", "10.0", "feature2", "foo"))
-            .add(new IndexRequest().source("feature1", "20.0", "feature2", "foo"))
-            .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
-            .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk(index)) {
+            bulkRequestBuilder.add(new IndexRequest().source("feature1", "10.0", "feature2", "foo"))
+                .add(new IndexRequest().source("feature1", "20.0", "feature2", "foo"))
+                .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
+                .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
 
         TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("foobar").field("feature2");
         AvgAggregationBuilder avgAgg = new AvgAggregationBuilder("avg_feature1").field("feature1");

@@ -55,26 +55,27 @@ public class CategorizeTextDistributedIT extends BaseMlIntegTestCase {
 
         // Spread 10000 documents in 4 categories across the shards
         for (int i = 0; i < 10; ++i) {
-            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-            for (int j = 0; j < 250; ++j) {
-                IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource(
-                    Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol destroy")
-                );
-                bulkRequestBuilder.add(indexRequestBuilder);
-                indexRequestBuilder = prepareIndex(indexName).setSource(
-                    Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol init")
-                );
-                bulkRequestBuilder.add(indexRequestBuilder);
-                indexRequestBuilder = prepareIndex(indexName).setSource(
-                    Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol start")
-                );
-                bulkRequestBuilder.add(indexRequestBuilder);
-                indexRequestBuilder = prepareIndex(indexName).setSource(
-                    Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol stop")
-                );
-                bulkRequestBuilder.add(indexRequestBuilder);
+            try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+                for (int j = 0; j < 250; ++j) {
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource(
+                        Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol destroy")
+                    );
+                    bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder = prepareIndex(indexName).setSource(
+                        Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol init")
+                    );
+                    bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder = prepareIndex(indexName).setSource(
+                        Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol start")
+                    );
+                    bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder = prepareIndex(indexName).setSource(
+                        Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol stop")
+                    );
+                    bulkRequestBuilder.add(indexRequestBuilder);
+                }
+                bulkRequestBuilder.get();
             }
-            bulkRequestBuilder.get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
 

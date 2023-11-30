@@ -199,26 +199,27 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
     }
 
     private void putModelDefinitions(List<TrainedModelDefinitionDoc> docs, String index, int startingDocNum) throws IOException {
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (TrainedModelDefinitionDoc doc : docs) {
-            try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-                IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setSource(xContentBuilder)
-                    .setId(TrainedModelDefinitionDoc.docId(doc.getModelId(), startingDocNum++));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            for (TrainedModelDefinitionDoc doc : docs) {
+                try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setSource(xContentBuilder)
+                        .setId(TrainedModelDefinitionDoc.docId(doc.getModelId(), startingDocNum++));
 
-                bulkRequestBuilder.add(indexRequestBuilder);
-            }
-        }
-
-        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        if (bulkResponse.hasFailures()) {
-            int failures = 0;
-            for (BulkItemResponse itemResponse : bulkResponse) {
-                if (itemResponse.isFailed()) {
-                    failures++;
-                    logger.error("Item response failure [{}]", itemResponse.getFailureMessage());
+                    bulkRequestBuilder.add(indexRequestBuilder);
                 }
             }
-            fail("Bulk response contained " + failures + " failures");
+
+            BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            if (bulkResponse.hasFailures()) {
+                int failures = 0;
+                for (BulkItemResponse itemResponse : bulkResponse) {
+                    if (itemResponse.isFailed()) {
+                        failures++;
+                        logger.error("Item response failure [{}]", itemResponse.getFailureMessage());
+                    }
+                }
+                fail("Bulk response contained " + failures + " failures");
+            }
         }
     }
 }

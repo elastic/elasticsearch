@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 

@@ -461,6 +461,15 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             }
         }
 
+        // We start to get false positives if we have too many candidate change points. This
+        // is the classic p-value hacking problem. However, the Sidak style correction we use
+        // elsewhere is too conservative because test statistics for different split positions
+        // are strongly correlated. We assume that we have some effective number of independent
+        // trials equal to f * n for f < 1. Simulation shows the f = 1/50 yields low Type I
+        // error rates.
+        pValue = independentTrialsPValue(pValue, (sampleValues.length + 49) / 50);
+        logger.trace("distribution change p-value: [{}]", pValue);
+
         return new TestStats(Type.DISTRIBUTION_CHANGE, pValue, changePoint, stats);
     }
 

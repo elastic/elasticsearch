@@ -81,7 +81,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
             fp += test.type() == ChangePointAggregator.Type.STATIONARY ? 0 : 1;
         }
-        assertThat(fp, lessThan(15));
+        assertThat(fp, lessThan(5));
     }
 
     public void testNonStationaryFalsePositiveRate() throws IOException {

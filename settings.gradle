@@ -29,6 +29,7 @@ List projects = [
   'client:rest',
   'client:rest-high-level',
   'client:sniffer',
+  'client:transport',
   'client:test',
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',

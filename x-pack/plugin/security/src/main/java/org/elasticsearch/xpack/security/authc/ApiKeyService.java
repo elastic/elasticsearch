@@ -448,14 +448,17 @@ public class ApiKeyService {
                         SECURITY_ORIGIN,
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
-                            assert request.getId().equals(indexResponse.getId());
-                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                            apiKeyAuthCache.put(request.getId(), listenableFuture);
-                            listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
-                        }, listener::onFailure))
+                        ActionListener.releaseAfter(
+                            TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                                assert request.getId().equals(indexResponse.getId());
+                                assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                                apiKeyAuthCache.put(request.getId(), listenableFuture);
+                                listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                            }, listener::onFailure)),
+                            bulkRequestBuilder
+                        )
                     )
                 );
             } catch (IOException e) {
@@ -574,9 +577,12 @@ public class ApiKeyService {
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 bulkRequestBuilder.request(),
-                ActionListener.<BulkResponse>wrap(
-                    bulkResponse -> buildResponseAndClearCache(bulkResponse, responseBuilder, listener),
-                    ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
+                ActionListener.releaseAfter(
+                    ActionListener.<BulkResponse>wrap(
+                        bulkResponse -> buildResponseAndClearCache(bulkResponse, responseBuilder, listener),
+                        ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
+                    ),
+                    bulkRequestBuilder
                 ),
                 client::bulk
             )
@@ -1688,7 +1694,7 @@ public class ApiKeyService {
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
                     bulkRequestBuilder.request(),
-                    ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                    ActionListener.releaseAfter(ActionListener.<BulkResponse>wrap(bulkResponse -> {
                         ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
                         ArrayList<String> previouslyInvalidated = new ArrayList<>();
                         ArrayList<String> invalidated = new ArrayList<>();
@@ -1718,7 +1724,7 @@ public class ApiKeyService {
                         Throwable cause = ExceptionsHelper.unwrapCause(e);
                         traceLog("invalidate api keys", cause);
                         listener.onFailure(e);
-                    }),
+                    }), bulkRequestBuilder),
                     client::bulk
                 )
             );

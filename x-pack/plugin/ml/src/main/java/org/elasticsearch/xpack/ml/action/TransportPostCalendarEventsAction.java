@@ -99,7 +99,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
                 ML_ORIGIN,
                 BulkAction.INSTANCE,
                 bulkRequestBuilder.request(),
-                new ActionListener<BulkResponse>() {
+                ActionListener.releaseAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(BulkResponse response) {
                         jobManager.updateProcessOnCalendarChanged(
@@ -115,7 +115,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
                     public void onFailure(Exception e) {
                         listener.onFailure(ExceptionsHelper.serverError("Error indexing event", e));
                     }
-                }
+                }, bulkRequestBuilder)
             );
         }, listener::onFailure);
 

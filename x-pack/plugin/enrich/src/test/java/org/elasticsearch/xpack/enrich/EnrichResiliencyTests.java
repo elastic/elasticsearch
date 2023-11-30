@@ -130,30 +130,31 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
 
         XContentBuilder doc = JsonXContent.contentBuilder().startObject().field("custom_id", "key").endObject();
 
-        BulkRequest bulk = new BulkRequest(enrichedIndexName);
-        bulk.timeout(new TimeValue(10, TimeUnit.SECONDS));
-        for (int idx = 0; idx < 50; idx++) {
-            bulk.add(new IndexRequest().source(doc).setPipeline(enrichPipelineName));
-        }
-
-        BulkResponse bulkItemResponses = client().bulk(bulk).actionGet(new TimeValue(30, TimeUnit.SECONDS));
-
-        assertTrue(bulkItemResponses.hasFailures());
-        BulkItemResponse.Failure firstFailure = null;
-        int successfulItems = 0;
-        for (BulkItemResponse item : bulkItemResponses.getItems()) {
-            if (item.isFailed() && firstFailure == null) {
-                firstFailure = item.getFailure();
-            } else if (item.isFailed() == false) {
-                successfulItems++;
+        try (BulkRequest bulk = new BulkRequest(enrichedIndexName)) {
+            bulk.timeout(new TimeValue(10, TimeUnit.SECONDS));
+            for (int idx = 0; idx < 50; idx++) {
+                bulk.add(new IndexRequest().source(doc).setPipeline(enrichPipelineName));
             }
-        }
-        assertNotNull(firstFailure);
-        assertThat(firstFailure.getStatus().getStatus(), is(equalTo(429)));
-        assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
-        client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+            BulkResponse bulkItemResponses = client().bulk(bulk).actionGet(new TimeValue(30, TimeUnit.SECONDS));
+
+            assertTrue(bulkItemResponses.hasFailures());
+            BulkItemResponse.Failure firstFailure = null;
+            int successfulItems = 0;
+            for (BulkItemResponse item : bulkItemResponses.getItems()) {
+                if (item.isFailed() && firstFailure == null) {
+                    firstFailure = item.getFailure();
+                } else if (item.isFailed() == false) {
+                    successfulItems++;
+                }
+            }
+            assertNotNull(firstFailure);
+            assertThat(firstFailure.getStatus().getStatus(), is(equalTo(429)));
+            assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
+
+            client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
+            assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+        }
     }
 
     public void testWriteThreadLivenessWithPipeline() throws Exception {
@@ -253,29 +254,30 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
 
         XContentBuilder doc = JsonXContent.contentBuilder().startObject().field("custom_id", "key").endObject();
 
-        BulkRequest bulk = new BulkRequest(enrichedIndexName);
-        bulk.timeout(new TimeValue(10, TimeUnit.SECONDS));
-        for (int idx = 0; idx < 50; idx++) {
-            bulk.add(new IndexRequest().source(doc).setPipeline(enrichPipelineName1));
-        }
-
-        BulkResponse bulkItemResponses = client().bulk(bulk).actionGet(new TimeValue(30, TimeUnit.SECONDS));
-
-        assertTrue(bulkItemResponses.hasFailures());
-        BulkItemResponse.Failure firstFailure = null;
-        int successfulItems = 0;
-        for (BulkItemResponse item : bulkItemResponses.getItems()) {
-            if (item.isFailed() && firstFailure == null) {
-                firstFailure = item.getFailure();
-            } else if (item.isFailed() == false) {
-                successfulItems++;
+        try (BulkRequest bulk = new BulkRequest(enrichedIndexName)) {
+            bulk.timeout(new TimeValue(10, TimeUnit.SECONDS));
+            for (int idx = 0; idx < 50; idx++) {
+                bulk.add(new IndexRequest().source(doc).setPipeline(enrichPipelineName1));
             }
-        }
-        assertNotNull(firstFailure);
-        assertThat(firstFailure.getStatus().getStatus(), is(equalTo(429)));
-        assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
-        client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+            BulkResponse bulkItemResponses = client().bulk(bulk).actionGet(new TimeValue(30, TimeUnit.SECONDS));
+
+            assertTrue(bulkItemResponses.hasFailures());
+            BulkItemResponse.Failure firstFailure = null;
+            int successfulItems = 0;
+            for (BulkItemResponse item : bulkItemResponses.getItems()) {
+                if (item.isFailed() && firstFailure == null) {
+                    firstFailure = item.getFailure();
+                } else if (item.isFailed() == false) {
+                    successfulItems++;
+                }
+            }
+            assertNotNull(firstFailure);
+            assertThat(firstFailure.getStatus().getStatus(), is(equalTo(429)));
+            assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
+
+            client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
+            assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+        }
     }
 }

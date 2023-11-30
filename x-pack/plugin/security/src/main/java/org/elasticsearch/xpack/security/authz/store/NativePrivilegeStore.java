@@ -393,10 +393,13 @@ public class NativePrivilegeStore {
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 bulkRequestBuilder.request(),
-                ActionListener.<BulkResponse>wrap(bulkResponse -> handleBulkResponse(bulkResponse, listener), ex -> {
-                    logger.warn(Strings.format("Failed to write application privileges to %s", securityIndexManager.aliasName()), ex);
-                    listener.onFailure(ex);
-                }),
+                ActionListener.releaseAfter(
+                    ActionListener.<BulkResponse>wrap(bulkResponse -> handleBulkResponse(bulkResponse, listener), ex -> {
+                        logger.warn(Strings.format("Failed to write application privileges to %s", securityIndexManager.aliasName()), ex);
+                        listener.onFailure(ex);
+                    }),
+                    bulkRequestBuilder
+                ),
                 client::bulk
             );
         });

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -62,11 +63,12 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
 
     private void setupTestIndex() {
         assertAcked(indicesAdmin().prepareCreate("test").get());
-        client().prepareBulk()
-            .add(new IndexRequest("test").id("1").source("field", "bar"))
-            .add(new IndexRequest("test").id("2").source("field", "baz"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(new IndexRequest("test").id("1").source("field", "bar"))
+                .add(new IndexRequest("test").id("2").source("field", "baz"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
         ensureYellow("test");
     }
 

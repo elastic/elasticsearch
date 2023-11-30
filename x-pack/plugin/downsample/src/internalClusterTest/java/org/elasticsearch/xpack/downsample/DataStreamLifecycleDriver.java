@@ -182,15 +182,17 @@ public class DataStreamLifecycleDriver {
     }
 
     private static int bulkIndex(Client client, String dataStreamName, Supplier<XContentBuilder> docSourceSupplier, int docCount) {
-        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < docCount; i++) {
-            IndexRequest indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-            XContentBuilder source = docSourceSupplier.get();
-            indexRequest.source(source);
-            bulkRequestBuilder.add(indexRequest);
+        BulkResponse bulkResponse;
+        try (BulkRequestBuilder bulkRequestBuilder = client.prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < docCount; i++) {
+                IndexRequest indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
+                XContentBuilder source = docSourceSupplier.get();
+                indexRequest.source(source);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            bulkResponse = bulkRequestBuilder.get();
         }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
         int duplicates = 0;
         for (BulkItemResponse response : bulkResponse.getItems()) {
             if (response.isFailed()) {

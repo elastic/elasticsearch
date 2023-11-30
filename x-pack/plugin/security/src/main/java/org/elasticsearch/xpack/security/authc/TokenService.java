@@ -950,7 +950,7 @@ public final class TokenService {
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
                     bulkRequestBuilder.request(),
-                    ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                    ActionListener.releaseAfter(ActionListener.<BulkResponse>wrap(bulkResponse -> {
                         ArrayList<String> retryTokenDocIds = new ArrayList<>();
                         ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
                         ArrayList<String> previouslyInvalidated = new ArrayList<>();
@@ -1055,7 +1055,7 @@ public final class TokenService {
                         } else {
                             listener.onFailure(e);
                         }
-                    }),
+                    }), bulkRequestBuilder),
                     client::bulk
                 )
             );

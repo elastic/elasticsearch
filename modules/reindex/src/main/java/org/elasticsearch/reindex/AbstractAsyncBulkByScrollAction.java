@@ -412,12 +412,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
-            notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
+            notifyDone(thisBatchStartTimeNS, asyncResponse, request);
             return;
         }
         request.timeout(mainRequest.getTimeout());
         request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request));
     }
 
     /**
@@ -515,7 +515,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
     }
 
-    void notifyDone(long thisBatchStartTimeNS, ScrollConsumableHitsResponse asyncResponse, int batchSize) {
+    void notifyDone(long thisBatchStartTimeNS, ScrollConsumableHitsResponse asyncResponse, BulkRequest request) {
+        int batchSize = request.requests().size();
+        request.close();
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);

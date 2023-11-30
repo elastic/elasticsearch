@@ -475,7 +475,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 .toList()
         );
         logger.debug(
-            "using active shards [{}], assigned shards [{}], total shards [{}]. unpromotable replicas [{}]. expecting op to [{}]. using state: \n{}",
+            "using active shards [{}], assigned shards [{}], total shards [{}]. unpromotable [{}]. expecting op to [{}]. state: \n{}",
             request.waitForActiveShards(),
             1 + assignedReplicas,
             1 + assignedReplicas + unassignedReplicas,

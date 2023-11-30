@@ -32,7 +32,7 @@ public class RestDeleteConnectorSyncJobAction extends BaseRestHandler {
         return List.of(
             new Route(
                 RestRequest.Method.DELETE,
-                "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/_sync_job/{" + CONNECTOR_SYNC_JOB_ID_PARAM + "}"
+                "/" + EnterpriseSearch.CONNECTOR_SYNC_JOB_API_ENDPOINT + "/{" + CONNECTOR_SYNC_JOB_ID_PARAM + "}"
             )
         );
     }

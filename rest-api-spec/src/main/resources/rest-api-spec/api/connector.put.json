@@ -5,7 +5,8 @@
       "description": "Creates or updates a connector."
     },
     "stability": "experimental",
-    "visibility": "public",
+    "visibility": "feature_flag",
+    "feature_flag": "es.connector_api_feature_flag_enabled",
     "headers": {
       "accept": [
         "application/json"

@@ -198,7 +198,7 @@ public class Connector implements Writeable, ToXContentObject {
     static final ParseField LANGUAGE_FIELD = new ParseField("language");
     static final ParseField NAME_FIELD = new ParseField("name");
     static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
-    static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
+    public static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
     static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
     static final ParseField STATUS_FIELD = new ParseField("status");
     static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
@@ -442,6 +442,10 @@ public class Connector implements Writeable, ToXContentObject {
 
     public String getConnectorId() {
         return connectorId;
+    }
+
+    public ConnectorScheduling getScheduling() {
+        return scheduling;
     }
 
     @Override

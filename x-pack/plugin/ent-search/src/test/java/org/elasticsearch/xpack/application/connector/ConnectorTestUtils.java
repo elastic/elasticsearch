@@ -185,7 +185,7 @@ public final class ConnectorTestUtils {
             .setPipeline(randomBoolean() ? getRandomConnectorIngestPipeline() : null)
             .setScheduling(randomBoolean() ? getRandomConnectorScheduling() : null)
             .setStatus(getRandomConnectorStatus())
-            .setSyncCursor(randomBoolean() ? Map.of("foo", "bar") : null)
+            .setSyncCursor(randomBoolean() ? Map.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)) : null)
             .setSyncNow(randomBoolean())
             .build();
     }

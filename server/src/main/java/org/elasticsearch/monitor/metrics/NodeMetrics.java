@@ -249,6 +249,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         NodeStatsCache(TimeValue interval) {
             super(interval, getNodeStats());
+            this.refresh = true;
         }
 
         @Override

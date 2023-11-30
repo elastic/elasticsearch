@@ -126,7 +126,7 @@ public class ModelRegistryTests extends ESTestCase {
         );
     }
 
-    public void testGetUnparsedModelMap_ReturnsModelConfigMap_WhenBothInferenceAndSecretsHitsAreFound() {
+    public void testGetModelWithSecrets() {
         var client = mockClient();
         String config = """
             {
@@ -140,6 +140,7 @@ public class ModelRegistryTests extends ESTestCase {
               "api_key": "secret"
             }
             """;
+
         var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
         inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
         var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".secrets-inference"));
@@ -159,6 +160,35 @@ public class ModelRegistryTests extends ESTestCase {
         assertThat(modelConfig.settings().keySet(), empty());
         assertThat(modelConfig.secrets().keySet(), hasSize(1));
         assertEquals("secret", modelConfig.secrets().get("api_key"));
+    }
+
+    public void testGetModelNoSecrets() {
+        var client = mockClient();
+        String config = """
+            {
+              "model_id": "1",
+              "task_type": "sparse_embedding",
+              "service": "foo"
+            }
+            """;
+
+        var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
+        inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
+
+        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
+
+        var registry = new ModelRegistry(client);
+
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        registry.getModel("1", listener);
+
+        registry.getModel("1", listener);
+        var modelConfig = listener.actionGet(TIMEOUT);
+        assertEquals("1", modelConfig.modelId());
+        assertEquals("foo", modelConfig.service());
+        assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
+        assertThat(modelConfig.settings().keySet(), empty());
+        assertThat(modelConfig.secrets().keySet(), empty());
     }
 
     public void testStoreModel_ReturnsTrue_WhenNoFailuresOccur() {

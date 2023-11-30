@@ -120,6 +120,37 @@ public class ModelRegistry {
     }
 
     /**
+     * Get a model.
+     * Secret settings are not included
+     * @param modelId Model to get
+     * @param listener Model listener
+     */
+    public void getModel(String modelId, ActionListener<UnparsedModel> listener) {
+        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+            // There should be a hit for the configurations and secrets
+            if (searchResponse.getHits().getHits().length == 0) {
+                listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
+                return;
+            }
+
+            var hits = searchResponse.getHits().getHits();
+            var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            assert modelConfigs.size() == 1;
+            listener.onResponse(modelConfigs.get(0));
+
+        }, listener::onFailure);
+
+        QueryBuilder queryBuilder = documentIdQuery(modelId);
+        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
+            .setQuery(queryBuilder)
+            .setSize(1)
+            .setTrackTotalHits(false)
+            .request();
+
+        client.search(modelSearch, searchListener);
+    }
+
+    /**
      * Get all models of a particular task type.
      * Secret settings are not included
      * @param taskType The task type

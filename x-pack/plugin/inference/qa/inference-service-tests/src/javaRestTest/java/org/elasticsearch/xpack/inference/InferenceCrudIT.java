@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InferenceCrudIT extends InferenceBaseRestTest {
@@ -26,7 +28,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             putModel("te_model_" + i, mockServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         }
 
-        var getAllModels = (List<Map<String, Object>>) getModels("_all", TaskType.ANY).get("models");
+        var getAllModels = (List<Map<String, Object>>) getAllModels().get("models");
         assertThat(getAllModels, hasSize(9));
 
         var getSparseModels = (List<Map<String, Object>>) getModels("_all", TaskType.SPARSE_EMBEDDING).get("models");
@@ -44,5 +46,14 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         var singleModel = (List<Map<String, Object>>) getModels("se_model_1", TaskType.SPARSE_EMBEDDING).get("models");
         assertThat(singleModel, hasSize(1));
         assertEquals("se_model_1", singleModel.get(0).get("model_id"));
+    }
+
+    public void testGetModelWithWrongTaskType() throws IOException {
+        putModel("sparse_embedding_model", mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var e = expectThrows(ResponseException.class, () -> getModels("sparse_embedding_model", TaskType.TEXT_EMBEDDING));
+        assertThat(
+            e.getMessage(),
+            containsString("Requested task type [text_embedding] does not match the model's task type [sparse_embedding]")
+        );
     }
 }

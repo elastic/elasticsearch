@@ -14,6 +14,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
@@ -36,11 +38,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -241,7 +245,31 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             assertEquals(createdModels.get(i).getConfigurations().getService(), getAllModels.get(i).service());
             assertThat(getAllModels.get(i).secrets().keySet(), empty());
         }
+    }
 
+    @SuppressWarnings("unchecked")
+    public void testGetModelWithSecrets() throws InterruptedException {
+        var service = "foo";
+        var modelId = "model-with-secrets";
+        var secret = "abc";
+
+        AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        var modelWithSecrets = createModelWithSecrets(modelId, randomFrom(TaskType.values()), service, secret);
+        blockingCall(listener -> modelRegistry.storeModel(modelWithSecrets, listener), putModelHolder, exceptionHolder);
+        assertThat(putModelHolder.get(), is(true));
+        assertNull(exceptionHolder.get());
+
+        AtomicReference<ModelRegistry.UnparsedModel> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getModelWithSecrets(modelId, listener), modelHolder, exceptionHolder);
+        assertThat(modelHolder.get().secrets().keySet(), hasSize(1));
+        var secretSettings = (Map<String, Object>) modelHolder.get().secrets().get("secret_settings");
+        assertThat(secretSettings.get("secret"), equalTo(secret));
+
+        // get model without secrets
+        blockingCall(listener -> modelRegistry.getModel(modelId, listener), modelHolder, exceptionHolder);
+        assertThat(modelHolder.get().secrets().keySet(), empty());
     }
 
     private Model buildElserModelConfig(String modelId, TaskType taskType) {
@@ -277,6 +305,13 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     public static Model createModel(String modelId, TaskType taskType, String service) {
         return new Model(new ModelConfigurations(modelId, taskType, service, new TestModelOfAnyKind.TestModelServiceSettings()));
+    }
+
+    public static Model createModelWithSecrets(String modelId, TaskType taskType, String service, String secret) {
+        return new Model(
+            new ModelConfigurations(modelId, taskType, service, new TestModelOfAnyKind.TestModelServiceSettings()),
+            new ModelSecrets(new TestModelOfAnyKind.TestSecretSettings(secret))
+        );
     }
 
     private static class TestModelOfAnyKind extends ModelConfigurations {
@@ -328,6 +363,31 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             @Override
             public void writeTo(StreamOutput out) throws IOException {
 
+            }
+        }
+
+        record TestSecretSettings(String key) implements SecretSettings {
+            @Override
+            public String getWriteableName() {
+                return "test_secrets";
+            }
+
+            @Override
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.current();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeString(key);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.field("secret", key);
+                builder.endObject();
+                return builder;
             }
         }
 

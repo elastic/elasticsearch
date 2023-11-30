@@ -72,7 +72,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
         var reponse = client().performRequest(request);
-        assertOkWithErrorMessage(reponse);
+        assertOkOrCreated(reponse);
         return entityAsMap(reponse);
     }
 
@@ -80,7 +80,15 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("GET", endpoint);
         var reponse = client().performRequest(request);
-        assertOkWithErrorMessage(reponse);
+        assertOkOrCreated(reponse);
+        return entityAsMap(reponse);
+    }
+
+    protected Map<String, Object> getAllModels() throws IOException {
+        var endpoint = Strings.format("_inference/_all");
+        var request = new Request("GET", endpoint);
+        var reponse = client().performRequest(request);
+        assertOkOrCreated(reponse);
         return entityAsMap(reponse);
     }
 
@@ -98,7 +106,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
         request.setJsonEntity(bodyBuilder.toString());
         var reponse = client().performRequest(request);
-        assertOkWithErrorMessage(reponse);
+        assertOkOrCreated(reponse);
         return entityAsMap(reponse);
     }
 
@@ -115,7 +123,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         }
     }
 
-    protected static void assertOkWithErrorMessage(Response response) throws IOException {
+    protected static void assertOkOrCreated(Response response) throws IOException {
         int statusCode = response.getStatusLine().getStatusCode();
         if (statusCode == 200 || statusCode == 201) {
             return;

@@ -70,13 +70,14 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         } else if (modelIdIsWildCard) {
             getModelsByTaskType(request.getTaskType(), listener);
         } else {
-            getSingleModel(request.getModelId(), listener);
+            getSingleModel(request.getModelId(), request.getTaskType(), listener);
         }
     }
 
-    private void getSingleModel(String modelId, ActionListener<GetInferenceModelAction.Response> listener) {
-        // Secret settings are included when getting a single model
-        modelRegistry.getModelWithSecrets(modelId, ActionListener.wrap(unparsedModel -> {
+    private void getSingleModel(String modelId, TaskType requestedTaskType, ActionListener<GetInferenceModelAction.Response> listener) {
+        assert requestedTaskType != TaskType.ANY;
+
+        modelRegistry.getModel(modelId, ActionListener.wrap(unparsedModel -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
                 listener.onFailure(
@@ -89,13 +90,20 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                 );
                 return;
             }
-            var model = service.get()
-                .parsePersistedConfigWithSecrets(
-                    unparsedModel.modelId(),
-                    unparsedModel.taskType(),
-                    unparsedModel.settings(),
-                    unparsedModel.secrets()
+
+            if (unparsedModel.taskType() != requestedTaskType) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Requested task type [{}] does not match the model's task type [{}]",
+                        RestStatus.BAD_REQUEST,
+                        requestedTaskType,
+                        unparsedModel.taskType()
+                    )
                 );
+                return;
+            }
+
+            var model = service.get().parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
             listener.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
         }, listener::onFailure));
     }

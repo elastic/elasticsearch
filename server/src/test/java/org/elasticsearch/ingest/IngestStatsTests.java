@@ -117,7 +117,7 @@ public class IngestStatsTests extends ESTestCase {
             new IngestStats.ProcessorStat("proc-1", "type-1", merge(first.get(0).stats(), second.get(0).stats())),
             new IngestStats.ProcessorStat("proc-1", "type-2", merge(first.get(1).stats(), second.get(1).stats())),
             new IngestStats.ProcessorStat("proc-2", "type-1", merge(first.get(2).stats(), second.get(2).stats())),
-            new IngestStats.ProcessorStat("proc-3", "type-4", merge(first.get(3).stats(), second.get(3).stats()))
+            new IngestStats.ProcessorStat("proc-3", "type-3", merge(first.get(3).stats(), second.get(3).stats()))
         );
     }
 
@@ -126,7 +126,7 @@ public class IngestStatsTests extends ESTestCase {
             randomProcessorStat("proc-1", "type-1"),
             randomProcessorStat("proc-1", "type-2"),
             randomProcessorStat("proc-2", "type-1"),
-            randomProcessorStat("proc-3", "type-4")
+            randomProcessorStat("proc-3", "type-3")
         );
     }
 

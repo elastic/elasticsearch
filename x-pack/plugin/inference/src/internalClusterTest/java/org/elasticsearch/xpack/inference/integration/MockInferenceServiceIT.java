@@ -25,7 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;

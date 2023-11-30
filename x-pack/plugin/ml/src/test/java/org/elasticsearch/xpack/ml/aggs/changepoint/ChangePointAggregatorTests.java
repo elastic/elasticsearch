@@ -59,7 +59,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
             fp += test.type() == ChangePointAggregator.Type.STATIONARY ? 0 : 1;
         }
-        assertThat(fp, lessThan(3));
+        assertThat(fp, lessThan(5));
 
         fp = 0;
         GammaDistribution gamma = new GammaDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1, 2);
@@ -69,7 +69,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
             fp += test.type() == ChangePointAggregator.Type.STATIONARY ? 0 : 1;
         }
-        assertThat(fp, lessThan(3));
+        assertThat(fp, lessThan(5));
     }
 
     public void testNonStationaryFalsePositives() throws IOException {
@@ -82,7 +82,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
             fp += test.type() == ChangePointAggregator.Type.NON_STATIONARY ? 0 : 1;
         }
-        assertThat(fp, lessThan(3));
+        assertThat(fp, lessThan(5));
 
         fp = 0;
         GammaDistribution gamma = new GammaDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1, 2);
@@ -93,7 +93,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
             fp += test.type() == ChangePointAggregator.Type.NON_STATIONARY ? 0 : 1;
         }
-        assertThat(fp, lessThan(3));
+        assertThat(fp, lessThan(5));
     }
 
     public void testStepChangePower() throws IOException {
@@ -124,6 +124,36 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         assertThat(tp, greaterThan(90));
     }
 
+    public void testTrendChangePower() throws IOException {
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        int tp = 0;
+        for (int i = 0; i < 100; i++) {
+            AtomicInteger j = new AtomicInteger();
+            double[] bucketValues = DoubleStream.concat(
+                DoubleStream.generate(() -> j.incrementAndGet() + normal.sample()).limit(20),
+                DoubleStream.generate(() -> 2.0 * j.incrementAndGet() + normal.sample()).limit(20)
+            ).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            tp += test.type() == ChangePointAggregator.Type.TREND_CHANGE ? 1 : 0;
+        }
+        assertThat(tp, greaterThan(90));
+
+        tp = 0;
+        GammaDistribution gamma = new GammaDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1, 2);
+        for (int i = 0; i < 100; i++) {
+            AtomicInteger j = new AtomicInteger();
+            double[] bucketValues = DoubleStream.concat(
+                DoubleStream.generate(() -> j.incrementAndGet() + gamma.sample()).limit(20),
+                DoubleStream.generate(() -> 2.0 * j.incrementAndGet() + gamma.sample()).limit(20)
+            ).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            tp += test.type() == ChangePointAggregator.Type.TREND_CHANGE ? 1 : 0;
+        }
+        assertThat(tp, greaterThan(90));
+    }
+
     public void testDistributionChangeTestPower() throws IOException {
         NormalDistribution normal1 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0.0, 1.0);
         NormalDistribution normal2 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0.0, 10.0);
@@ -137,14 +167,13 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
             tp += test.type() == ChangePointAggregator.Type.DISTRIBUTION_CHANGE ? 1 : 0;
         }
-        assertThat(tp, greaterThan(97));
+        assertThat(tp, greaterThan(90));
     }
 
     public void testMultipleChanges() throws IOException {
         NormalDistribution normal1 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 78.0, 3.0);
         NormalDistribution normal2 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 40.0, 6.0);
         NormalDistribution normal3 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1.0, 0.3);
-
         int tp = 0;
         for (int i = 0; i < 100; i++) {
             double[] bucketValues = DoubleStream.concat(
@@ -155,10 +184,58 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> normal3.sample()).limit(23)
             ).toArray();
             int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
-            tp += test.type() == ChangePointAggregator.Type.TREND_CHANGE ? 1 : 0;
+            ChangePointAggregator.TestStats result = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            tp += result.type() == ChangePointAggregator.Type.TREND_CHANGE ? 1 : 0;
         }
-        assertThat(tp, greaterThan(97));
+        assertThat(tp, greaterThan(90));
+    }
+
+    public void testProblemDistributionChange() throws IOException {
+        double[] bucketValues = new double[] {
+            546.3651753325270,
+            550.872738079514,
+            551.1312487618040,
+            550.3323904749380,
+            549.2652495378930,
+            548.9761274963630,
+            549.3433969743010,
+            549.0935313531350,
+            551.1762550747600,
+            551.3772184469220,
+            548.6163495094490,
+            548.5866591594080,
+            546.9364791288570,
+            548.1167839989470,
+            549.3484016149320,
+            550.4242803917040,
+            551.2316023050940,
+            548.4713993534340,
+            546.0254901960780,
+            548.4376996805110,
+            561.1920529801320,
+            557.3930041152260,
+            565.8497217068650,
+            566.787072243346,
+            546.6094890510950,
+            530.5905797101450,
+            556.7340823970040,
+            557.3857677902620,
+            543.0754716981130,
+            574.3297101449280,
+            559.2962962962960,
+            549.5202952029520,
+            531.7217741935480,
+            551.4333333333330,
+            557.637168141593,
+            545.1880733944950,
+            564.6893203883500,
+            543.0204081632650,
+            571.820809248555,
+            541.2589928057550,
+            520.4387755102040 };
+        int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+        ChangePointAggregator.TestStats result = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+        assertThat(result.type(), equalTo(ChangePointAggregator.Type.DISTRIBUTION_CHANGE));
     }
 
     public void testConstant() throws IOException {

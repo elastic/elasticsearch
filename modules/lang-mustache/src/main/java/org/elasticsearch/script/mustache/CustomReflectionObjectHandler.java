@@ -62,10 +62,12 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
     static class DetectMissingParamsGuardedBinding extends GuardedBinding {
         private final Code code;
+
         DetectMissingParamsGuardedBinding(ObjectHandler oh, String name, TemplateContext tc, Code code) {
             super(oh, name, tc, code);
             this.code = code;
         }
+
         protected synchronized Wrapper getWrapper(String name, List<Object> scopes) {
             Wrapper wrapper = super.getWrapper(name, scopes);
             if (wrapper instanceof MissingWrapper && code instanceof ValueCode) {

@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class WeightedTokenThreshold implements Writeable, ToXContentFragment {
+public class WeightedTokensThreshold implements Writeable, ToXContentFragment {
     public static final ParseField RATIO_THRESHOLD_FIELD = new ParseField("ratio_threshold");
     public static final ParseField WEIGHT_THRESHOLD_FIELD = new ParseField("weight_threshold");
     public static final ParseField ONLY_SCORE_PRUNED_TOKENS_FIELD = new ParseField("only_score_pruned_tokens");
@@ -26,7 +26,7 @@ public class WeightedTokenThreshold implements Writeable, ToXContentFragment {
     private final float weightThreshold;
     private final boolean onlyScorePrunedTokens;
 
-    public WeightedTokenThreshold(float ratioThreshold, float weightThreshold, boolean onlyScorePrunedTokens) {
+    public WeightedTokensThreshold(float ratioThreshold, float weightThreshold, boolean onlyScorePrunedTokens) {
         if (ratioThreshold < 1) {
             throw new IllegalArgumentException(
                 "[" + RATIO_THRESHOLD_FIELD.getPreferredName() + "] must be greater or equal to 1, got " + ratioThreshold
@@ -40,7 +40,7 @@ public class WeightedTokenThreshold implements Writeable, ToXContentFragment {
         this.onlyScorePrunedTokens = onlyScorePrunedTokens;
     }
 
-    public WeightedTokenThreshold(StreamInput in) throws IOException {
+    public WeightedTokensThreshold(StreamInput in) throws IOException {
         this.ratioThreshold = in.readFloat();
         this.weightThreshold = in.readFloat();
         this.onlyScorePrunedTokens = in.readBoolean();
@@ -86,7 +86,7 @@ public class WeightedTokenThreshold implements Writeable, ToXContentFragment {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        WeightedTokenThreshold that = (WeightedTokenThreshold) o;
+        WeightedTokensThreshold that = (WeightedTokensThreshold) o;
         return Float.compare(that.ratioThreshold, ratioThreshold) == 0
             && Float.compare(that.weightThreshold, weightThreshold) == 0
             && onlyScorePrunedTokens == that.onlyScorePrunedTokens;

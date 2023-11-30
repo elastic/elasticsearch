@@ -37,9 +37,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokenThreshold.ONLY_SCORE_PRUNED_TOKENS_FIELD;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokenThreshold.RATIO_THRESHOLD_FIELD;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokenThreshold.WEIGHT_THRESHOLD_FIELD;
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.ONLY_SCORE_PRUNED_TOKENS_FIELD;
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.RATIO_THRESHOLD_FIELD;
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.WEIGHT_THRESHOLD_FIELD;
 
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
 
@@ -51,13 +51,13 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelText;
     private final String modelId;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
-    private final WeightedTokenThreshold threshold;
+    private final WeightedTokensThreshold threshold;
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         this(fieldName, modelText, modelId, null);
     }
 
-    public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId, @Nullable WeightedTokenThreshold threshold) {
+    public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId, @Nullable WeightedTokensThreshold threshold) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a fieldName");
         }
@@ -79,7 +79,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.modelText = in.readString();
         this.modelId = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.WEIGHTED_TOKENS_QUERY_ADDED)) {
-            this.threshold = in.readOptionalWriteable(WeightedTokenThreshold::new);
+            this.threshold = in.readOptionalWriteable(WeightedTokensThreshold::new);
         } else {
             this.threshold = null;
         }
@@ -104,7 +104,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
      * Tokens whose frequency is more than ratio_threshold times the average frequency of all tokens in the specified
      * field are considered outliers and may be subject to removal from the query.
      */
-    public WeightedTokenThreshold getThreshold() {
+    public WeightedTokensThreshold getThreshold() {
         return threshold;
     }
 
@@ -303,7 +303,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             fieldName,
             modelText,
             modelId,
-            new WeightedTokenThreshold(ratioThreshold, weightThreshold, onlyScorePrunedTokens)
+            new WeightedTokensThreshold(ratioThreshold, weightThreshold, onlyScorePrunedTokens)
         );
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);

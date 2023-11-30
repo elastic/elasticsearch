@@ -47,8 +47,8 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
-        WeightedTokenThreshold threshold = rarely()
-            ? new WeightedTokenThreshold(randomIntBetween(1, 100), randomFloat(), randomBoolean())
+        WeightedTokensThreshold threshold = rarely()
+            ? new WeightedTokensThreshold(randomIntBetween(1, 100), randomFloat(), randomBoolean())
             : null;
         var builder = new TextExpansionQueryBuilder(RANK_FEATURES_FIELD, randomAlphaOfLength(4), randomAlphaOfLength(4), threshold);
         if (randomBoolean()) {
@@ -167,7 +167,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     public void testToXContentWithThresholds() throws IOException {
-        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new WeightedTokenThreshold(4, 0.4f, false));
+        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new WeightedTokensThreshold(4, 0.4f, false));
         checkGeneratedJson("""
             {
               "text_expansion": {

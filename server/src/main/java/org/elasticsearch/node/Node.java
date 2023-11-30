@@ -76,7 +76,6 @@ import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskResultsService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TransportService;
@@ -103,7 +102,6 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
 import javax.net.ssl.SNIHostName;
 
 /**
@@ -169,7 +167,6 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
     private final TerminationHandler terminationHandler;
-    private final TelemetryProvider telemetryProvider;
     // for testing
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
@@ -196,7 +193,6 @@ public class Node implements Closeable {
         localNodeFactory = construction.localNodeFactory();
         nodeService = construction.nodeService();
         terminationHandler = construction.terminationHandler();
-        telemetryProvider = construction.telemetryProvider();
         namedWriteableRegistry = construction.namedWriteableRegistry();
         namedXContentRegistry = construction.namedXContentRegistry();
     }
@@ -423,7 +419,7 @@ public class Node implements Closeable {
             }
         }
 
-        new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
+        injector.getInstance(NodeMetrics.class).start();
 
         logger.info("started {}", transportService.getLocalNode());
 
@@ -468,6 +464,7 @@ public class Node implements Closeable {
         stopIfStarted(GatewayService.class);
         stopIfStarted(SearchService.class);
         stopIfStarted(TransportService.class);
+        stopIfStarted(NodeMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -536,6 +533,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(injector.getInstance(NodeMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }

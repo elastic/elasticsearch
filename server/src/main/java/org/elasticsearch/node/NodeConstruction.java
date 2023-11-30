@@ -128,6 +128,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -295,7 +296,7 @@ class NodeConstruction {
     private Node.LocalNodeFactory localNodeFactory;
     private NodeService nodeService;
     private TerminationHandler terminationHandler;
-    private final SetOnce<TelemetryProvider> telemetryProvider = new SetOnce<>();
+    private TelemetryProvider telemetryProvider;
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry xContentRegistry;
 
@@ -337,10 +338,6 @@ class NodeConstruction {
 
     TerminationHandler terminationHandler() {
         return terminationHandler;
-    }
-
-    TelemetryProvider telemetryProvider() {
-        return telemetryProvider.get();
     }
 
     NamedWriteableRegistry namedWriteableRegistry() {
@@ -602,10 +599,9 @@ class NodeConstruction {
 
         Settings settings = settingsModule.getSettings();
 
-        telemetryProvider.set(
-            getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings)).orElse(TelemetryProvider.NOOP)
-        );
-        modules.bindToInstance(Tracer.class, telemetryProvider.get().getTracer());
+        TelemetryProvider telemetryProvider = getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings))
+            .orElse(TelemetryProvider.NOOP);
+        modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
         TaskManager taskManager = new TaskManager(
             settings,
@@ -614,7 +610,7 @@ class NodeConstruction {
                 pluginsService.filterPlugins(ActionPlugin.class).flatMap(p -> p.getTaskHeaders().stream()),
                 Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet()),
-            telemetryProvider.get().getTracer()
+            telemetryProvider.getTracer()
         );
 
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
@@ -667,7 +663,7 @@ class NodeConstruction {
             threadPool,
             systemIndices,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
-            telemetryProvider.get()
+            telemetryProvider
         );
         modules.add(clusterModule);
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
@@ -675,7 +671,7 @@ class NodeConstruction {
 
         final Map<String, LongCounter> customTripCounters = new TreeMap<>();
         CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
-            new CircuitBreakerMetrics(telemetryProvider.get(), customTripCounters),
+            new CircuitBreakerMetrics(telemetryProvider, customTripCounters),
             settingsModule.getSettings(),
             settingsModule.getClusterSettings()
         );
@@ -792,7 +788,7 @@ class NodeConstruction {
             namedWriteableRegistry,
             clusterModule.getIndexNameExpressionResolver(),
             repositoriesServiceReference::get,
-            telemetryProvider.get(),
+            telemetryProvider,
             clusterModule.getAllocationService(),
             indicesService,
             featureService,
@@ -818,7 +814,7 @@ class NodeConstruction {
             circuitBreakerService,
             createUsageService(),
             systemIndices,
-            telemetryProvider.get().getTracer(),
+            telemetryProvider.getTracer(),
             clusterService,
             buildReservedStateHandlers(
                 settingsModule,
@@ -852,7 +848,7 @@ class NodeConstruction {
             restController,
             actionModule::copyRequestHeadersToThreadContext,
             clusterService.getClusterSettings(),
-            telemetryProvider.get().getTracer()
+            telemetryProvider.getTracer()
         );
         Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.map(
             Plugin::getIndexTemplateMetadataUpgrader
@@ -880,7 +876,7 @@ class NodeConstruction {
             localNodeFactory,
             settingsModule.getClusterSettings(),
             taskManager,
-            telemetryProvider.get().getTracer()
+            telemetryProvider.getTracer()
         );
         final GatewayMetaState gatewayMetaState = new GatewayMetaState();
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -901,7 +897,7 @@ class NodeConstruction {
             bigArrays,
             xContentRegistry,
             recoverySettings,
-            telemetryProvider.get()
+            telemetryProvider
         );
         RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
         repositoriesServiceReference.set(repositoryService);
@@ -1005,8 +1001,10 @@ class NodeConstruction {
             responseCollectorService,
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.get().getTracer()
+            telemetryProvider.getTracer()
         );
+        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
+        modules.bindToInstance(NodeMetrics.class, nodeMetrics);
 
         modules.add(
             loadPersistentTasksService(

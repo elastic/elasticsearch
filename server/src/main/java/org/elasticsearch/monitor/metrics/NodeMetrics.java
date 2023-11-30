@@ -10,6 +10,7 @@ package org.elasticsearch.monitor.metrics;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
@@ -18,12 +19,15 @@ import org.elasticsearch.node.NodeService;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.io.IOException;
+
 /**
  * NodeMetrics monitors various statistics of an Elasticsearch node and exposes them through as metrics
  * the provided MeterRegistry. It includes counters for indices operations, memory usage, transport statistics,
  * and more. The metrics are periodically updated based on a schedule.
  */
-public class NodeMetrics {
+public class NodeMetrics extends AbstractLifecycleComponent {
+    private final MeterRegistry registry;
     private final NodeService nodeService;
     private final NodeStatsCache stats;
 
@@ -34,12 +38,12 @@ public class NodeMetrics {
      * @param nodeService   The NodeService for interacting with the Elasticsearch node and extracting statistics.
      */
     public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
+        this.registry = meterRegistry;
         this.nodeService = nodeService;
         // Agent should poll stats every 4 minutes and being this cache lazy we need a
         // number high enough so that the cache does not update during the same poll
         // period and that expires before a new poll period, therefore we choose 1 minute.
         this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1));
-        registerAsyncMetrics(meterRegistry);
     }
 
     /**
@@ -219,6 +223,21 @@ public class NodeMetrics {
         );
     }
 
+    @Override
+    protected void doStart() {
+        registerAsyncMetrics(registry);
+    }
+
+    @Override
+    protected void doStop() {
+        stats.stopRefreshing();
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+        stats.stopRefreshing();
+    }
+
     /**
      * A very simple NodeStats cache that allows non-blocking refresh calls
      * lazily triggered by expiry time. When getOrRefresh() is called either
@@ -226,13 +245,19 @@ public class NodeMetrics {
      * refresh() is called, cache is updated and the new instance returned.
      */
     private class NodeStatsCache extends SingleObjectCache<NodeStats> {
+        private boolean refresh;
+
         NodeStatsCache(TimeValue interval) {
             super(interval, getNodeStats());
         }
 
         @Override
         protected NodeStats refresh() {
-            return getNodeStats();
+            return refresh ? getNodeStats() : getNoRefresh();
+        }
+
+        public void stopRefreshing() {
+            this.refresh = false;
         }
     }
 }

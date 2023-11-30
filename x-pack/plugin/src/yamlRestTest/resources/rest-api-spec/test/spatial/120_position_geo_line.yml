@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.7.99"
+      reason: position metric introduced in 8.8.0
   - do:
       indices.create:
         index: locations
@@ -87,8 +87,8 @@ setup:
   - length: { aggregations.by_time_series.buckets: 3 }
   - match:
       aggregations.by_time_series.buckets:
-        "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA":
-          key: "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA"
+        "{city=Paris}":
+          key: { city: Paris }
           doc_count: 2
           museum_tour:
             type: Feature
@@ -96,22 +96,22 @@ setup:
               coordinates: [ [ 2.336389, 48.861111 ], [ 2.327, 48.86 ] ]
               type: LineString
             properties: { complete: true }
-        "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA":
-          key: "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA"
-          doc_count: 5
-          museum_tour:
-            type: Feature
-            geometry:
-              coordinates: [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ]
-              type: LineString
-            properties: { complete: true }
-        "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw":
-          key: "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw"
+        "{city=Antwerp}":
+          key: { city: Antwerp }
           doc_count: 3
           museum_tour:
             type: Feature
             geometry:
               coordinates: [ [ 4.401384, 51.220292 ], [ 4.405819, 51.221758 ], [ 4.4052, 51.2229 ] ]
+              type: LineString
+            properties: { complete: true }
+        "{city=Amsterdam}":
+          key: { city: Amsterdam }
+          doc_count: 5
+          museum_tour:
+            type: Feature
+            geometry:
+              coordinates: [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ]
               type: LineString
             properties: { complete: true }
 
@@ -140,8 +140,8 @@ setup:
   - length: { aggregations.by_time_series.buckets: 3 }
   - match:
       aggregations.by_time_series.buckets:
-        "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA":
-          key: "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA"
+        "{city=Paris}":
+          key: { city: Paris }
           doc_count: 2
           museum_tour:
             type: Feature
@@ -149,8 +149,17 @@ setup:
               coordinates: [ [ 2.327, 48.86 ], [ 2.336389, 48.861111 ] ]
               type: LineString
             properties: { complete: true }
-        "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA":
-          key: "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA"
+        "{city=Antwerp}":
+          key: { city: Antwerp }
+          doc_count: 3
+          museum_tour:
+            type: Feature
+            geometry:
+              coordinates: [ [ 4.4052, 51.2229 ], [ 4.405819, 51.221758 ], [ 4.401384, 51.220292 ] ]
+              type: LineString
+            properties: { complete: true }
+        "{city=Amsterdam}":
+          key: { city: Amsterdam }
           doc_count: 5
           museum_tour:
             type: Feature
@@ -160,15 +169,6 @@ setup:
                              [ 4.901618, 52.369219 ],
                              [ 4.885057, 52.370159 ],
                              [ 4.889187, 52.373184 ] ]
-              type: LineString
-            properties: { complete: true }
-        "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw":
-          key: "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw"
-          doc_count: 3
-          museum_tour:
-            type: Feature
-            geometry:
-              coordinates: [ [ 4.4052, 51.2229 ], [ 4.405819, 51.221758 ], [ 4.401384, 51.220292 ] ]
               type: LineString
             properties: { complete: true }
 
@@ -216,8 +216,8 @@ setup:
   - length: { aggregations.by_time_series.buckets: 3 }
   - match:
       aggregations.by_time_series.buckets:
-        "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA":
-          key: "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA"
+        "{city=Paris}":
+          key: { city: Paris }
           doc_count: 2
           museum_tour:
             type: Feature
@@ -225,22 +225,22 @@ setup:
               coordinates: [ [ 2.336389, 48.861111 ], [ 2.327, 48.86 ] ]
               type: LineString
             properties: { complete: true }
-        "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA":
-          key: "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA"
-          doc_count: 5
-          museum_tour:
-            type: Feature
-            geometry:
-              coordinates: [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ]
-              type: LineString
-            properties: { complete: true }
-        "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw":
-          key: "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw"
+        "{city=Antwerp}":
+          key: { city: Antwerp }
           doc_count: 3
           museum_tour:
             type: Feature
             geometry:
               coordinates: [ [ 4.401384, 51.220292 ], [ 4.405819, 51.221758 ], [ 4.4052, 51.2229 ] ]
+              type: LineString
+            properties: { complete: true }
+        "{city=Amsterdam}":
+          key: { city: Amsterdam }
+          doc_count: 5
+          museum_tour:
+            type: Feature
+            geometry:
+              coordinates: [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ]
               type: LineString
             properties: { complete: true }
 
@@ -326,24 +326,8 @@ setup:
   - length: { aggregations.with_time_series.buckets: 3 }
   - match:
       aggregations.with_time_series.buckets:
-        "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA":
-          key: "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA"
-          doc_count: 2
-          museums:
-            doc_count_error_upper_bound: 0
-            sum_other_doc_count: 0
-            buckets:
-              - key: Paris
-                doc_count: 2
-                museum_tour:
-                  type: Feature
-                  geometry:
-                    coordinates: [ [ 2.336389, 48.861111 ], [ 2.327, 48.86 ] ]
-                    type: LineString
-                  properties:
-                    complete: true
-        "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA":
-          key: "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA"
+        "{city=Amsterdam}":
+          key: { city: Amsterdam }
           doc_count: 5
           museums:
             doc_count_error_upper_bound: 0
@@ -358,8 +342,24 @@ setup:
                     type: LineString
                   properties:
                     complete: true
-        "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw":
-          key: "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw"
+        "{city=Paris}":
+          key: { city: Paris }
+          doc_count: 2
+          museums:
+            doc_count_error_upper_bound: 0
+            sum_other_doc_count: 0
+            buckets:
+              - key: Paris
+                doc_count: 2
+                museum_tour:
+                  type: Feature
+                  geometry:
+                    coordinates: [ [ 2.336389, 48.861111 ], [ 2.327, 48.86 ] ]
+                    type: LineString
+                  properties:
+                    complete: true
+        "{city=Antwerp}":
+          key: { city: Antwerp }
           doc_count: 3
           museums:
             doc_count_error_upper_bound: 0
@@ -447,24 +447,8 @@ setup:
   - length: { aggregations.with_time_series.buckets: 3 }
   - match:
       aggregations.with_time_series.buckets:
-        "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA":
-          key: "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA"
-          doc_count: 2
-          museums:
-            doc_count_error_upper_bound: 0
-            sum_other_doc_count: 0
-            buckets:
-              - key: Museum
-                doc_count: 2
-                museum_tour:
-                  type: Feature
-                  geometry:
-                    coordinates: [ [ 2.336389, 48.861111 ], [ 2.327, 48.86 ] ]
-                    type: LineString
-                  properties:
-                    complete: true
-        "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA":
-          key: "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA"
+        "{city=Amsterdam}":
+          key: { city: Amsterdam }
           doc_count: 5
           museums:
             doc_count_error_upper_bound: 0
@@ -488,8 +472,24 @@ setup:
                     type: LineString
                   properties:
                     complete: true
-        "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw":
-          key: "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw"
+        "{city=Paris}":
+          key: { city: Paris }
+          doc_count: 2
+          museums:
+            doc_count_error_upper_bound: 0
+            sum_other_doc_count: 0
+            buckets:
+              - key: Museum
+                doc_count: 2
+                museum_tour:
+                  type: Feature
+                  geometry:
+                    coordinates: [ [ 2.336389, 48.861111 ], [ 2.327, 48.86 ] ]
+                    type: LineString
+                  properties:
+                    complete: true
+        "{city=Antwerp}":
+          key: { city: Antwerp }
           doc_count: 3
           museums:
             doc_count_error_upper_bound: 0

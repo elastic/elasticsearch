@@ -377,9 +377,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         ) {
             @Override
             public Iterable<MappedFieldType> dimensionFields() {
-                return Arrays.stream(fieldTypes)
-                    .filter(MappedFieldType::isDimension)
-                    .toList();
+                return Arrays.stream(fieldTypes).filter(MappedFieldType::isDimension).toList();
             }
         };
 

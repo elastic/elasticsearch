@@ -34,6 +34,7 @@ module org.elasticsearch.security {
     requires org.opensaml.saml;
     requires org.opensaml.saml.impl;
     requires org.opensaml.security.impl;
+    requires org.opensaml.security;
     requires org.opensaml.xmlsec.impl;
     requires org.opensaml.xmlsec;
 

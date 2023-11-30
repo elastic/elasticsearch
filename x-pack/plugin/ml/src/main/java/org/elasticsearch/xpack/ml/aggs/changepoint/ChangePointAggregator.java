@@ -275,9 +275,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             double mu = upperRange.mean();
             double vl = lowerRange.variance();
             double vu = upperRange.variance();
-            double rl = 1.0 - vl / (vl + nl * (ml - mean) * (ml - mean));
-            double ru = 1.0 - vu / (vu + nu * (mu - mean) * (mu - mean));
-            double v = lowerRange.totalVariance(upperRange);
+            double v = (nl * vl + nu * vu) / (nl + nu);
             if (v < vStep) {
                 vStep = v;
                 changePoint = cp;
@@ -548,10 +546,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
         double mean() {
             return sum / count;
-        }
-
-        double totalVariance(RunningStats other) {
-            return (count() * variance() + other.count() * other.variance()) / (count() + other.count());
         }
 
         double variance() {

@@ -38,9 +38,9 @@ public class DeleteConnectorSyncJobAction extends ActionType<AcknowledgedRespons
     public static class Request extends ActionRequest implements ToXContentObject {
         public static final String EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE =
             "[connector_sync_job_id] of the connector sync job cannot be null or empty.";
-        private final String connectorSyncJobId;
-
         public static final ParseField CONNECTOR_SYNC_JOB_ID_FIELD = new ParseField("connector_sync_job_id");
+
+        private final String connectorSyncJobId;
 
         public Request(StreamInput in) throws IOException {
             super(in);

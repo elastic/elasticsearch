@@ -449,21 +449,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         return new TestStats(Type.DISTRIBUTION_CHANGE, pValue, changePoint, stats);
     }
 
-    static double fDistribSf(double numeratorDegreesOfFreedom, double denominatorDegreesOfFreedom, double x) {
-        if (x <= 0) {
-            return 1;
-        }
-        if (Double.isInfinite(x) || Double.isNaN(x)) {
-            return 0;
-        }
-
-        return Beta.regularizedBeta(
-            denominatorDegreesOfFreedom / (denominatorDegreesOfFreedom + numeratorDegreesOfFreedom * x),
-            0.5 * denominatorDegreesOfFreedom,
-            0.5 * numeratorDegreesOfFreedom
-        );
-    }
-
     enum Type {
         STATIONARY,
         NON_STATIONARY,
@@ -583,5 +568,20 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             }
             return this;
         }
+    }
+
+    static double fDistribSf(double numeratorDegreesOfFreedom, double denominatorDegreesOfFreedom, double x) {
+        if (x <= 0) {
+            return 1;
+        }
+        if (Double.isInfinite(x) || Double.isNaN(x)) {
+            return 0;
+        }
+
+        return Beta.regularizedBeta(
+            denominatorDegreesOfFreedom / (denominatorDegreesOfFreedom + numeratorDegreesOfFreedom * x),
+            0.5 * denominatorDegreesOfFreedom,
+            0.5 * numeratorDegreesOfFreedom
+        );
     }
 }

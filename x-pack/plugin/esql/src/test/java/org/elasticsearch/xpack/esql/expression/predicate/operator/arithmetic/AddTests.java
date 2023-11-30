@@ -53,35 +53,51 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 DataTypes.INTEGER,
                 TestCaseSupplier.intCases((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1),
                 TestCaseSupplier.intCases((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1),
-                List.of()
-            )
+                List.of(),
+                false)
         );
-        suppliers.addAll(List.of(new TestCaseSupplier("Long + Long", () -> {
-            // Ensure we don't have an overflow
-            long rhs = randomLongBetween((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1);
-            long lhs = randomLongBetween((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.LONG, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.LONG, "rhs")
-                ),
-                "AddLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNumericNotCasting(
+                "AddLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> l.longValue() + r.longValue(),
                 DataTypes.LONG,
-                equalTo(lhs + rhs)
-            );
-        }), new TestCaseSupplier("Double + Double", () -> {
-            double rhs = randomDouble();
-            double lhs = randomDouble();
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.DOUBLE, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.DOUBLE, "rhs")
-                ),
-                "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                TestCaseSupplier.longCases((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1),
+                TestCaseSupplier.longCases((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1),
+                List.of(),
+                false)
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNumericNotCasting(
+                "AddDoublesEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> l.doubleValue() + r.doubleValue(),
                 DataTypes.DOUBLE,
-                equalTo(lhs + rhs)
-            );
-        })/*, new TestCaseSupplier("ULong + ULong", () -> {
+                TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
+                TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
+                List.of(),
+                false)
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNumericNotCasting(
+                "AddUnsignedLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> {
+                    assert l instanceof BigInteger;
+                    assert r instanceof BigInteger;
+                    return ((BigInteger)l).add((BigInteger) r);
+                },
+                DataTypes.UNSIGNED_LONG,
+                // TODO: we should be able to test values over Long.MAX_VALUE too...
+                TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
+                TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
+                List.of(),
+                false)
+        );
+        suppliers.addAll(List.of(/*, new TestCaseSupplier("ULong + ULong", () -> {
             // Ensure we don't have an overflow
             // TODO: we should be able to test values over Long.MAX_VALUE too...
             long rhs = randomLongBetween(0, (Long.MAX_VALUE >> 1) - 1);
@@ -94,7 +110,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 "AddUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 equalTo(asLongUnsigned(lhsBI.add(rhsBI).longValue()))
             );
-          }) */, new TestCaseSupplier("Datetime + Period", () -> {
+          }) */ new TestCaseSupplier("Datetime + Period", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
             Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(

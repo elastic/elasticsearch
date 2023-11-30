@@ -212,7 +212,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                         List.of(lhsTyped, rhsTyped),
                         evaluatorToString.apply(lhsSupplier.type(), rhsSupplier.type()),
                         expectedType,
-                        equalTo(expected.apply(lhs.doubleValue(), rhs.doubleValue()))
+                        equalTo(expected.apply(lhs, rhs))
                     );
                     for (String warning : warnings) {
                         testCase = testCase.withWarning(warning);
@@ -240,8 +240,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
-        List<String> warnings
-
+        List<String> warnings,
+        boolean symetric
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         casesCrossProduct(
@@ -253,6 +253,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             expectedType
         );
+        if (symetric) {
+            // reverse lhs and rhs suppliers
+            casesCrossProduct(
+                expected,
+                rhsSuppliers,
+                lhsSuppliers,
+                (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
+                warnings,
+                suppliers,
+                expectedType
+            );
+        }
         return suppliers;
     }
 

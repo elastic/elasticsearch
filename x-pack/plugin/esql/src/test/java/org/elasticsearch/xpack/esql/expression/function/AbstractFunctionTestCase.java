@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
@@ -88,6 +89,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -234,7 +236,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
             try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
-                result = toJavaObject(block, 0);
+                result = toJavaObjectBigIntegerAware(block, 0, testCase.expectedType);
             }
         }
         assertThat(result, not(equalTo(Double.NaN)));
@@ -246,6 +248,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());
         }
+    }
+
+    private static Object toJavaObjectBigIntegerAware(Block block, int position, DataType expectedType) {
+        Object result;
+        result = toJavaObject(block, position);
+        if (expectedType == DataTypes.UNSIGNED_LONG) {
+            assertThat(result, instanceOf(Long.class));
+            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+        }
+        return result;
     }
 
     /**
@@ -391,7 +403,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         assertThat(toJavaObject(block, p), allNullsMatcher());
                         continue;
                     }
-                    assertThat(toJavaObject(block, p), testCase.getMatcher());
+                    assertThat(toJavaObjectBigIntegerAware(block, p, testCase.expectedType), testCase.getMatcher());
                 }
                 assertThat(
                     "evaluates to tracked block",
@@ -456,7 +468,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
                             try (Block block = eval.eval(page)) {
-                                assertThat(toJavaObject(block, 0), testCase.getMatcher());
+                                assertThat(toJavaObjectBigIntegerAware(block, 0, testCase.expectedType), testCase.getMatcher());
                             }
                         }
                     }
@@ -497,7 +509,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         assertTrue(expression.foldable());
-        assertThat(expression.fold(), testCase.getMatcher());
+        Object result = expression.fold();
+        if (testCase.expectedType == DataTypes.UNSIGNED_LONG) {
+            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+        }
+        assertThat(result, testCase.getMatcher());
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());
         }

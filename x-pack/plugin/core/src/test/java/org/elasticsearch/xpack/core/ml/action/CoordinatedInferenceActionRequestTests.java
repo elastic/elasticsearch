@@ -48,7 +48,8 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
                     List.of(randomAlphaOfLength(6)),
                     inferenceConfig,
                     previouslyLicensed,
-                    inferenceTimeout
+                    inferenceTimeout,
+                    CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL
                 );
                 request.setHighPriority(highPriority);
                 yield request;
@@ -58,13 +59,15 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
                 var previouslyLicensed = randomBoolean() ? null : randomBoolean();
                 var inferenceTimeout = randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), null, "timeout");
                 var highPriority = randomBoolean();
+                var modelType = randomFrom(CoordinatedInferenceAction.Request.RequestModelType.values());
 
                 var request = CoordinatedInferenceAction.Request.forMapInput(
                     randomAlphaOfLength(6),
                     Stream.generate(CoordinatedInferenceActionRequestTests::randomMap).limit(randomInt(5)).collect(Collectors.toList()),
                     inferenceConfig,
                     previouslyLicensed,
-                    inferenceTimeout
+                    inferenceTimeout,
+                    modelType
                 );
                 request.setHighPriority(highPriority);
                 yield request;

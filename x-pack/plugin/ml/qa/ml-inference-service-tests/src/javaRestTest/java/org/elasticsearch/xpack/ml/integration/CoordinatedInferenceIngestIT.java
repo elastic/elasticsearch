@@ -185,6 +185,51 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
 
     }
 
+    @SuppressWarnings("unchecked")
+    public void testWithUndeployedPyTorchModel() throws IOException {
+        var pyTorchModelId = "test-undeployed";
+
+        putPyTorchModel(pyTorchModelId);
+        putPyTorchModelDefinition(pyTorchModelId);
+        putPyTorchModelVocabulary(List.of("these", "are", "my", "words"), pyTorchModelId);
+
+        String docs = """
+            [
+                {
+                  "_source": {
+                    "title": "my",
+                    "body": "these are"
+                  }
+                },
+                {
+                  "_source": {
+                    "title": "are",
+                    "body": "my words"
+                  }
+                }
+            ]
+            """;
+
+        {
+            var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinition(pyTorchModelId), docs);
+            var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
+            assertThat(simulatedDocs, hasSize(2));
+            var errorMsg = (String) MapHelper.dig("error.reason", simulatedDocs.get(0));
+            assertEquals("[" + pyTorchModelId + "] is not an inference service model or a deployed ml model", errorMsg);
+        }
+
+        {
+            var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinitionWithFieldMap(pyTorchModelId), docs);
+            var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
+            assertThat(simulatedDocs, hasSize(2));
+            var errorMsg = (String) MapHelper.dig("error.reason", simulatedDocs.get(0));
+            assertEquals(
+                "Model [" + pyTorchModelId + "] must be deployed to use. Please deploy with the start trained model deployment API.",
+                errorMsg
+            );
+        }
+    }
+
     private Map<String, Object> putInferenceServiceModel(String modelId, TaskType taskType) throws IOException {
         String endpoint = org.elasticsearch.common.Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("PUT", endpoint);

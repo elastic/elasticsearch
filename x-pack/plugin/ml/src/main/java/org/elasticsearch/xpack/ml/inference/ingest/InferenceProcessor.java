@@ -251,7 +251,8 @@ public class InferenceProcessor extends AbstractProcessor {
                 requestInputs,
                 inferenceConfig,
                 previouslyLicensed,
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST,
+                CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL
             );
             request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
             return request;
@@ -268,7 +269,8 @@ public class InferenceProcessor extends AbstractProcessor {
                 List.of(fields),
                 inferenceConfig,
                 previouslyLicensed,
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST,
+                CoordinatedInferenceAction.Request.RequestModelType.UNKNOWN
             );
             request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
             return request;

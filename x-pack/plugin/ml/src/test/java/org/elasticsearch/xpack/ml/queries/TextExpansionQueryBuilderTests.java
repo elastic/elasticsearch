@@ -81,7 +81,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         CoordinatedInferenceAction.Request request = (CoordinatedInferenceAction.Request) args[1];
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, request.getInferenceTimeout());
         assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
-        assertEquals(CoordinatedInferenceAction.Request.ModelType.NLP_MODEL, request.getModelType());
+        assertEquals(CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL, request.getRequestModelType());
 
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same

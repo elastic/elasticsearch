@@ -130,12 +130,12 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             List.of(modelText),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             false,
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API,
+            CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL // The model is hosted either on a ml node or in an inference
+                                                                          // service
         );
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
-        // The model is hosted either on a ml node or in an inference service
-        inferRequest.setModelType(CoordinatedInferenceAction.Request.ModelType.NLP_MODEL);
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {

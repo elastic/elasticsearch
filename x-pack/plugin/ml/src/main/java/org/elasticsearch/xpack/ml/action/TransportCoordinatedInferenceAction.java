@@ -8,8 +8,6 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -28,15 +26,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils;
 
 import java.util.ArrayList;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -45,8 +42,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportCoordinatedInferenceAction extends HandledTransportAction<
     CoordinatedInferenceAction.Request,
     InferModelAction.Response> {
-
-    private static final Logger logger = LogManager.getLogger(TransportCoordinatedInferenceAction.class);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -71,53 +66,53 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
-        if (request.getModelType() == CoordinatedInferenceAction.Request.ModelType.NLP_MODEL) {
+        if (request.getRequestModelType() == CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL) {
             // must be an inference service model or ml hosted model
             forNlp(request, listener);
         } else if (request.hasObjects()) {
             // Inference service models do not accept a document map
             // If this fails check if the model is an inference service
             // model and error accordingly
-            doInClusterModel(
-                request,
-                wrapCheckForServiceModelOnMissing(
-                    request.getModelId(),
-                    "[" + request.getModelId() + "] is configured for the _inference API and does not accept documents as input",
-                    listener
-                )
-            );
+            doInClusterModel(request, wrapCheckForServiceModelOnMissing(request.getModelId(), listener));
         } else {
-            forNlp(request, listener);  // if no model found check it isn't an NLP model
-
-            // boosted tree models need objects
+            forNlp(request, listener);
         }
     }
 
     private void forNlp(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
-        logger.info("[CoordAction] forNlp [{}]", request.getModelId());
         var clusterState = clusterService.state();
         var assignments = TrainedModelAssignmentUtils.modelAssignments(request.getModelId(), clusterState);
         if (assignments == null || assignments.isEmpty()) {
-            // check if has inference config
-            doInferenceServiceModel(request, listener);
+            doInferenceServiceModel(
+                request,
+                ActionListener.wrap(
+                    listener::onResponse,
+                    e -> replaceErrorOnMissing(
+                        e,
+                        () -> new ElasticsearchStatusException(
+                            "[" + request.getModelId() + "] is not an inference service model or a deployed ml model",
+                            RestStatus.NOT_FOUND
+                        ),
+                        listener
+                    )
+                )
+            );
         } else {
             doInClusterModel(request, listener);
         }
     }
 
     private void doInferenceServiceModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
-        logger.info("[CoordAction] doInferenceServiceModel [{}]", request.getModelId());
         executeAsyncWithOrigin(
             client,
             INFERENCE_ORIGIN,
             InferenceAction.INSTANCE,
             new InferenceAction.Request(TaskType.ANY, request.getModelId(), request.getInputs(), request.getTaskSettings()),
-            ActionListener.wrap(r -> translateInferenceServiceResponse(r.getResults(), listener), listener::onFailure)
+            ActionListener.wrap(r -> listener.onResponse(translateInferenceServiceResponse(r.getResults())), listener::onFailure)
         );
     }
 
     private void doInClusterModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
-        logger.info("[CoordAction] doInClusterModel [{}]", request.getModelId());
         var inferModelRequest = translateRequest(request);
         executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferModelRequest, listener);
     }
@@ -147,33 +142,10 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         return inferModelRequest;
     }
 
-    private ActionListener<InferModelAction.Response> wrapModelNotFoundInBoostedTreeModelCheck(
-        String modelId,
-        ActionListener<InferModelAction.Response> listener
-    ) {
-        return ActionListener.wrap(listener::onResponse, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    GetTrainedModelsAction.INSTANCE,
-                    new GetTrainedModelsAction.Request(modelId),
-                    ActionListener.wrap(model -> {
-
-                    }, e2 -> { listener.onFailure(e); })
-                );
-            } else {
-                listener.onFailure(e);
-            }
-        });
-    }
-
     private ActionListener<InferModelAction.Response> wrapCheckForServiceModelOnMissing(
         String modelId,
-        String message,
         ActionListener<InferModelAction.Response> listener
     ) {
-        logger.info("[CoordAction] wrapCheckForServiceModelOnMissing [{}]", modelId);
         return ActionListener.wrap(listener::onResponse, originalError -> {
             if (ExceptionsHelper.unwrapCause(originalError) instanceof ResourceNotFoundException) {
                 executeAsyncWithOrigin(
@@ -181,9 +153,15 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
                     INFERENCE_ORIGIN,
                     GetInferenceModelAction.INSTANCE,
                     new GetInferenceModelAction.Request(modelId, TaskType.ANY),
-                    ActionListener.wrap(model -> {
-                        listener.onFailure(new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST));
-                    }, e -> { listener.onFailure(originalError); })
+                    ActionListener.wrap(
+                        model -> listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "[" + modelId + "] is configured for the _inference API and does not accept documents as input",
+                                RestStatus.BAD_REQUEST
+                            )
+                        ),
+                        e -> listener.onFailure(originalError)
+                    )
                 );
             } else {
                 listener.onFailure(originalError);
@@ -191,25 +169,20 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         });
     }
 
-    static void translateInferenceServiceResponse(
-        InferenceServiceResults inferenceResults,
+    private void replaceErrorOnMissing(
+        Exception originalError,
+        Supplier<ElasticsearchStatusException> replaceOnMissing,
         ActionListener<InferModelAction.Response> listener
     ) {
-        logger.info("[CoordAction] translateInferenceServiceResponse");
-
-        if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResult) {
-            var textExpansionResults = new ArrayList<InferenceResults>(sparseEmbeddingResult.transformToLegacyFormat());
-            listener.onResponse(new InferModelAction.Response(textExpansionResults, null, false));
-        } else if (inferenceResults instanceof org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults textEmbeddingResults) {
-            var embeddingResult = new ArrayList<InferenceResults>(textEmbeddingResults.transformToLegacyFormat());
-            listener.onResponse(new InferModelAction.Response(embeddingResult, null, false));
+        if (ExceptionsHelper.unwrapCause(originalError) instanceof ResourceNotFoundException) {
+            listener.onFailure(replaceOnMissing.get());
         } else {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Cannot translate inference service result type [" + inferenceResults.getWriteableName() + "]",
-                    RestStatus.INTERNAL_SERVER_ERROR
-                )
-            );
+            listener.onFailure(originalError);
         }
+    }
+
+    static InferModelAction.Response translateInferenceServiceResponse(InferenceServiceResults inferenceResults) {
+        var legacyResults = new ArrayList<InferenceResults>(inferenceResults.transformToLegacyFormat());
+        return new InferModelAction.Response(legacyResults, null, false);
     }
 }

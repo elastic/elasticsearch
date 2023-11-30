@@ -34,7 +34,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
 
     public static class Request extends ActionRequest {
 
-        public enum ModelType {
+        public enum RequestModelType {
             INFERENCE_SERVICE_MODEL,
             ML_NODE_PYTORCH_MODEL,
             BOOSTED_TREE_MODEL,
@@ -43,7 +43,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         };
 
         public static Request forInferenceService(String modelId, List<String> inputs, @Nullable Map<String, Object> taskSettings) {
-            return new Request(modelId, inputs, taskSettings, null, null, null, null, false);
+            return new Request(modelId, inputs, taskSettings, null, null, null, null, false, RequestModelType.INFERENCE_SERVICE_MODEL);
         }
 
         public static Request forTextInput(
@@ -51,7 +51,8 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             List<String> inputs,
             @Nullable InferenceConfigUpdate inferenceConfigUpdate,
             @Nullable Boolean previouslyLicensed,
-            @Nullable TimeValue inferenceTimeout
+            @Nullable TimeValue inferenceTimeout,
+            RequestModelType modelType
         ) {
             return new Request(
                 modelId,
@@ -61,7 +62,8 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
                 inferenceConfigUpdate,
                 previouslyLicensed,
                 inferenceTimeout,
-                false // high priority
+                false, // not high priority
+                modelType
             );
         }
 
@@ -70,7 +72,8 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             List<Map<String, Object>> objectsToInfer,
             @Nullable InferenceConfigUpdate inferenceConfigUpdate,
             @Nullable Boolean previouslyLicensed,
-            @Nullable TimeValue inferenceTimeout
+            @Nullable TimeValue inferenceTimeout,
+            RequestModelType modelType
         ) {
             return new Request(
                 modelId,
@@ -80,12 +83,13 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
                 inferenceConfigUpdate,
                 previouslyLicensed,
                 inferenceTimeout,
-                false // high priority,
+                false, // not high priority,
+                modelType
             );
         }
 
         private final String modelId;
-        private ModelType modelType = ModelType.UNKNOWN;
+        private final RequestModelType requestModelType;
         // For inference services or cluster hosted NLP models
         private final List<String> inputs;
         // _inference settings
@@ -107,7 +111,8 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             @Nullable InferenceConfigUpdate inferenceConfigUpdate,
             @Nullable Boolean previouslyLicensed,
             @Nullable TimeValue inferenceTimeout,
-            boolean highPriority
+            boolean highPriority,
+            RequestModelType requestModelType
         ) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
             this.inputs = inputs;
@@ -117,18 +122,15 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             this.previouslyLicensed = previouslyLicensed;
             this.inferenceTimeout = inferenceTimeout;
             this.highPriority = highPriority;
+            this.requestModelType = requestModelType;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.modelId = in.readString();
-            this.modelType = in.readEnum(ModelType.class);
+            this.requestModelType = in.readEnum(RequestModelType.class);
             this.inputs = in.readOptionalStringCollectionAsList();
-            if (in.readBoolean()) {
-                this.taskSettings = in.readMap();
-            } else {
-                this.taskSettings = null;
-            }
+            this.taskSettings = in.readMap();
             this.objectsToInfer = in.readOptionalCollectionAsList(StreamInput::readMap);
             this.inferenceConfigUpdate = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readOptionalBoolean();
@@ -188,25 +190,17 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             return prefixType;
         }
 
-        public ModelType getModelType() {
-            return modelType;
-        }
-
-        public void setModelType(ModelType modelType) {
-            this.modelType = modelType;
+        public RequestModelType getRequestModelType() {
+            return requestModelType;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
-            out.writeEnum(modelType);
+            out.writeEnum(requestModelType);
             out.writeOptionalStringCollection(inputs);
-            boolean taskSettingsPresent = taskSettings != null;
-            out.writeBoolean(taskSettingsPresent);
-            if (taskSettingsPresent) {
-                out.writeGenericMap(taskSettings);
-            }
+            out.writeGenericMap(taskSettings);
             out.writeOptionalCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeOptionalNamedWriteable(inferenceConfigUpdate);
             out.writeOptionalBoolean(previouslyLicensed);
@@ -225,7 +219,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Objects.equals(modelId, request.modelId)
-                && Objects.equals(modelType, request.modelType)
+                && Objects.equals(requestModelType, request.requestModelType)
                 && Objects.equals(inputs, request.inputs)
                 && Objects.equals(taskSettings, request.taskSettings)
                 && Objects.equals(objectsToInfer, request.objectsToInfer)
@@ -239,7 +233,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         public int hashCode() {
             return Objects.hash(
                 modelId,
-                modelType,
+                requestModelType,
                 inputs,
                 taskSettings,
                 objectsToInfer,

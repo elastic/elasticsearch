@@ -131,7 +131,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
 
         @Override
         @SuppressWarnings("unchecked")
-        public TestServiceModel parsePersistedConfig(
+        public TestServiceModel parsePersistedConfigWithSecrets(
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
@@ -147,6 +147,19 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
             return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+            var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
+
+            var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
+
+            var taskSettingsMap = getTaskSettingsMap(config);
+            var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+
+            return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null);
         }
 
         @Override

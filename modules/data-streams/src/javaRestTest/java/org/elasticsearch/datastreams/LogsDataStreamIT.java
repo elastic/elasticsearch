@@ -9,6 +9,7 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.junit.After;
@@ -37,6 +38,15 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     @After
     public void cleanUp() throws IOException {
         adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+        try {
+            // Attempting to remove the logs@custom component, in case it was added
+            Response response = adminClient().performRequest(new Request("DELETE", "_component_template/logs@custom"));
+            assertNotNull(response);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+        } catch (ResponseException e) {
+            // "Not Found" is valid for all test cases that do not add logs@custom
+            assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -1,0 +1,6 @@
+pr: 102512
+summary: Implement exponential backoff for transform state persistence retrying
+area: Transform
+type: enhancement
+issues:
+ - 102528

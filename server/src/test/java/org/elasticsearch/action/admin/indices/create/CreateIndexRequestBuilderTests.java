@@ -51,7 +51,7 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
      * test setting the source with available setters
      */
     public void testSetSource() throws IOException {
-        CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
+        CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient);
 
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
             builder.setSource(Strings.format("{ \"%s\": \"%s\" }", KEY, VALUE), XContentType.JSON);
@@ -92,7 +92,7 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
      * test setting the settings with available setters
      */
     public void testSetSettings() throws IOException {
-        CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
+        CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient);
         builder.setSettings(Settings.builder().put(KEY, VALUE));
         assertEquals(VALUE, builder.request().settings().get(KEY));
 

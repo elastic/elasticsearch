@@ -102,13 +102,11 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         final byte[] randomBytesDoc2 = getRandomBytes(16);
 
         assertAcked(indicesAdmin().prepareCreate("my-index").setMapping(createMappingSource("binary")).setSettings(indexSettings()));
-        client().prepareIndex("my-index")
-            .setId("1")
+        prepareIndex("my-index").setId("1")
             .setSource(jsonBuilder().startObject().field("binaryData", Base64.getEncoder().encodeToString(randomBytesDoc1)).endObject())
             .get();
         flush();
-        client().prepareIndex("my-index")
-            .setId("2")
+        prepareIndex("my-index").setId("2")
             .setSource(jsonBuilder().startObject().field("binaryData", Base64.getEncoder().encodeToString(randomBytesDoc2)).endObject())
             .get();
         flush();
@@ -152,18 +150,15 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
     public void testCustomScriptBoost() throws Exception {
         createIndex("test");
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
             .get();
         flush();
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject())
             .get();
         flush();
-        client().prepareIndex("test")
-            .setId("3")
+        prepareIndex("test").setId("3")
             .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
             .get();
         refresh();
@@ -234,7 +229,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
             assertAcked(prepareCreate("test-index").setMapping("num1", "type=double"));
             int docCount = 10;
             for (int i = 1; i <= docCount; i++) {
-                client().prepareIndex("test-index").setId("" + i).setSource("num1", i).get();
+                prepareIndex("test-index").setId("" + i).setSource("num1", i).get();
             }
             refresh();
 

@@ -11,8 +11,6 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
@@ -20,13 +18,18 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class S3HttpFixtureWithSTS extends S3HttpFixture {
 
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     private static final String ROLE_NAME = "sts-fixture-test";
+    private final String sessionToken;
+    private final String webIdentityToken;
+
+    public S3HttpFixtureWithSTS() {
+        this(true);
+    }
 
     public S3HttpFixtureWithSTS(boolean enabled) {
         this(
@@ -39,28 +42,22 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
         );
     }
 
-    public S3HttpFixtureWithSTS(boolean enabled, String... args) {
-        super(enabled, args);
-    }
-
-    public S3HttpFixtureWithSTS(final String[] args) throws Exception {
-        super(args);
-    }
-
-    public S3HttpFixtureWithSTS(InetSocketAddress inetSocketAddress, String[] args) throws IOException {
-        super(inetSocketAddress, args);
-    }
-
-    public S3HttpFixtureWithSTS() {
-        this(true);
+    public S3HttpFixtureWithSTS(
+        boolean enabled,
+        String bucket,
+        String basePath,
+        String accessKey,
+        String sessionToken,
+        String webIdentityToken
+    ) {
+        super(enabled, bucket, basePath, accessKey);
+        this.sessionToken = sessionToken;
+        this.webIdentityToken = webIdentityToken;
     }
 
     @Override
-    protected HttpHandler createHandler(final String[] args) {
-        String accessKey = Objects.requireNonNull(args[2]);
-        String sessionToken = Objects.requireNonNull(args[3], "session token is missing");
-        String webIdentityToken = Objects.requireNonNull(args[4], "web identity token is missing");
-        final HttpHandler delegate = super.createHandler(args);
+    protected HttpHandler createHandler() {
+        final HttpHandler delegate = super.createHandler();
 
         return exchange -> {
             // https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
@@ -122,15 +119,5 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
             }
             delegate.handle(exchange);
         };
-    }
-
-    public static void main(final String[] args) throws Exception {
-        if (args == null || args.length < 7) {
-            throw new IllegalArgumentException(
-                "S3HttpFixtureWithSTS expects 7 arguments [address, port, bucket, base path, sts access id, sts session token, web identity token]"
-            );
-        }
-        final S3HttpFixtureWithSTS fixture = new S3HttpFixtureWithSTS(args);
-        fixture.startWithWait();
     }
 }

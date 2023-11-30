@@ -99,6 +99,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
 
     @Override
     public Block expand() {
+        incRef();
         return this;
     }
 

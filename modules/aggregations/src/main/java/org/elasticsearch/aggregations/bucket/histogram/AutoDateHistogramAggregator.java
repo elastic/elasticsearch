@@ -479,7 +479,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
                 /**
                  * Increase the rounding of {@code owningBucketOrd} using
-                 * estimated, bucket counts, {@link #rebucket() rebucketing} the all
+                 * estimated, bucket counts, {@link FromMany#rebucket() rebucketing} the all
                  * buckets if the estimated number of wasted buckets is too high.
                  */
                 private int increaseRoundingIfNeeded(long owningBucketOrd, int oldEstimatedBucketCount, long newKey, int oldRounding) {

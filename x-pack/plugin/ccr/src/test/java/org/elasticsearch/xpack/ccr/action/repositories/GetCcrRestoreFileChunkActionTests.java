@@ -126,7 +126,7 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
         final PlainActionFuture<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> future1 = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request1, future1);
         // The actual response content does not matter as long as the future executes without any error
-        future1.actionGet().decRef();
+        future1.actionGet();
 
         // 2. Inconsistent requested ShardId
         final var request2 = new GetCcrRestoreFileChunkRequest(

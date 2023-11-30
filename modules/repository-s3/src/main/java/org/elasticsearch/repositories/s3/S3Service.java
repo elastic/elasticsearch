@@ -135,7 +135,7 @@ class S3Service implements Closeable {
                 return existing;
             }
             final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings));
-            clientReference.incRef();
+            clientReference.mustIncRef();
             clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
             return clientReference;
         }
@@ -221,6 +221,7 @@ class S3Service implements Closeable {
             // TODO: remove this leniency, these settings should exist together and be validated
             clientConfiguration.setProxyHost(clientSettings.proxyHost);
             clientConfiguration.setProxyPort(clientSettings.proxyPort);
+            clientConfiguration.setProxyProtocol(clientSettings.proxyScheme);
             clientConfiguration.setProxyUsername(clientSettings.proxyUsername);
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }

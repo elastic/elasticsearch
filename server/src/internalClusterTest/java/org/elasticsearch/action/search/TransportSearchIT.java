@@ -419,9 +419,9 @@ public class TransportSearchIT extends ESIntegTestCase {
                 }
             }
         });
-        client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
-        client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
-        client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
+        prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
+        prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
+        prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
         assertBusy(() -> {
             SearchResponse resp = prepareSearch("test").setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
                 .setPreFilterShardSize(randomIntBetween(1, 3))
@@ -546,7 +546,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", numberOfShards).build());
 
         for (int i = 0; i < numberOfDocs; i++) {
-            DocWriteResponse indexResponse = client().prepareIndex(indexName).setSource("number", randomInt()).get();
+            DocWriteResponse indexResponse = prepareIndex(indexName).setSource("number", randomInt()).get();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         indicesAdmin().prepareRefresh(indexName).get();

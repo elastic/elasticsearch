@@ -65,6 +65,10 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
         return meter.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, name);
     }
 
+    public void resetMeter() {
+        meter.getRecorder().resetCalls();
+    }
+
     @Override
     public TelemetryProvider getTelemetryProvider(Settings settings) {
         return new TelemetryProvider() {

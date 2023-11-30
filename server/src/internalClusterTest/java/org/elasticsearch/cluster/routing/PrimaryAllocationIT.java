@@ -91,10 +91,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setId("1").setSource("field1", "value1"))
+            .add(prepareIndex("test").setId("1").setSource("field1", "value1"))
             .add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2"))
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(2));
@@ -113,7 +112,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
     // returns data paths settings of in-sync shard copy
     private Settings createStaleReplicaScenario(String master) throws Exception {
-        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         refresh();
         ClusterState state = clusterAdmin().prepareState().all().get().getState();
         List<ShardRouting> shards = state.routingTable().allShards("test");
@@ -437,7 +436,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureYellow("test");
         assertEquals(2, clusterAdmin().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         logger.info("--> indexing...");
-        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         assertEquals(1, clusterAdmin().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
@@ -464,7 +463,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> creating index with 1 primary and 2 replicas");
         createIndex("test", randomIntBetween(1, 3), 2);
         ensureGreen("test");
-        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         logger.info("--> removing 2 nodes from cluster");
         internalCluster().stopNode(nodes.get(1));
         internalCluster().stopNode(nodes.get(2));

@@ -511,7 +511,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
 
-        client().prepareIndex("test").setId("3").setSource("p_field", 1).get();
+        prepareIndex("test").setId("3").setSource("p_field", 1).get();
         refresh();
 
         assertHitCountAndNoFailures(
@@ -736,8 +736,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             0L
         );
 
-        client().prepareIndex("test")
-            .setSource(jsonBuilder().startObject().field("text", "value").endObject())
+        prepareIndex("test").setSource(jsonBuilder().startObject().field("text", "value").endObject())
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .get();
 
@@ -761,7 +760,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
         indicesAdmin().prepareFlush("test").get();
 
-        client().prepareIndex("test").setId("3").setSource("p_field", 2).get();
+        prepareIndex("test").setId("3").setSource("p_field", 2).get();
 
         refresh();
         assertNoFailuresAndResponse(
@@ -1303,7 +1302,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         String parentId = "p1";
-        client().prepareIndex("test").setId(parentId).setSource("p_field", "1").get();
+        prepareIndex("test").setId(parentId).setSource("p_field", "1").get();
         refresh();
 
         try {
@@ -1409,8 +1408,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .setSize(1)
                 .addStoredField("_id")
                 .setQuery(query)
-                .execute()
-                .actionGet();
+                .get();
 
             assertNoFailures(scrollResponse);
             assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(10L));

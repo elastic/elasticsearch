@@ -83,6 +83,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     @Override
     public BytesRefBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values

@@ -29,10 +29,10 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testBasics() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("foo", "a"),
-            client().prepareIndex("test").setId("2").setSource("foo", "a"),
-            client().prepareIndex("test").setId("3").setSource("foo", "b"),
-            client().prepareIndex("test").setId("4").setSource("foo", "c")
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "a"),
+            prepareIndex("test").setId("3").setSource("foo", "b"),
+            prepareIndex("test").setId("4").setSource("foo", "c")
         );
         assertHitCount(prepareSearch("test").setSize(0), 4);
         assertEquals(1, client().prepareGet("test", "1").get().getVersion());
@@ -69,10 +69,10 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testSlices() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("foo", "a"),
-            client().prepareIndex("test").setId("2").setSource("foo", "a"),
-            client().prepareIndex("test").setId("3").setSource("foo", "b"),
-            client().prepareIndex("test").setId("4").setSource("foo", "c")
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "a"),
+            prepareIndex("test").setId("3").setSource("foo", "b"),
+            prepareIndex("test").setId("4").setSource("foo", "c")
         );
         assertHitCount(prepareSearch("test").setSize(0), 4);
         assertEquals(1, client().prepareGet("test", "1").get().getVersion());
@@ -117,7 +117,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             docs.put(indexName, new ArrayList<>());
             int numDocs = between(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                docs.get(indexName).add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("foo", "a"));
+                docs.get(indexName).add(prepareIndex(indexName).setId(Integer.toString(i)).setSource("foo", "a"));
             }
         }
 

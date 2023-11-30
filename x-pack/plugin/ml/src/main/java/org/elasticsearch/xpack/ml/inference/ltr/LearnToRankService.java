@@ -190,7 +190,7 @@ public class LearnToRankService {
             );
         } catch (GeneralScriptException e) {
             if (e.getRootCause() instanceof MustacheInvalidParameterException == false) {
-                throw(e);
+                throw e;
             }
 
             return new QueryExtractorBuilder(

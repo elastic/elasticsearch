@@ -48,6 +48,10 @@ import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/**
+ * A voting-only node is one with the 'master' and 'voting-only' roles, dictating
+ * that the node may vote in master elections but is ineligible to be master.
+ */
 public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationPlugin, NetworkPlugin, ActionPlugin {
 
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
@@ -146,15 +150,15 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
         }
 
         private static Predicate<Join> fullMasterWithSameState(long localAcceptedTerm, long localAcceptedVersion) {
-            return join -> isFullMasterNode(join.getSourceNode())
-                && join.getLastAcceptedTerm() == localAcceptedTerm
-                && join.getLastAcceptedVersion() == localAcceptedVersion;
+            return join -> isFullMasterNode(join.votingNode())
+                && join.lastAcceptedTerm() == localAcceptedTerm
+                && join.lastAcceptedVersion() == localAcceptedVersion;
         }
 
         private static Predicate<Join> fullMasterWithOlderState(long localAcceptedTerm, long localAcceptedVersion) {
-            return join -> isFullMasterNode(join.getSourceNode())
-                && (join.getLastAcceptedTerm() < localAcceptedTerm
-                    || (join.getLastAcceptedTerm() == localAcceptedTerm && join.getLastAcceptedVersion() < localAcceptedVersion));
+            return join -> isFullMasterNode(join.votingNode())
+                && (join.lastAcceptedTerm() < localAcceptedTerm
+                    || (join.lastAcceptedTerm() == localAcceptedTerm && join.lastAcceptedVersion() < localAcceptedVersion));
         }
     }
 

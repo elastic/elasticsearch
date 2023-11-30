@@ -90,10 +90,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class);
     }
 
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
@@ -186,16 +182,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             }""";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("index_*"),
-                new Template(null, CompressedXContent.fromJSON(mapping), null, null),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("index_*"))
+                .template(new Template(null, CompressedXContent.fromJSON(mapping), null, null))
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
 
@@ -632,35 +622,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
-    private static List<String> getBackingIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-            .actionGet();
-        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
-    }
-
-    static void indexDocs(String dataStream, int numDocs) {
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < numDocs; i++) {
-            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-            bulkRequest.add(
-                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
-            );
-        }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
-        String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStream;
-        for (BulkItemResponse itemResponse : bulkResponse) {
-            assertThat(itemResponse.getFailureMessage(), nullValue());
-            assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
-            assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
-        }
-        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
-    }
-
     public void testReenableDataStreamLifecycle() throws Exception {
         // start with a lifecycle that's not enabled
         DataStreamLifecycle lifecycle = new DataStreamLifecycle(null, null, false);
@@ -710,6 +671,35 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
+    private static List<String> getBackingIndices(String dataStreamName) {
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+            .actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
+    }
+
+    static void indexDocs(String dataStream, int numDocs) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+            bulkRequest.add(
+                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+            );
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStream;
+        for (BulkItemResponse itemResponse : bulkResponse) {
+            assertThat(itemResponse.getFailureMessage(), nullValue());
+            assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
+            assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
+        }
+        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
+    }
+
     static void putComposableIndexTemplate(
         String id,
         @Nullable String mappings,
@@ -720,16 +710,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .metadata(metadata)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

@@ -67,7 +67,7 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         final BulkRequestBuilder bulkIndexRequest = client().prepareBulk();
         for (int docId = 0; docId < numberOfDocuments; docId++) {
             final XContentBuilder document = timeSeriesDocument(FOO_DIM_VALUE, BAR_DIM_VALUE, BAZ_DIM_VALUE, docId, timestamps::next);
-            bulkIndexRequest.add(client().prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
+            bulkIndexRequest.add(prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
         }
 
         final BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

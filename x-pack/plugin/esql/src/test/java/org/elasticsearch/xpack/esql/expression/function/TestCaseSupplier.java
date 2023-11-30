@@ -26,7 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.DoubleBinaryOperator;
+import java.util.function.BinaryOperator;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -35,6 +35,10 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomCartesianPoint;
+import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -138,27 +142,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String name,
         String lhsName,
         String rhsName,
-        DoubleBinaryOperator expected,
+        BinaryOperator<Double> expected,
         Double lhsMin,
         Double lhsMax,
         Double rhsMin,
         Double rhsMax,
         List<String> warnings
     ) {
+        List<TypedDataSupplier> lhsSuppliers = castToDoubleSuppliersFromRange(lhsMin, lhsMax);
+        List<TypedDataSupplier> rhsSuppliers = castToDoubleSuppliersFromRange(rhsMin, rhsMax);
+        return forBinaryCastingToDouble(name, lhsName, rhsName, expected, lhsSuppliers, rhsSuppliers, warnings);
+    }
+
+    public static List<TestCaseSupplier> forBinaryCastingToDouble(
+        String name,
+        String lhsName,
+        String rhsName,
+        BinaryOperator<Double> expected,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        List<String> warnings
+    ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        List<TypedDataSupplier> lhsSuppliers = new ArrayList<>();
-        List<TypedDataSupplier> rhsSuppliers = new ArrayList<>();
-
-        lhsSuppliers.addAll(intCases(lhsMin.intValue(), lhsMax.intValue()));
-        lhsSuppliers.addAll(longCases(lhsMin.longValue(), lhsMax.longValue()));
-        lhsSuppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(lhsMin)), BigInteger.valueOf((long) Math.floor(lhsMax))));
-        lhsSuppliers.addAll(doubleCases(lhsMin, lhsMax));
-
-        rhsSuppliers.addAll(intCases(rhsMin.intValue(), rhsMax.intValue()));
-        rhsSuppliers.addAll(longCases(rhsMin.longValue(), rhsMax.longValue()));
-        rhsSuppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(rhsMin)), BigInteger.valueOf((long) Math.floor(rhsMax))));
-        rhsSuppliers.addAll(doubleCases(rhsMin, rhsMax));
-
         for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
             for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
                 String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
@@ -182,7 +187,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                         List.of(lhsTyped, rhsTyped),
                         name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
                         DataTypes.DOUBLE,
-                        equalTo(expected.applyAsDouble(lhs.doubleValue(), rhs.doubleValue()))
+                        equalTo(expected.apply(lhs.doubleValue(), rhs.doubleValue()))
                     );
                     for (String warning : warnings) {
                         testCase = testCase.withWarning(warning);
@@ -192,6 +197,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             }
         }
 
+        return suppliers;
+    }
+
+    public static List<TypedDataSupplier> castToDoubleSuppliersFromRange(Double Min, Double Max) {
+        List<TypedDataSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(intCases(Min.intValue(), Max.intValue()));
+        suppliers.addAll(longCases(Min.longValue(), Max.longValue()));
+        suppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(Min)), BigInteger.valueOf((long) Math.floor(Max))));
+        suppliers.addAll(doubleCases(Min, Max));
         return suppliers;
     }
 
@@ -325,6 +339,48 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             dateCases(),
             expectedType,
             n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_POINT}.
+     */
+    public static void forUnaryGeoPoint(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Long, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            EsqlDataTypes.GEO_POINT,
+            geoPointCases(),
+            expectedType,
+            n -> expectedValue.apply(n.longValue()),
+            warnings
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#CARTESIAN_POINT}.
+     */
+    public static void forUnaryCartesianPoint(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Long, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            EsqlDataTypes.CARTESIAN_POINT,
+            cartesianPointCases(),
+            expectedType,
+            n -> expectedValue.apply(n.longValue()),
             warnings
         );
     }
@@ -620,6 +676,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
                 DataTypes.DATETIME
             )
+        );
+    }
+
+    private static List<TypedDataSupplier> geoPointCases() {
+        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
+    }
+
+    private static List<TypedDataSupplier> cartesianPointCases() {
+        return List.of(
+            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsLong(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
         );
     }
 

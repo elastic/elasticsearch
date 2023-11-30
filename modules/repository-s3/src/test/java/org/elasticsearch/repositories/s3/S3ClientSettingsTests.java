@@ -37,6 +37,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultSettings.protocol, is(Protocol.HTTPS));
         assertThat(defaultSettings.proxyHost, is(emptyString()));
         assertThat(defaultSettings.proxyPort, is(80));
+        assertThat(defaultSettings.proxyScheme, is(Protocol.HTTP));
         assertThat(defaultSettings.proxyUsername, is(emptyString()));
         assertThat(defaultSettings.proxyPassword, is(emptyString()));
         assertThat(defaultSettings.readTimeoutMillis, is(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT));

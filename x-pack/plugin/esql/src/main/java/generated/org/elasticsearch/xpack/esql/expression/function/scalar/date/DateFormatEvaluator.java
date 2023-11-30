@@ -40,20 +40,18 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      LongBlock valBlock = (LongBlock) valRef.block();
-      try (Block.Ref formatterRef = formatter.eval(page)) {
-        BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valBlock = (LongBlock) val.eval(page)) {
+      try (BytesRefBlock formatterBlock = (BytesRefBlock) formatter.eval(page)) {
         LongVector valVector = valBlock.asVector();
         if (valVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+          return eval(page.getPositionCount(), valBlock, formatterBlock);
         }
         BytesRefVector formatterVector = formatterBlock.asVector();
         if (formatterVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+          return eval(page.getPositionCount(), valBlock, formatterBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valVector, formatterVector).asBlock());
+        return eval(page.getPositionCount(), valVector, formatterVector).asBlock();
       }
     }
   }

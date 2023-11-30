@@ -189,11 +189,6 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.IP;
     }

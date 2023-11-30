@@ -113,19 +113,19 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
 
     private Object process(Number val) {
         try (
-            Block.Ref ref = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get(driverContext()).eval(row(List.of(val)))
+            Block block = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get(driverContext()).eval(row(List.of(val)))
         ) {
-            return toJavaObject(ref.block(), 0);
+            return toJavaObject(block, 0);
         }
     }
 
     private Object process(Number val, int decimals) {
         try (
-            Block.Ref ref = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get(
+            Block block = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get(
                 driverContext()
             ).eval(row(List.of(val, decimals)))
         ) {
-            return toJavaObject(ref.block(), 0);
+            return toJavaObject(block, 0);
         }
     }
 

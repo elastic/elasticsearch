@@ -21,6 +21,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -57,9 +59,24 @@ class UncontendedRegisterAnalyzeAction extends HandledTransportAction<Uncontende
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> outerListener) {
-        final ActionListener<Void> listener = ActionListener.assertOnce(outerListener.map(ignored -> ActionResponse.Empty.INSTANCE));
-        final Repository repository = repositoriesService.repository(request.getRepositoryName());
+    protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
+        logger.trace("handling [{}]", request);
+        updateRegister(
+            request,
+            bytesFromLong(request.getExpectedValue() + 1),
+            repositoriesService.repository(request.getRepositoryName()),
+            ActionListener.assertOnce(listener.map(ignored -> ActionResponse.Empty.INSTANCE))
+        );
+    }
+
+    static void verifyFinalValue(Request request, Repository repository, ActionListener<Void> listener) {
+        // ensure that the repo accepts an empty register
+        logger.trace("handling final value [{}]", request);
+        updateRegister(request, BytesArray.EMPTY, repository, ActionListener.assertOnce(listener));
+    }
+
+    private static void updateRegister(Request request, BytesReference newValue, Repository repository, ActionListener<Void> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
         }
@@ -70,14 +87,11 @@ class UncontendedRegisterAnalyzeAction extends HandledTransportAction<Uncontende
         final BlobPath path = blobStoreRepository.basePath().add(request.getContainerPath());
         final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
 
-        logger.trace("handling [{}]", request);
-
-        assert task instanceof CancellableTask;
         blobContainer.compareAndExchangeRegister(
             OperationPurpose.REPOSITORY_ANALYSIS,
             request.getRegisterName(),
             bytesFromLong(request.getExpectedValue()),
-            bytesFromLong(request.getExpectedValue() + 1),
+            newValue,
             new ActionListener<>() {
                 @Override
                 public void onResponse(OptionalBytesReference optionalBytesReference) {

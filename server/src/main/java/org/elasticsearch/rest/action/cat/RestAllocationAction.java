@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -63,8 +64,9 @@ public class RestAllocationAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse state) {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
+                statsRequest.setIncludeShardsStats(false);
                 statsRequest.clear()
-                    .addMetric(NodesStatsRequest.Metric.FS.metricName())
+                    .addMetric(NodesStatsRequestParameters.Metric.FS.metricName())
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
@@ -92,7 +94,7 @@ public class RestAllocationAction extends AbstractCatAction {
         table.addCell("host", "alias:h;desc:host of node");
         table.addCell("ip", "desc:ip of node");
         table.addCell("node", "alias:n;desc:name of node");
-        table.addCell("node.role", "default:false;alias:r,role,nodeRole;desc:node roles");
+        table.addCell("node.role", "alias:r,role,nodeRole;desc:node roles");
         table.endHeaders();
         return table;
     }

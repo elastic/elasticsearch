@@ -30,14 +30,13 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock valBlock = (BytesRefBlock) val.eval(page)) {
       BytesRefVector valVector = valBlock.asVector();
       if (valVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+        return eval(page.getPositionCount(), valBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valVector).asBlock());
+      return eval(page.getPositionCount(), valVector).asBlock();
     }
   }
 

@@ -28,15 +28,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>, B extends InternalRareTerms.Bucket<B>> extends
     InternalRareTerms<A, B> {
 
     protected DocValueFormat format;
     protected List<B> buckets;
-    protected Map<String, B> bucketMap;
 
     final SetBackedScalingCuckooFilter filter;
 
@@ -154,14 +151,6 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     @Override
     public List<B> getBuckets() {
         return buckets;
-    }
-
-    @Override
-    public B getBucketByKey(String term) {
-        if (bucketMap == null) {
-            bucketMap = buckets.stream().collect(Collectors.toMap(InternalRareTerms.Bucket::getKeyAsString, Function.identity()));
-        }
-        return bucketMap.get(term);
     }
 
     @Override

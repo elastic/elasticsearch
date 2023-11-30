@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -24,6 +26,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -32,6 +35,8 @@ import java.io.IOException;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public record ColumnInfo(String name, String type) implements Writeable {
 
@@ -157,6 +162,26 @@ public record ColumnInfo(String name, String type) implements Writeable {
                     return builder.value(UTC_DATE_TIME_FORMATTER.formatMillis(longVal));
                 }
             };
+            case "geo_point" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    // TODO Perhaps this is just a long for geo_point? And for more advanced types we need a new block type
+                    long encoded = ((LongBlock) block).getLong(valueIndex);
+                    String wkt = GEO.pointAsString(GEO.longAsPoint(encoded));
+                    return builder.value(wkt);
+                }
+            };
+            case "cartesian_point" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    // TODO Perhaps this is just a long for cartesian_point? And for more advanced types we need a new block type
+                    long encoded = ((LongBlock) block).getLong(valueIndex);
+                    String wkt = CARTESIAN.pointAsString(CARTESIAN.longAsPoint(encoded));
+                    return builder.value(wkt);
+                }
+            };
             case "boolean" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
@@ -184,6 +209,17 @@ public record ColumnInfo(String name, String type) implements Writeable {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(UnsupportedValueSource.UNSUPPORTED_OUTPUT);
+                }
+            };
+            case "_source" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
+                    try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(val))) {
+                        parser.nextToken();
+                        return builder.copyCurrentStructure(parser);
+                    }
                 }
             };
             default -> throw new IllegalArgumentException("can't convert values of type [" + type + "]");

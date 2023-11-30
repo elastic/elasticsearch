@@ -58,7 +58,7 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
                     .put("index.version.created", IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0))
             ).setMapping(mapping)
         );
-        client().prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertNoFailures((indicesAdmin().prepareRefresh(indexName)).get());
         assertHitCount(prepareSearch(indexName), 1);
 

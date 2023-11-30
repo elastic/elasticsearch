@@ -75,7 +75,7 @@ public class FeatureServiceTests extends ESTestCase {
     public void testFailsNonHistoricalVersion() {
         FeatureSpecification fs = new TestFeatureSpecification(
             Set.of(),
-            Map.of(new NodeFeature("f1"), FeatureService.CLUSTER_FEATURES_ADDED_VERSION)
+            Map.of(new NodeFeature("f1"), Version.fromId(FeatureService.CLUSTER_FEATURES_ADDED_VERSION.id + 1))
         );
 
         assertThat(
@@ -93,7 +93,7 @@ public class FeatureServiceTests extends ESTestCase {
         );
 
         FeatureService service = new FeatureService(specs);
-        assertThat(service.getNodeFeatures(), containsInAnyOrder("f1", "f2", "f3", "f4", "f5"));
+        assertThat(service.getNodeFeatures().keySet(), containsInAnyOrder("f1", "f2", "f3", "f4", "f5"));
     }
 
     public void testStateHasFeatures() {

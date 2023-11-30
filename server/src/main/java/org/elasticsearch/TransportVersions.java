@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -47,6 +48,7 @@ public class TransportVersions {
         return new TransportVersion(id);
     }
 
+    @UpdateForV9 // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_0_1 = def(7_00_01_99);
@@ -161,7 +163,24 @@ public class TransportVersions {
     public static final TransportVersion UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED = def(8_530_00_0);
     public static final TransportVersion ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED = def(8_531_00_0);
     public static final TransportVersion DEPRECATED_COMPONENT_TEMPLATES_ADDED = def(8_532_00_0);
-
+    public static final TransportVersion UPDATE_NON_DYNAMIC_SETTINGS_ADDED = def(8_533_00_0);
+    public static final TransportVersion REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED = def(8_534_00_0);
+    public static final TransportVersion ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED = def(8_535_00_0);
+    public static final TransportVersion COUNTED_KEYWORD_ADDED = def(8_536_00_0);
+    public static final TransportVersion SHAPE_VALUE_SERIALIZATION_ADDED = def(8_537_00_0);
+    public static final TransportVersion INFERENCE_MULTIPLE_INPUTS = def(8_538_00_0);
+    public static final TransportVersion ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS = def(8_539_00_0);
+    public static final TransportVersion ML_STATE_CHANGE_TIMESTAMPS = def(8_540_00_0);
+    public static final TransportVersion DATA_STREAM_FAILURE_STORE_ADDED = def(8_541_00_0);
+    public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_542_00_0);
+    public static final TransportVersion SHUTDOWN_MIGRATION_STATUS_INCLUDE_COUNTS = def(8_543_00_0);
+    public static final TransportVersion TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED = def(8_544_00_0);
+    public static final TransportVersion GRANT_API_KEY_CLIENT_AUTHENTICATION_ADDED = def(8_545_00_0);
+    public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_546_00_0);
+    public static final TransportVersion NODE_INFO_VERSION_AS_STRING = def(8_547_00_0);
+    public static final TransportVersion GET_API_KEY_INVALIDATION_TIME_ADDED = def(8_548_00_0);
+    public static final TransportVersion ML_INFERENCE_GET_MULTIPLE_MODELS = def(8_549_00_0);
+    public static final TransportVersion INFERENCE_SERVICE_RESULTS_ADDED = def(8_550_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -202,15 +221,17 @@ public class TransportVersions {
      * If your git checkout has the expected minor-version-numbered branches and the expected release-version tags then you can find the
      * transport versions known by a particular release ...
      *
-     *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
+     *     git show v8.11.0:server/src/main/java/org/elasticsearch/TransportVersions.java | grep '= def'
      *
      * ... or by a particular branch ...
      *
-     *     git show 8.10:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
+     *     git show 8.11:server/src/main/java/org/elasticsearch/TransportVersions.java | grep '= def'
      *
      * ... and you can see which versions were added in between two versions too ...
      *
-     *     git diff 8.10..main -- server/src/main/java/org/elasticsearch/TransportVersions.java
+     *     git diff v8.11.0..main -- server/src/main/java/org/elasticsearch/TransportVersions.java
+     *
+     * In branches 8.7-8.10 see server/src/main/java/org/elasticsearch/TransportVersion.java for the equivalent definitions.
      */
 
     /**

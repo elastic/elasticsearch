@@ -101,6 +101,7 @@ $endif$
     @Override
     public $Type$Block expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values
@@ -168,11 +169,7 @@ $endif$
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
     $if(BytesRef)$
         blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);

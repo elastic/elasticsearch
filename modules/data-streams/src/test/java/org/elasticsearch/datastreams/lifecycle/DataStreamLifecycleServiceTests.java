@@ -94,6 +94,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
@@ -119,6 +120,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class DataStreamLifecycleServiceTests extends ESTestCase {
 
@@ -126,7 +128,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private DataStreamLifecycleService dataStreamLifecycleService;
     private List<TransportRequest> clientSeenRequests;
-    private Client client;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
 
@@ -145,7 +146,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
         clientSeenRequests = new CopyOnWriteArrayList<>();
 
-        client = getTransportRequestsRecordingClient();
+        final Client client = getTransportRequestsRecordingClient();
         AllocationService allocationService = new AllocationService(
             new AllocationDeciders(
                 new HashSet<>(
@@ -178,7 +179,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         dataStreamLifecycleService.close();
         clusterService.close();
         threadPool.shutdownNow();
-        client.close();
     }
 
     public void testOperationsExecutedOnce() {
@@ -282,7 +282,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 dataStream.isSystem(),
                 dataStream.isAllowCustomRouting(),
                 dataStream.getIndexMode(),
-                DataStreamLifecycle.newBuilder().dataRetention(0L).build()
+                DataStreamLifecycle.newBuilder().dataRetention(0L).build(),
+                dataStream.isFailureStore(),
+                dataStream.getFailureIndices()
             )
         );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
@@ -1378,6 +1380,31 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
     }
 
+    public void testTrackingTimeStats() {
+        AtomicLong now = new AtomicLong(0);
+        long delta = randomLongBetween(10, 10000);
+        DataStreamLifecycleService service = new DataStreamLifecycleService(
+            Settings.EMPTY,
+            getTransportRequestsRecordingClient(),
+            clusterService,
+            Clock.systemUTC(),
+            threadPool,
+            () -> now.getAndAdd(delta),
+            new DataStreamLifecycleErrorStore(() -> Clock.systemUTC().millis()),
+            mock(AllocationService.class)
+        );
+        assertThat(service.getLastRunDuration(), is(nullValue()));
+        assertThat(service.getTimeBetweenStarts(), is(nullValue()));
+
+        service.run(ClusterState.EMPTY_STATE);
+        assertThat(service.getLastRunDuration(), is(delta));
+        assertThat(service.getTimeBetweenStarts(), is(nullValue()));
+
+        service.run(ClusterState.EMPTY_STATE);
+        assertThat(service.getLastRunDuration(), is(delta));
+        assertThat(service.getTimeBetweenStarts(), is(2 * delta));
+    }
+
     /*
      * Creates a test cluster state with the given indexName. If customDataStreamLifecycleMetadata is not null, it is added as the value
      * of the index's custom metadata named "data_stream_lifecycle".
@@ -1499,7 +1526,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
      * (it does not even notify the listener), but tests can provide an implementation of clientDelegate to provide any needed behavior.
      */
     private Client getTransportRequestsRecordingClient() {
-        return new NoOpClient(getTestName()) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

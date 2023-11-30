@@ -1,0 +1,5 @@
+pr: 102138
+summary: Skip shards that don't match the source query during checkpointing
+area: Transform
+type: enhancement
+issues: []

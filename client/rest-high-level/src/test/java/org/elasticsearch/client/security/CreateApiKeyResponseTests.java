@@ -70,19 +70,12 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         final Instant expiration = Instant.ofEpochMilli(10000);
         CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyResponse(name, id, apiKey, expiration);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            createApiKeyResponse,
-            (original) -> {
-                return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
-            }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            createApiKeyResponse,
-            (original) -> {
-                return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
-            },
-            CreateApiKeyResponseTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createApiKeyResponse, (original) -> {
+            return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createApiKeyResponse, (original) -> {
+            return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
+        }, CreateApiKeyResponseTests::mutateTestItem);
     }
 
     private static CreateApiKeyResponse mutateTestItem(CreateApiKeyResponse original) {

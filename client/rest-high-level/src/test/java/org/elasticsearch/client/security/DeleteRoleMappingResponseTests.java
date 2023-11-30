@@ -35,16 +35,13 @@ public class DeleteRoleMappingResponseTests extends ESTestCase {
         final boolean found = randomBoolean();
         final DeleteRoleMappingResponse deleteRoleMappingResponse = new DeleteRoleMappingResponse(found);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            deleteRoleMappingResponse,
-            (original) -> { return new DeleteRoleMappingResponse(original.isFound()); }
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteRoleMappingResponse, (original) -> {
+            return new DeleteRoleMappingResponse(original.isFound());
+        });
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            deleteRoleMappingResponse,
-            (original) -> { return new DeleteRoleMappingResponse(original.isFound()); },
-            DeleteRoleMappingResponseTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteRoleMappingResponse, (original) -> {
+            return new DeleteRoleMappingResponse(original.isFound());
+        }, DeleteRoleMappingResponseTests::mutateTestItem);
 
     }
 

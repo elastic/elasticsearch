@@ -45,12 +45,9 @@ public class LifecyclePolicy implements ToXContentObject {
     private static Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
 
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> Phase.parse(p, n),
-            v -> { throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported"); },
-            PHASES_FIELD
-        );
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
+            throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
+        }, PHASES_FIELD);
 
         ALLOWED_ACTIONS.put(
             "hot",

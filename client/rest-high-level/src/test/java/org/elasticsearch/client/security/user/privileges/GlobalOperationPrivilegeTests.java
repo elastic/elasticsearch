@@ -49,15 +49,12 @@ public class GlobalOperationPrivilegeTests extends ESTestCase {
         final Map<String, Object> privilege = Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(5));
         GlobalOperationPrivilege globalOperationPrivilege = new GlobalOperationPrivilege(category, operation, privilege);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            globalOperationPrivilege,
-            (original) -> { return new GlobalOperationPrivilege(original.getCategory(), original.getOperation(), original.getRaw()); }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            globalOperationPrivilege,
-            (original) -> { return new GlobalOperationPrivilege(original.getCategory(), original.getOperation(), original.getRaw()); },
-            GlobalOperationPrivilegeTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(globalOperationPrivilege, (original) -> {
+            return new GlobalOperationPrivilege(original.getCategory(), original.getOperation(), original.getRaw());
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(globalOperationPrivilege, (original) -> {
+            return new GlobalOperationPrivilege(original.getCategory(), original.getOperation(), original.getRaw());
+        }, GlobalOperationPrivilegeTests::mutateTestItem);
     }
 
     private static GlobalOperationPrivilege mutateTestItem(GlobalOperationPrivilege original) {

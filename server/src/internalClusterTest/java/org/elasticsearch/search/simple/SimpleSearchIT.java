@@ -493,6 +493,37 @@ public class SimpleSearchIT extends ESIntegTestCase {
         );
     }
 
+    public void testStrictlyCountRequest() throws Exception {
+        createIndex("test_count_1");
+        indexRandom(
+            true,
+            prepareIndex("test_count_1").setId("1").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("2").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("3").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("4").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("5").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("6").setSource("field", "value")
+        );
+
+        createIndex("test_count_2");
+        indexRandom(
+            true,
+            prepareIndex("test_count_2").setId("1").setSource("field", "value_2"),
+            prepareIndex("test_count_2").setId("2").setSource("field", "value_2"),
+            prepareIndex("test_count_2").setId("3").setSource("field", "value_2"),
+            prepareIndex("test_count_2").setId("4").setSource("field", "value_2"),
+            prepareIndex("test_count_2").setId("6").setSource("field", "value_2")
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test_count_1", "test_count_2").setTrackTotalHits(true).setSize(0),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(11L));
+                assertThat(response.getHits().getHits().length, equalTo(0));
+            }
+        );
+
+    }
+
     private void assertWindowFails(SearchRequestBuilder search) {
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> search.get());
         assertThat(

@@ -10,7 +10,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -36,6 +38,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -555,5 +558,66 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             consumeListener();
         }
+    }
+
+    /**
+     * Optimized phase result consumer that only counts the number of hits and does not
+     * store any other information.
+     */
+    static class CountOnlyQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
+        AtomicReference<TotalHits.Relation> relationAtomicReference = new AtomicReference<>(TotalHits.Relation.EQUAL_TO);
+        LongAdder totalHits = new LongAdder();
+        private final int trackUpTo;
+        private final SearchProgressListener progressListener;
+        public CountOnlyQueryPhaseResultConsumer(SearchRequest request, Executor executor, CircuitBreaker circuitBreaker, SearchPhaseController controller, Supplier<Boolean> isCanceled, SearchProgressListener progressListener, int numShards, Consumer<Exception> onPartialMergeFailure) {
+            super(request, executor, circuitBreaker, controller, isCanceled, progressListener, numShards, onPartialMergeFailure);
+            trackUpTo = request.resolveTrackTotalHitsUpTo();
+            this.progressListener = progressListener;
+        }
+
+        @Override
+        protected void doClose() {
+            super.doClose();
+        }
+
+        @Override
+        public void consumeResult(SearchPhaseResult result, Runnable next) {
+            // set the relation to the first non-equal relation
+            relationAtomicReference.compareAndSet(TotalHits.Relation.EQUAL_TO, result.queryResult().getTotalHits().relation);
+            totalHits.add(result.queryResult().getTotalHits().value);
+            progressListener.notifyQueryResult(result.getShardIndex(), result.queryResult());
+            next.run();
+        }
+
+        @Override
+        public SearchPhaseController.ReducedQueryPhase reduce() throws Exception {
+            TopDocsStats stats = new TopDocsStats(trackUpTo);
+            stats.add(
+                new TopDocsAndMaxScore(
+                    new TopDocs(new TotalHits(totalHits.sum(), relationAtomicReference.get()), new ScoreDoc[0]),
+                    Float.NEGATIVE_INFINITY
+                ), false, false);
+            SearchPhaseController.ReducedQueryPhase reducePhase = SearchPhaseController.reducedQueryPhase(
+                List.of(),
+                List.of(),
+                List.of(),
+                stats,
+                0,
+                false,
+                null,
+                null,
+                true
+            );
+            if (progressListener != SearchProgressListener.NOOP) {
+                progressListener.notifyFinalReduce(
+                    SearchProgressListener.buildSearchShards(results.asList()),
+                    reducePhase.totalHits(),
+                    reducePhase.aggregations(),
+                    reducePhase.numReducePhases()
+                );
+            }
+            return reducePhase;
+        }
+
     }
 }

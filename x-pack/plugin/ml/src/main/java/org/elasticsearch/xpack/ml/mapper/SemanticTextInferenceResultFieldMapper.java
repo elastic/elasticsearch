@@ -92,82 +92,102 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             );
         }
 
-        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false);
+        parseInferenceResults(context);
+    }
 
+    private static void parseInferenceResults(DocumentParserContext context) throws IOException {
+        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false);
         for (XContentParser.Token token = context.parser().nextToken(); token != XContentParser.Token.END_OBJECT; token = context.parser()
             .nextToken()) {
+
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new IllegalArgumentException("[semantic_text] produced inference expect an object with field names, found " + token);
             }
 
-            String fieldName = context.parser().currentName();
+            parseFieldInferenceResults(context, mapperBuilderContext);
+        }
+    }
 
-            Mapper mapper = context.getMapper(fieldName);
-            if ((mapper == null) || SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false) {
-                throw new IllegalArgumentException(
-                    "Found [" + fieldName + "] in inference values, but it is not registered as a semantic_text field type"
-                );
-            }
+    private static void parseFieldInferenceResults(DocumentParserContext context, MapperBuilderContext mapperBuilderContext) throws IOException {
 
-            NestedObjectMapper.Builder nestedBuilder = new NestedObjectMapper.Builder(
-                fieldName,
-                context.indexSettings().getIndexVersionCreated()
+
+        String fieldName = context.parser().currentName();
+
+        Mapper mapper = context.getMapper(fieldName);
+        if ((mapper == null) || SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false) {
+            throw new IllegalArgumentException(
+                "Found [" + fieldName + "] in inference values, but it is not registered as a semantic_text field type"
             );
-            SparseVectorFieldMapper.Builder sparseVectorFieldMapperBuilder = new SparseVectorFieldMapper.Builder(
-                "inference"
-            );
-            nestedBuilder.add(sparseVectorFieldMapperBuilder);
-            TextFieldMapper.Builder textFieldMapperBuilder = new TextFieldMapper.Builder("text", context.indexAnalyzers()).index(false)
-                .store(false);
-            nestedBuilder.add(textFieldMapperBuilder);
-            NestedObjectMapper nestedObjectMapper = nestedBuilder.build(mapperBuilderContext);
-            context.path().add(fieldName);
+        }
 
-            if (context.parser().nextToken() != XContentParser.Token.START_ARRAY) {
+        parseFieldInferenceResultsArray(fieldName, mapperBuilderContext, context);
+    }
+
+    private static void parseFieldInferenceResultsArray(String fieldName, MapperBuilderContext mapperBuilderContext, DocumentParserContext context) throws IOException {
+        XContentParser.Token token;
+        NestedObjectMapper nestedObjectMapper = createNestedObjectMapper(fieldName, mapperBuilderContext, context);
+        context.path().add(fieldName);
+
+        if (context.parser().nextToken() != XContentParser.Token.START_ARRAY) {
+            throw new IllegalArgumentException(
+                "[_semantic_text] produced inference must be an array of objects, expected a START_ARRAY but got: "
+                    + context.parser().currentToken()
+            );
+        }
+        for (token = context.parser().nextToken(); token != XContentParser.Token.END_ARRAY; token = context.parser()
+            .nextToken()) {
+            DocumentParserContext nestedContext = context.createChildContext(nestedObjectMapper).createNestedContext(nestedObjectMapper);
+
+
+            if (token != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException(
-                    "[_semantic_text] produced inference must be an array of objects, expected a START_ARRAY but got: "
+                    "each [_semantic_text] produced inference must be an object, expected a START_OBJECT but got: "
                         + context.parser().currentToken()
                 );
             }
-            for (token = context.parser().nextToken(); token != XContentParser.Token.END_ARRAY; token = context.parser()
+
+            Set<String> visitedFields = new HashSet<>();
+            for (token = context.parser().nextToken(); token != XContentParser.Token.END_OBJECT; token = context.parser()
                 .nextToken()) {
-                DocumentParserContext nestedContext = context.createChildContext(nestedObjectMapper).createNestedContext(nestedObjectMapper);
 
-
-                if (token != XContentParser.Token.START_OBJECT) {
+                if (token != XContentParser.Token.FIELD_NAME) {
                     throw new IllegalArgumentException(
-                        "each [_semantic_text] produced inference must be an object, expected a START_OBJECT but got: "
-                            + context.parser().currentToken()
+                        "each [semantic_text] produced objects fields expect an object with field names, found " + token
                     );
                 }
 
-                Set<String> visitedFields = new HashSet<>();
-                for (token = context.parser().nextToken(); token != XContentParser.Token.END_OBJECT; token = context.parser()
-                    .nextToken()) {
-
-                    if (token != XContentParser.Token.FIELD_NAME) {
-                        throw new IllegalArgumentException(
-                            "each [semantic_text] produced objects fields expect an object with field names, found " + token
-                        );
-                    }
-
-                    String inferenceField = context.parser().currentName();
-                    context.path().add(inferenceField);
-                    FieldMapper childNestedMapper = (FieldMapper) nestedObjectMapper.getMapper(inferenceField);
-                    if (childNestedMapper == null) {
-                        throw new IllegalArgumentException("unexpected inference result field name: " + inferenceField);
-                    }
-                    context.parser().nextToken();
-                    childNestedMapper.parse(nestedContext);
-                    visitedFields.add(inferenceField);
-                    context.path().remove();
+                String inferenceField = context.parser().currentName();
+                context.path().add(inferenceField);
+                FieldMapper childNestedMapper = (FieldMapper) nestedObjectMapper.getMapper(inferenceField);
+                if (childNestedMapper == null) {
+                    throw new IllegalArgumentException("unexpected inference result field name: " + inferenceField);
                 }
-                if (visitedFields.size() != nestedObjectMapper.getChildren().size()) {
-                    throw new IllegalArgumentException("unexpected inference fields: " + visitedFields);
-                }
+                context.parser().nextToken();
+                childNestedMapper.parse(nestedContext);
+                visitedFields.add(inferenceField);
+                context.path().remove();
             }
-            context.path().remove();
+            if (visitedFields.size() != nestedObjectMapper.getChildren().size()) {
+                throw new IllegalArgumentException("unexpected inference fields: " + visitedFields);
+            }
         }
+        context.path().remove();
+    }
+
+    private static NestedObjectMapper createNestedObjectMapper(String fieldName, MapperBuilderContext mapperBuilderContext, DocumentParserContext context) {
+        NestedObjectMapper.Builder nestedBuilder = new NestedObjectMapper.Builder(
+            fieldName,
+            context.indexSettings().getIndexVersionCreated()
+        );
+        SparseVectorFieldMapper.Builder sparseVectorFieldMapperBuilder = new SparseVectorFieldMapper.Builder(
+            "inference"
+        );
+        nestedBuilder.add(sparseVectorFieldMapperBuilder);
+        TextFieldMapper.Builder textFieldMapperBuilder = new TextFieldMapper.Builder("text", context.indexAnalyzers()).index(false)
+            .store(false);
+        nestedBuilder.add(textFieldMapperBuilder);
+        NestedObjectMapper nestedObjectMapper = nestedBuilder.build(mapperBuilderContext);
+        return nestedObjectMapper;
     }
 
     @Override

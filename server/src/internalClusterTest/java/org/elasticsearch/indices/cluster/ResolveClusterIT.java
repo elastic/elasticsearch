@@ -54,7 +54,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
     }
 
     public void testClusterResolveWithIndices() {
-        Map<String, Object> testClusterInfo = setupTwoClusters(false); // TODO: needs params for datastreams and aliases
+        Map<String, Object> testClusterInfo = setupTwoClusters(false); // TODO: needs params for datastreams
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
@@ -222,12 +222,93 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    public void testClusterResolveWithMatchingAliases() throws Exception {
-        Map<String, Object> testClusterInfo = setupTwoClusters(true); // TODO: needs params for datastreams and aliases
-        String remoteIndex = (String) testClusterInfo.get("remote.index");
+    public void testClusterResolveWithMatchingAliases() {
+        Map<String, Object> testClusterInfo = setupTwoClusters(true); // TODO: needs params for datastreams
         boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
+        String localAlias = (String) testClusterInfo.get("local.alias");
+        String remoteAlias = (String) testClusterInfo.get("remote.alias");
 
-        // TODO: LEFTOFF
+        // all clusters and both have matching indices
+        {
+            String[] indexExpressions = new String[] { localAlias, REMOTE_CLUSTER + ":" + remoteAlias };
+            ResolveClusterAction.Request request = new ResolveClusterAction.Request(indexExpressions);
+
+            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin().indices().resolveCluster(request);
+            ResolveClusterAction.Response response = future.actionGet(10, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            Map<String, ResolveClusterAction.ResolveClusterInfo> clusterInfo = response.getResolveClusterInfo();
+            System.err.println(Strings.toString(response));  // FIXME - remove
+            assertEquals(2, clusterInfo.size());
+            assertThat(clusterInfo.keySet(), equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, REMOTE_CLUSTER)));
+
+            ResolveClusterAction.ResolveClusterInfo remote = clusterInfo.get(REMOTE_CLUSTER);
+            assertThat(remote.isConnected(), equalTo(true));
+            assertThat(remote.getSkipUnavailable(), equalTo(skipUnavailable));
+            assertThat(remote.getMatchingIndices(), equalTo(true));
+            assertNotNull(remote.getBuild().version());
+
+            ResolveClusterAction.ResolveClusterInfo local = clusterInfo.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertThat(local.isConnected(), equalTo(true));
+            assertNull(local.getSkipUnavailable());
+            assertThat(local.getMatchingIndices(), equalTo(true));
+            assertNotNull(local.getBuild().version());
+        }
+
+        // only remote cluster has matching indices
+        {
+            String[] indexExpressions = new String[] { "foo*", REMOTE_CLUSTER + ":" + remoteAlias };
+            ResolveClusterAction.Request request = new ResolveClusterAction.Request(indexExpressions);
+
+            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin().indices().resolveCluster(request);
+            ResolveClusterAction.Response response = future.actionGet(10, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            Map<String, ResolveClusterAction.ResolveClusterInfo> clusterInfo = response.getResolveClusterInfo();
+            System.err.println(Strings.toString(response));  // FIXME - remove
+            assertEquals(2, clusterInfo.size());
+            assertThat(clusterInfo.keySet(), equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, REMOTE_CLUSTER)));
+
+            ResolveClusterAction.ResolveClusterInfo remote = clusterInfo.get(REMOTE_CLUSTER);
+            assertThat(remote.isConnected(), equalTo(true));
+            assertThat(remote.getSkipUnavailable(), equalTo(skipUnavailable));
+            assertThat(remote.getMatchingIndices(), equalTo(true));
+            assertNotNull(remote.getBuild().version());
+
+            ResolveClusterAction.ResolveClusterInfo local = clusterInfo.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertThat(local.isConnected(), equalTo(true));
+            assertNull(local.getSkipUnavailable());
+            assertThat(local.getMatchingIndices(), equalTo(false));
+            assertNotNull(local.getBuild().version());
+        }
+
+        // only local cluster has matching indices
+        {
+            String[] indexExpressions = new String[] { localAlias, REMOTE_CLUSTER + ":" + localAlias };
+            ResolveClusterAction.Request request = new ResolveClusterAction.Request(indexExpressions);
+
+            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin().indices().resolveCluster(request);
+            ResolveClusterAction.Response response = future.actionGet(10, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            Map<String, ResolveClusterAction.ResolveClusterInfo> clusterInfo = response.getResolveClusterInfo();
+            System.err.println(Strings.toString(response));  // FIXME - remove
+            assertEquals(2, clusterInfo.size());
+            assertThat(clusterInfo.keySet(), equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, REMOTE_CLUSTER)));
+
+            ResolveClusterAction.ResolveClusterInfo remote = clusterInfo.get(REMOTE_CLUSTER);
+            assertThat(remote.isConnected(), equalTo(true));
+            assertThat(remote.getSkipUnavailable(), equalTo(skipUnavailable));
+            assertThat(remote.getMatchingIndices(), equalTo(false));
+            assertNotNull(remote.getBuild().version());
+
+            ResolveClusterAction.ResolveClusterInfo local = clusterInfo.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertThat(local.isConnected(), equalTo(true));
+            assertNull(local.getSkipUnavailable());
+            assertThat(local.getMatchingIndices(), equalTo(true));
+            assertNotNull(local.getBuild().version());
+        }
+
     }
 
     private Map<String, Object> setupTwoClusters(boolean useAlias) {
@@ -271,6 +352,17 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
                 .setSettings(Settings.builder().put(remoteSettings.build()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
                 .setMapping("@timestamp", "type=date", "f", "type=text")
         );
+        if (useAlias) {
+            // remote1 index alias
+            IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(
+                IndicesAliasesRequest.AliasActions.Type.ADD
+            ).index(remoteIndex).aliases(remoteAlias);
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(addAction);
+
+            assertAcked(client(REMOTE_CLUSTER).admin().indices().aliases(aliasesAddRequest));
+        }
+
         assertFalse(
             client(REMOTE_CLUSTER).admin()
                 .cluster()

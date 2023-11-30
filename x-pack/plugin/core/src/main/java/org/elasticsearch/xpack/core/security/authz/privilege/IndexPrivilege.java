@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.resolve.ResolveClusterAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -74,11 +75,12 @@ public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
-    private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
+    private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME, ResolveClusterAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         ClusterSearchShardsAction.NAME,
-        TransportSearchShardsAction.TYPE.name()
+        TransportSearchShardsAction.TYPE.name(),
+        ResolveClusterAction.NAME
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",
@@ -128,6 +130,7 @@ public final class IndexPrivilege extends Privilege {
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,
         TransportFieldCapabilitiesAction.NAME + "*",
+        ResolveClusterAction.NAME,
         GetRollupIndexCapsAction.NAME + "*",
         GetCheckpointAction.NAME + "*" // transform internal action
     );

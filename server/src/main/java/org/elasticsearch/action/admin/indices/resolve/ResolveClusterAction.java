@@ -34,6 +34,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -54,7 +56,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 public class ResolveClusterAction extends ActionType<ResolveClusterAction.Response> {
 
     public static final ResolveClusterAction INSTANCE = new ResolveClusterAction();
-    public static final String NAME = "indices:data/resolve/clusters";
+    public static final String NAME = "indices:admin/resolve/cluster";
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
@@ -131,36 +133,54 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
 
     public static class ResolveClusterInfo implements Writeable {
 
-        public final boolean connected;
-        public final Boolean skipUnavailable;  // null for the local cluster
-        public final Boolean matchingIndices;  // null means 'unknown' since we are not connected
-        public final Build build;
+        private final boolean connected;
+        private final Boolean skipUnavailable;  // null for the local cluster
+        private final Boolean matchingIndices;  // null means 'unknown' since we are not connected
+        private final Build build;
+        private final String error;
 
         public ResolveClusterInfo(boolean connected, Boolean skipUnavailable) {
-            this(connected, skipUnavailable, null, null);
+            this(connected, skipUnavailable, null, null, null);
+        }
+
+        public ResolveClusterInfo(boolean connected, Boolean skipUnavailable, String error) {
+            this(connected, skipUnavailable, null, null, error);
         }
 
         public ResolveClusterInfo(boolean connected, Boolean skipUnavailable, Boolean matchingIndices, Build build) {
+            this(connected, skipUnavailable, matchingIndices, build, null);
+        }
+
+        private ResolveClusterInfo(boolean connected, Boolean skipUnavailable, Boolean matchingIndices, Build build, String error) {
             this.connected = connected;
             this.skipUnavailable = skipUnavailable;
             this.matchingIndices = matchingIndices;
             this.build = build;
-            assert matchingIndices != null || connected == false : "If matchingIndices is null, connected must be false";
+            this.error = error;
+            assert error != null || matchingIndices != null || connected == false : "If matchingIndices is null, connected must be false";
         }
 
         public ResolveClusterInfo(StreamInput in) throws IOException {
             this.connected = in.readBoolean();
             this.skipUnavailable = in.readOptionalBoolean();
             this.matchingIndices = in.readOptionalBoolean();
-            this.build = Build.readBuild(in);
+            this.error = in.readOptionalString();
+            if (error == null) {
+                this.build = Build.readBuild(in);
+            } else {
+                this.build = null;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(connected);
             out.writeOptionalBoolean(skipUnavailable);
-            out.writeOptionalBoolean(matchingIndices);  // TODO: is this really optional?
-            Build.writeBuild(build, out);
+            out.writeOptionalBoolean(matchingIndices);
+            out.writeOptionalString(error);
+            if (build != null) {
+                Build.writeBuild(build, out);
+            }
         }
 
         public boolean isConnected() {
@@ -179,6 +199,10 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
             return build;
         }
 
+        public String getError() {
+            return error;
+        }
+
         @Override
         public String toString() {
             return "ResolveClusterInfo{"
@@ -190,16 +214,19 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                 + matchingIndices
                 + ", build="
                 + build
+                + ", error="
+                + error
                 + '}';
         }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        static final ParseField CONNECTED_FIELD = new ParseField("connected");
-        static final ParseField SKIP_UNAVAILABLE_FIELD = new ParseField("skip_unavailable");
-        static final ParseField MATCHING_INDICES_FIELD = new ParseField("matching_indices");
-        static final ParseField ES_VERSION_FIELD = new ParseField("version");
+        private static final ParseField CONNECTED_FIELD = new ParseField("connected");
+        private static final ParseField SKIP_UNAVAILABLE_FIELD = new ParseField("skip_unavailable");
+        private static final ParseField MATCHING_INDICES_FIELD = new ParseField("matching_indices");
+        private static final ParseField ES_VERSION_FIELD = new ParseField("version");
+        private static final ParseField ERROR_FIELD = new ParseField("error");
 
         private final Map<String, ResolveClusterInfo> infoMap;
 
@@ -228,6 +255,9 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                 ResolveClusterInfo clusterInfo = entry.getValue();
                 builder.field(CONNECTED_FIELD.getPreferredName(), clusterInfo.isConnected());
                 builder.field(SKIP_UNAVAILABLE_FIELD.getPreferredName(), clusterInfo.getSkipUnavailable());
+                if (clusterInfo.getError() != null) {
+                    builder.field(ERROR_FIELD.getPreferredName(), clusterInfo.getError());
+                }
                 if (clusterInfo.getMatchingIndices() != null) {
                     builder.field(MATCHING_INDICES_FIELD.getPreferredName(), clusterInfo.getMatchingIndices());
                 }
@@ -339,21 +369,29 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                         );
                         terminalHandler.run();
                     }, failure -> {
-                        /// MP TODO: inspect the failure for how to handle? should the response have an error section for each cluster?
-                        /// MP for now, just assume all failures mean we aren't connected
                         System.err.println(">>> FAILURE: " + failure);
                         System.err.println(ExceptionsHelper.stackTrace(failure));
-                        clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                        if (notConnectedError(failure)) {
+                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                        } else {
+                            Throwable cause = ExceptionsHelper.unwrapCause(failure);
+                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, cause.toString()));
+                            logger.warn("Failure from _resolve/cluster lookup against cluster {}: ", clusterAlias, failure);
+                        }
                         terminalHandler.run();
                     }));
                 }
             } else {
                 clusterInfoMap.put(
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    new ResolveClusterInfo(true, null, hasMatchingIndices(localIndices, clusterState), Build.current())
+                    new ResolveClusterInfo(true, false, hasMatchingIndices(localIndices, clusterState), Build.current())
                 );
                 listener.onResponse(new ResolveClusterAction.Response(clusterInfoMap));
             }
+        }
+
+        private boolean notConnectedError(Exception e) {
+            return e instanceof ConnectTransportException || e instanceof NoSuchRemoteClusterException;
         }
 
         private boolean hasMatchingIndices(OriginalIndices localIndices, ClusterState clusterState) {

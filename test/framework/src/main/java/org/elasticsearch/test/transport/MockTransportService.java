@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
@@ -546,11 +547,23 @@ public class MockTransportService extends TransportService {
                 final RunOnce runnable = new RunOnce(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug("failed to send delayed request", e);
+                        logger.debug(
+                            () -> Strings.format(
+                                "[%d][%s] failed to send delayed request to node [%s]",
+                                requestId,
+                                action,
+                                connection.getNode()
+                            ),
+                            e
+                        );
+                        handleInternalSendException(action, connection.getNode(), requestId, null, e);
                     }
 
                     @Override
                     protected void doRun() throws IOException {
+                        logger.debug(
+                            () -> Strings.format("[%d][%s] sending delayed request to node [%s]", requestId, action, connection.getNode())
+                        );
                         connection.sendRequest(requestId, action, clonedRequest, options);
                     }
                 });
@@ -561,6 +574,15 @@ public class MockTransportService extends TransportService {
                         runnable.run();
                     } else {
                         requestsToSendWhenCleared.add(runnable);
+                        logger.debug(
+                            () -> Strings.format(
+                                "[%d][%s] delaying sending request to node [%s] by [%s]",
+                                requestId,
+                                action,
+                                connection.getNode(),
+                                delay
+                            )
+                        );
                         threadPool.schedule(runnable, delay, threadPool.generic());
                     }
                 }

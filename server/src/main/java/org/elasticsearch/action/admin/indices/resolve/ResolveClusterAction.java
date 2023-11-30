@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
@@ -346,7 +347,7 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                 if (localIndices != null) {
                     clusterInfoMap.put(
                         RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                        new ResolveClusterInfo(true, null, hasMatchingIndices(localIndices, clusterState), Build.current())
+                        new ResolveClusterInfo(true, false, hasMatchingIndices(localIndices, clusterState), Build.current())
                     );
                 }
 
@@ -369,14 +370,15 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                         );
                         terminalHandler.run();
                     }, failure -> {
-                        System.err.println(">>> FAILURE: " + failure);
-                        System.err.println(ExceptionsHelper.stackTrace(failure));
                         if (notConnectedError(failure)) {
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
                         } else {
                             Throwable cause = ExceptionsHelper.unwrapCause(failure);
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, cause.toString()));
-                            logger.warn("Failure from _resolve/cluster lookup against cluster {}: ", clusterAlias, failure);
+                            logger.warn(
+                                () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
+                                failure
+                            );
                         }
                         terminalHandler.run();
                     }));
@@ -384,7 +386,7 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
             } else {
                 clusterInfoMap.put(
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    new ResolveClusterInfo(true, false, hasMatchingIndices(localIndices, clusterState), Build.current())
+                    new ResolveClusterInfo(true, null, hasMatchingIndices(localIndices, clusterState), Build.current())
                 );
                 listener.onResponse(new ResolveClusterAction.Response(clusterInfoMap));
             }

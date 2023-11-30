@@ -12,8 +12,6 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
-import java.time.ZoneId;
-
 public class EsqlQueryRequestBuilder extends ActionRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> {
 
     public EsqlQueryRequestBuilder(ElasticsearchClient client, EsqlQueryAction action, EsqlQueryRequest request) {
@@ -31,11 +29,6 @@ public class EsqlQueryRequestBuilder extends ActionRequestBuilder<EsqlQueryReque
 
     public EsqlQueryRequestBuilder columnar(boolean columnar) {
         request.columnar(columnar);
-        return this;
-    }
-
-    public EsqlQueryRequestBuilder timeZone(ZoneId zoneId) {
-        request.zoneId(zoneId);
         return this;
     }
 

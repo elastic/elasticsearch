@@ -71,42 +71,43 @@ public class IngestStatsTests extends ESTestCase {
         );
     }
 
-    public void testProcessorStatsMerge() {
+    public void testProcessorStatsMergeZeroCounts() {
         {
             var first = Map.of("pipeline-1", randomPipelineProcessorStats());
             assertEquals(IngestStats.merge(Map.of(), first), first);
             assertEquals(IngestStats.merge(first, Map.of()), first);
         }
-        {
-            var first = Map.of(
-                "pipeline-1",
-                randomPipelineProcessorStats(),
-                "pipeline-2",
-                randomPipelineProcessorStats(),
-                "pipeline-3",
-                randomPipelineProcessorStats()
-            );
-            var second = Map.of(
-                "pipeline-2",
-                randomPipelineProcessorStats(),
-                "pipeline-3",
-                randomPipelineProcessorStats(),
-                "pipeline-1",
-                randomPipelineProcessorStats()
-            );
+    }
 
-            assertEquals(
-                IngestStats.merge(first, second),
-                Map.of(
-                    "pipeline-1",
-                    expectedPipelineProcessorStats(first.get("pipeline-1"), second.get("pipeline-1")),
-                    "pipeline-2",
-                    expectedPipelineProcessorStats(first.get("pipeline-2"), second.get("pipeline-2")),
-                    "pipeline-3",
-                    expectedPipelineProcessorStats(first.get("pipeline-3"), second.get("pipeline-3"))
-                )
-            );
-        }
+    public void testProcessorStatsMerge() {
+        var first = Map.of(
+            "pipeline-1",
+            randomPipelineProcessorStats(),
+            "pipeline-2",
+            randomPipelineProcessorStats(),
+            "pipeline-3",
+            randomPipelineProcessorStats()
+        );
+        var second = Map.of(
+            "pipeline-2",
+            randomPipelineProcessorStats(),
+            "pipeline-3",
+            randomPipelineProcessorStats(),
+            "pipeline-1",
+            randomPipelineProcessorStats()
+        );
+
+        assertEquals(
+            IngestStats.merge(first, second),
+            Map.of(
+                "pipeline-1",
+                expectedPipelineProcessorStats(first.get("pipeline-1"), second.get("pipeline-1")),
+                "pipeline-2",
+                expectedPipelineProcessorStats(first.get("pipeline-2"), second.get("pipeline-2")),
+                "pipeline-3",
+                expectedPipelineProcessorStats(first.get("pipeline-3"), second.get("pipeline-3"))
+            )
+        );
     }
 
     private static List<IngestStats.ProcessorStat> expectedPipelineProcessorStats(

@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -38,6 +40,8 @@ public class ToLong extends AbstractConvertFunction {
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(LONG, (fieldEval, source) -> fieldEval),
         Map.entry(DATETIME, (fieldEval, source) -> fieldEval),
+        Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
+        Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
         Map.entry(BOOLEAN, ToLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToLongFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToLongFromStringEvaluator.Factory::new),
@@ -49,7 +53,10 @@ public class ToLong extends AbstractConvertFunction {
     @FunctionInfo(returnType = "long")
     public ToLong(
         Source source,
-        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(
+            name = "v",
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer", "geo_point", "cartesian_point" }
+        ) Expression field
     ) {
         super(source, field);
     }

@@ -395,6 +395,8 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(indexShard.getThreadPool()).thenReturn(threadPool);
 
         IndexService indexService = mock(IndexService.class);
+        MapperService mapperService = mock(MapperService.class);
+        when(indexService.mapperService()).thenReturn(mapperService);
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 

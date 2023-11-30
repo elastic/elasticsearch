@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -288,27 +287,22 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
 
-            if (clusterHasFeature(RestTestLegacyFeatures.SNAPSHOT_BLOB_CACHE_INDEX_DATA_TIER_PREFERENCE_UPDATED)) {
-                final Request request = new Request(
-                    "GET",
-                    "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference"
-                );
-                request.setOptions(
-                    expectWarnings(
-                        "this request accesses system indices: [.snapshot-blob-cache], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
-                    )
-                );
-                request.addParameter("flat_settings", "true");
+            final Request request = new Request("GET", "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference");
+            request.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.snapshot-blob-cache], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                )
+            );
+            request.addParameter("flat_settings", "true");
 
-                final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
-                assertThat(snapshotBlobCacheSettings, notNullValue());
-                final String tierPreference = (String) extractValue(
-                    ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
-                    snapshotBlobCacheSettings
-                );
-                assertThat(tierPreference, equalTo("data_content,data_hot"));
-            }
+            final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
+            assertThat(snapshotBlobCacheSettings, notNullValue());
+            final String tierPreference = (String) extractValue(
+                ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
+                snapshotBlobCacheSettings
+            );
+            assertThat(tierPreference, equalTo("data_content,data_hot"));
 
         } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             for (String snapshot : snapshots) {

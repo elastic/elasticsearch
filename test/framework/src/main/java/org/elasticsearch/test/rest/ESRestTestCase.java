@@ -2136,18 +2136,18 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static TransportVersion getTransportVersionWithFallback(
-        Object versionField,
+        String versionField,
         Object transportVersionField,
         Supplier<TransportVersion> fallbackSupplier
     ) {
-        if (transportVersionField instanceof Integer transportVersionId) {
-            return TransportVersion.fromId(transportVersionId);
+        if (transportVersionField instanceof Number transportVersionId) {
+            return TransportVersion.fromId((int) transportVersionId);
         } else if (transportVersionField instanceof String transportVersionString) {
             return TransportVersion.fromString(transportVersionString);
         } else { // no transport_version field
             // The response might be from a node <8.8.0, but about a node >=8.8.0
             // In that case the transport_version field won't exist. Use version, but only for <8.8.0: after that versions diverge.
-            var version = parseLegacyVersion(versionField.toString());
+            var version = parseLegacyVersion(versionField);
             assert version.isPresent();
             if (version.get().before(Version.V_8_8_0)) {
                 return TransportVersion.fromId(version.get().id);

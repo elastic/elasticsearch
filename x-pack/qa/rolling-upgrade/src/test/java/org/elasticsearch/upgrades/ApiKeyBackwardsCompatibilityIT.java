@@ -10,6 +10,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -182,8 +183,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "name": "%s",
                 "role_descriptors": %s
             }""", name, roles);
-        // Grant API did not exist before 7.7.0
-        final boolean grantApiKey = randomBoolean() && clusterHasFeature(RestTestLegacyFeatures.SECURITY_GRANT_API_SUPPORTED);
+
+        final boolean grantApiKey = randomBoolean();
         if (grantApiKey) {
             createApiKeyRequest = new Request("POST", "/_security/api_key/grant");
             createApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
@@ -304,14 +305,19 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     boolean nodeSupportApiKeyRemoteIndices(Map<String, Object> nodeDetails) {
-        var nodeVersion = nodeDetails.get("version");
-        var transportVersion = getTransportVersionWithFallback(nodeVersion, nodeDetails.get("transport_version"), () -> null);
+        String nodeVersionString = (String) nodeDetails.get("version");
+        TransportVersion transportVersion = getTransportVersionWithFallback(
+            nodeVersionString,
+            nodeDetails.get("transport_version"),
+            () -> null
+        );
 
         if (transportVersion == null) {
-            // In cases where we were not able to find a TransportVersion, it's likely a pre-upgrade, pre-8.8.0 node answered about
-            // a post-upgrade node (omitting transport_version)
-            var nodeIsCurrent = nodeVersion.equals(Build.current().version());
-            return nodeIsCurrent;
+            // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
+            // In that case, the node will be current (upgraded), and remote indices are supported for sure.
+            var nodeIsCurrent = nodeVersionString.equals(Build.current().version());
+            assertTrue(nodeIsCurrent);
+            return true;
         }
         return transportVersion.onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }

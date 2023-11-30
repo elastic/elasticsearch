@@ -31,14 +31,9 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
         "indices.delete_template_multiple_names_supported"
     );
 
-    // QA tests
-    public static final NodeFeature SECURITY_GRANT_API_SUPPORTED = new NodeFeature("security.grant_api_supported");
+    // QA - rolling upgrade tests
     public static final NodeFeature SECURITY_UPDATE_API_KEY = new NodeFeature("security.api_key_update");
     public static final NodeFeature SECURITY_BULK_UPDATE_API_KEY = new NodeFeature("security.api_key_bulk_update");
-    // Ref: https://github.com/elastic/elasticsearch/pull/72817
-    public static final NodeFeature SNAPSHOT_BLOB_CACHE_INDEX_DATA_TIER_PREFERENCE_UPDATED = new NodeFeature(
-        "snapshot.blob_cache.index_data_tier_hot"
-    );
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
@@ -49,10 +44,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(COMPONENT_TEMPLATE_SUPPORTED, Version.V_7_8_0),
             entry(DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED, Version.V_7_13_0),
             entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0),
-            entry(SECURITY_GRANT_API_SUPPORTED, Version.V_7_7_0),
             entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
-            entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0),
-            entry(SNAPSHOT_BLOB_CACHE_INDEX_DATA_TIER_PREFERENCE_UPDATED, Version.V_7_13_0)
+            entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0)
         );
     }
 }

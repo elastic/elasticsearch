@@ -2141,7 +2141,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Supplier<TransportVersion> fallbackSupplier
     ) {
         if (transportVersionField instanceof Number transportVersionId) {
-            return TransportVersion.fromId((int) transportVersionId);
+            return TransportVersion.fromId(transportVersionId.intValue());
         } else if (transportVersionField instanceof String transportVersionString) {
             return TransportVersion.fromString(transportVersionString);
         } else { // no transport_version field

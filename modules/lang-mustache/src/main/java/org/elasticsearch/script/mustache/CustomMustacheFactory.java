@@ -64,6 +64,26 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
 
     private final Encoder encoder;
 
+    /**
+     * Initializes a CustomMustacheFactory object with a specified mediaType.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
+    public CustomMustacheFactory(String mediaType) {
+        this(mediaType, DEFAULT_DETECT_MISSING_PARAMS);
+    }
+
+    /**
+     * Default constructor for the factory.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
+    public CustomMustacheFactory() {
+        this(DEFAULT_MEDIA_TYPE, DEFAULT_DETECT_MISSING_PARAMS);
+    }
+
     private CustomMustacheFactory(String mediaType, boolean detectMissingParams) {
         super();
         setObjectHandler(new CustomReflectionObjectHandler(detectMissingParams));
@@ -365,7 +385,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
     /**
      * Build a new {@link CustomMustacheFactory} object.
      */
-    static class Builder {
+    public static class Builder {
         private String mediaType = DEFAULT_MEDIA_TYPE;
         private boolean detectMissingParams = DEFAULT_DETECT_MISSING_PARAMS;
 
@@ -376,6 +396,12 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
             return this;
         }
 
+        /**
+         * Sets the behavior for handling missing parameters during template execution.
+         *
+         * @param detectMissingParams If true, an exception is thrown when executing the template with missing parameters.
+         *                            If false, the template gracefully handles missing parameters without throwing an exception.
+         */
         public Builder detectMissingParams(boolean detectMissingParams) {
             this.detectMissingParams = detectMissingParams;
             return this;

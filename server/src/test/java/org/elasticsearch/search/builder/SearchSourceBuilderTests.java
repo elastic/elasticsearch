@@ -9,7 +9,6 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -52,7 +51,6 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -123,17 +121,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(copy, original);
         assertEquals(copy.hashCode(), original.hashCode());
         assertNotSame(copy, original);
-    }
-
-    public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
-        SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
-        TransportVersion v = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_0_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_11_0)
-        );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
-        assertThat(e.getMessage(), equalTo("Versions before 7110099 don't support [runtime_mappings] and search was sent to [" + v + "]"));
     }
 
     public void testShallowCopy() {

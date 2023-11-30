@@ -54,8 +54,11 @@ import org.elasticsearch.xpack.application.connector.action.TransportDeleteConne
 import org.elasticsearch.xpack.application.connector.action.TransportGetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.RestDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestPostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.TransportDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportPostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
@@ -176,7 +179,13 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class)
                 )
             );
-            actionHandlers.add(new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class));
+            // Sync jobs
+            actionHandlers.addAll(
+                List.of(
+                    new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class),
+                    new ActionHandler<>(DeleteConnectorSyncJobAction.INSTANCE, TransportDeleteConnectorSyncJobAction.class)
+                )
+            );
         }
 
         return Collections.unmodifiableList(actionHandlers);
@@ -231,7 +240,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestPutConnectorAction()
                 )
             );
-            restHandlers.add(new RestPostConnectorSyncJobAction());
+            // Sync jobs
+            restHandlers.addAll(List.of(new RestPostConnectorSyncJobAction(), new RestDeleteConnectorSyncJobAction()));
         }
 
         return Collections.unmodifiableList(restHandlers);

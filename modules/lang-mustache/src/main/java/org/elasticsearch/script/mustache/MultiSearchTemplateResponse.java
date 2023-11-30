@@ -170,18 +170,22 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
         // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
         MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
-        org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
-        Item[] templateResponses = new Item[responses.length];
-        int i = 0;
-        for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
-            SearchTemplateResponse stResponse = null;
-            if (item.getResponse() != null) {
-                stResponse = new SearchTemplateResponse();
-                stResponse.setResponse(item.getResponse());
+        try {
+            org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
+            Item[] templateResponses = new Item[responses.length];
+            int i = 0;
+            for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
+                SearchTemplateResponse stResponse = null;
+                if (item.getResponse() != null) {
+                    stResponse = new SearchTemplateResponse();
+                    stResponse.setResponse(item.getResponse());
+                }
+                templateResponses[i++] = new Item(stResponse, item.getFailure());
             }
-            templateResponses[i++] = new Item(stResponse, item.getFailure());
+            return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
+        } finally {
+            mSearchResponse.decRef();
         }
-        return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
     }
 
     @Override

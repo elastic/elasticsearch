@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -59,7 +58,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
-    private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
     private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
@@ -69,7 +67,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     private String query;
     private boolean columnar;
-    private ZoneId zoneId;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
@@ -107,14 +104,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     public boolean columnar() {
         return columnar;
-    }
-
-    public void zoneId(ZoneId zoneId) {
-        this.zoneId = zoneId;
-    }
-
-    public ZoneId zoneId() {
-        return zoneId;
     }
 
     public void locale(Locale locale) {
@@ -157,7 +146,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
-        parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
         parser.declareObject(
             EsqlQueryRequest::pragmas,

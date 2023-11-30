@@ -342,15 +342,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return BASE64_ENCODER.encodeToString(bytes);
     }
 
-    public static Map<String, Object> decodeTsid2(BytesRef bytesRef) {
+    public static Map<String, Object> decodeTsidAsMap(BytesRef bytesRef) {
         try (StreamInput input = new BytesArray(bytesRef).streamInput()) {
-            return decodeTsid2(input);
+            return decodeTsidAsMap(input);
         } catch (IOException ex) {
             throw new IllegalArgumentException("Dimension field cannot be deserialized.", ex);
         }
     }
 
-    public static Map<String, Object> decodeTsid2(StreamInput in) {
+    public static Map<String, Object> decodeTsidAsMap(StreamInput in) {
         try {
             int size = in.readVInt();
             Map<String, Object> result = new LinkedHashMap<>(size);

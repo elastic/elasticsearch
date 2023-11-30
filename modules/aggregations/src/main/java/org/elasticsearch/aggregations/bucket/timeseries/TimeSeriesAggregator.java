@@ -106,19 +106,14 @@ public class TimeSeriesAggregator extends BucketsAggregator {
         Releasables.close(bucketOrds);
     }
 
-    @FunctionalInterface
-    interface TsidConsumer {
-        void accept(int docId, TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder) throws IOException;
-    }
-
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        SortedMap<String, TsidConsumer> map = new TreeMap<>();
+        SortedMap<String, TsidConsumer> dimensionConsumers = new TreeMap<>();
         for (var entry : dimensionValueSources.entrySet()) {
             String fieldName = entry.getKey();
             if (entry.getValue() instanceof ValuesSource.Numeric numericVS) {
                 SortedNumericDocValues docValues = numericVS.longValues(aggCtx.getLeafReaderContext());
-                map.put(entry.getKey(), (docId, tsidBuilder) -> {
+                dimensionConsumers.put(entry.getKey(), (docId, tsidBuilder) -> {
                     if (docValues.advanceExact(docId)) {
                         for (int i = 0; i < docValues.docValueCount(); i++) {
                             tsidBuilder.addLong(fieldName, docValues.nextValue());
@@ -127,7 +122,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 });
             } else {
                 SortedBinaryDocValues docValues = entry.getValue().bytesValues(aggCtx.getLeafReaderContext());
-                map.put(entry.getKey(), (docId, tsidBuilder) -> {
+                dimensionConsumers.put(entry.getKey(), (docId, tsidBuilder) -> {
                     if (docValues.advanceExact(docId)) {
                         for (int i = 0; i < docValues.docValueCount(); i++) {
                             tsidBuilder.addString(fieldName, docValues.nextValue());
@@ -156,12 +151,11 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 }
 
                 TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
-                for (TsidConsumer consumer : map.values()) {
+                for (TsidConsumer consumer : dimensionConsumers.values()) {
                     consumer.accept(doc, tsidBuilder);
                 }
 
                 BytesRef tsid = tsidBuilder.withoutHash().toBytesRef();
-                // TimeSeriesIdFieldMapper.decodeTsid2(tsid);
                 long bucketOrdinal = bucketOrds.add(bucket, tsid);
                 if (bucketOrdinal < 0) { // already seen
                     bucketOrdinal = -1 - bucketOrdinal;
@@ -180,5 +174,10 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     InternalTimeSeries buildResult(InternalTimeSeries.InternalBucket[] topBuckets) {
         return new InternalTimeSeries(name, List.of(topBuckets), keyed, metadata());
+    }
+
+    @FunctionalInterface
+    interface TsidConsumer {
+        void accept(int docId, TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder) throws IOException;
     }
 }

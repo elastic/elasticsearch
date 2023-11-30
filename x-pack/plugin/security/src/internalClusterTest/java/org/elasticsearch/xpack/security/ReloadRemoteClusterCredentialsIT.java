@@ -52,6 +52,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         successfulReloadCall();
 
         assertThat(remoteClusterService.getRemoteClusterCredentialsManager().resolveCredentials("my_remote_cluster"), equalTo(credentials));
+
     }
 
     private void successfulReloadCall() throws InterruptedException {

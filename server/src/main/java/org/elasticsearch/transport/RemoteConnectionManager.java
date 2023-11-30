@@ -101,7 +101,9 @@ public class RemoteConnectionManager implements ConnectionManager {
             node,
             profile,
             listener.delegateFailureAndWrap(
-                (l, connection) -> l.onResponse(new InternalRemoteConnection(connection, clusterAlias, credentialsManager))
+                (l, connection) -> l.onResponse(
+                    new InternalRemoteConnection(connection, clusterAlias, credentialsManager.resolveCredentials(clusterAlias))
+                )
             )
         );
     }
@@ -212,7 +214,7 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
         Transport.Connection connection = delegate.getConnection(node);
-        return new InternalRemoteConnection(connection, clusterAlias, credentialsManager);
+        return new InternalRemoteConnection(connection, clusterAlias, credentialsManager.resolveCredentials(clusterAlias));
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
@@ -318,23 +320,25 @@ public class RemoteConnectionManager implements ConnectionManager {
         private static final Logger logger = LogManager.getLogger(InternalRemoteConnection.class);
         private final Transport.Connection connection;
         private final String clusterAlias;
-        private final RemoteClusterCredentialsManager clusterCredentialsManager;
+        @Nullable
+        private final SecureString clusterCredentials;
 
-        InternalRemoteConnection(Transport.Connection connection, String clusterAlias, RemoteClusterCredentialsManager credentialsManager) {
+        InternalRemoteConnection(Transport.Connection connection, String clusterAlias, @Nullable SecureString clusterCredentials) {
             assert false == connection instanceof InternalRemoteConnection : "should not double wrap";
             assert false == connection instanceof ProxyConnection
                 : "proxy connection should wrap internal remote connection, not the other way around";
             this.clusterAlias = Objects.requireNonNull(clusterAlias);
             this.connection = Objects.requireNonNull(connection);
-            this.clusterCredentialsManager = Objects.requireNonNull(credentialsManager);
+            this.clusterCredentials = clusterCredentials;
         }
 
         public String getClusterAlias() {
             return clusterAlias;
         }
 
+        @Nullable
         public SecureString getClusterCredentials() {
-            return clusterCredentialsManager.resolveCredentials(clusterAlias);
+            return clusterCredentials;
         }
 
         @Override
@@ -346,7 +350,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
             final String effectiveAction;
-            if (clusterCredentialsManager.hasCredentials(clusterAlias) && TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
+            if (clusterCredentials != null && TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
                 logger.trace("sending remote cluster specific handshake to node [{}] of remote cluster [{}]", getNode(), clusterAlias);
                 effectiveAction = REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
             } else {
@@ -416,6 +420,6 @@ public class RemoteConnectionManager implements ConnectionManager {
         String clusterAlias,
         RemoteClusterCredentialsManager credentialsManager
     ) {
-        return new InternalRemoteConnection(connection, clusterAlias, credentialsManager);
+        return new InternalRemoteConnection(connection, clusterAlias, credentialsManager.resolveCredentials(clusterAlias));
     }
 }

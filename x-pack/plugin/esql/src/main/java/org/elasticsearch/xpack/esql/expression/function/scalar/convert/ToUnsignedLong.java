@@ -50,10 +50,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
     @FunctionInfo(returnType = "unsigned_long")
     public ToUnsignedLong(
         Source source,
-        @Param(
-            name = "v",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
-        ) Expression field
+        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
     ) {
         super(source, field);
     }

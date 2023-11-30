@@ -47,10 +47,7 @@ public class ToInteger extends AbstractConvertFunction {
     @FunctionInfo(returnType = "integer")
     public ToInteger(
         Source source,
-        @Param(
-            name = "v",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
-        ) Expression field
+        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
     ) {
         super(source, field);
     }

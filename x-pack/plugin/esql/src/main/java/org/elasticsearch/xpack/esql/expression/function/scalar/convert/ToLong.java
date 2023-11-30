@@ -49,10 +49,7 @@ public class ToLong extends AbstractConvertFunction {
     @FunctionInfo(returnType = "long")
     public ToLong(
         Source source,
-        @Param(
-            name = "v",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
-        ) Expression field
+        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
     ) {
         super(source, field);
     }

@@ -262,8 +262,6 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
      */
     public record ProcessorStat(String name, String type, Stats stats) {
 
-        // The list of ProcessorStats has *always* stats for each processor (even if processor was executed or not), so it's safe to zip
-        // both lists using a common index iterator.
         private static List<ProcessorStat> merge(List<ProcessorStat> first, List<ProcessorStat> second) {
             var merged = new ArrayList<ProcessorStat>(first.size());
             for (var i = 0; i < first.size(); i++) {

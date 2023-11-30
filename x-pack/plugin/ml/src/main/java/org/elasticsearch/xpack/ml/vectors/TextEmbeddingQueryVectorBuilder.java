@@ -99,9 +99,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             List.of(modelText),
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             false,
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API,
-            CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL // The model is hosted either on a ml node or in an inference
-                                                                          // service
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
         );
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);

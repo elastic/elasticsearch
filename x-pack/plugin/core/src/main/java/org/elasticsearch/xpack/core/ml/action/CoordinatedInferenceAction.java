@@ -51,8 +51,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             List<String> inputs,
             @Nullable InferenceConfigUpdate inferenceConfigUpdate,
             @Nullable Boolean previouslyLicensed,
-            @Nullable TimeValue inferenceTimeout,
-            RequestModelType modelType
+            @Nullable TimeValue inferenceTimeout
         ) {
             return new Request(
                 modelId,
@@ -63,7 +62,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
                 previouslyLicensed,
                 inferenceTimeout,
                 false, // not high priority
-                modelType
+                RequestModelType.NLP_MODEL
             );
         }
 

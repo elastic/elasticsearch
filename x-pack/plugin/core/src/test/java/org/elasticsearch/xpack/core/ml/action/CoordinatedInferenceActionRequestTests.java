@@ -48,8 +48,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
                     List.of(randomAlphaOfLength(6)),
                     inferenceConfig,
                     previouslyLicensed,
-                    inferenceTimeout,
-                    CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL
+                    inferenceTimeout
                 );
                 request.setHighPriority(highPriority);
                 yield request;

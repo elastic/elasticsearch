@@ -251,8 +251,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 requestInputs,
                 inferenceConfig,
                 previouslyLicensed,
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST,
-                CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
             );
             request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
             return request;

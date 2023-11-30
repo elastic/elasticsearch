@@ -296,7 +296,6 @@ class NodeConstruction {
     private Node.LocalNodeFactory localNodeFactory;
     private NodeService nodeService;
     private TerminationHandler terminationHandler;
-    private TelemetryProvider telemetryProvider;
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry xContentRegistry;
 

@@ -379,10 +379,12 @@ public class DocValueFormatTests extends ESTestCase {
         timeSeriesIdBuilder.addLong("long", randomLong());
         timeSeriesIdBuilder.addUnsignedLong("ulong", randomLong());
         BytesRef expected = timeSeriesIdBuilder.withHash().toBytesRef();
+        byte[] expectedBytes = new byte[expected.length];
+        System.arraycopy(expected.bytes, 0, expectedBytes, 0, expected.length);
         BytesRef actual = DocValueFormat.TIME_SERIES_ID.parseBytesRef(expected);
         assertEquals(expected, actual);
         Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(expected);
-        Object tsidBase64 = Base64.getUrlEncoder().withoutPadding().encodeToString(expected.bytes);
+        Object tsidBase64 = Base64.getUrlEncoder().withoutPadding().encodeToString(expectedBytes);
         assertEquals(tsidFormat, tsidBase64);
     }
 }

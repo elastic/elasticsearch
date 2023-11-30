@@ -167,15 +167,17 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     public void testToXContentWithThresholds() throws IOException {
-        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new WeightedTokensThreshold(4, 0.4f, false));
+        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new WeightedTokensThreshold(4, 0.3f, false));
         checkGeneratedJson("""
             {
               "text_expansion": {
                 "foo": {
                   "model_text": "bar",
                   "model_id": "baz",
-                  "ratio_threshold": 4,
-                  "weight_threshold": 0.4
+                  "tokens_threshold": {
+                    "ratio_threshold": 4,
+                    "weight_threshold": 0.3
+                  }
                 }
               }
             }""", query);

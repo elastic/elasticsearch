@@ -7,24 +7,34 @@
 
 package org.elasticsearch.xpack.ml.queries;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class WeightedTokensThreshold implements Writeable, ToXContentFragment {
+public class WeightedTokensThreshold implements Writeable, ToXContentObject {
+    public static final ParseField TOKENS_THRESHOLD_FIELD = new ParseField("tokens_threshold");
     public static final ParseField RATIO_THRESHOLD_FIELD = new ParseField("ratio_threshold");
     public static final ParseField WEIGHT_THRESHOLD_FIELD = new ParseField("weight_threshold");
     public static final ParseField ONLY_SCORE_PRUNED_TOKENS_FIELD = new ParseField("only_score_pruned_tokens");
 
+    public static final float DEFAULT_RATIO_THRESHOLD = 5;
+    public static final float DEFAULT_WEIGHT_THRESHOLD = 0.4f;
+
     private final float ratioThreshold;
     private final float weightThreshold;
     private final boolean onlyScorePrunedTokens;
+
+    public WeightedTokensThreshold() {
+        this(DEFAULT_RATIO_THRESHOLD, DEFAULT_WEIGHT_THRESHOLD, false);
+    }
 
     public WeightedTokensThreshold(float ratioThreshold, float weightThreshold, boolean onlyScorePrunedTokens) {
         if (ratioThreshold < 1) {
@@ -99,11 +109,45 @@ public class WeightedTokensThreshold implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(TOKENS_THRESHOLD_FIELD.getPreferredName());
         builder.field(RATIO_THRESHOLD_FIELD.getPreferredName(), ratioThreshold);
         builder.field(WEIGHT_THRESHOLD_FIELD.getPreferredName(), weightThreshold);
         if (onlyScorePrunedTokens) {
             builder.field(ONLY_SCORE_PRUNED_TOKENS_FIELD.getPreferredName(), onlyScorePrunedTokens);
         }
+        builder.endObject();
         return builder;
+    }
+
+    public static WeightedTokensThreshold fromXContent(XContentParser parser) throws IOException {
+        String currentFieldName = null;
+        XContentParser.Token token;
+        float ratioThreshold = DEFAULT_RATIO_THRESHOLD;
+        float weightThreshold = DEFAULT_WEIGHT_THRESHOLD;
+        boolean onlyScorePrunedTokens = false;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (RATIO_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    ratioThreshold = parser.intValue();
+                } else if (WEIGHT_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    weightThreshold = parser.floatValue();
+                } else if (ONLY_SCORE_PRUNED_TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    onlyScorePrunedTokens = parser.booleanValue();
+                } else {
+                    throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] does not support [" + currentFieldName + "]"
+                    );
+                }
+            } else {
+                throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
+            }
+        }
+        return new WeightedTokensThreshold(ratioThreshold, weightThreshold, onlyScorePrunedTokens);
     }
 }

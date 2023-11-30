@@ -33,7 +33,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.*;
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.TOKENS_THRESHOLD_FIELD;
+
 
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
     public static final String NAME = "weighted_tokens";
@@ -81,7 +82,9 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         builder.startObject(NAME);
         builder.startObject(fieldName);
         builder.field(TOKENS_FIELD.getPreferredName(), tokens);
-        threshold.toXContent(builder, params);
+        if (threshold != null) {
+            threshold.toXContent(builder, params);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
@@ -186,9 +189,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         String currentFieldName = null;
         String fieldName = null;
         List<WeightedToken> tokens = new ArrayList<>();
-        Integer ratioThreshold = null;
-        Float weightThreshold = 1f;
-        boolean onlyScorePrunedTokens = false;
+        WeightedTokensThreshold threshold = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         XContentParser.Token token;
@@ -201,17 +202,19 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else if (RATIO_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        ratioThreshold = parser.intValue();
-                    } else if (WEIGHT_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        weightThreshold = parser.floatValue();
+                    } else if (TOKENS_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        if (token != XContentParser.Token.START_OBJECT) {
+                            throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] should be an object"
+                            );
+                        }
+                        threshold = WeightedTokensThreshold.fromXContent(parser);
                     } else if (TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         var tokensMap = parser.map();
                         for (var e : tokensMap.entrySet()) {
                             tokens.add(new WeightedToken(e.getKey(), parseWeight(e.getKey(), e.getValue())));
                         }
-                    } else if (ONLY_SCORE_PRUNED_TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        onlyScorePrunedTokens = parser.booleanValue();
                     } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         boost = parser.floatValue();
                     } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -235,7 +238,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         var qb = new WeightedTokensQueryBuilder(
             fieldName,
             tokens,
-            new WeightedTokensThreshold(ratioThreshold, weightThreshold, onlyScorePrunedTokens)
+            threshold
         );
         qb.queryName(queryName);
         qb.boost(boost);

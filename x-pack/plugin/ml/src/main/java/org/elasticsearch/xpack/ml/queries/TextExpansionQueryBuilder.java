@@ -37,9 +37,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.ONLY_SCORE_PRUNED_TOKENS_FIELD;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.RATIO_THRESHOLD_FIELD;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.WEIGHT_THRESHOLD_FIELD;
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.TOKENS_THRESHOLD_FIELD;
 
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
 
@@ -99,11 +97,6 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         return fieldName;
     }
 
-    /**
-     * Returns the frequency ratio threshold to apply on the query.
-     * Tokens whose frequency is more than ratio_threshold times the average frequency of all tokens in the specified
-     * field are considered outliers and may be subject to removal from the query.
-     */
     public WeightedTokensThreshold getThreshold() {
         return threshold;
     }
@@ -137,7 +130,9 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         builder.startObject(fieldName);
         builder.field(MODEL_TEXT.getPreferredName(), modelText);
         builder.field(MODEL_ID.getPreferredName(), modelId);
-        threshold.toXContent(builder, params);
+        if (threshold != null) {
+            threshold.toXContent(builder, params);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
@@ -240,9 +235,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         String fieldName = null;
         String modelText = null;
         String modelId = null;
-        int ratioThreshold = 0;
-        float weightThreshold = 1f;
-        boolean onlyScorePrunedTokens = false;
+        WeightedTokensThreshold threshold = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
@@ -256,17 +249,20 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        if (TOKENS_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            threshold = WeightedTokensThreshold.fromXContent(parser);
+                        } else {
+                            throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                            );
+                        }
                     } else if (token.isValue()) {
                         if (MODEL_TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                             modelText = parser.text();
                         } else if (MODEL_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                             modelId = parser.text();
-                        } else if (RATIO_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            ratioThreshold = parser.intValue();
-                        } else if (WEIGHT_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            weightThreshold = parser.floatValue();
-                        } else if (ONLY_SCORE_PRUNED_TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            onlyScorePrunedTokens = parser.booleanValue();
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -303,7 +299,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             fieldName,
             modelText,
             modelId,
-            new WeightedTokensThreshold(ratioThreshold, weightThreshold, onlyScorePrunedTokens)
+            threshold
         );
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);

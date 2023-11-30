@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
+
+import java.util.Map;
 
 public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAction {
 
@@ -39,7 +42,8 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     protected void masterOperation(
         Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener
     ) throws Exception {
-        InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(true, true);
+        Map<String, Object> stats = Map.of("my-model-id", Map.of(TaskType.SPARSE_EMBEDDING.name(), 25L));
+        InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(true, true, stats);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

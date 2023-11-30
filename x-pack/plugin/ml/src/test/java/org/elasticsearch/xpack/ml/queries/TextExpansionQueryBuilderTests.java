@@ -47,15 +47,10 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
-        int ratioThreshold = rarely() ? randomIntBetween(1, 100) : -1;
-        var builder = new TextExpansionQueryBuilder(
-            RANK_FEATURES_FIELD,
-            randomAlphaOfLength(4),
-            randomAlphaOfLength(4),
-            ratioThreshold,
-            randomFloat(),
-            false
-        );
+        WeightedTokenThreshold threshold = rarely()
+            ? new WeightedTokenThreshold(randomIntBetween(1, 100), randomFloat(), randomBoolean())
+            : null;
+        var builder = new TextExpansionQueryBuilder(RANK_FEATURES_FIELD, randomAlphaOfLength(4), randomAlphaOfLength(4), threshold);
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -156,13 +151,6 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
             );
             assertEquals("[text_expansion] requires a model_id value", e.getMessage());
         }
-        {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new TextExpansionQueryBuilder("field name", "model text", "model id", 10, 4, false)
-            );
-            assertEquals("[text_expansion] requires the weight_threshold to be between 0 and 1, got 4", e.getMessage());
-        }
     }
 
     public void testToXContent() throws IOException {
@@ -179,7 +167,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     public void testToXContentWithThresholds() throws IOException {
-        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", 4, 0.4f, false);
+        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new WeightedTokenThreshold(4, 0.4f, false));
         checkGeneratedJson("""
             {
               "text_expansion": {

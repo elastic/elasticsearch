@@ -19,6 +19,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -32,97 +33,47 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ml.queries.WeightedTokenThreshold.*;
+
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
     public static final String NAME = "weighted_tokens";
 
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");
-    public static final ParseField RATIO_THRESHOLD_FIELD = new ParseField("ratio_threshold");
-    public static final ParseField WEIGHT_THRESHOLD_FIELD = new ParseField("weight_threshold");
-    public static final ParseField ONLY_SCORE_PRUNED_TOKENS_FIELD = new ParseField("only_score_pruned_tokens");
     private final String fieldName;
     private final List<WeightedToken> tokens;
-    private final int ratioThreshold;
-    private final float weightThreshold;
-    private final boolean onlyScorePrunedTokens;
+    private final WeightedTokenThreshold threshold;
 
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
-        this(fieldName, tokens, -1, 0f, false);
+        this(fieldName, tokens, null);
     }
 
-    public WeightedTokensQueryBuilder(
-        String fieldName,
-        List<WeightedToken> tokens,
-        int ratioThreshold,
-        float weightThreshold,
-        boolean onlyScorePrunedTokens
-    ) {
+    public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable WeightedTokenThreshold threshold) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
-        this.ratioThreshold = ratioThreshold;
-        this.weightThreshold = weightThreshold;
-        this.onlyScorePrunedTokens = onlyScorePrunedTokens;
-
-        if (weightThreshold < 0 || weightThreshold > 1) {
-            throw new IllegalArgumentException(
-                "["
-                    + NAME
-                    + "] requires the "
-                    + WEIGHT_THRESHOLD_FIELD.getPreferredName()
-                    + " to be between 0 and 1, got "
-                    + weightThreshold
-            );
-        }
+        this.threshold = threshold;
     }
 
     public WeightedTokensQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
         this.tokens = in.readCollectionAsList(WeightedToken::new);
-        this.ratioThreshold = in.readInt();
-        this.weightThreshold = in.readFloat();
-        this.onlyScorePrunedTokens = in.readBoolean();
+        this.threshold = in.readOptionalWriteable(WeightedTokenThreshold::new);
     }
 
     public String getFieldName() {
         return fieldName;
     }
 
-    /**
-     * Returns the frequency ratio threshold to apply on the query.
-     * Tokens whose frequency is more than ratio_threshold times the average frequency of all tokens in the specified
-     * field are considered outliers and may be subject to removal from the query.
-     */
-    public int getRatioThreshold() {
-        return ratioThreshold;
-    }
-
-    /**
-     * Returns the weight threshold to apply on the query.
-     * Tokens whose weight is more than (weightThreshold * best_weight) of the highest weight in the query are not
-     * considered outliers, even if their frequency exceeds the specified ratio_threshold.
-     * This threshold ensures that important tokens, as indicated by their weight, are retained in the query.
-     */
-    public float getWeightThreshold() {
-        return weightThreshold;
-    }
-
-    /**
-     * Returns whether the filtering process retains tokens identified as non-relevant based on the specified thresholds
-     * (ratio and weight). When {@code true}, only non-relevant tokens are considered for matching and scoring documents.
-     * Enabling this option is valuable for re-scoring top hits retrieved from a {@link WeightedTokensQueryBuilder} with
-     * active thresholds.
-     */
-    public boolean onlyScorePrunedTokens() {
-        return onlyScorePrunedTokens;
+    @Nullable
+    public WeightedTokenThreshold getThreshold() {
+        return threshold;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeCollection(tokens);
-        out.writeInt(ratioThreshold);
-        out.writeFloat(weightThreshold);
-        out.writeBoolean(onlyScorePrunedTokens);
+        out.writeOptionalWriteable(threshold);
     }
 
     @Override
@@ -130,15 +81,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         builder.startObject(NAME);
         builder.startObject(fieldName);
         builder.field(TOKENS_FIELD.getPreferredName(), tokens);
-        if (ratioThreshold > 0) {
-            builder.field(RATIO_THRESHOLD_FIELD.getPreferredName(), ratioThreshold);
-        }
-        if (weightThreshold != 0) {
-            builder.field(WEIGHT_THRESHOLD_FIELD.getPreferredName(), weightThreshold);
-        }
-        if (onlyScorePrunedTokens) {
-            builder.field(ONLY_SCORE_PRUNED_TOKENS_FIELD.getPreferredName(), onlyScorePrunedTokens);
-        }
+        threshold.toXContent(builder, params);
         boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
@@ -169,7 +112,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         float averageTokenFreqRatio,
         float bestWeight
     ) throws IOException {
-        if (ratioThreshold <= 0) {
+        if (threshold == null) {
             return true;
         }
         int docFreq = reader.docFreq(new Term(fieldName, token.token()));
@@ -177,7 +120,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             return false;
         }
         float tokenFreqRatio = (float) docFreq / fieldDocCount;
-        return tokenFreqRatio < ratioThreshold * averageTokenFreqRatio || token.weight() > weightThreshold * bestWeight;
+        return tokenFreqRatio < threshold.getRatioThreshold() * averageTokenFreqRatio
+            || token.weight() > threshold.getWeightThreshold() * bestWeight;
     }
 
     @Override
@@ -197,8 +141,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against an empty field");
         }
         for (var token : tokens) {
-            boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight)
-                ^ onlyScorePrunedTokens;
+            boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight) ^ threshold
+                .isOnlyScorePrunedTokens();
             if (keep) {
                 qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
             }
@@ -208,15 +152,12 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
 
     @Override
     protected boolean doEquals(WeightedTokensQueryBuilder other) {
-        return Float.compare(weightThreshold, other.weightThreshold) == 0
-            && ratioThreshold == other.ratioThreshold
-            && tokens.equals(other.tokens)
-            && onlyScorePrunedTokens == other.onlyScorePrunedTokens;
+        return Objects.equals(fieldName, other.fieldName) && Objects.equals(threshold, other.threshold) && tokens.equals(other.tokens);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(tokens, ratioThreshold, weightThreshold, onlyScorePrunedTokens);
+        return Objects.hash(fieldName, tokens, threshold);
     }
 
     @Override
@@ -291,7 +232,11 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        var qb = new WeightedTokensQueryBuilder(fieldName, tokens, ratioThreshold, weightThreshold, onlyScorePrunedTokens);
+        var qb = new WeightedTokensQueryBuilder(
+            fieldName,
+            tokens,
+            new WeightedTokenThreshold(ratioThreshold, weightThreshold, onlyScorePrunedTokens)
+        );
         qb.queryName(queryName);
         qb.boost(boost);
         return qb;

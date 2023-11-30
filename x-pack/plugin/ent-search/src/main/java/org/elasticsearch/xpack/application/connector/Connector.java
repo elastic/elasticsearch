@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -202,9 +200,9 @@ public class Connector implements NamedWriteable, ToXContentObject {
     static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
     public static final ParseField LANGUAGE_FIELD = new ParseField("language");
     static final ParseField NAME_FIELD = new ParseField("name");
-    static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
+    public static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
     static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
-    static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
+    public static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
     static final ParseField STATUS_FIELD = new ParseField("status");
     static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
     static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");

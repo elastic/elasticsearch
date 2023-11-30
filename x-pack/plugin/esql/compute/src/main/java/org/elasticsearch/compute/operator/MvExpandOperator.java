@@ -92,16 +92,8 @@ public class MvExpandOperator implements Operator {
              */
             logger.trace("starting {}", prev);
             expandingBlock = prev.getBlock(channel);
-            if (expandingBlock.mayHaveMultivaluedFields() == false) {
-                logger.trace("can't have multivalued fields");
-                noops++;
-                Page result = prev;
-                prev = null;
-
-                releaseAndClearState();
-                return result;
-            }
             expandedBlock = expandingBlock.expand();
+
             if (expandedBlock == expandingBlock) {
                 // The expand was a noop - just return the previous page and clear state.
                 logger.trace("expanded to same");

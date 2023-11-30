@@ -287,39 +287,36 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
 
             // the list of stats can be different depending on the exact order of application of the cluster states
             // that apply a change to a pipeline -- figure out if they match or not (usually they match!!!)
-            boolean match = true;
-            if (first.size() != second.size()) {
-                match = false;
-            } else {
+
+            // speculative execution of the expected, simple case (where we can merge the processor stats)
+            // if we process both lists of stats and everything matches up, we can return the resulting merged list
+            if (first.size() == second.size()) { // if the sizes of the lists don't match, then we can skip all this
+                boolean match = true;
+                var merged = new ArrayList<ProcessorStat>(first.size());
                 for (var i = 0; i < first.size(); i++) {
                     ProcessorStat ps1 = first.get(i);
                     ProcessorStat ps2 = second.get(i);
                     if (ps1.name.equals(ps2.name) == false || ps1.type.equals(ps2.type) == false) {
                         match = false;
                         break;
+                    } else {
+                        merged.add(new ProcessorStat(ps1.name, ps1.type, Stats.merge(ps1.stats, ps2.stats)));
                     }
+                }
+                if (match) {
+                    return merged;
                 }
             }
 
-            if (match) {
-                // the expected, simple case. we can merge the processor stats.
-                var merged = new ArrayList<ProcessorStat>(first.size());
-                for (var i = 0; i < first.size(); i++) {
-                    ProcessorStat ps1 = first.get(i);
-                    ProcessorStat ps2 = second.get(i);
-                    merged.add(new ProcessorStat(ps1.name, ps1.type, Stats.merge(ps1.stats, ps2.stats)));
-                }
-                return merged;
+            // speculative execution failed, so we're in the unfortunate case. the lists are different, and they
+            // can't be meaningfully merged without more information. note that IngestService#innerUpdatePipelines
+            // resets the counts if there's enough variation on an update, so we'll favor the side with the *lower*
+            // count as being the 'newest' -- the assumption is that the higher side is just a cluster state
+            // application away from itself being reset to zero anyway.
+            if (firstIngestCountTotal < secondIngestCountTotal) {
+                return first;
             } else {
-                // the unfortunate case. the lists are different, so they can't be meaningfully merged without more information.
-                // note that IngestService#innerUpdatePipelines resets the counts if there's enough variation on an update,
-                // so we'll favor the side with the *lower* count as being the 'newest' -- the assumption is that the higher side is
-                // just a cluster state application away from itself being reset to zero anyway.
-                if (firstIngestCountTotal < secondIngestCountTotal) {
-                    return first;
-                } else {
-                    return second;
-                }
+                return second;
             }
         }
     }

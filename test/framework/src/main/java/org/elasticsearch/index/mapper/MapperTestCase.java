@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1240,26 +1239,32 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertNoDocValueLoader(b -> b.startArray("field").endArray());
     }
 
-    public final void testBlockLoaderReadValues() throws IOException {
-        testBlockLoader(blockReader -> (TestBlock) blockReader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
+    public final void testBlockLoaderFromColumnReader() throws IOException {
+        testBlockLoader(true);
     }
 
-    public final void testBlockLoaderReadValuesFromSingleDoc() throws IOException {
-        testBlockLoader(blockReader -> {
-            TestBlock block = (TestBlock) blockReader.builder(TestBlock.FACTORY, 1);
-            blockReader.readValuesFromSingleDoc(0, block);
-            return block;
-        });
+    public final void testBlockLoaderFromRowStrideReader() throws IOException {
+        testBlockLoader(false);
     }
 
-    private void testBlockLoader(CheckedFunction<BlockDocValuesReader, TestBlock, IOException> body) throws IOException {
+    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+        return ft.hasDocValues();
+    }
+
+    private void testBlockLoader(boolean columnReader) throws IOException {
         SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
+        MapperService mapper = createMapperService(syntheticSourceMapping(b -> { // TODO randomly use syntheticSourceMapping or normal
             b.startObject("field");
             example.mapping().accept(b);
             b.endObject();
         }));
-        BlockLoader loader = mapper.fieldType("field").blockLoader(new MappedFieldType.BlockLoaderContext() {
+        testBlockLoader(columnReader, example, mapper, "field");
+    }
+
+    protected final void testBlockLoader(boolean columnReader, SyntheticSourceExample example, MapperService mapper, String loaderFieldName)
+        throws IOException {
+        SearchLookup searchLookup = new SearchLookup(mapper.mappingLookup().fieldTypesLookup()::get, null, null);
+        BlockLoader loader = mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
                 throw new UnsupportedOperationException();
@@ -1267,12 +1272,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             @Override
             public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
+                return searchLookup;
             }
 
             @Override
             public Set<String> sourcePaths(String name) {
                 return mapper.mappingLookup().sourcePaths(name);
+            }
+
+            @Override
+            public String parentField(String field) {
+                return mapper.mappingLookup().parentField(field);
             }
         });
         Function<Object, Object> valuesConvert = loadBlockExpected();
@@ -1289,7 +1299,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                TestBlock block = body.apply(loader.reader(reader.leaves().get(0)));
+                LeafReaderContext ctx = reader.leaves().get(0);
+                TestBlock block;
+                if (columnReader) {
+                    if (supportsColumnAtATimeReader(mapper, mapper.fieldType(loaderFieldName))) {
+                        block = (TestBlock) loader.columnAtATimeReader(ctx)
+                            .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(0));
+                    } else {
+                        assertNull(loader.columnAtATimeReader(ctx));
+                        return;
+                    }
+                } else {
+                    BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
+                        StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
+                        loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
+                    );
+                    storedFieldsLoader.advanceTo(0);
+                    BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), 1);
+                    loader.rowStrideReader(ctx).read(0, storedFieldsLoader, builder);
+                    block = (TestBlock) builder.build();
+                }
                 Object inBlock = block.get(0);
                 if (inBlock != null) {
                     if (inBlock instanceof List<?> l) {
@@ -1298,6 +1327,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         inBlock = valuesConvert.apply(inBlock);
                     }
                 }
+                // If we're reading from _source we expect the order to be preserved, otherwise it's jumbled.
                 Object expected = loader instanceof BlockSourceReader ? example.expectedParsed() : example.expectedParsedBlockLoader();
                 if (List.of().equals(expected)) {
                     assertThat(inBlock, nullValue());
@@ -1319,7 +1349,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Matcher for {@link #testBlockLoaderReadValues} and {@link #testBlockLoaderReadValuesFromSingleDoc}.
+     * Matcher for {@link #testBlockLoaderFromColumnReader} and {@link #testBlockLoaderFromRowStrideReader}.
      */
     protected Matcher<?> blockItemMatcher(Object expected) {
         return equalTo(expected);

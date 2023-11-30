@@ -124,7 +124,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false
             : "must not block [" + Thread.currentThread().getName() + "] for a cache read";
 
-        final PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<CachedBlob> future = new PlainActionFuture<>();
         getAsync(repository, snapshotId, indexId, shardId, name, range, future);
         try {
             return future.actionGet(5, TimeUnit.SECONDS);

@@ -40,7 +40,29 @@ import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalytic
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
+import org.elasticsearch.xpack.application.connector.ConnectorAPIFeature;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
+import org.elasticsearch.xpack.application.connector.action.DeleteConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.GetConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.ListConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestDeleteConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestGetConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.action.TransportDeleteConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportGetConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.RestDeleteConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.RestPostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.TransportDeleteConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.TransportPostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
@@ -80,6 +102,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -97,6 +120,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     public static final String BEHAVIORAL_ANALYTICS_API_ENDPOINT = APPLICATION_API_ENDPOINT + "/analytics";
 
     public static final String QUERY_RULES_API_ENDPOINT = "_query_rules";
+
+    public static final String CONNECTOR_API_ENDPOINT = "_connector";
+
+    public static final String CONNECTOR_SYNC_JOB_API_ENDPOINT = CONNECTOR_API_ENDPOINT + "/_sync_job";
 
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
@@ -120,29 +147,52 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return List.of(usageAction, infoAction);
         }
 
-        return List.of(
-            // Behavioral Analytics
-            new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
-            new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
-            new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
-            new ActionHandler<>(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
+        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = new ArrayList<>(
+            List.of(
+                // Behavioral Analytics
+                new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
+                new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
+                new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
+                new ActionHandler<>(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
 
-            // Search Applications
-            new ActionHandler<>(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
-            new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
-            new ActionHandler<>(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
-            new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
-            new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
-            new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
+                // Search Applications
+                new ActionHandler<>(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
+                new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
+                new ActionHandler<>(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
+                new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
+                new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
+                new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
 
-            // Query rules
-            new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class),
-            new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
-            new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
-            new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
-            usageAction,
-            infoAction
+                // Query rules
+                new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class),
+                new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
+                new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
+                new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
+
+                usageAction,
+                infoAction
+            )
         );
+
+        // Connectors
+        if (ConnectorAPIFeature.isEnabled()) {
+            actionHandlers.addAll(
+                List.of(
+                    // Connector API
+                    new ActionHandler<>(DeleteConnectorAction.INSTANCE, TransportDeleteConnectorAction.class),
+                    new ActionHandler<>(GetConnectorAction.INSTANCE, TransportGetConnectorAction.class),
+                    new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
+                    new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
+                    new ActionHandler<>(UpdateConnectorSchedulingAction.INSTANCE, TransportUpdateConnectorSchedulingAction.class),
+
+                    // SyncJob API
+                    new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class),
+                    new ActionHandler<>(DeleteConnectorSyncJobAction.INSTANCE, TransportDeleteConnectorSyncJobAction.class)
+                )
+            );
+        }
+
+        return Collections.unmodifiableList(actionHandlers);
     }
 
     @Override
@@ -160,27 +210,49 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return Collections.emptyList();
         }
 
-        return List.of(
-            // Behavioral Analytics
-            new RestPutAnalyticsCollectionAction(getLicenseState()),
-            new RestGetAnalyticsCollectionAction(getLicenseState()),
-            new RestDeleteAnalyticsCollectionAction(getLicenseState()),
-            new RestPostAnalyticsEventAction(getLicenseState()),
+        List<RestHandler> restHandlers = new ArrayList<>(
+            List.of(
+                // Behavioral Analytics
+                new RestPutAnalyticsCollectionAction(getLicenseState()),
+                new RestGetAnalyticsCollectionAction(getLicenseState()),
+                new RestDeleteAnalyticsCollectionAction(getLicenseState()),
+                new RestPostAnalyticsEventAction(getLicenseState()),
 
-            // Search Applications
-            new RestDeleteSearchApplicationAction(getLicenseState()),
-            new RestGetSearchApplicationAction(getLicenseState()),
-            new RestListSearchApplicationAction(getLicenseState()),
-            new RestPutSearchApplicationAction(getLicenseState()),
-            new RestQuerySearchApplicationAction(getLicenseState()),
-            new RestRenderSearchApplicationQueryAction(getLicenseState()),
+                // Search Applications
+                new RestDeleteSearchApplicationAction(getLicenseState()),
+                new RestGetSearchApplicationAction(getLicenseState()),
+                new RestListSearchApplicationAction(getLicenseState()),
+                new RestPutSearchApplicationAction(getLicenseState()),
+                new RestQuerySearchApplicationAction(getLicenseState()),
+                new RestRenderSearchApplicationQueryAction(getLicenseState()),
 
-            // Query rules
-            new RestDeleteQueryRulesetAction(getLicenseState()),
-            new RestGetQueryRulesetAction(getLicenseState()),
-            new RestListQueryRulesetsAction(getLicenseState()),
-            new RestPutQueryRulesetAction(getLicenseState())
+                // Query rules
+                new RestDeleteQueryRulesetAction(getLicenseState()),
+                new RestGetQueryRulesetAction(getLicenseState()),
+                new RestListQueryRulesetsAction(getLicenseState()),
+                new RestPutQueryRulesetAction(getLicenseState())
+            )
         );
+
+        // Connectors
+        if (ConnectorAPIFeature.isEnabled()) {
+            restHandlers.addAll(
+                List.of(
+                    // Connector API
+                    new RestDeleteConnectorAction(),
+                    new RestGetConnectorAction(),
+                    new RestListConnectorAction(),
+                    new RestPutConnectorAction(),
+                    new RestUpdateConnectorSchedulingAction(),
+
+                    // SyncJob API
+                    new RestPostConnectorSyncJobAction(),
+                    new RestDeleteConnectorSyncJobAction()
+                )
+            );
+        }
+
+        return Collections.unmodifiableList(restHandlers);
     }
 
     @Override
@@ -192,6 +264,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Behavioral analytics components
         final AnalyticsTemplateRegistry analyticsTemplateRegistry = new AnalyticsTemplateRegistry(
             services.clusterService(),
+            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()
@@ -201,6 +274,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Connector components
         final ConnectorTemplateRegistry connectorTemplateRegistry = new ConnectorTemplateRegistry(
             services.clusterService(),
+            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()

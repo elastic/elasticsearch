@@ -199,20 +199,18 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                         ".test-data-stream",
                         "system data stream test",
                         Type.EXTERNAL,
-                        new ComposableIndexTemplate(
-                            List.of(".test-data-stream"),
-                            new Template(
-                                Settings.EMPTY,
-                                mappings,
-                                null,
-                                DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()
-                            ),
-                            null,
-                            null,
-                            null,
-                            null,
-                            new DataStreamTemplate()
-                        ),
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(".test-data-stream"))
+                            .template(
+                                new Template(
+                                    Settings.EMPTY,
+                                    mappings,
+                                    null,
+                                    DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()
+                                )
+                            )
+                            .dataStreamTemplate(new DataStreamTemplate())
+                            .build(),
                         Map.of(),
                         List.of("product"),
                         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS

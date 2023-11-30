@@ -658,6 +658,11 @@ public abstract class MappedFieldType {
          * Find the paths in {@code _source} that contain values for the field named {@code name}.
          */
         Set<String> sourcePaths(String name);
+
+        /**
+         * If field is a leaf multi-field return the path to the parent field. Otherwise, return null.
+         */
+        String parentField(String field);
     }
 
 }

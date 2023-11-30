@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -48,11 +47,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final Executor requestExecutor;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final EnrichLookupService enrichLookupService;
-    private final Settings settings;
 
     @Inject
     public TransportEsqlQueryAction(
-        Settings settings,
         TransportService transportService,
         ActionFilters actionFilters,
         PlanExecutor planExecutor,
@@ -81,7 +78,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactory
         );
-        this.settings = settings;
     }
 
     @Override
@@ -92,14 +88,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         EsqlConfiguration configuration = new EsqlConfiguration(
-            request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
+            ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
             null,
             clusterService.getClusterName().value(),
             request.pragmas(),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(settings),
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE),
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE),
             request.query()
         );
         String sessionId = sessionID(task);

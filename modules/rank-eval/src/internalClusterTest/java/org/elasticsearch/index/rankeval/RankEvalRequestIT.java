@@ -49,18 +49,15 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         createIndex(TEST_INDEX);
         ensureGreen();
 
-        client().prepareIndex(TEST_INDEX)
-            .setId("1")
-            .setSource("id", 1, "text", "berlin", "title", "Berlin, Germany", "population", 3670622)
-            .get();
-        client().prepareIndex(TEST_INDEX).setId("2").setSource("id", 2, "text", "amsterdam", "population", 851573).get();
-        client().prepareIndex(TEST_INDEX).setId("3").setSource("id", 3, "text", "amsterdam", "population", 851573).get();
-        client().prepareIndex(TEST_INDEX).setId("4").setSource("id", 4, "text", "amsterdam", "population", 851573).get();
-        client().prepareIndex(TEST_INDEX).setId("5").setSource("id", 5, "text", "amsterdam", "population", 851573).get();
-        client().prepareIndex(TEST_INDEX).setId("6").setSource("id", 6, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("1").setSource("id", 1, "text", "berlin", "title", "Berlin, Germany", "population", 3670622).get();
+        prepareIndex(TEST_INDEX).setId("2").setSource("id", 2, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("3").setSource("id", 3, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("4").setSource("id", 4, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("5").setSource("id", 5, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("6").setSource("id", 6, "text", "amsterdam", "population", 851573).get();
 
         // add another index for testing closed indices etc...
-        client().prepareIndex("test2").setId("7").setSource("id", 7, "text", "amsterdam", "population", 851573).get();
+        prepareIndex("test2").setId("7").setSource("id", 7, "text", "amsterdam", "population", 851573).get();
         refresh();
 
         // set up an alias that can also be used in tests
@@ -88,7 +85,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         PrecisionAtK metric = new PrecisionAtK(1, false, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalPlugin.ACTION, new RankEvalRequest());
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
         String indexToUse = randomBoolean() ? TEST_INDEX : INDEX_ALIAS;
@@ -133,7 +130,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         metric = new PrecisionAtK(1, false, 3);
         task = new RankEvalSpec(specifications, metric);
 
-        builder = new RankEvalRequestBuilder(client(), RankEvalPlugin.ACTION, new RankEvalRequest(task, new String[] { TEST_INDEX }));
+        builder = new RankEvalRequestBuilder(client(), new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         response = client().execute(RankEvalPlugin.ACTION, builder.request()).actionGet();
         // if we look only at top 3 documente, the expected P@3 for the first query is
@@ -165,11 +162,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         DiscountedCumulativeGain metric = new DiscountedCumulativeGain(false, null, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(
-            client(),
-            RankEvalPlugin.ACTION,
-            new RankEvalRequest(task, new String[] { TEST_INDEX })
-        );
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         RankEvalResponse response = client().execute(RankEvalPlugin.ACTION, builder.request()).actionGet();
         assertEquals(DiscountedCumulativeGainTests.EXPECTED_DCG, response.getMetricScore(), 10E-14);
@@ -178,7 +171,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         metric = new DiscountedCumulativeGain(false, null, 3);
         task = new RankEvalSpec(specifications, metric);
 
-        builder = new RankEvalRequestBuilder(client(), RankEvalPlugin.ACTION, new RankEvalRequest(task, new String[] { TEST_INDEX }));
+        builder = new RankEvalRequestBuilder(client(), new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         response = client().execute(RankEvalPlugin.ACTION, builder.request()).actionGet();
         assertEquals(12.39278926071437, response.getMetricScore(), 10E-14);
@@ -196,11 +189,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         MeanReciprocalRank metric = new MeanReciprocalRank(1, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(
-            client(),
-            RankEvalPlugin.ACTION,
-            new RankEvalRequest(task, new String[] { TEST_INDEX })
-        );
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         RankEvalResponse response = client().execute(RankEvalPlugin.ACTION, builder.request()).actionGet();
         // the expected reciprocal rank for the amsterdam_query is 1/5
@@ -213,7 +202,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         metric = new MeanReciprocalRank(1, 3);
         task = new RankEvalSpec(specifications, metric);
 
-        builder = new RankEvalRequestBuilder(client(), RankEvalPlugin.ACTION, new RankEvalRequest(task, new String[] { TEST_INDEX }));
+        builder = new RankEvalRequestBuilder(client(), new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         response = client().execute(RankEvalPlugin.ACTION, builder.request()).actionGet();
         // limiting to top 3 results, the amsterdam_query has no relevant document in it
@@ -241,11 +230,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(
-            client(),
-            RankEvalPlugin.ACTION,
-            new RankEvalRequest(task, new String[] { TEST_INDEX })
-        );
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), new RankEvalRequest(task, new String[] { TEST_INDEX }));
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalPlugin.ACTION, builder.request()).actionGet();

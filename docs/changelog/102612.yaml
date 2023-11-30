@@ -1,0 +1,5 @@
+pr: 102612
+summary: Track blocks when hashing single multi-valued field
+area: ES|QL
+type: enhancement
+issues: []

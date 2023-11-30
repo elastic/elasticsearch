@@ -8,7 +8,12 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -22,7 +27,8 @@ import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TY
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
-
+    public static final ActionType<SearchResponse> TYPE = new ActionType<>("indices:data/read/scroll", SearchResponse::new);
+    private static final Logger logger = LogManager.getLogger(TransportSearchScrollAction.class);
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
 
@@ -33,13 +39,26 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         ActionFilters actionFilters,
         SearchTransportService searchTransportService
     ) {
-        super(SearchScrollAction.NAME, transportService, actionFilters, SearchScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(TYPE.name(), transportService, actionFilters, SearchScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+        ActionListener<SearchResponse> loggingListener = listener.delegateFailureAndWrap((l, searchResponse) -> {
+            if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                for (ShardOperationFailedException f : groupedFailures) {
+                    Throwable cause = f.getCause() == null ? f : f.getCause();
+                    if (ExceptionsHelper.status(cause).getStatus() >= 500
+                        && ExceptionsHelper.isNodeOrShardUnavailableTypeException(cause) == false) {
+                        logger.warn("TransportSearchScrollAction shard failure (partial results response)", f);
+                    }
+                }
+            }
+            l.onResponse(searchResponse);
+        });
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
             Runnable action = switch (scrollId.getType()) {
@@ -50,7 +69,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     request,
                     (SearchTask) task,
                     scrollId,
-                    listener
+                    loggingListener
                 );
                 case QUERY_AND_FETCH_TYPE -> // TODO can we get rid of this?
                     new SearchScrollQueryAndFetchAsyncAction(
@@ -60,7 +79,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        listener
+                        loggingListener
                     );
                 default -> throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             };

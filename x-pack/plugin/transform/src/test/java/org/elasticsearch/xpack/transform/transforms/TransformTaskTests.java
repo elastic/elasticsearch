@@ -29,6 +29,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
@@ -69,19 +70,21 @@ import static org.mockito.Mockito.when;
 
 public class TransformTaskTests extends ESTestCase {
 
+    private TestThreadPool threadPool;
     private Client client;
 
     @Before
     public void setupClient() {
-        if (client != null) {
-            client.close();
+        if (threadPool != null) {
+            threadPool.close();
         }
-        client = new NoOpClient(getTestName());
+        threadPool = createThreadPool();
+        client = new NoOpClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
+        threadPool.close();
     }
 
     // see https://github.com/elastic/elasticsearch/issues/48957
@@ -219,7 +222,7 @@ public class TransformTaskTests extends ESTestCase {
 
         transformTask.init(mock(PersistentTasksService.class), taskManager, "task-id", 42);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        transformTask.fail("because", ActionTestUtils.assertNoFailureListener(r -> { listenerCalled.compareAndSet(false, true); }));
+        transformTask.fail(null, "because", ActionTestUtils.assertNoFailureListener(r -> { listenerCalled.compareAndSet(false, true); }));
 
         TransformState state = transformTask.getState();
         assertEquals(TransformTaskState.FAILED, state.getTaskState());

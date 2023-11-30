@@ -52,15 +52,11 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testMountFullCopyAndRecoversCorrectly() throws Exception {
-        final Storage storage = Storage.FULL_COPY;
-        assumeVersion(Version.V_7_10_0, storage);
-
-        executeMountAndRecoversCorrectlyTestCase(storage, 6789L);
+        executeMountAndRecoversCorrectlyTestCase(Storage.FULL_COPY, 6789L);
     }
 
     public void testMountPartialCopyAndRecoversCorrectly() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
-        assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
 
         if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             assertBusy(() -> {
@@ -116,15 +112,11 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testBlobStoreCacheWithFullCopyInMixedVersions() throws Exception {
-        final Storage storage = Storage.FULL_COPY;
-        assumeVersion(Version.V_7_10_0, storage);
-
-        executeBlobCacheCreationTestCase(storage, 9876L);
+        executeBlobCacheCreationTestCase(Storage.FULL_COPY, 9876L);
     }
 
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
-        assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
 
         executeBlobCacheCreationTestCase(storage, 8765L);
     }
@@ -326,13 +318,6 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         }
     }
 
-    private static void assumeVersion(Version minSupportedVersion, Storage storageType) {
-        assumeTrue(
-            "Searchable snapshots with storage type [" + storageType + "] is supported since version [" + minSupportedVersion + ']',
-            isOriginalClusterVersionAtLeast(minSupportedVersion)
-        );
-    }
-
     private static void indexDocs(String indexName, long numberOfDocs) throws IOException {
         final StringBuilder builder = new StringBuilder();
         for (long i = 0L; i < numberOfDocs; i++) {
@@ -390,11 +375,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         Settings indexSettings
     ) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName + "/_mount");
-        if (isOriginalClusterVersionAtLeast(Version.V_7_12_0)) {
-            request.addParameter("storage", storage.storageName());
-        } else {
-            assertThat("Parameter 'storage' was introduced in 7.12.0 with " + Storage.SHARED_CACHE, storage, equalTo(Storage.FULL_COPY));
-        }
+        request.addParameter("storage", storage.storageName());
         request.setJsonEntity(Strings.format("""
             {
               "index": "%s",

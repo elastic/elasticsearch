@@ -28,7 +28,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.AbstractList;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -182,7 +181,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         InternalAggregations[] result = new InternalAggregations[bucketOrdsToCollect.length];
         for (int ord = 0; ord < bucketOrdsToCollect.length; ord++) {
             final int thisOrd = ord;
-            result[ord] = InternalAggregations.from(new AbstractList<InternalAggregation>() {
+            result[ord] = InternalAggregations.from(new AbstractList<>() {
                 @Override
                 public InternalAggregation get(int index) {
                     return aggregations[index][thisOrd];
@@ -195,23 +194,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
             });
         }
         return result;
-    }
-
-    /**
-     * Build the sub aggregation results for a list of buckets and set them on
-     * the buckets. This is usually used by aggregations that are selective
-     * in which bucket they build. They use some mechanism of selecting a list
-     * of buckets to build use this method to "finish" building the results.
-     * @param buckets the buckets to finish building
-     * @param bucketToOrd how to convert a bucket into an ordinal
-     * @param setAggs how to set the sub-aggregation results on a bucket
-     */
-    protected final <B> void buildSubAggsForBuckets(B[] buckets, ToLongFunction<B> bucketToOrd, BiConsumer<B, InternalAggregations> setAggs)
-        throws IOException {
-        InternalAggregations[] results = buildSubAggsForBuckets(Arrays.stream(buckets).mapToLong(bucketToOrd).toArray());
-        for (int i = 0; i < buckets.length; i++) {
-            setAggs.accept(buckets[i], results[i]);
-        }
     }
 
     /**
@@ -241,9 +223,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
         InternalAggregations[] results = buildSubAggsForBuckets(bucketOrdsToCollect);
         s = 0;
-        for (int r = 0; r < buckets.length; r++) {
-            for (int b = 0; b < buckets[r].length; b++) {
-                setAggs.accept(buckets[r][b], results[s++]);
+        for (B[] bucket : buckets) {
+            for (int b = 0; b < bucket.length; b++) {
+                setAggs.accept(bucket[b], results[s++]);
             }
         }
     }
@@ -348,8 +330,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
         long[] bucketOrdsToCollect = new long[(int) totalOrdsToCollect];
         int b = 0;
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+        for (long owningBucketOrd : owningBucketOrds) {
+            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
             while (ordsEnum.next()) {
                 bucketOrdsToCollect[b++] = ordsEnum.ord();
             }

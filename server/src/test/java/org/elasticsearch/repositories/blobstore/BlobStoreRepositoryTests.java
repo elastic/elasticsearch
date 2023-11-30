@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -68,6 +67,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -104,7 +104,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
+            prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
         indicesAdmin().prepareFlush(indexName).get();
 
@@ -204,7 +204,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 16; i++) {
             repository.blobContainer()
-                .writeBlob(OperationPurpose.SNAPSHOT, BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
+                .writeBlob(randomPurpose(), BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
             if (i == 8) {
                 assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(generation));
             } else {
@@ -414,7 +414,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         SnapshotShardContext context = ShardSnapshotTaskRunnerTests.dummyContext();
         int noOfFiles = randomIntBetween(10, 100);
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(noOfFiles);
-        PlainActionFuture<Void> listenerCalled = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> listenerCalled = new PlainActionFuture<>();
         ActionListener<Collection<Void>> allFilesUploadListener = ActionListener.running(() -> listenerCalled.onResponse(null));
         for (int i = 0; i < noOfFiles; i++) {
             files.add(ShardSnapshotTaskRunnerTests.dummyFileInfo());

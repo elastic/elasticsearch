@@ -94,7 +94,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
     }
 
     private void indexDocument(String id, String sValue) {
-        DocWriteResponse response = client().prepareIndex("index").setId(id).setSource("s", sValue).get();
+        DocWriteResponse response = prepareIndex("index").setId(id).setSource("s", sValue).get();
         assertThat(response.status(), anyOf(equalTo(RestStatus.OK), equalTo(RestStatus.CREATED)));
     }
 }

@@ -64,7 +64,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         parser.declareInt(GeoGridAggregationBuilder::size, FIELD_SIZE);
         parser.declareInt(GeoGridAggregationBuilder::shardSize, FIELD_SHARD_SIZE);
         parser.declareField(
-            (p, builder, context) -> { builder.setGeoBoundingBox(GeoBoundingBox.parseBoundingBox(p)); },
+            (p, builder, context) -> builder.setGeoBoundingBox(GeoBoundingBox.parseBoundingBox(p)),
             GeoBoundingBox.BOUNDS_FIELD,
             org.elasticsearch.xcontent.ObjectParser.ValueType.OBJECT
         );
@@ -151,20 +151,12 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         return this;
     }
 
-    public int size() {
-        return requiredSize;
-    }
-
     public GeoGridAggregationBuilder shardSize(int shardSize) {
         if (shardSize <= 0) {
             throw new IllegalArgumentException("[shardSize] must be greater than 0. Found [" + shardSize + "] in [" + name + "]");
         }
         this.shardSize = shardSize;
         return this;
-    }
-
-    public int shardSize() {
-        return shardSize;
     }
 
     public GeoGridAggregationBuilder setGeoBoundingBox(GeoBoundingBox geoBoundingBox) {

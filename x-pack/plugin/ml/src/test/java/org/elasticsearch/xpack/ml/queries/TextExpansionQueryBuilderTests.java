@@ -47,7 +47,9 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
-        var builder = new TextExpansionQueryBuilder(RANK_FEATURES_FIELD, randomAlphaOfLength(4), randomAlphaOfLength(4));
+        int ratioThreshold = rarely() ? randomIntBetween(1, 100) : -1;
+        var builder = new TextExpansionQueryBuilder(RANK_FEATURES_FIELD, randomAlphaOfLength(4), randomAlphaOfLength(4),
+                ratioThreshold, randomFloat());
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -148,6 +150,14 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
             );
             assertEquals("[text_expansion] requires a model_id value", e.getMessage());
         }
+        {
+            IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> new TextExpansionQueryBuilder("field name", "model text", "model id", 10, -1f)
+            );
+            assertEquals("[text_expansion] requires the ratio_threshold to be between 0 and 1, got -1",
+                    e.getMessage());
+        }
     }
 
     public void testToXContent() throws IOException {
@@ -158,6 +168,21 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
                 "foo": {
                   "model_text": "bar",
                   "model_id": "baz"
+                }
+              }
+            }""", query);
+    }
+
+    public void testToXContentWithThresholds() throws IOException {
+        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", 4, 0.4f);
+        checkGeneratedJson("""
+            {
+              "text_expansion": {
+                "foo": {
+                  "model_text": "bar",
+                  "model_id": "baz",
+                  "ratio_threshold": 4,
+                  "weight_threshold": 0.4
                 }
               }
             }""", query);

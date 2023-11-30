@@ -370,7 +370,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder;
-import org.elasticsearch.xpack.ml.queries.WeightedTermsQueryBuilder;
+import org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -1720,9 +1720,9 @@ public class MachineLearning extends Plugin
                 TextExpansionQueryBuilder::fromXContent
             ),
             new QuerySpec<QueryBuilder>(
-                WeightedTermsQueryBuilder.NAME,
-                WeightedTermsQueryBuilder::new,
-                WeightedTermsQueryBuilder::fromXContent
+                WeightedTokensQueryBuilder.NAME,
+                WeightedTokensQueryBuilder::new,
+                WeightedTokensQueryBuilder::fromXContent
             )
         );
     }

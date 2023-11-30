@@ -183,6 +183,7 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_SERVICE_RESULTS_ADDED = def(8_550_00_0);
     public static final TransportVersion ESQL_PROFILE = def(8_551_00_0);
     public static final TransportVersion CLUSTER_STATS_RESCORER_USAGE_ADDED = def(8_552_00_0);
+    public static final TransportVersion WEIGHTED_TOKENS_QUERY_ADDED = def(8_553_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

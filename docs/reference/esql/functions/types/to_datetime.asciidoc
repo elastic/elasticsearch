@@ -1,6 +1,6 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-arg1 | result
+v | result
 datetime | datetime
 double | datetime
 integer | datetime

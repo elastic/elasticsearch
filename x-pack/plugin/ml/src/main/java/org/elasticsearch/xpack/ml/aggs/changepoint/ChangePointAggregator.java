@@ -15,7 +15,6 @@ import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -42,7 +41,18 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     static final double P_VALUE_THRESHOLD = 0.025;
     private static final int MINIMUM_BUCKETS = 10;
     private static final int MAXIMUM_CANDIDATE_CHANGE_POINTS = 1000;
+    private static final int MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST = 500;
     private static final KolmogorovSmirnovTest KOLMOGOROV_SMIRNOV_TEST = new KolmogorovSmirnovTest();
+
+    private static int lowerBound(int[] x, int start, int end, int xs) {
+        int retVal = Arrays.binarySearch(x, start, end, xs);
+        if (retVal < 0) {
+            retVal = -1 - retVal;
+        }
+        return retVal;
+    }
+
+    private record SampleData(double[] values, double[] weights, Integer[] changePoints) {}
 
     private record DataStats(double nValues, double mean, double var, int nCandidateChangePoints) {
         @Override
@@ -366,9 +376,10 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         return Math.min(2 * sf, 1.0);
     }
 
-    static Tuple<double[], double[]> sample(double[] values, double[] weights) {
-        if (values.length <= 500) {
-            return Tuple.tuple(values, weights);
+    static SampleData sample(double[] values, double[] weights, HashSet<Integer> changePoints) {
+        Integer[] adjChangePoints = changePoints.toArray(new Integer[changePoints.size()]);
+        if (values.length <= MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST) {
+            return new SampleData(values, weights, adjChangePoints);
         }
 
         // Just want repeatable random numbers.
@@ -377,21 +388,25 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
         // Fisher–Yates shuffle (why isn't this in Arrays?).
         int[] choice = IntStream.range(0, values.length).toArray();
-        for (int i = 0; i < 500; ++i) {
+        for (int i = 0; i < MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST; ++i) {
             int index = i + (int) Math.floor(uniform.sample() * (values.length - i));
             int tmp = choice[i];
             choice[i] = choice[index];
             choice[index] = tmp;
         }
 
-        double[] sample = new double[500];
-        double[] sampleWeights = new double[500];
-        Arrays.sort(choice, 0, 500);
-        for (int i = 0; i < 500; ++i) {
+        double[] sample = new double[MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST];
+        double[] sampleWeights = new double[MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST];
+        Arrays.sort(choice, 0, MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST);
+        for (int i = 0; i < MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST; ++i) {
             sample[i] = values[choice[i]];
             sampleWeights[i] = weights[choice[i]];
         }
-        return Tuple.tuple(sample, sampleWeights);
+        for (int i = 0; i < adjChangePoints.length; ++i) {
+            adjChangePoints[i] = lowerBound(choice, 0, MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST, adjChangePoints[i].intValue());
+        }
+
+        return new SampleData(sample, sampleWeights, adjChangePoints);
     }
 
     static TestStats testDistributionChange(
@@ -430,12 +445,12 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         // increases. We are not interested in detecting visually small distribution changes
         // in splits of long windows so we randomly downsample the data to at most 500 samples
         // before running the tests.
-        Tuple<double[], double[]> sample = sample(values, weights);
-        final double[] sampleValues = sample.v1();
-        final double[] sampleWeights = sample.v2();
+        SampleData sampleData = sample(values, weights, discoveredChangePoints);
+        final double[] sampleValues = sampleData.values();
+        final double[] sampleWeights = sampleData.weights();
 
         double pValue = 1;
-        for (int cp : discoveredChangePoints) {
+        for (int cp : sampleData.changePoints()) {
             double[] x = Arrays.copyOfRange(sampleValues, 0, cp);
             double[] y = Arrays.copyOfRange(sampleValues, cp, sampleValues.length);
             double statistic = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovStatistic(x, y);

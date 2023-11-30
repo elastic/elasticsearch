@@ -50,7 +50,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     private static final String NUMERIC_FIELD_NAME = "value";
     private static final String TIME_FIELD_NAME = "timestamp";
 
-    public void testStationaryFalsePositives() throws IOException {
+    public void testStationaryFalsePositiveRate() throws IOException {
         NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
         int fp = 0;
         for (int i = 0; i < 100; i++) {
@@ -72,7 +72,19 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         assertThat(fp, lessThan(5));
     }
 
-    public void testNonStationaryFalsePositives() throws IOException {
+    public void testSampledDistributionTestFalsePositiveRate() throws IOException {
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0.0, 1.0);
+        int fp = 0;
+        for (int i = 0; i < 100; i++) {
+            double[] bucketValues = DoubleStream.generate(() -> 10 + normal.sample()).limit(5000).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            fp += test.type() == ChangePointAggregator.Type.STATIONARY ? 0 : 1;
+        }
+        assertThat(fp, lessThan(15));
+    }
+
+    public void testNonStationaryFalsePositiveRate() throws IOException {
         NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
         int fp = 0;
         for (int i = 0; i < 100; i++) {

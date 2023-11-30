@@ -53,7 +53,7 @@ class LeastSquaresOnlineRegression {
                 Array2DRowRealMatrix x = new Array2DRowRealMatrix(n, n);
                 Array2DRowRealMatrix y = new Array2DRowRealMatrix(n, 1);
                 Array2DRowRealMatrix z = new Array2DRowRealMatrix(n, 1);
-                OptionalDouble maybeResidualVar = residualVariance(N, x, y, z);
+                OptionalDouble maybeResidualVar = residualVariance(n, x, y, z);
                 if (maybeResidualVar.isPresent()) {
                     residualVariance = maybeResidualVar.getAsDouble();
                     done = true;

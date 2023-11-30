@@ -115,30 +115,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return new SemanticQueryBuilder(this, inferenceResultsSupplier);
     }
 
-    private QueryBuilder inferenceResultsToQuery(String fieldName, List<? extends InferenceResults> inferenceResultsList) {
-        if (inferenceResultsList.size() != 1) {
-            throw new IllegalArgumentException("received multiple inference results for field " + fieldName);
-        }
-        InferenceResults inferenceResults = inferenceResultsList.get(0);
-        if (inferenceResults instanceof TextExpansionResults expansionResults) {
-            var boolQuery = QueryBuilders.boolQuery();
-            for (var weightedToken : expansionResults.getWeightedTokens()) {
-                boolQuery.should(
-                    QueryBuilders.termQuery(
-                        fieldName,
-                        weightedToken.token()
-                    ).boost(weightedToken.weight())
-                );
-            }
-            boolQuery.minimumShouldMatch(1);
-            return new SemanticQueryBuilder(this, boolQuery);
-        } else {
-            throw new IllegalArgumentException(
-                "field [" + fieldName + "] does not use a model that outputs sparse vector inference results"
-            );
-        }
-    }
-
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         List<? extends InferenceResults> inferenceResultsList = inferenceResultsSupplier.get();
         if (inferenceResultsList == null) {

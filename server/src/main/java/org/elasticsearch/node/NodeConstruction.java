@@ -607,7 +607,8 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
-        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
+        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
+        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager, rerouteServiceReference::get);
         clusterService.addStateApplier(scriptService);
 
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
@@ -627,7 +628,6 @@ class NodeConstruction {
         SystemIndices systemIndices = createSystemIndices(settings);
 
         final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
-        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
             settings,
@@ -656,7 +656,6 @@ class NodeConstruction {
 
         RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
         rerouteServiceReference.set(rerouteService);
-        clusterService.setRerouteService(rerouteService);
 
         clusterInfoService.addListener(
             new DiskThresholdMonitor(
@@ -1075,12 +1074,18 @@ class NodeConstruction {
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }
 
-    private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {
+    private ClusterService createClusterService(
+        SettingsModule settingsModule,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        Supplier<RerouteService> rerouteService
+    ) {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
             threadPool,
-            taskManager
+            taskManager,
+            rerouteService
         );
         resourcesToClose.add(clusterService);
 

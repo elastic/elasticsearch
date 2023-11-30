@@ -168,7 +168,7 @@ public class ConnectorSyncJobIndexService {
      * Deletes the {@link ConnectorSyncJob} in the underlying index.
      *
      * @param connectorSyncJobId The id of the connector sync job object.
-    * @param listener               The action listener to invoke on response/failure.
+     * @param listener               The action listener to invoke on response/failure.
      */
     public void deleteConnectorSyncJob(String connectorSyncJobId, ActionListener<DeleteResponse> listener) {
         final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(connectorSyncJobId)

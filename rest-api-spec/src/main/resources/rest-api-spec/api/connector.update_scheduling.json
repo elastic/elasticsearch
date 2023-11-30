@@ -18,7 +18,7 @@
     "url": {
       "paths": [
         {
-          "path": "/_connector/{connector_id}/scheduling",
+          "path": "/_connector/{connector_id}/_scheduling",
           "methods": [
             "PUT"
           ],

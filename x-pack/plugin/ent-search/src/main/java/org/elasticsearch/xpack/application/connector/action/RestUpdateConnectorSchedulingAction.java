@@ -26,7 +26,7 @@ public class RestUpdateConnectorSchedulingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}/scheduling"));
+        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}/_scheduling"));
     }
 
     @Override

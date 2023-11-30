@@ -32,7 +32,7 @@
       ]
     },
     "body": {
-      "description": "An object with connector scheduling configuration.",
+      "description": "An object containing the connector's scheduling configuration.",
       "required": true
     }
   }

@@ -17,7 +17,7 @@ import java.io.IOException;
 
 public class UpdateConnectorSchedulingActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
     UpdateConnectorSchedulingAction.Request> {
-
+    
     private String connectorId;
 
     @Override

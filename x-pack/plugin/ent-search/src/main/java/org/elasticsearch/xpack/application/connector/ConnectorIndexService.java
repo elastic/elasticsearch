@@ -172,8 +172,8 @@ public class ConnectorIndexService {
     /**
      * Updates the {@link ConnectorScheduling} property of a {@link Connector}.
      *
-     * @param request   Request for updating connector scheduling.
-     * @param listener  Listener to respond to a successful response or an error.
+     * @param request  The request for updating the connector's scheduling.
+     * @param listener The listener for handling responses, including successful updates or errors.
      */
     public void updateConnectorScheduling(UpdateConnectorSchedulingAction.Request request, ActionListener<UpdateResponse> listener) {
         try {

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -39,7 +41,11 @@ public class ToBoolean extends AbstractConvertFunction {
         Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new)
     );
 
-    public ToBoolean(Source source, Expression field) {
+    @FunctionInfo(returnType = "boolean")
+    public ToBoolean(
+        Source source,
+        @Param(name = "v", type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+    ) {
         super(source, field);
     }
 

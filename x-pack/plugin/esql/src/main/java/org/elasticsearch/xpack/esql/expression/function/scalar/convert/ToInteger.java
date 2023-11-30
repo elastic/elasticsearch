@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -42,7 +44,14 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new)
     );
 
-    public ToInteger(Source source, Expression field) {
+    @FunctionInfo(returnType = "integer")
+    public ToInteger(
+        Source source,
+        @Param(
+            name = "v",
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+        ) Expression field
+    ) {
         super(source, field);
     }
 

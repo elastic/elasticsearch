@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -38,7 +40,11 @@ public class ToDatetime extends AbstractConvertFunction {
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
     );
 
-    public ToDatetime(Source source, Expression field) {
+    @FunctionInfo(returnType = "date")
+    public ToDatetime(
+        Source source,
+        @Param(name = "v", type = { "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+    ) {
         super(source, field);
     }
 

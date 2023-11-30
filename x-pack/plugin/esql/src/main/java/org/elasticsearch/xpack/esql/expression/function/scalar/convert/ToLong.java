@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -44,7 +46,14 @@ public class ToLong extends AbstractConvertFunction {
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
     );
 
-    public ToLong(Source source, Expression field) {
+    @FunctionInfo(returnType = "long")
+    public ToLong(
+        Source source,
+        @Param(
+            name = "v",
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+        ) Expression field
+    ) {
         super(source, field);
     }
 

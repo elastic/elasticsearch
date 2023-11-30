@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -40,7 +42,14 @@ public class ToDouble extends AbstractConvertFunction {
         Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new) // CastIntToDoubleEvaluator would be a candidate, but not MV'd
     );
 
-    public ToDouble(Source source, Expression field) {
+    @FunctionInfo(returnType = "double")
+    public ToDouble(
+        Source source,
+        @Param(
+            name = "v",
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+        ) Expression field
+    ) {
         super(source, field);
     }
 

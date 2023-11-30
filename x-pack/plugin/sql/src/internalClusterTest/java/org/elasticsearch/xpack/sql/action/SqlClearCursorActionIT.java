@@ -21,13 +21,14 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
     public void testSqlClearCursorAction() {
         assertAcked(indicesAdmin().prepareCreate("test").get());
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        int indexSize = randomIntBetween(100, 300);
-        logger.info("Indexing {} records", indexSize);
-        for (int i = 0; i < indexSize; i++) {
-            bulkRequestBuilder.add(new IndexRequest("test").id("id" + i).source("data", "bar", "count", i));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            int indexSize = randomIntBetween(100, 300);
+            logger.info("Indexing {} records", indexSize);
+            for (int i = 0; i < indexSize; i++) {
+                bulkRequestBuilder.add(new IndexRequest("test").id("id" + i).source("data", "bar", "count", i));
+            }
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         }
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         ensureYellow("test");
 
         assertEquals(0, getNumberOfSearchContexts());
@@ -53,41 +54,42 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
     public void testAutoCursorCleanup() {
         assertAcked(indicesAdmin().prepareCreate("test").get());
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        int indexSize = randomIntBetween(100, 300);
-        logger.info("Indexing {} records", indexSize);
-        for (int i = 0; i < indexSize; i++) {
-            bulkRequestBuilder.add(new IndexRequest("test").id("id" + i).source("data", "bar", "count", i));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            int indexSize = randomIntBetween(100, 300);
+            logger.info("Indexing {} records", indexSize);
+            for (int i = 0; i < indexSize; i++) {
+                bulkRequestBuilder.add(new IndexRequest("test").id("id" + i).source("data", "bar", "count", i));
+            }
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            ensureYellow("test");
+
+            assertEquals(0, getNumberOfSearchContexts());
+
+            int fetchSize = randomIntBetween(5, 20);
+            logger.info("Fetching {} records at a time", fetchSize);
+            SqlQueryResponse sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test")
+                .fetchSize(fetchSize)
+                .get();
+            assertEquals(fetchSize, sqlQueryResponse.size());
+
+            assertThat(getNumberOfSearchContexts(), greaterThan(0L));
+            assertThat(sqlQueryResponse.cursor(), notNullValue());
+            assertThat(sqlQueryResponse.cursor(), not(equalTo(Cursor.EMPTY)));
+
+            long fetched = sqlQueryResponse.size();
+            do {
+                sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).cursor(sqlQueryResponse.cursor()).get();
+                fetched += sqlQueryResponse.size();
+            } while (sqlQueryResponse.cursor().isEmpty() == false);
+            assertEquals(indexSize, fetched);
+
+            SqlClearCursorResponse cleanCursorResponse = new SqlClearCursorRequestBuilder(client(), SqlClearCursorAction.INSTANCE).cursor(
+                sqlQueryResponse.cursor()
+            ).get();
+            assertFalse(cleanCursorResponse.isSucceeded());
+
+            assertEquals(0, getNumberOfSearchContexts());
         }
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        ensureYellow("test");
-
-        assertEquals(0, getNumberOfSearchContexts());
-
-        int fetchSize = randomIntBetween(5, 20);
-        logger.info("Fetching {} records at a time", fetchSize);
-        SqlQueryResponse sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test")
-            .fetchSize(fetchSize)
-            .get();
-        assertEquals(fetchSize, sqlQueryResponse.size());
-
-        assertThat(getNumberOfSearchContexts(), greaterThan(0L));
-        assertThat(sqlQueryResponse.cursor(), notNullValue());
-        assertThat(sqlQueryResponse.cursor(), not(equalTo(Cursor.EMPTY)));
-
-        long fetched = sqlQueryResponse.size();
-        do {
-            sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).cursor(sqlQueryResponse.cursor()).get();
-            fetched += sqlQueryResponse.size();
-        } while (sqlQueryResponse.cursor().isEmpty() == false);
-        assertEquals(indexSize, fetched);
-
-        SqlClearCursorResponse cleanCursorResponse = new SqlClearCursorRequestBuilder(client(), SqlClearCursorAction.INSTANCE).cursor(
-            sqlQueryResponse.cursor()
-        ).get();
-        assertFalse(cleanCursorResponse.isSucceeded());
-
-        assertEquals(0, getNumberOfSearchContexts());
     }
 
     private long getNumberOfSearchContexts() {

@@ -417,13 +417,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         request.timeout(mainRequest.getTimeout());
         request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request));
+        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request), request::close);
     }
 
     /**
      * Send a bulk request, handling retries.
      */
-    void sendBulkRequest(BulkRequest request, Runnable onSuccess) {
+    void sendBulkRequest(BulkRequest request, Runnable onSuccess, Runnable onFailure) {
         final int requestSize = request.requests().size();
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -438,7 +438,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             finishHim(null);
             return;
         }
-        bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<BulkResponse>() {
+        bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse response) {
                 logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
@@ -447,6 +447,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
             @Override
             public void onFailure(Exception e) {
+                onFailure.run();
                 finishHim(e);
             }
         });

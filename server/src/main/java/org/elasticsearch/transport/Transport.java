@@ -162,7 +162,7 @@ public interface Transport extends LifecycleComponent {
         TransportResponseHandler<T> handler,
         Connection connection,
         String action,
-        Long requestId
+        long requestId
     ) {};
 
     /**

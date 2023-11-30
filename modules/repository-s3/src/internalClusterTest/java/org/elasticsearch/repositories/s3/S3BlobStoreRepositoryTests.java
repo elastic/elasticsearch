@@ -43,6 +43,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -78,6 +79,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
@@ -317,7 +319,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertThat(initialStats.keySet(), equalTo(allOperations));
 
         // Collect more stats with an operation purpose other than the default
-        final OperationPurpose purpose = randomValueOtherThan(OperationPurpose.SNAPSHOT, () -> randomFrom(OperationPurpose.values()));
+        final OperationPurpose purpose = randomValueOtherThan(OperationPurpose.SNAPSHOT, BlobStoreTestUtil::randomPurpose);
         final BlobPath blobPath = repository.basePath().add(randomAlphaOfLength(10));
         final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
         final BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
@@ -394,7 +396,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
                             .writeBlobAtomic(
-                                OperationPurpose.SNAPSHOT,
+                                randomPurpose(),
                                 BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
                                 serialized,
                                 true

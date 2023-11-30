@@ -16,6 +16,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -50,6 +53,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -1381,6 +1385,27 @@ public class AnalyzerTests extends ESTestCase {
             | keep first_name, language_name, id
             """));
         assertThat(e.getMessage(), containsString("Unknown column [id]"));
+    }
+
+    public void testEnrichFieldsIncludeMatchField() {
+        String query = """
+            FROM test
+            | EVAL x = to_string(languages)
+            | ENRICH languages ON x
+            | KEEP language_name, language_code
+            """;
+        IndexResolution testIndex = loadMapping("mapping-basic.json", "test");
+        IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
+        var enrichPolicy = new EnrichPolicy("match", null, List.of("unused"), "language_code", List.of("language_code", "language_name"));
+        EnrichResolution enrichResolution = new EnrichResolution(
+            Set.of(new EnrichPolicyResolution("languages", enrichPolicy, languageIndex)),
+            Set.of("languages")
+        );
+        AnalyzerContext context = new AnalyzerContext(configuration(query), new EsqlFunctionRegistry(), testIndex, enrichResolution);
+        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        LogicalPlan plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        assertThat(Expressions.names(limit.output()), contains("language_name", "language_code"));
     }
 
     public void testChainedEvalFieldsUse() {

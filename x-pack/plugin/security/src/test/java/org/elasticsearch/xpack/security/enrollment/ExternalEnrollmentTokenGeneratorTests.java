@@ -44,6 +44,7 @@ import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedSupplier;
 import static org.elasticsearch.xpack.security.enrollment.ExternalEnrollmentTokenGenerator.getFilteredAddresses;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -543,6 +544,10 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final List<String> invalid_addresses = Arrays.asList("nldfnbndflbnl");
         UnknownHostException ex = expectThrows(UnknownHostException.class, () -> getFilteredAddresses(invalid_addresses));
         assertThat(ex.getMessage(), Matchers.containsString("nldfnbndflbnl"));
+    }
+
+    public void testInetAddressValidation() throws Exception {
+        assertThat(BaseEnrollmentTokenGenerator.getInetAddressFromString("nldfnbndflbnl"), notNullValue());
     }
 
     private Map<String, String> getDecoded(String token) throws IOException {

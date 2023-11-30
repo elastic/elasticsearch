@@ -111,7 +111,7 @@ public class BaseEnrollmentTokenGenerator {
         return publishAddress;
     }
 
-    private static InetAddress getInetAddressFromString(String address) throws Exception {
+    public static InetAddress getInetAddressFromString(String address) throws Exception {
         URI uri = new URI("http://" + address);
         return InetAddress.getByName(uri.getHost());
     }

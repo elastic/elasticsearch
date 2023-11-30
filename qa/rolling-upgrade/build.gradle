@@ -19,10 +19,10 @@ testArtifacts {
 
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
-  def baseCluster = testClusters.register(baseName) {
-    setting 'logger.org.elasticsearch.indices.SystemIndexMappingUpdateService', 'TRACE'
-    setting 'logger.org.elasticsearch.index.mapper.MapperService', 'TRACE'
-  }
+//  def baseCluster = testClusters.register(baseName) {
+//    setting 'logger.org.elasticsearch.indices.SystemIndexMappingUpdateService', 'TRACE'
+//    setting 'logger.org.elasticsearch.index.mapper.MapperService', 'TRACE'
+//  }
 
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     useCluster(baseCluster)

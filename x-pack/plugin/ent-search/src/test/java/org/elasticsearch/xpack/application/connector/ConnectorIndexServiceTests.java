@@ -197,11 +197,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        assertTrue("Timeout waiting for update pipeline request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for update scheduling request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
-        assertNotNull("Received null response from update pipeline request", resp.get());
+        assertNotNull("Received null response from update scheduling request", resp.get());
         return resp.get();
     }
 }

@@ -92,6 +92,7 @@ public class IndexVersions {
     public static final IndexVersion ES_VERSION_8_12 = def(8_500_004, Version.LUCENE_9_8_0);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_9_9 = def(8_500_010, Version.LUCENE_9_9_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_10 = def(8_500_099, Version.LUCENE_9_10_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

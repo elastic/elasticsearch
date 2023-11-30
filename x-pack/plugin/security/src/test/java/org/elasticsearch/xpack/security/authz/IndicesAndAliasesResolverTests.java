@@ -1557,16 +1557,18 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testCompositeIndicesRequestIsNotSupported() {
-        TransportRequest request = randomFrom(
-            new MultiSearchRequest(),
-            new MultiGetRequest(),
-            new MultiTermVectorsRequest(),
-            new BulkRequest()
-        );
-        expectThrows(
-            IllegalStateException.class,
-            () -> resolveIndices(request, buildAuthorizedIndices(user, TransportMultiSearchAction.TYPE.name()))
-        );
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            TransportRequest request = randomFrom(
+                new MultiSearchRequest(),
+                new MultiGetRequest(),
+                new MultiTermVectorsRequest(),
+                bulkRequest
+            );
+            expectThrows(
+                IllegalStateException.class,
+                () -> resolveIndices(request, buildAuthorizedIndices(user, TransportMultiSearchAction.TYPE.name()))
+            );
+        }
     }
 
     public void testResolveAdminAction() {

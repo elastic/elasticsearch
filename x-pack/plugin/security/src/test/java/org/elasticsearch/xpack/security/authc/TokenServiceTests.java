@@ -168,7 +168,7 @@ public class TokenServiceTests extends ESTestCase {
             return builder;
         }).when(client).prepareGet(anyString(), anyString());
         when(client.prepareIndex(any(String.class))).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
+//        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
         when(client.prepareUpdate(any(String.class), any(String.class))).thenAnswer(inv -> {
             final String index = (String) inv.getArguments()[0];
             final String id = (String) inv.getArguments()[1];

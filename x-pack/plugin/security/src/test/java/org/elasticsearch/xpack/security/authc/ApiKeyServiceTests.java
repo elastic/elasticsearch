@@ -246,23 +246,25 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
-        when(client.threadPool()).thenReturn(threadPool);
-        final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
-        doAnswer(inv -> {
-            final Object[] args = inv.getArguments();
-            BulkRequest bulkRequest = (BulkRequest) args[1];
-            assertThat(bulkRequest.numberOfActions(), is(1));
-            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
-            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
-            assertThat(indexRequest.id(), is(createApiKeyRequest.getId()));
-            // The index request has opType create so that it will *not* override any existing document
-            assertThat(indexRequest.opType(), is(DocWriteRequest.OpType.CREATE));
-            bulkActionInvoked.set(true);
-            return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
-        service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
-        assertBusy(() -> assertTrue(bulkActionInvoked.get()));
+        try (BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client, BulkAction.INSTANCE)) {
+            when(client.prepareBulk()).thenReturn(bulkRequestBuilder);
+            when(client.threadPool()).thenReturn(threadPool);
+            final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
+            doAnswer(inv -> {
+                final Object[] args = inv.getArguments();
+                BulkRequest bulkRequest = (BulkRequest) args[1];
+                assertThat(bulkRequest.numberOfActions(), is(1));
+                assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+                IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+                assertThat(indexRequest.id(), is(createApiKeyRequest.getId()));
+                // The index request has opType create so that it will *not* override any existing document
+                assertThat(indexRequest.opType(), is(DocWriteRequest.OpType.CREATE));
+                bulkActionInvoked.set(true);
+                return null;
+            }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+            service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
+            assertBusy(() -> assertTrue(bulkActionInvoked.get()));
+        }
     }
 
     @SuppressWarnings("unchecked")

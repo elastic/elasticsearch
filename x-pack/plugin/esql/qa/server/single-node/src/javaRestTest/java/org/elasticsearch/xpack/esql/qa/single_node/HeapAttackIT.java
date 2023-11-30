@@ -112,7 +112,6 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * This groups on 5000 columns which used to throw a {@link StackOverflowError}.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100640")
     public void testGroupOnManyLongs() throws IOException {
         initManyLongs();
         Map<?, ?> map = XContentHelper.convertToMap(
@@ -248,7 +247,6 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
     public void testTooManyEval() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> manyEval(1000));
@@ -345,7 +343,6 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
     public void testFetchTooManyMvLongs() throws IOException {
         initMvLongsIndex(500, 100, 1000);
         assertCircuitBreaks(() -> fetchMvLongs());

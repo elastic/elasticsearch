@@ -23,7 +23,6 @@ import static java.util.Map.entry;
  */
 public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature ML_STATE_RESET_FALLBACK_ON_DISABLED = new NodeFeature("ml.state_reset_fallback_on_disabled");
-    public static final NodeFeature ML_NLP_MODEL_DEPLOYMENT_SUPPORTED = new NodeFeature("ml.nlp_model_deployment_supported");
     public static final NodeFeature FEATURE_STATE_RESET_SUPPORTED = new NodeFeature("system_indices.feature_state_reset_supported");
     public static final NodeFeature SYSTEM_INDICES_REST_ACCESS_ENFORCED = new NodeFeature("system_indices.rest_access_enforced");
     public static final NodeFeature HIDDEN_INDICES_SUPPORTED = new NodeFeature("indices.hidden_supported");
@@ -50,7 +49,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(COMPONENT_TEMPLATE_SUPPORTED, Version.V_7_8_0),
             entry(DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED, Version.V_7_13_0),
             entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0),
-            entry(ML_NLP_MODEL_DEPLOYMENT_SUPPORTED, Version.V_8_0_0),
             entry(SECURITY_GRANT_API_SUPPORTED, Version.V_7_7_0),
             entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
             entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0),

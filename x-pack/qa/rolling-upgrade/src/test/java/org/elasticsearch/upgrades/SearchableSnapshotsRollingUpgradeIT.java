@@ -160,13 +160,13 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
 
             final var newVersionNodes = nodesIdsAndVersions.entrySet()
                 .stream()
-                .filter(node -> UPGRADE_FROM_VERSION.equals(node.getValue()) == false)
+                .filter(node -> isOriginalCluster(node.getValue()) == false)
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
 
             final var originalVersionNodes = nodesIdsAndVersions.entrySet()
                 .stream()
-                .filter(node -> UPGRADE_FROM_VERSION.equals(node.getValue()))
+                .filter(node -> isOriginalCluster(node.getValue()))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
 

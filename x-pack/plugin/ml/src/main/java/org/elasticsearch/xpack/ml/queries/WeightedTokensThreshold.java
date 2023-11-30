@@ -137,14 +137,14 @@ public class WeightedTokensThreshold implements Writeable, ToXContentObject {
                     onlyScorePrunedTokens = parser.booleanValue();
                 } else {
                     throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] does not support [" + currentFieldName + "]"
+                        parser.getTokenLocation(),
+                        "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] does not support [" + currentFieldName + "]"
                     );
                 }
             } else {
                 throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                    parser.getTokenLocation(),
+                    "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] unknown token [" + token + "] after [" + currentFieldName + "]"
                 );
             }
         }

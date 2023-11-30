@@ -35,7 +35,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.TOKENS_THRESHOLD_FIELD;
 
-
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
     public static final String NAME = "weighted_tokens";
 
@@ -205,8 +204,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
                     } else if (TOKENS_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token != XContentParser.Token.START_OBJECT) {
                             throw new ParsingException(
-                                    parser.getTokenLocation(),
-                                    "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] should be an object"
+                                parser.getTokenLocation(),
+                                "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] should be an object"
                             );
                         }
                         threshold = WeightedTokensThreshold.fromXContent(parser);
@@ -235,11 +234,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        var qb = new WeightedTokensQueryBuilder(
-            fieldName,
-            tokens,
-            threshold
-        );
+        var qb = new WeightedTokensQueryBuilder(fieldName, tokens, threshold);
         qb.queryName(queryName);
         qb.boost(boost);
         return qb;

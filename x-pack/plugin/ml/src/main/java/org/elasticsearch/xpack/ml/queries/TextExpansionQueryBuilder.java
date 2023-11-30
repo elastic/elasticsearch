@@ -254,8 +254,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                             threshold = WeightedTokensThreshold.fromXContent(parser);
                         } else {
                             throw new ParsingException(
-                                    parser.getTokenLocation(),
-                                    "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
                             );
                         }
                     } else if (token.isValue()) {
@@ -295,12 +295,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        TextExpansionQueryBuilder queryBuilder = new TextExpansionQueryBuilder(
-            fieldName,
-            modelText,
-            modelId,
-            threshold
-        );
+        TextExpansionQueryBuilder queryBuilder = new TextExpansionQueryBuilder(fieldName, modelText, modelId, threshold);
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
         return queryBuilder;

@@ -25,12 +25,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Locale;
 
-public final class GeoPoint implements SpatialPoint, ToXContentFragment {
+public final class GeoPoint extends SpatialPoint implements ToXContentFragment {
 
-    private double lat;
-    private double lon;
-
-    public GeoPoint() {}
+    public GeoPoint() {
+        super(0, 0);
+    }
 
     /**
      * Create a new Geopoint from a string. This String must either be a geohash
@@ -39,31 +38,31 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
      * @param value String to create the point from
      */
     public GeoPoint(String value) {
+        this();
         this.resetFromString(value);
     }
 
     public GeoPoint(double lat, double lon) {
-        this.lat = lat;
-        this.lon = lon;
+        super(lon, lat);
     }
 
     public GeoPoint(SpatialPoint template) {
-        this(template.getY(), template.getX());
+        super(template);
     }
 
     public GeoPoint reset(double lat, double lon) {
-        this.lat = lat;
-        this.lon = lon;
+        this.y = lat;
+        this.x = lon;
         return this;
     }
 
     public GeoPoint resetLat(double lat) {
-        this.lat = lat;
+        this.y = lat;
         return this;
     }
 
     public GeoPoint resetLon(double lon) {
-        this.lon = lon;
+        this.x = lon;
         return this;
     }
 
@@ -134,8 +133,8 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
     }
 
     public GeoPoint resetFromIndexHash(long hash) {
-        lon = Geohash.decodeLongitude(hash);
-        lat = Geohash.decodeLatitude(hash);
+        this.x = Geohash.decodeLongitude(hash);
+        this.y = Geohash.decodeLatitude(hash);
         return this;
     }
 
@@ -155,43 +154,33 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
     }
 
     public double lat() {
-        return this.lat;
+        return this.y;
     }
 
     public double getLat() {
-        return this.lat;
+        return this.y;
     }
 
     public double lon() {
-        return this.lon;
+        return this.x;
     }
 
     public double getLon() {
-        return this.lon;
-    }
-
-    @Override
-    public double getX() {
-        return this.lon;
-    }
-
-    @Override
-    public double getY() {
-        return this.lat;
+        return this.x;
     }
 
     public String geohash() {
-        return Geohash.stringEncode(lon, lat);
+        return Geohash.stringEncode(x, y);
     }
 
     public String getGeohash() {
-        return Geohash.stringEncode(lon, lat);
+        return Geohash.stringEncode(x, y);
     }
 
     /** Return the point in Lucene encoded format used to stored points as doc values */
     public long getEncoded() {
-        final int latitudeEncoded = GeoEncodingUtils.encodeLatitude(this.lat);
-        final int longitudeEncoded = GeoEncodingUtils.encodeLongitude(this.lon);
+        final int latitudeEncoded = GeoEncodingUtils.encodeLatitude(this.y);
+        final int longitudeEncoded = GeoEncodingUtils.encodeLongitude(this.x);
         return (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
     }
 
@@ -206,32 +195,9 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        GeoPoint geoPoint = (GeoPoint) o;
-
-        if (Double.compare(geoPoint.lat, lat) != 0) return false;
-        if (Double.compare(geoPoint.lon, lon) != 0) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        int result;
-        long temp;
-        temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
-        result = Long.hashCode(temp);
-        temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
-        result = 31 * result + Long.hashCode(temp);
-        return result;
-    }
-
-    @Override
     public String toString() {
-        return lat + ", " + lon;
+        // TODO: Should prefer to use super.toString() which uses WKT, but that has consequences
+        return y + ", " + x;
     }
 
     public static GeoPoint fromGeohash(String geohash) {
@@ -244,7 +210,7 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.latlon(lat, lon);
+        return builder.latlon(y, x);
     }
 
     public static double assertZValue(final boolean ignoreZValue, double zValue) {

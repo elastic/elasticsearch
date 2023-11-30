@@ -592,7 +592,18 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
-            return new BlockSourceReader.BytesRefsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
+            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup());
+        }
+
+        private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup() {
+            if (getTextSearchInfo().hasNorms()) {
+                return BlockSourceReader.lookupFromNorms(name());
+            }
+            if (isIndexed() || isStored()) {
+                return BlockSourceReader.lookupFromFieldNames(name());
+            }
+            return BlockSourceReader.lookupMatchingAll();
         }
 
         @Override

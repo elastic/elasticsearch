@@ -927,7 +927,6 @@ public final class TokenService {
             logger.warn("No [{}] tokens provided for invalidation", srcPrefix);
             listener.onFailure(invalidGrantException("No tokens provided for invalidation"));
         } else {
-            if (true) System.out.println("**** client class: " + client.getClass() + ", " + client.prepareBulk());
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {
                 UpdateRequest request = client.prepareUpdate(tokensIndexManager.aliasName(), getTokenDocumentId(tokenId))
@@ -945,8 +944,13 @@ public final class TokenService {
                 )
             );
             bulkRequestBuilder.setRefreshPolicy(refreshPolicy);
-            tokensIndexManager.prepareIndexIfNeededThenExecute(
-                ex -> listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex)),
+            tokensIndexManager.prepareIndexIfNeededThenExecute(ex -> {
+                try {
+                    listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex));
+                } finally {
+                    bulkRequestBuilder.close();
+                }
+            },
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,

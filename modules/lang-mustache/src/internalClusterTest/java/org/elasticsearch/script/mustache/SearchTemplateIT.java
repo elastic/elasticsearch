@@ -165,14 +165,15 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         GetStoredScriptResponse getResponse = clusterAdmin().prepareGetStoredScript("testTemplate").get();
         assertNotNull(getResponse.getSource());
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
-        bulkRequestBuilder.get();
-        indicesAdmin().prepareRefresh().get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+            bulkRequestBuilder.get();
+            indicesAdmin().prepareRefresh().get();
+        }
 
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
@@ -262,14 +263,15 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertAcked(clusterAdmin().preparePutStoredScript().setId("2").setContent(new BytesArray(script), XContentType.JSON));
         assertAcked(clusterAdmin().preparePutStoredScript().setId("3").setContent(new BytesArray(script), XContentType.JSON));
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
-        bulkRequestBuilder.get();
-        indicesAdmin().prepareRefresh().get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+            bulkRequestBuilder.get();
+            indicesAdmin().prepareRefresh().get();
+        }
 
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
@@ -381,14 +383,15 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
               }
             }""";
         assertAcked(clusterAdmin().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON));
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
-        bulkRequestBuilder.get();
-        indicesAdmin().prepareRefresh().get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+            bulkRequestBuilder.get();
+            indicesAdmin().prepareRefresh().get();
+        }
 
         Map<String, Object> arrayTemplateParams = new HashMap<>();
         String[] fieldParams = { "foo", "bar" };

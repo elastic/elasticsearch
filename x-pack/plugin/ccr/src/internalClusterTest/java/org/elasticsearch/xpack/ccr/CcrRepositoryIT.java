@@ -499,11 +499,12 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         final int numDocs = scaledRandomIntBetween(0, 500);
         if (numDocs > 0) {
-            final BulkRequestBuilder bulkRequest = leaderClient().prepareBulk(leaderIndex);
-            for (int i = 0; i < numDocs; i++) {
-                bulkRequest.add(new IndexRequest(leaderIndex).id(Integer.toString(i)).source("field", i));
+            try (BulkRequestBuilder bulkRequest = leaderClient().prepareBulk(leaderIndex)) {
+                for (int i = 0; i < numDocs; i++) {
+                    bulkRequest.add(new IndexRequest(leaderIndex).id(Integer.toString(i)).source("field", i));
+                }
+                assertThat(bulkRequest.get().hasFailures(), is(false));
             }
-            assertThat(bulkRequest.get().hasFailures(), is(false));
         }
 
         ensureLeaderGreen(leaderIndex);

@@ -120,6 +120,7 @@ public class AnnotationPersister {
                 shouldRetry,
                 retryMessage -> logger.debug("[{}] Bulk indexing of annotations failed {}", jobId, retryMessage)
             );
+            bulkRequest.close();
             bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             return bulkResponse;
         }

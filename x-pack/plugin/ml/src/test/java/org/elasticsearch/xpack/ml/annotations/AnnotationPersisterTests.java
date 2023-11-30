@@ -191,11 +191,14 @@ public class AnnotationPersisterTests extends ESTestCase {
             .execute(eq(BulkAction.INSTANCE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
-        AnnotationPersister.Builder persisterBuilder = persister.bulkPersisterBuilder(JOB_ID)
-            .persistAnnotation("1", AnnotationTests.randomAnnotation(JOB_ID))
-            .persistAnnotation("2", AnnotationTests.randomAnnotation(JOB_ID));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, persisterBuilder::executeRequest);
-        assertThat(e.getMessage(), containsString("Failed execution"));
+        try (
+            AnnotationPersister.Builder persisterBuilder = persister.bulkPersisterBuilder(JOB_ID)
+                .persistAnnotation("1", AnnotationTests.randomAnnotation(JOB_ID))
+                .persistAnnotation("2", AnnotationTests.randomAnnotation(JOB_ID))
+        ) {
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, persisterBuilder::executeRequest);
+            assertThat(e.getMessage(), containsString("Failed execution"));
+        }
 
         verify(client, atLeastOnce()).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 

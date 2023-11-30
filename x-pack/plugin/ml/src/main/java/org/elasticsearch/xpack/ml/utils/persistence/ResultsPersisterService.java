@@ -239,14 +239,7 @@ public class ResultsPersisterService {
             );
         }
         final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
-        bulkIndexWithRetry(
-            bulkRequest,
-            jobId,
-            shouldRetry,
-            retryMsgHandler,
-            actionExecutor,
-            ActionListener.releaseAfter(getResponseFuture, bulkRequest)
-        );
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
         return getResponseFuture.actionGet();
     }
 
@@ -390,12 +383,15 @@ public class ResultsPersisterService {
                             return;
                         }
                     }
+                    BulkRequest originalRequest = bulkRequestRewriter.bulkRequest;
                     bulkRequestRewriter.rewriteRequest(bulkResponse);
+                    ActionListener<BulkResponse> releasingRetryableListener;
+                    if (originalRequest == bulkRequestRewriter.bulkRequest) {
+                        releasingRetryableListener = retryableListener; // we didn't create this bulk request, so don't release it
+                    } else {
+                        releasingRetryableListener = ActionListener.releaseAfter(retryableListener, bulkRequestRewriter.bulkRequest);
+                    }
                     // Let the listener attempt again with the new bulk request
-                    ActionListener<BulkResponse> releasingRetryableListener = ActionListener.releaseAfter(
-                        retryableListener,
-                        bulkRequestRewriter.bulkRequest
-                    );
                     releasingRetryableListener.onFailure(new RecoverableException());
                 }, retryableListener::onFailure)),
                 listener

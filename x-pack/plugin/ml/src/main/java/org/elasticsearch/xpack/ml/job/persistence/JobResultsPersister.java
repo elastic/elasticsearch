@@ -288,12 +288,14 @@ public class JobResultsPersister {
                 return;
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, items.size());
-            resultsPersisterService.bulkIndexWithRetry(
-                buildBulkRequest(),
-                jobId,
-                shouldRetry,
-                retryMessage -> logger.debug("[{}] Bulk indexing of results failed {}", jobId, retryMessage)
-            );
+            try (BulkRequest bulkRequest = buildBulkRequest()) {
+                resultsPersisterService.bulkIndexWithRetry(
+                    bulkRequest,
+                    jobId,
+                    shouldRetry,
+                    retryMessage -> logger.debug("[{}] Bulk indexing of results failed {}", jobId, retryMessage)
+                );
+            }
             clear();
         }
 

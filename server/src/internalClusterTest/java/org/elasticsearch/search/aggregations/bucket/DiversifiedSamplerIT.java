@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.SuiteScopeTestCase
 public class DiversifiedSamplerIT extends ESIntegTestCase {
 
-    public static final int NUM_SHARDS = 1;
+    private static final int NUM_SHARDS = 1;
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SamplerAggregator.ExecutionMode.values()).toString();

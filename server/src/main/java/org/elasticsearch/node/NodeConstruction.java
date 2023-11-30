@@ -989,6 +989,8 @@ class NodeConstruction {
             repositoryService
         );
 
+        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
+
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
             clusterService,
@@ -1002,8 +1004,6 @@ class NodeConstruction {
             systemIndices.getExecutorSelector(),
             telemetryProvider.getTracer()
         );
-        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
-        modules.bindToInstance(NodeMetrics.class, nodeMetrics);
 
         modules.add(
             loadPersistentTasksService(
@@ -1077,6 +1077,7 @@ class NodeConstruction {
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
             b.bind(Transport.class).toInstance(transport);
             b.bind(TransportService.class).toInstance(transportService);
+            b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);

@@ -29,7 +29,7 @@ import java.io.IOException;
 public class NodeMetrics extends AbstractLifecycleComponent {
     private final MeterRegistry registry;
     private final NodeService nodeService;
-    private final NodeStatsCache stats;
+    private NodeStatsCache stats;
 
     /**
      * Constructs a new NodeMetrics instance.
@@ -40,10 +40,6 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
         this.registry = meterRegistry;
         this.nodeService = nodeService;
-        // Agent should poll stats every 4 minutes and being this cache lazy we need a
-        // number high enough so that the cache does not update during the same poll
-        // period and that expires before a new poll period, therefore we choose 1 minute.
-        this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1));
     }
 
     /**
@@ -53,6 +49,10 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      * @param registry The MeterRegistry used to register and collect metrics.
      */
     private void registerAsyncMetrics(MeterRegistry registry) {
+        // Agent should poll stats every 4 minutes and being this cache lazy we need a
+        // number high enough so that the cache does not update during the same poll
+        // period and that expires before a new poll period, therefore we choose 1 minute.
+        this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1));
         registry.registerLongAsyncCounter(
             "es.node.stats.indices.get.total",
             "Total number of get operations",

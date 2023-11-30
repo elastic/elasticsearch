@@ -96,17 +96,17 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
         this.lastSynced = in.readOptionalInstant();
     }
 
-    private static final ParseField LAST_ACCESS_CONTROL_SYNC_ERROR = new ParseField("last_access_control_sync_error");
-    private static final ParseField LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD = new ParseField("last_access_control_sync_status");
-    private static final ParseField LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_access_control_sync_scheduled_at");
-    private static final ParseField LAST_DELETED_DOCUMENT_COUNT_FIELD = new ParseField("last_deleted_document_count");
-    private static final ParseField LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_incremental_sync_scheduled_at");
-    private static final ParseField LAST_INDEXED_DOCUMENT_COUNT_FIELD = new ParseField("last_indexed_document_count");
-    private static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
-    private static final ParseField LAST_SYNC_ERROR_FIELD = new ParseField("last_sync_error");
-    private static final ParseField LAST_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_sync_scheduled_at");
-    private static final ParseField LAST_SYNC_STATUS_FIELD = new ParseField("last_sync_status");
-    private static final ParseField LAST_SYNCED_FIELD = new ParseField("last_synced");
+    static final ParseField LAST_ACCESS_CONTROL_SYNC_ERROR = new ParseField("last_access_control_sync_error");
+    static final ParseField LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD = new ParseField("last_access_control_sync_status");
+    static final ParseField LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_access_control_sync_scheduled_at");
+    static final ParseField LAST_DELETED_DOCUMENT_COUNT_FIELD = new ParseField("last_deleted_document_count");
+    static final ParseField LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_incremental_sync_scheduled_at");
+    static final ParseField LAST_INDEXED_DOCUMENT_COUNT_FIELD = new ParseField("last_indexed_document_count");
+    static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
+    static final ParseField LAST_SYNC_ERROR_FIELD = new ParseField("last_sync_error");
+    static final ParseField LAST_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_sync_scheduled_at");
+    static final ParseField LAST_SYNC_STATUS_FIELD = new ParseField("last_sync_status");
+    static final ParseField LAST_SYNCED_FIELD = new ParseField("last_synced");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

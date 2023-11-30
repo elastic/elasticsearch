@@ -585,13 +585,16 @@ public class ProfileServiceTests extends ESTestCase {
             );
             @SuppressWarnings("unchecked")
             final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(
-                new MultiSearchResponse(
-                    new MultiSearchResponse.Item[] {
-                        new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
-                    1L
-                )
+            var resp = new MultiSearchResponse(
+                new MultiSearchResponse.Item[] {
+                    new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
+                1L
             );
+            try {
+                listener.onResponse(resp);
+            } finally {
+                resp.decRef();
+            }
             return null;
         }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
 

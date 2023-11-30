@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -24,6 +26,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,6 +45,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
     public TransportGetStatusAction(
         TransportService transportService,
         ClusterService clusterService,
+        IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -54,7 +61,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             GetStatusAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.resolver = new StatusResolver(clusterService);
+        this.resolver = new StatusResolver(clusterService, indicesService);
     }
 
     @Override
@@ -93,7 +100,6 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         private final DiscoveryNode localNode;
 
         private final ClusterService clusterService;
-
         private final StatusResolver resolver;
 
         private StatusListener(
@@ -128,9 +134,11 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
 
     private static class StatusResolver {
         private final ClusterService clusterService;
+        private final IndicesService indicesService;
 
-        private StatusResolver(ClusterService clusterService) {
+        private StatusResolver(ClusterService clusterService, IndicesService indicesService) {
             this.clusterService = clusterService;
+            this.indicesService = indicesService;
         }
 
         private GetStatusAction.Response getResponse(ClusterState state) {
@@ -150,7 +158,30 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
             boolean anyPre891Data = indicesPre891 || dataStreamsPre891;
 
-            return new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data);
+            return new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, hasData(state));
+        }
+
+        private boolean hasData(ClusterState state) {
+            DataStream dataStream = state.metadata().dataStreams().get(EventsIndex.FULL_INDEX.getName());
+            if (dataStream == null) {
+                return false;
+            }
+            for (Index index : dataStream.getIndices()) {
+                IndexMetadata meta = state.metadata().index(index);
+                if (meta == null) {
+                    continue;
+                }
+                // It should not happen that we have index metadata but no corresponding index service. Be extra defensive and skip.
+                IndexService indexService = indicesService.indexService(meta.getIndex());
+                if (indexService != null) {
+                    for (IndexShard indexShard : indexService) {
+                        if (indexShard.isReadAllowed() && indexShard.docStats().getCount() > 0L) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
         }
 
         private boolean getValue(ClusterState state, Setting<Boolean> setting) {

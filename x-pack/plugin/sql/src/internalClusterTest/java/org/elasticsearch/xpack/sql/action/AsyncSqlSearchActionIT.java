@@ -109,7 +109,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client()).query(query)
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
@@ -159,7 +159,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client()).query(query)
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
@@ -215,7 +215,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client()).query(query)
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
@@ -257,7 +257,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         boolean success = randomBoolean();
         boolean keepOnCompletion = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client()).query(query)
             .waitForCompletionTimeout(TimeValue.timeValueSeconds(10));
         if (keepOnCompletion || randomBoolean()) {
             builder.keepOnCompletion(keepOnCompletion);

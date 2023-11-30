@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -124,7 +125,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         final Transport.Connection connection = mock(Transport.Connection.class);
         final String clusterAlias = randomAlphaOfLengthBetween(3, 8);
         final RemoteClusterCredentialsManager credentialsResolver = mock(RemoteClusterCredentialsManager.class);
-        when(credentialsResolver.hasCredentials(clusterAlias)).thenReturn(true);
+        when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(new SecureString(randomAlphaOfLength(42)));
         final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
             connection,
             clusterAlias,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.apache.commons.math3.distribution.GammaDistribution;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.RandomGeneratorFactory;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -34,7 +35,9 @@ import java.util.stream.DoubleStream;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ChangePointAggregatorTests extends AggregatorTestCase {
 
@@ -47,7 +50,118 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     private static final String NUMERIC_FIELD_NAME = "value";
     private static final String TIME_FIELD_NAME = "timestamp";
 
-    public void testNoChange() throws IOException {
+    public void testStationaryFalsePositives() throws IOException {
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        int fp = 0;
+        for (int i = 0; i < 100; i++) {
+            double[] bucketValues = DoubleStream.generate(() -> 10 + normal.sample()).limit(40).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
+            fp += test.type() == ChangePointAggregator.Type.STATIONARY ? 0 : 1;
+        }
+        assertThat(fp, lessThan(3));
+
+        fp = 0;
+        GammaDistribution gamma = new GammaDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1, 2);
+        for (int i = 0; i < 100; i++) {
+            double[] bucketValues = DoubleStream.generate(() -> gamma.sample()).limit(40).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
+            fp += test.type() == ChangePointAggregator.Type.STATIONARY ? 0 : 1;
+        }
+        assertThat(fp, lessThan(3));
+    }
+
+    public void testNonStationaryFalsePositives() throws IOException {
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        int fp = 0;
+        for (int i = 0; i < 100; i++) {
+            AtomicInteger j = new AtomicInteger();
+            double[] bucketValues = DoubleStream.generate(() -> j.incrementAndGet() + normal.sample()).limit(40).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
+            fp += test.type() == ChangePointAggregator.Type.NON_STATIONARY ? 0 : 1;
+        }
+        assertThat(fp, lessThan(3));
+
+        fp = 0;
+        GammaDistribution gamma = new GammaDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1, 2);
+        for (int i = 0; i < 100; i++) {
+            AtomicInteger j = new AtomicInteger();
+            double[] bucketValues = DoubleStream.generate(() -> j.incrementAndGet() + gamma.sample()).limit(40).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
+            fp += test.type() == ChangePointAggregator.Type.NON_STATIONARY ? 0 : 1;
+        }
+        assertThat(fp, lessThan(3));
+    }
+
+    public void testStepChangePower() throws IOException {
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        int tp = 0;
+        for (int i = 0; i < 100; i++) {
+            double[] bucketValues = DoubleStream.concat(
+                DoubleStream.generate(() -> normal.sample()).limit(20),
+                DoubleStream.generate(() -> 10 + normal.sample()).limit(20)
+            ).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            tp += test.type() == ChangePointAggregator.Type.STEP_CHANGE ? 1 : 0;
+        }
+        assertThat(tp, greaterThan(90));
+
+        tp = 0;
+        GammaDistribution gamma = new GammaDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1, 2);
+        for (int i = 0; i < 100; i++) {
+            double[] bucketValues = DoubleStream.concat(
+                DoubleStream.generate(() -> gamma.sample()).limit(20),
+                DoubleStream.generate(() -> 10 + gamma.sample()).limit(20)
+            ).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            tp += test.type() == ChangePointAggregator.Type.STEP_CHANGE ? 1 : 0;
+        }
+        assertThat(tp, greaterThan(90));
+    }
+
+    public void testDistributionChangeTestPower() throws IOException {
+        NormalDistribution normal1 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0.0, 1.0);
+        NormalDistribution normal2 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0.0, 10.0);
+        int tp = 0;
+        for (int i = 0; i < 100; i++) {
+            double[] bucketValues = DoubleStream.concat(
+                DoubleStream.generate(() -> 10 + normal1.sample()).limit(50),
+                DoubleStream.generate(() -> 10 + normal2.sample()).limit(50)
+            ).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            tp += test.type() == ChangePointAggregator.Type.DISTRIBUTION_CHANGE ? 1 : 0;
+        }
+        assertThat(tp, greaterThan(97));
+    }
+
+    public void testMultipleChanges() throws IOException {
+        NormalDistribution normal1 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 78.0, 3.0);
+        NormalDistribution normal2 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 40.0, 6.0);
+        NormalDistribution normal3 = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1.0, 0.3);
+
+        int tp = 0;
+        for (int i = 0; i < 100; i++) {
+            double[] bucketValues = DoubleStream.concat(
+                DoubleStream.concat(
+                    DoubleStream.generate(() -> normal1.sample()).limit(7),
+                    DoubleStream.generate(() -> normal2.sample()).limit(6)
+                ),
+                DoubleStream.generate(() -> normal3.sample()).limit(23)
+            ).toArray();
+            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            tp += test.type() == ChangePointAggregator.Type.TREND_CHANGE ? 1 : 0;
+        }
+        assertThat(tp, greaterThan(97));
+    }
+
+    public void testConstant() throws IOException {
         double[] bucketValues = DoubleStream.generate(() -> 10).limit(100).toArray();
         testChangeType(
             bucketValues,
@@ -143,8 +257,8 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDistributionChange() throws IOException {
-        NormalDistribution first = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 50, 1);
-        NormalDistribution second = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 50, 5);
+        NormalDistribution first = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
+        NormalDistribution second = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 5);
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(first::sample).limit(50),
             DoubleStream.generate(second::sample).limit(50)

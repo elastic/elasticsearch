@@ -103,9 +103,6 @@ setup:
           - '{ "key": "bar", "val": 20, "@timestamp": "2021-01-01T02:40:00Z" }'
 ---
 "test resets do not lead to negative rate":
-  - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
   - do:
       search:
         index: tsdb-*
@@ -129,7 +126,7 @@ setup:
   - match: { hits.total.value: 9 }
   - length: { aggregations.ts.buckets: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: "JEMc3XgEDWzF216sBF5nxwW5AZB2-M4K_VYiHrKDjUNX3zHVkw" }
+  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
   - match: { aggregations.ts.buckets.0.doc_count: 9 }
   - gte: { aggregations.ts.buckets.0.rate.value: 0.0 }
 

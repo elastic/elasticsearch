@@ -11,14 +11,18 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -55,18 +59,15 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         Consumer<InternalTimeSeries> verifier = r -> {
             assertThat(r.getBuckets(), hasSize(2));
             assertThat(
-                ((Rate) r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2LDvTu5MAoxgghmvEUd5a_i3Y3TA").getAggregations().asList().get(0))
-                    .getValue(),
+                ((Rate) r.getBucketByKey("{dim=1}").getAggregations().asList().get(0)).getValue(),
                 closeTo(59.0 / 3000.0 * MILLIS_IN_SECOND, 0.00001)
             );
             assertThat(
-                ((Rate) r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2hRiY7lpxc5PgA4k16syGbZGgr0g").getAggregations().asList().get(0))
-                    .getValue(),
+                ((Rate) r.getBucketByKey("{dim=2}").getAggregations().asList().get(0)).getValue(),
                 closeTo(206.0 / 4000.0 * MILLIS_IN_SECOND, 0.00001)
             );
         };
-        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
-            .withSplitLeavesIntoSeperateAggregators(false);
+        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"), dimensionField("dim"));
         testCase(iw -> {
             iw.addDocuments(docs(1000, "1", 15, 37, 60, /*reset*/ 14));
             iw.addDocuments(docs(1000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
@@ -84,11 +85,8 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
         Consumer<InternalTimeSeries> verifier = r -> {
             assertThat(r.getBuckets(), hasSize(2));
-            assertThat(
-                r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2LDvTu5MAoxgghmvEUd5a_i3Y3TA"),
-                instanceOf(InternalTimeSeries.InternalBucket.class)
-            );
-            InternalDateHistogram hb = r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2LDvTu5MAoxgghmvEUd5a_i3Y3TA").getAggregations().get("date");
+            assertThat(r.getBucketByKey("{dim=1}"), instanceOf(InternalTimeSeries.InternalBucket.class));
+            InternalDateHistogram hb = r.getBucketByKey("{dim=1}").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((60 - 37 + 14) / 2000.0 * MILLIS_IN_SECOND, 0.00001));
@@ -97,7 +95,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((37 - 15) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
-            hb = r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2hRiY7lpxc5PgA4k16syGbZGgr0g").getAggregations().get("date");
+            hb = r.getBucketByKey("{dim=2}").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((150 - 74) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
@@ -108,7 +106,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             }
         };
 
-        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
+        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"), dimensionField("dim"))
             .withSplitLeavesIntoSeperateAggregators(false);
         testCase(iw -> {
             iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
@@ -159,7 +157,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
         List<Document> documents = new ArrayList<>();
         for (int i = 0; i < values.length; i++) {
-            documents.add(doc(startTimestamp + (i * 1000L), tsid(dim), values[i]));
+            documents.add(doc(startTimestamp + (i * 1000L), tsid(dim), values[i], dim));
         }
         return documents;
     }
@@ -170,12 +168,20 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         return idBuilder.withHash();
     }
 
-    private Document doc(long timestamp, BytesReference tsid, long counterValue) {
+    private Document doc(long timestamp, BytesReference tsid, long counterValue, String dim) {
         Document doc = new Document();
         doc.add(new SortedNumericDocValuesField("@timestamp", timestamp));
         doc.add(new SortedDocValuesField("_tsid", tsid.toBytesRef()));
         doc.add(new NumericDocValuesField("counter_field", counterValue));
+        doc.add(new SortedDocValuesField("dim", new BytesRef(dim)));
         return doc;
+    }
+
+    private MappedFieldType dimensionField(String name) {
+        return new KeywordFieldMapper.Builder(name, IndexVersion.current()).dimension(true)
+            .docValues(true)
+            .build(MapperBuilderContext.root(true, true))
+            .fieldType();
     }
 
     private MappedFieldType counterField(String name) {

@@ -263,6 +263,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     public record ProcessorStat(String name, String type, Stats stats) {
 
         private static List<ProcessorStat> merge(List<ProcessorStat> first, List<ProcessorStat> second) {
+            // in the simple case, this amounts to summing up the stats in the first and second and returning
+            // a new list of stats that contains the sum. but there are few not-quite-so-simple cases, too,
+            // so this logic is a little bit intricate.
 
             // total up the stats across both sides
             long firstIngestCountTotal = 0;
@@ -282,11 +285,42 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                 return first;
             }
 
-            var merged = new ArrayList<ProcessorStat>(first.size());
-            for (var i = 0; i < first.size(); i++) {
-                merged.add(new ProcessorStat(first.get(i).name, first.get(i).type, Stats.merge(first.get(i).stats, second.get(i).stats)));
+            // the list of stats can be different depending on the exact order of application of the cluster states
+            // that apply a change to a pipeline -- figure out if they match or not (usually they match!!!)
+            boolean match = true;
+            if (first.size() != second.size()) {
+                match = false;
+            } else {
+                for (var i = 0; i < first.size(); i++) {
+                    ProcessorStat ps1 = first.get(i);
+                    ProcessorStat ps2 = second.get(i);
+                    if (ps1.name.equals(ps2.name) == false || ps1.type.equals(ps2.type) == false) {
+                        match = false;
+                        break;
+                    }
+                }
             }
-            return merged;
+
+            if (match) {
+                // the expected, simple case. we can merge the processor stats.
+                var merged = new ArrayList<ProcessorStat>(first.size());
+                for (var i = 0; i < first.size(); i++) {
+                    ProcessorStat ps1 = first.get(i);
+                    ProcessorStat ps2 = second.get(i);
+                    merged.add(new ProcessorStat(ps1.name, ps1.type, Stats.merge(ps1.stats, ps2.stats)));
+                }
+                return merged;
+            } else {
+                // the unfortunate case. the lists are different, so they can't be meaningfully merged without more information.
+                // note that IngestService#innerUpdatePipelines resets the counts if there's enough variation on an update,
+                // so we'll favor the side with the *lower* count as being the 'newest' -- the assumption is that the higher side is
+                // just a cluster state application away from itself being reset to zero anyway.
+                if (firstIngestCountTotal < secondIngestCountTotal) {
+                    return first;
+                } else {
+                    return second;
+                }
+            }
         }
     }
 }

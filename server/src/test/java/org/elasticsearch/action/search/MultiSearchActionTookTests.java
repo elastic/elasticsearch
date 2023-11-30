@@ -96,20 +96,16 @@ public class MultiSearchActionTookTests extends ESTestCase {
         action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
-                try {
-                    if (controlledClock) {
-                        assertThat(
-                            TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
-                            equalTo(multiSearchResponse.getTook().getMillis())
-                        );
-                    } else {
-                        assertThat(
-                            multiSearchResponse.getTook().getMillis(),
-                            greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
-                        );
-                    }
-                } finally {
-                    multiSearchResponse.decRef();
+                if (controlledClock) {
+                    assertThat(
+                        TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
+                        equalTo(multiSearchResponse.getTook().getMillis())
+                    );
+                } else {
+                    assertThat(
+                        multiSearchResponse.getTook().getMillis(),
+                        greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
+                    );
                 }
             }
 
@@ -151,18 +147,21 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 requests.add(request);
                 commonExecutor.execute(() -> {
                     counter.decrementAndGet();
-                    listener.onResponse(
-                        new SearchResponse(
-                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                            null,
-                            0,
-                            0,
-                            0,
-                            0L,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
+                    var resp = new SearchResponse(
+                        InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0L,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
                     );
+                    try {
+                        listener.onResponse(resp);
+                    } finally {
+                        resp.decRef();
+                    }
                 });
             }
 

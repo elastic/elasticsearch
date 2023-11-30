@@ -52,7 +52,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         }
         for (int i = 0; i < numSearches; i++) {
             try {
-                responses[i].get();
+                responses[i].get().decRef();
             } catch (Exception t) {}
         }
         assertBusy(

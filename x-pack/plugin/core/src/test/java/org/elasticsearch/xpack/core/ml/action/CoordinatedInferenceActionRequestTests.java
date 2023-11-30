@@ -36,7 +36,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
 
     @Override
     protected CoordinatedInferenceAction.Request createTestInstance() {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 1)) {
             case 0 -> {
                 var inferenceConfig = randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate();
                 var previouslyLicensed = randomBoolean() ? null : randomBoolean();
@@ -70,15 +70,6 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
                 );
                 request.setHighPriority(highPriority);
                 yield request;
-            }
-            case 2 -> {
-                var taskSettings = randomBoolean() ? null : randomMap();
-
-                yield CoordinatedInferenceAction.Request.forInferenceService(
-                    randomAlphaOfLength(6),
-                    List.of(randomAlphaOfLength(6)),
-                    taskSettings
-                );
             }
             default -> throw new UnsupportedOperationException();
         };

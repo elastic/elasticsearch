@@ -42,10 +42,6 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             UNKNOWN
         };
 
-        public static Request forInferenceService(String modelId, List<String> inputs, @Nullable Map<String, Object> taskSettings) {
-            return new Request(modelId, inputs, taskSettings, null, null, null, null, false, RequestModelType.INFERENCE_SERVICE_MODEL);
-        }
-
         public static Request forTextInput(
             String modelId,
             List<String> inputs,

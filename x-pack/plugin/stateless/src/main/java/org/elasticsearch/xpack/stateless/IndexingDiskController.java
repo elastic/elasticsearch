@@ -64,9 +64,10 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
     );
 
     /** How frequently we check disk usage (default: 5 seconds). */
-    public static final Setting<TimeValue> INDEXING_DISK_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
+    public static final Setting<TimeValue> INDEXING_DISK_INTERVAL_TIME_SETTING = Setting.timeSetting(
         "indices.disk.interval",
         TimeValue.timeValueSeconds(5),
+        TimeValue.MINUS_ONE,
         Setting.Property.NodeScope
     );
 
@@ -146,29 +147,38 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
             );
         }
         this.reservedBytes = reservedBytes;
-        logger.info(
-            "indexing disk controller will flush and throttle indexing shards if available disk space drops below [{}/{} bytes] on [{}/{}] "
-                + "total [indexing buffer size={}/{}]",
-            reservedBytes,
-            reservedBytes.getBytes(),
-            totalBytes,
-            totalBytes.getBytes(),
-            indicesService.getTotalIndexingBufferBytes(),
-            indicesService.getTotalIndexingBufferBytes().getBytes()
-        );
-        this.monitor = new ShardsDiskUsageMonitor();
+        if (interval.millis() > 0) {
+            logger.info(
+                "indexing disk controller will flush and throttle indexing shards "
+                    + "if available disk space drops below [{}/{} bytes] on [{}/{}] total [indexing buffer size={}/{}]",
+                reservedBytes,
+                reservedBytes.getBytes(),
+                totalBytes,
+                totalBytes.getBytes(),
+                indicesService.getTotalIndexingBufferBytes(),
+                indicesService.getTotalIndexingBufferBytes().getBytes()
+            );
+            this.monitor = new ShardsDiskUsageMonitor();
+        } else {
+            logger.warn("indexing disk controller is disabled");
+            this.monitor = null;
+        }
     }
 
     @Override
     protected void doStart() {
         assert Thread.holdsLock(lifecycle);
-        scheduledMonitorFuture = threadPool.scheduleWithFixedDelay(monitor, interval, threadPool.generic());
+        if (interval.millis() > 0) {
+            scheduledMonitorFuture = threadPool.scheduleWithFixedDelay(monitor, interval, threadPool.generic());
+        }
     }
 
     @Override
     protected void doStop() {
         assert Thread.holdsLock(lifecycle);
-        scheduledMonitorFuture.cancel();
+        if (scheduledMonitorFuture != null) {
+            scheduledMonitorFuture.cancel();
+        }
     }
 
     @Override

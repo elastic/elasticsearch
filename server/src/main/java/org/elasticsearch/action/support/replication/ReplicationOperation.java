@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -431,8 +430,8 @@ public class ReplicationOperation<
             return null;  // not waiting for any shards
         }
         final IndexShardRoutingTable shardRoutingTable = primary.getReplicationGroup().getRoutingTable();
-        Tuple<Boolean, Integer> enoughShardsActive = waitForActiveShards.enoughShardsActive(shardRoutingTable);
-        if (enoughShardsActive.v1()) {
+        ActiveShardCount.EnoughShards enoughShardsActive = waitForActiveShards.enoughShardsActive(shardRoutingTable);
+        if (enoughShardsActive.enoughShards()) {
             return null;
         } else {
             final String resolvedShards = waitForActiveShards == ActiveShardCount.ALL
@@ -443,7 +442,7 @@ public class ReplicationOperation<
                     + "request [{}]",
                 shardId,
                 waitForActiveShards,
-                enoughShardsActive.v2(),
+                enoughShardsActive.currentActiveShards(),
                 resolvedShards,
                 opType,
                 request
@@ -451,7 +450,7 @@ public class ReplicationOperation<
             return "Not enough active copies to meet shard count of ["
                 + waitForActiveShards
                 + "] (have "
-                + enoughShardsActive.v2()
+                + enoughShardsActive.currentActiveShards()
                 + ", needed "
                 + resolvedShards
                 + ").";

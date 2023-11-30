@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 
@@ -154,7 +153,7 @@ public record ActiveShardCount(int value) implements Writeable {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
             for (int i = 0; i < indexRoutingTable.size(); i++) {
-                if (waitForActiveShards.enoughShardsActive(indexRoutingTable.shard(i)).v1() == false) {
+                if (waitForActiveShards.enoughShardsActive(indexRoutingTable.shard(i)).enoughShards() == false) {
                     // not enough active shard copies yet
                     return false;
                 }
@@ -165,23 +164,30 @@ public record ActiveShardCount(int value) implements Writeable {
     }
 
     /**
-     * Returns a tuple where the first value is true iff the active shard count in the shard routing table is enough
+     * Record that captures the decision of {@link #enoughShardsActive(IndexShardRoutingTable)}.
+     * @param enoughShards the decision of whether the active shard count is enough to meet the required shard count of this instance
+     * @param currentActiveShards the currently active shards considered for making the decision
+     */
+    public record EnoughShards(boolean enoughShards, int currentActiveShards) {};
+
+    /**
+     * Returns a {@link EnoughShards} record where the first value is true iff the active shard count in the shard routing table is enough
      * to meet the required shard count represented by this instance, and the second value is the active shard count.
      */
-    public Tuple<Boolean, Integer> enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
+    public EnoughShards enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
         final int activeShardCount = shardRoutingTable.activeShards().size();
         if (this == ActiveShardCount.ALL) {
-            return new Tuple<>(activeShardCount == shardRoutingTable.size(), activeShardCount);
+            return new EnoughShards(activeShardCount == shardRoutingTable.size(), activeShardCount);
         } else if (value == 0) {
-            return new Tuple<>(true, activeShardCount);
+            return new EnoughShards(true, activeShardCount);
         } else if (value == 1) {
             if (shardRoutingTable.hasSearchShards()) {
-                return new Tuple<>(shardRoutingTable.getActiveSearchShardCount() >= 1, shardRoutingTable.getActiveSearchShardCount());
+                return new EnoughShards(shardRoutingTable.getActiveSearchShardCount() >= 1, shardRoutingTable.getActiveSearchShardCount());
             } else {
-                return new Tuple<>(activeShardCount >= 1, activeShardCount);
+                return new EnoughShards(activeShardCount >= 1, activeShardCount);
             }
         } else {
-            return new Tuple<>(shardRoutingTable.getActiveSearchShardCount() >= value, shardRoutingTable.getActiveSearchShardCount());
+            return new EnoughShards(shardRoutingTable.getActiveSearchShardCount() >= value, shardRoutingTable.getActiveSearchShardCount());
         }
     }
 

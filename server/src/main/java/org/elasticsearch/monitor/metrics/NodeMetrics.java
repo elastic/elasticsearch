@@ -234,9 +234,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() throws IOException {
-        stats.stopRefreshing();
-    }
+    protected void doClose() throws IOException {}
 
     /**
      * A very simple NodeStats cache that allows non-blocking refresh calls

@@ -11,6 +11,7 @@ package org.elasticsearch.search.simple;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -515,7 +516,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             prepareIndex("test_count_2").setId("6").setSource("field", "value_2")
         );
         assertNoFailuresAndResponse(
-            prepareSearch("test_count_1", "test_count_2").setTrackTotalHits(true).setSize(0),
+            prepareSearch("test_count_1", "test_count_2").setTrackTotalHits(true).setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0),
             response -> {
                 assertThat(response.getHits().getTotalHits().value, equalTo(11L));
                 assertThat(response.getHits().getHits().length, equalTo(0));

@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
@@ -567,11 +566,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     static class CountOnlyQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         AtomicReference<TotalHits.Relation> relationAtomicReference = new AtomicReference<>(TotalHits.Relation.EQUAL_TO);
         LongAdder totalHits = new LongAdder();
-        private final int trackUpTo;
         private final SearchProgressListener progressListener;
         public CountOnlyQueryPhaseResultConsumer(SearchRequest request, Executor executor, CircuitBreaker circuitBreaker, SearchPhaseController controller, Supplier<Boolean> isCanceled, SearchProgressListener progressListener, int numShards, Consumer<Exception> onPartialMergeFailure) {
             super(request, executor, circuitBreaker, controller, isCanceled, progressListener, numShards, onPartialMergeFailure);
-            trackUpTo = request.resolveTrackTotalHitsUpTo();
             this.progressListener = progressListener;
         }
 
@@ -591,22 +588,22 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         @Override
         public SearchPhaseController.ReducedQueryPhase reduce() throws Exception {
-            TopDocsStats stats = new TopDocsStats(trackUpTo);
-            stats.add(
-                new TopDocsAndMaxScore(
-                    new TopDocs(new TotalHits(totalHits.sum(), relationAtomicReference.get()), new ScoreDoc[0]),
-                    Float.NEGATIVE_INFINITY
-                ), false, false);
-            SearchPhaseController.ReducedQueryPhase reducePhase = SearchPhaseController.reducedQueryPhase(
-                List.of(),
-                List.of(),
-                List.of(),
-                stats,
+            SearchPhaseController.ReducedQueryPhase reducePhase = new SearchPhaseController.ReducedQueryPhase(
+                new TotalHits(totalHits.sum(), relationAtomicReference.get()),
                 0,
+                Float.NEGATIVE_INFINITY,
+                false,
                 false,
                 null,
                 null,
-                true
+                null,
+                SearchPhaseController.SortedTopDocs.EMPTY,
+                null,
+                null,
+                1,
+                0,
+                0,
+                false
             );
             if (progressListener != SearchProgressListener.NOOP) {
                 progressListener.notifyFinalReduce(

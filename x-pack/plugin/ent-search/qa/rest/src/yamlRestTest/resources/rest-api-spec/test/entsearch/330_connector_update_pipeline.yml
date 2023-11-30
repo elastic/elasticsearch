@@ -17,7 +17,7 @@ setup:
 "Update Connector Pipeline - 404 status code returned when connector doesn't exist":
   - do:
       catch: "missing"
-      connector.update_scheduling:
+      connector.update_pipeline:
         connector_id: test-non-existent-connector
         body:
           pipeline:

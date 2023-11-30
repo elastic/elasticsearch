@@ -20,6 +20,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -29,6 +31,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -161,6 +164,30 @@ public class ConnectorIndexService {
                     listener.onFailure(e);
                 }
             });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public void updateConnectorPipeline(UpdateConnectorPipelineAction.Request request, ActionListener<UpdateResponse> listener) {
+        try {
+            String connectorId = request.getConnectorId();
+            final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                    .id(connectorId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
+            );
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }

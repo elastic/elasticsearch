@@ -87,6 +87,15 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         return PARSER.parse(parser, null);
     }
 
+    public XContentBuilder toXContentConnectorUpdateRequest(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        {
+            builder.field(Connector.SCHEDULING_FIELD.getPreferredName(), this);
+        }
+        builder.endObject();
+        return builder;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

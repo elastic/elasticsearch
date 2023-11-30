@@ -291,11 +291,34 @@ allprojects {
     }
   }
 
+  def ccIncompatibleProjects = [
+    ':modules:reindex',
+    ':qa:repository-multi-version',
+    ':qa:rolling-upgrade-legacy',
+    ':qa:verify-version-constants',
+
+    ':plugins:discovery-ec2',
+    ':plugins:discovery-ec2:qa:amazon-ec2',
+    ':qa:repository-multi-version',
+    ':x-pack:plugin:ccr',
+    ':x-pack:plugin:ccr:qa:downgrade-to-basic-license',
+    ':x-pack:plugin:esql',
+    ':plugins:discovery-gce:qa:gce',
+    ':x-pack:plugin:snapshot-repo-test-kit',
+    ':x-pack:plugin:snapshot-repo-test-kit:qa:hdfs',
+    ':x-pack:qa:repository-old-versions',
+    ':plugins:discovery-gce',
+    ':x-pack:qa:rolling-upgrade',
+    ':x-pack:plugin:shutdown',
+    ':x-pack:plugin:shutdown:qa:rolling-upgrade',
+    ':x-pack:qa:rolling-upgrade',
+    ':x-pack:plugin:esql:qa:server:mixed-cluster'
+  ]
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
         tasks.register('checkPart4') { dependsOn 'check' }
-      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") ||  project.path.contains("smoke-test")) {
+      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
         tasks.register('checkPart3') { dependsOn 'check' }
       } else if (project.path.contains("multi-node")) {
         tasks.register('checkPart5') { dependsOn 'check' }
@@ -307,6 +330,15 @@ allprojects {
     }
 
     tasks.register('functionalTests') { dependsOn 'check' }
+
+    tasks.register("checkCC") {
+      if (plugins.hasPlugin("elasticsearch.test.fixtures") == false) {
+       if(ccIncompatibleProjects.contains(project.path) == false) {
+          println "${project.path} added to cc compatible check"
+          dependsOn "check"
+        }
+      }
+    }
   }
 
   /*

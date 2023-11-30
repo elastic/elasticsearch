@@ -36,6 +36,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.ONLY_SCORE_PRUNED_TOKENS_FIELD;
 import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.RATIO_THRESHOLD_FIELD;
 import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.WEIGHT_THRESHOLD_FIELD;
 
@@ -51,12 +52,20 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final int ratioThreshold;
     private final float weightThreshold;
+    private final boolean onlyScorePrunedTokens;
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
-       this(fieldName, modelText, modelId, -1, 1f);
+        this(fieldName, modelText, modelId, -1, 0f, false);
     }
 
-    public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId, int ratioThreshold, float weightThreshold) {
+    public TextExpansionQueryBuilder(
+        String fieldName,
+        String modelText,
+        String modelId,
+        int ratioThreshold,
+        float weightThreshold,
+        boolean onlyScorePrunedTokens
+    ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a fieldName");
         }
@@ -67,8 +76,14 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             throw new IllegalArgumentException("[" + NAME + "] requires a " + MODEL_ID.getPreferredName() + " value");
         }
         if (weightThreshold < 0 || weightThreshold > 1) {
-            throw new IllegalArgumentException("[" + NAME + "] requires the "
-                    + WEIGHT_THRESHOLD_FIELD.getPreferredName() + " to be between 0 and 1, got " + weightThreshold);
+            throw new IllegalArgumentException(
+                "["
+                    + NAME
+                    + "] requires the "
+                    + WEIGHT_THRESHOLD_FIELD.getPreferredName()
+                    + " to be between 0 and 1, got "
+                    + weightThreshold
+            );
         }
 
         this.fieldName = fieldName;
@@ -76,6 +91,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.modelId = modelId;
         this.ratioThreshold = ratioThreshold;
         this.weightThreshold = weightThreshold;
+        this.onlyScorePrunedTokens = onlyScorePrunedTokens;
     }
 
     public TextExpansionQueryBuilder(StreamInput in) throws IOException {
@@ -86,9 +102,11 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         if (in.getTransportVersion().onOrAfter(TransportVersions.WEIGHTED_TOKENS_QUERY_ADDED)) {
             this.ratioThreshold = in.readInt();
             this.weightThreshold = in.readFloat();
+            this.onlyScorePrunedTokens = in.readBoolean();
         } else {
             this.ratioThreshold = 0;
             this.weightThreshold = 1f;
+            this.onlyScorePrunedTokens = false;
         }
     }
 
@@ -98,6 +116,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.modelId = other.modelId;
         this.ratioThreshold = other.ratioThreshold;
         this.weightThreshold = other.weightThreshold;
+        this.onlyScorePrunedTokens = other.onlyScorePrunedTokens;
         this.boost = other.boost;
         this.queryName = other.queryName;
         this.weightedTokensSupplier = weightedTokensSupplier;
@@ -126,6 +145,16 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         return weightThreshold;
     }
 
+    /**
+     * Returns whether the filtering process retains tokens identified as non-relevant based on the specified thresholds
+     * (ratio and weight). When {@code true}, only non-relevant tokens are considered for matching and scoring documents.
+     * Enabling this option is valuable for re-scoring top hits retrieved from a {@link WeightedTokensQueryBuilder} with
+     * active thresholds.
+     */
+    public boolean onlyScorePrunedTokens() {
+        return onlyScorePrunedTokens;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -147,6 +176,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         if (out.getTransportVersion().onOrAfter(TransportVersions.WEIGHTED_TOKENS_QUERY_ADDED)) {
             out.writeInt(ratioThreshold);
             out.writeFloat(weightThreshold);
+            out.writeBoolean(onlyScorePrunedTokens);
         }
     }
 
@@ -158,7 +188,12 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         builder.field(MODEL_ID.getPreferredName(), modelId);
         if (ratioThreshold > 0) {
             builder.field(RATIO_THRESHOLD_FIELD.getPreferredName(), ratioThreshold);
+        }
+        if (weightThreshold != 0) {
             builder.field(WEIGHT_THRESHOLD_FIELD.getPreferredName(), weightThreshold);
+        }
+        if (onlyScorePrunedTokens) {
+            builder.field(ONLY_SCORE_PRUNED_TOKENS_FIELD.getPreferredName(), onlyScorePrunedTokens);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
@@ -229,15 +264,22 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         QueryRewriteContext queryRewriteContext
     ) throws IOException {
         if (ratioThreshold > 0) {
-            return new WeightedTokensQueryBuilder(fieldName, textExpansionResults.getWeightedTokens(),
-                    ratioThreshold, weightThreshold);
+            return new WeightedTokensQueryBuilder(
+                fieldName,
+                textExpansionResults.getWeightedTokens(),
+                ratioThreshold,
+                weightThreshold,
+                onlyScorePrunedTokens
+            );
         }
-
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
+        if (onlyScorePrunedTokens && ratioThreshold <= 0) {
+            return QueryBuilders.boolQuery().filter(boolQuery);
+        }
         return boolQuery;
     }
 
@@ -253,12 +295,13 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             && Objects.equals(modelId, other.modelId)
             && ratioThreshold == other.ratioThreshold
             && Float.compare(weightThreshold, other.weightThreshold) == 0
+            && onlyScorePrunedTokens == other.onlyScorePrunedTokens
             && Objects.equals(weightedTokensSupplier, other.weightedTokensSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, modelText, modelId, ratioThreshold, weightThreshold, weightedTokensSupplier);
+        return Objects.hash(fieldName, modelText, modelId, ratioThreshold, weightThreshold, onlyScorePrunedTokens, weightedTokensSupplier);
     }
 
     public static TextExpansionQueryBuilder fromXContent(XContentParser parser) throws IOException {
@@ -267,6 +310,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         String modelId = null;
         int ratioThreshold = 0;
         float weightThreshold = 1f;
+        boolean onlyScorePrunedTokens = false;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
@@ -289,6 +333,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                             ratioThreshold = parser.intValue();
                         } else if (WEIGHT_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             weightThreshold = parser.floatValue();
+                        } else if (ONLY_SCORE_PRUNED_TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            onlyScorePrunedTokens = parser.booleanValue();
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -321,8 +367,14 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        TextExpansionQueryBuilder queryBuilder = new TextExpansionQueryBuilder(fieldName, modelText,
-                modelId, ratioThreshold, weightThreshold);
+        TextExpansionQueryBuilder queryBuilder = new TextExpansionQueryBuilder(
+            fieldName,
+            modelText,
+            modelId,
+            ratioThreshold,
+            weightThreshold,
+            onlyScorePrunedTokens
+        );
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
         return queryBuilder;

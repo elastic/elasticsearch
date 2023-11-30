@@ -96,7 +96,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                 // All nodes are Version.CURRENT, ≥8.11.0, so we definitely have nodes_versions
                 assertFalse(description, hasTransportVersions);
                 assertTrue(description, hasNodesVersions);
-                assertThat(description, versionsByNodeId.values(), everyItem(equalTo(Version.CURRENT)));
+                assertThat(description, versionsByNodeId.values(), everyItem(equalTo(Build.current().version())));
             }
         }
 

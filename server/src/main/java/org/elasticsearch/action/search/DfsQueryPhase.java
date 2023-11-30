@@ -66,7 +66,7 @@ final class DfsQueryPhase extends SearchPhase {
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
-        context.addReleasable(queryResult);
+        context.addReleasable(queryResult::decRef);
     }
 
     @Override

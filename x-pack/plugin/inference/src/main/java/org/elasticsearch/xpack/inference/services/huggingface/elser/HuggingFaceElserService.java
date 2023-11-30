@@ -14,8 +14,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -89,12 +89,7 @@ public class HuggingFaceElserService implements InferenceService {
     }
 
     @Override
-    public void infer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        ActionListener<List<? extends InferenceResults>> listener
-    ) {
+    public void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener) {
         if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
             listener.onFailure(
                 new ElasticsearchStatusException(

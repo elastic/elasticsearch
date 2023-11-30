@@ -52,7 +52,6 @@ public class HttpStatsIT extends HttpSmokeTestCase {
         assertHttpStats(new XContentTestUtils.JsonMapView((Map<String, Object>) nodesMap.get(nodeId)));
     }
 
-    @SuppressWarnings("unchecked")
     public void testClusterInfoHttpStats() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(3);
         performHttpRequests();

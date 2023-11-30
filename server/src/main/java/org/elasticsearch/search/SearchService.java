@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -134,7 +135,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -544,7 +544,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }));
     }
 
-    private <T> void ensureAfterSeqNoRefreshed(
+    private <T extends RefCounted> void ensureAfterSeqNoRefreshed(
         IndexShard shard,
         ShardSearchRequest request,
         CheckedSupplier<T, Exception> executable,
@@ -648,8 +648,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private static <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
-        executor.execute(ActionRunnable.supply(listener, executable));
+    private static <T extends RefCounted> void runAsync(
+        Executor executor,
+        CheckedSupplier<T, Exception> executable,
+        ActionListener<T> listener
+    ) {
+        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
     }
 
     /**
@@ -686,6 +690,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+                // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                 context.queryResult().incRef();
                 return context.queryResult();
             }
@@ -714,7 +719,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             executor.success();
         }
         // This will incRef the QuerySearchResult when it gets created
-        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        return QueryFetchSearchResult.of(context.queryResult(), context.fetchResult());
     }
 
     public void executeQueryPhase(
@@ -783,6 +788,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                     queryResult.setRescoreDocIds(rescoreDocIds);
                     readerContext.setRescoreDocIds(rescoreDocIds);
+                    // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                     queryResult.incRef();
                     return queryResult;
                 } catch (Exception e) {
@@ -865,7 +871,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     executor.success();
                 }
-                return searchContext.fetchResult();
+                var fetchResult = searchContext.fetchResult();
+                // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
+                fetchResult.incRef();
+                return fetchResult;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 // we handle the failure in the failure listener below
@@ -1077,7 +1086,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 request.getClusterAlias()
             );
             ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
-            int maximumNumberOfSlices = determineMaximumNumberOfSlices(executor, request, resultsType);
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1087,7 +1095,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 fetchPhase,
                 lowLevelCancellation,
                 executor,
-                maximumNumberOfSlices,
+                resultsType,
+                enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice
             );
             // we clone the query shard context here just for rewriting otherwise we
@@ -1106,27 +1115,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
-    }
-
-    int determineMaximumNumberOfSlices(ExecutorService executor, ShardSearchRequest request, ResultsType resultsType) {
-        return executor instanceof ThreadPoolExecutor tpe
-            && isParallelCollectionSupportedForResults(resultsType, request.source(), this.enableQueryPhaseParallelCollection)
-                ? tpe.getMaximumPoolSize()
-                : 1;
-    }
-
-    static boolean isParallelCollectionSupportedForResults(
-        ResultsType resultsType,
-        SearchSourceBuilder source,
-        boolean isQueryPhaseParallelismEnabled
-    ) {
-        if (resultsType == ResultsType.DFS) {
-            return true;
-        }
-        if (resultsType == ResultsType.QUERY && isQueryPhaseParallelismEnabled) {
-            return source == null || source.supportsParallelCollection();
-        }
-        return false;
     }
 
     private void freeAllContextForIndex(Index index) {
@@ -1579,14 +1567,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
         return indicesService.buildAliasFilter(state, index, resolvedExpressions);
-    }
-
-    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchShardResponse> listener) {
-        try {
-            listener.onResponse(canMatch(request));
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
     }
 
     public void canMatch(CanMatchNodeRequest request, ActionListener<CanMatchNodeResponse> listener) {

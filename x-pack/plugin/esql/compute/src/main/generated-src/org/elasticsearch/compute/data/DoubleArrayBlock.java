@@ -80,6 +80,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
     @Override
     public DoubleBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values
@@ -135,11 +136,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

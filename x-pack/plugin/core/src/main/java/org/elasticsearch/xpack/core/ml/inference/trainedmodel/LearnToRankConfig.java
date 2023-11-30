@@ -61,6 +61,10 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
         return LENIENT_PARSER.apply(parser, null).build();
     }
 
+    public static Builder builder(LearnToRankConfig config) {
+        return new Builder(config);
+    }
+
     private final List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders;
 
     public LearnToRankConfig(Integer numTopFeatureImportanceValues, List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders) {

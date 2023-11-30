@@ -81,6 +81,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
+    static final List<Attribute> NO_FIELDS = List.of(
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, false)
+    );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
@@ -142,7 +145,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = context.indexResolution().get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes);
+            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes);
         }
 
     }
@@ -256,8 +259,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<NamedExpression> enrichFields,
             EnrichPolicy policy
         ) {
-            Map<String, Attribute> fieldMap = mapping.stream().collect(Collectors.toMap(NamedExpression::name, Function.identity()));
-            fieldMap.remove(policy.getMatchField());
+            Set<String> policyEnrichFieldSet = new HashSet<>(policy.getEnrichFields());
+            Map<String, Attribute> fieldMap = mapping.stream()
+                .filter(e -> policyEnrichFieldSet.contains(e.name()))
+                .collect(Collectors.toMap(NamedExpression::name, Function.identity()));
             List<NamedExpression> result = new ArrayList<>();
             if (enrichFields == null || enrichFields.isEmpty()) {
                 // use the policy to infer the enrich fields

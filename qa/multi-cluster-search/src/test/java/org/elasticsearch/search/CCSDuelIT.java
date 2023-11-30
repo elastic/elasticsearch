@@ -874,7 +874,7 @@ public class CCSDuelIT extends ESRestTestCase {
             assertNull(response.evaluate("aggregations"));
             assertNull(response.evaluate("suggest"));
             assertThat(response.evaluateArraySize("hits.hits"), greaterThan(0));
-            assertThat(response.evaluate("_shards.failed"), greaterThan(2));
+            assertThat(response.evaluate("_shards.failed"), greaterThanOrEqualTo(2));
         }, compareAsyncAndSyncResponses);
     }
 

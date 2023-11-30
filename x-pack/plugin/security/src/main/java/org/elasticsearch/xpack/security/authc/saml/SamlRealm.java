@@ -1032,11 +1032,22 @@ public final class SamlRealm extends Realm implements Releasable {
                         + "] for ["
                         + patternAttributeSetting.name(realmConfig)
                         + "]",
-                    attributes -> attributes.getAttributeValues(attributeName)
-                        .stream()
-                        .map(s -> s.split(Pattern.quote(delimiter)))
-                        .flatMap(Arrays::stream)
-                        .collect(Collectors.toList())
+                    attributes -> {
+                        List<String> attributeValues = attributes.getAttributeValues(attributeName);
+                        if (attributeValues.size() > 1) {
+                            throw SamlUtils.samlException(
+                                "Expected single string value for attribute: ["
+                                    + attributeName
+                                    + "], but got list with "
+                                    + attributeValues.size()
+                                    + " values"
+                            );
+                        }
+                        return attributeValues.stream()
+                            .map(s -> s.split(Pattern.quote(delimiter)))
+                            .flatMap(Arrays::stream)
+                            .collect(Collectors.toList());
+                    }
                 );
             }
             return AttributeParser.forSetting(logger, patternAttributeSetting, realmConfig, required);

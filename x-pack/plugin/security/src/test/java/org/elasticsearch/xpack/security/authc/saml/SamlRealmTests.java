@@ -609,7 +609,43 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_patterns.groups"));
     }
 
-    public void testAttributeSelectionWithRegex() throws Exception {
+    public void testAttributeSelectionWithSplitAndListThrowsSecurityException() {
+        String delimiter = ",";
+
+        final Settings settings = Settings.builder()
+            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
+            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiter.groups", delimiter)
+            .build();
+
+        final RealmConfig config = buildConfig(settings);
+
+        final SamlRealmSettings.PatternDelimiterAttributeSetting groupSetting = new SamlRealmSettings.PatternDelimiterAttributeSetting(
+            "groups"
+        );
+        final SamlRealm.AttributeParser parser = SamlRealm.AttributeParser.forSetting(logger, groupSetting, config, false);
+
+        final SamlAttributes attributes = new SamlAttributes(
+            new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
+            randomAlphaOfLength(16),
+            Collections.singletonList(
+                new SamlAttributes.SamlAttribute(
+                    "departments",
+                    "departments",
+                    List.of("engineering", String.join(delimiter, "elasticsearch-admins", "employees"))
+                )
+            )
+        );
+
+        ElasticsearchSecurityException securityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> parser.getAttribute(attributes)
+        );
+
+        assertThat(securityException.getMessage(), containsString("departments"));
+
+    }
+
+    public void testAttributeSelectionWithRegex() {
         final boolean useFriendlyName = randomBoolean();
         final Settings settings = Settings.builder()
             .put(REALM_SETTINGS_PREFIX + ".attributes.principal", useFriendlyName ? "mail" : "urn:oid:0.9.2342.19200300.100.1.3")

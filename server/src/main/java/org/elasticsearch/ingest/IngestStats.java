@@ -263,6 +263,25 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     public record ProcessorStat(String name, String type, Stats stats) {
 
         private static List<ProcessorStat> merge(List<ProcessorStat> first, List<ProcessorStat> second) {
+
+            // total up the stats across both sides
+            long firstIngestCountTotal = 0;
+            for (ProcessorStat ps : first) {
+                firstIngestCountTotal += ps.stats.ingestCount;
+            }
+
+            long secondIngestCountTotal = 0;
+            for (ProcessorStat ps : second) {
+                secondIngestCountTotal += ps.stats.ingestCount;
+            }
+
+            // early return in the case of a non-ingest node (the sum of the stats will be zero, so just return the other)
+            if (firstIngestCountTotal == 0) {
+                return second;
+            } else if (secondIngestCountTotal == 0) {
+                return first;
+            }
+
             var merged = new ArrayList<ProcessorStat>(first.size());
             for (var i = 0; i < first.size(); i++) {
                 merged.add(new ProcessorStat(first.get(i).name, first.get(i).type, Stats.merge(first.get(i).stats, second.get(i).stats)));

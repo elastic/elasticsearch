@@ -219,7 +219,9 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         JobResultsPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID);
         builder.persistInfluencers(influencers).executeRequest();
-        assertEquals(0, builder.getBulkRequest().numberOfActions());
+        try (BulkRequest bulkRequest = builder.getBulkRequest()) {
+            assertEquals(0, bulkRequest.numberOfActions());
+        }
     }
 
     public void testBulkRequestExecutesWhenReachMaxDocs() {

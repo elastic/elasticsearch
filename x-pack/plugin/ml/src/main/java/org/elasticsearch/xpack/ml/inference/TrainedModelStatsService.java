@@ -209,20 +209,21 @@ public class TrainedModelStatsService {
         if (stats.isEmpty()) {
             return;
         }
-        BulkRequest bulkRequest = new BulkRequest();
-        stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(bulkRequest::add);
-        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        if (bulkRequest.requests().isEmpty()) {
-            return;
-        }
-        if (shouldStop()) {
-            return;
-        }
-        String jobPattern = stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(","));
-        try {
+        String jobPattern = "";
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(bulkRequest::add);
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            if (bulkRequest.requests().isEmpty()) {
+                return;
+            }
+            if (shouldStop()) {
+                return;
+            }
+            jobPattern = stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(","));
+
             resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobPattern, () -> shouldStop() == false, (msg) -> {});
         } catch (ElasticsearchException ex) {
-            logger.warn(() -> "failed to store stats for [" + jobPattern + "]", ex);
+            logger.warn("failed to store stats for [" + jobPattern + "]", ex);
         }
     }
 

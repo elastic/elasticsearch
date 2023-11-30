@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,9 +61,11 @@ public class AnnotationPersister {
     public Tuple<String, Annotation> persistAnnotation(@Nullable String annotationId, Annotation annotation) {
         Objects.requireNonNull(annotation);
         String jobId = annotation.getJobId();
-        BulkResponse bulkResponse = bulkPersisterBuilder(jobId).persistAnnotation(annotationId, annotation).executeRequest();
-        assert bulkResponse.getItems().length == 1;
-        return Tuple.tuple(bulkResponse.getItems()[0].getId(), annotation);
+        try (Builder builder = bulkPersisterBuilder(jobId)) {
+            BulkResponse bulkResponse = builder.persistAnnotation(annotationId, annotation).executeRequest();
+            assert bulkResponse.getItems().length == 1;
+            return Tuple.tuple(bulkResponse.getItems()[0].getId(), annotation);
+        }
     }
 
     public Builder bulkPersisterBuilder(String jobId) {
@@ -73,7 +76,7 @@ public class AnnotationPersister {
         return new Builder(jobId, shouldRetry);
     }
 
-    public class Builder {
+    public class Builder implements Releasable {
 
         private final String jobId;
         private BulkRequest bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
@@ -109,8 +112,9 @@ public class AnnotationPersister {
             if (bulkRequest.numberOfActions() == 0) {
                 return null;
             }
+            BulkResponse bulkResponse;
             logger.trace("[{}] ES API CALL: bulk request with {} actions", () -> jobId, () -> bulkRequest.numberOfActions());
-            BulkResponse bulkResponse = resultsPersisterService.bulkIndexWithRetry(
+            bulkResponse = resultsPersisterService.bulkIndexWithRetry(
                 bulkRequest,
                 jobId,
                 shouldRetry,
@@ -118,6 +122,11 @@ public class AnnotationPersister {
             );
             bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             return bulkResponse;
+        }
+
+        @Override
+        public void close() {
+            bulkRequest.close();
         }
     }
 }

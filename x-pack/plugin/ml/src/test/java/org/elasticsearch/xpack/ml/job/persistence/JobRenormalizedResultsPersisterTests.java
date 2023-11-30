@@ -27,31 +27,32 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
 
     public void testUpdateBucket() {
         BucketNormalizable bn = createBucketNormalizable();
-        JobRenormalizedResultsPersister persister = createJobRenormalizedResultsPersister();
-        persister.updateBucket(bn);
+        try (JobRenormalizedResultsPersister persister = createJobRenormalizedResultsPersister()) {
+            persister.updateBucket(bn);
 
-        assertEquals(3, persister.getBulkRequest().numberOfActions());
-        assertEquals("foo-index", persister.getBulkRequest().requests().get(0).index());
+            assertEquals(3, persister.getBulkRequest().numberOfActions());
+            assertEquals("foo-index", persister.getBulkRequest().requests().get(0).index());
+        }
     }
 
     public void testExecuteRequestResetsBulkRequest() {
         BucketNormalizable bn = createBucketNormalizable();
-        JobRenormalizedResultsPersister persister = createJobRenormalizedResultsPersister();
-        persister.updateBucket(bn);
-        persister.executeRequest();
-        assertEquals(0, persister.getBulkRequest().numberOfActions());
+        try (JobRenormalizedResultsPersister persister = createJobRenormalizedResultsPersister()) {
+            persister.updateBucket(bn);
+            persister.executeRequest();
+            assertEquals(0, persister.getBulkRequest().numberOfActions());
+        }
     }
 
     public void testBulkRequestExecutesWhenReachMaxDocs() {
         BulkResponse bulkResponse = mock(BulkResponse.class);
         Client client = new MockClientBuilder("cluster").bulk(bulkResponse).build();
-        JobRenormalizedResultsPersister persister = new JobRenormalizedResultsPersister("foo", client);
-
-        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
-        for (int i = 0; i <= JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
-            persister.updateResult("bar", "index-foo", modelPlot);
+        try (JobRenormalizedResultsPersister persister = new JobRenormalizedResultsPersister("foo", client)) {
+            ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
+            for (int i = 0; i <= JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
+                persister.updateResult("bar", "index-foo", modelPlot);
+            }
         }
-
         verify(client, times(1)).bulk(any());
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);

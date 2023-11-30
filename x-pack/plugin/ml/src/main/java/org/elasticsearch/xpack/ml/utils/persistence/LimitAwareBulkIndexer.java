@@ -52,13 +52,17 @@ public class LimitAwareBulkIndexer implements AutoCloseable {
 
     private void execute() {
         if (currentBulkRequest.numberOfActions() > 0) {
-            LOGGER.debug(
-                "Executing bulk request; current bytes [{}]; bytes limit [{}]; number of actions [{}]",
-                currentRamBytes,
-                bytesLimit,
-                currentBulkRequest.numberOfActions()
-            );
-            executor.accept(currentBulkRequest);
+            try {
+                LOGGER.debug(
+                    "Executing bulk request; current bytes [{}]; bytes limit [{}]; number of actions [{}]",
+                    currentRamBytes,
+                    bytesLimit,
+                    currentBulkRequest.numberOfActions()
+                );
+                executor.accept(currentBulkRequest);
+            } finally {
+                currentBulkRequest.close();
+            }
             currentBulkRequest = new BulkRequest();
             currentRamBytes = 0;
         }
@@ -66,6 +70,10 @@ public class LimitAwareBulkIndexer implements AutoCloseable {
 
     @Override
     public void close() {
-        execute();
+        try {
+            execute();
+        } finally {
+            currentBulkRequest.close();
+        }
     }
 }

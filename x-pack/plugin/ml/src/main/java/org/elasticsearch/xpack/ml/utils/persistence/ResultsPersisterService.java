@@ -171,7 +171,7 @@ public class ResultsPersisterService {
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
             bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
         }
-        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, finalListener);
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, ActionListener.releaseAfter(finalListener, bulkRequest));
     }
 
     public BulkResponse bulkIndexWithRetry(
@@ -239,7 +239,14 @@ public class ResultsPersisterService {
             );
         }
         final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
-        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
+        bulkIndexWithRetry(
+            bulkRequest,
+            jobId,
+            shouldRetry,
+            retryMsgHandler,
+            actionExecutor,
+            ActionListener.releaseAfter(getResponseFuture, bulkRequest)
+        );
         return getResponseFuture.actionGet();
     }
 
@@ -385,7 +392,11 @@ public class ResultsPersisterService {
                     }
                     bulkRequestRewriter.rewriteRequest(bulkResponse);
                     // Let the listener attempt again with the new bulk request
-                    retryableListener.onFailure(new RecoverableException());
+                    ActionListener<BulkResponse> releasingRetryableListener = ActionListener.releaseAfter(
+                        retryableListener,
+                        bulkRequestRewriter.bulkRequest
+                    );
+                    releasingRetryableListener.onFailure(new RecoverableException());
                 }, retryableListener::onFailure)),
                 listener
             );

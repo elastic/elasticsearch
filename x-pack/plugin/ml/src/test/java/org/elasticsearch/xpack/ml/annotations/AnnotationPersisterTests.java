@@ -137,13 +137,14 @@ public class AnnotationPersisterTests extends ESTestCase {
             .execute(eq(BulkAction.INSTANCE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
-        persister.bulkPersisterBuilder(JOB_ID)
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .executeRequest();
+        try (AnnotationPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID)) {
+            builder.persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .executeRequest();
+        }
 
         verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -157,13 +158,14 @@ public class AnnotationPersisterTests extends ESTestCase {
             .execute(eq(BulkAction.INSTANCE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService, 2);
-        persister.bulkPersisterBuilder(JOB_ID)
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
-            .executeRequest();
+        try (AnnotationPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID)) {
+            builder.persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
+                .executeRequest();
+        }
 
         verify(client, times(3)).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -176,7 +178,9 @@ public class AnnotationPersisterTests extends ESTestCase {
 
     public void testPersistMultipleAnnotationsWithBulk_EmptyRequest() {
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
-        assertThat(persister.bulkPersisterBuilder(JOB_ID).executeRequest(), is(nullValue()));
+        try (AnnotationPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID)) {
+            assertThat(builder.executeRequest(), is(nullValue()));
+        }
     }
 
     public void testPersistMultipleAnnotationsWithBulk_Failure() {

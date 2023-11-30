@@ -764,12 +764,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
-        ScoresUpdater scoresUpdater = new ScoresUpdater(
-            job,
-            jobResultsProvider,
-            new JobRenormalizedResultsPersister(job.getId(), client),
-            normalizerFactory
-        );
+        JobRenormalizedResultsPersister jobRenormalizedResultsPersister = new JobRenormalizedResultsPersister(job.getId(), client);
+        ScoresUpdater scoresUpdater;
+        try {
+            scoresUpdater = new ScoresUpdater(job, jobResultsProvider, jobRenormalizedResultsPersister, normalizerFactory);
+        } catch (Exception e) {
+            jobRenormalizedResultsPersister.close();
+            throw e;
+        }
         ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater, renormalizerExecutorService);
 
@@ -793,12 +795,18 @@ public class AutodetectProcessManager implements ClusterStateListener {
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autodetectExecutorService);
-            autodetectExecutorService.submit(processor::process);
+            autodetectExecutorService.submit(() -> {
+                try {
+                    processor.process();
+                } finally {
+                    jobRenormalizedResultsPersister.close();
+                }
+            });
         } catch (EsRejectedExecutionException e) {
             // If submitting the operation to read the results from the process fails we need to close
             // the process too, so that other submitted operations to threadpool are stopped.
             try {
-                IOUtils.close(process);
+                IOUtils.close(process, jobRenormalizedResultsPersister);
             } catch (IOException ioe) {
                 logger.error("Can't close autodetect", ioe);
             }

@@ -211,19 +211,20 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
     private static void enrich(List<String> keys, String coordinatingNode) {
         int numDocs = 256;
-        BulkRequest bulkRequest = new BulkRequest("my-index");
-        for (int i = 0; i < numDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.id(Integer.toString(i));
-            indexRequest.setPipeline(PIPELINE_NAME);
-            indexRequest.source(Map.of(MATCH_FIELD, randomFrom(keys)));
-            bulkRequest.add(indexRequest);
-        }
-        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
-        assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
-        int expectedId = 0;
-        for (BulkItemResponse itemResponse : bulkResponse) {
-            assertThat(itemResponse.getId(), equalTo(Integer.toString(expectedId++)));
+        try (BulkRequest bulkRequest = new BulkRequest("my-index")) {
+            for (int i = 0; i < numDocs; i++) {
+                IndexRequest indexRequest = new IndexRequest();
+                indexRequest.id(Integer.toString(i));
+                indexRequest.setPipeline(PIPELINE_NAME);
+                indexRequest.source(Map.of(MATCH_FIELD, randomFrom(keys)));
+                bulkRequest.add(indexRequest);
+            }
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
+            int expectedId = 0;
+            for (BulkItemResponse itemResponse : bulkResponse) {
+                assertThat(itemResponse.getId(), equalTo(Integer.toString(expectedId++)));
+            }
         }
 
         for (int i = 0; i < numDocs; i++) {

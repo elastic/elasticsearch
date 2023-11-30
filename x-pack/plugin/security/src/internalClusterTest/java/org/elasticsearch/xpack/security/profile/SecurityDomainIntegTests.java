@@ -311,7 +311,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .actionGet();
     }
 
-    public void testDomainCaptureForApiKey() {
+    public void testDomainCaptureForApiKey() throws IOException {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
         createApiKeyRequest.setRefreshPolicy(randomFrom(NONE, WAIT_UNTIL, IMMEDIATE));
 
@@ -320,7 +320,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         ).execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest).actionGet();
 
         final XContentTestUtils.JsonMapView getResponseView = XContentTestUtils.createJsonMapView(
-            new ByteArrayInputStream(client().prepareGet(SECURITY_MAIN_ALIAS, createApiKeyResponse.getId()).get().getSourceAsBytes())
+            client().prepareGet(SECURITY_MAIN_ALIAS, createApiKeyResponse.getId()).get().getSourceAsBytesRef().streamInput()
         );
 
         // domain info is captured
@@ -339,7 +339,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         ).admin().cluster().prepareHealth().get();
     }
 
-    public void testDomainCaptureForServiceToken() {
+    public void testDomainCaptureForServiceToken() throws IOException {
         final String tokenName = randomAlphaOfLengthBetween(3, 8);
         final CreateServiceAccountTokenRequest createServiceTokenRequest = new CreateServiceAccountTokenRequest(
             "elastic",
@@ -352,9 +352,10 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         ).execute(CreateServiceAccountTokenAction.INSTANCE, createServiceTokenRequest).actionGet();
 
         final XContentTestUtils.JsonMapView responseView = XContentTestUtils.createJsonMapView(
-            new ByteArrayInputStream(
-                client().prepareGet(SECURITY_MAIN_ALIAS, "service_account_token-elastic/fleet-server/" + tokenName).get().getSourceAsBytes()
-            )
+            client().prepareGet(SECURITY_MAIN_ALIAS, "service_account_token-elastic/fleet-server/" + tokenName)
+                .get()
+                .getSourceAsBytesRef()
+                .streamInput()
         );
 
         assertThat(responseView.get("creator.realm_domain"), equalTo(MY_DOMAIN_REALM_MAP));

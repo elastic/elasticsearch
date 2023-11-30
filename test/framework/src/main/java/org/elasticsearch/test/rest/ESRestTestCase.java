@@ -288,9 +288,15 @@ public abstract class ESRestTestCase extends ESTestCase {
 
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
+            // Historical features information is unavailable when using legacy test plugins
+            boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
+            var providers = hasHistoricalFeaturesInformation
+                ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
+                : List.of(new RestTestLegacyFeatures());
+
             testFeatureService = new TestFeatureService(
-                // TODO (ES-7313): add new ESRestTestCaseHistoricalFeatures() too
-                List.of(new RestTestLegacyFeatures()),
+                hasHistoricalFeaturesInformation,
+                providers,
                 semanticNodeVersions,
                 ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures().values())
             );
@@ -1920,7 +1926,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("elastic-connectors")) {
             return true;
         }
-        if (name.contains("@")) {
+        if (name.contains("@") && name.endsWith("@custom") == false) {
             // We have a naming convention that internal component templates contain `@`. See also index-templates.asciidoc.
             return true;
         }

@@ -16,8 +16,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 
-import java.util.Locale;
-
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 
@@ -41,7 +39,7 @@ public enum SpatialCoordinateTypes {
         public SpatialPoint longAsPoint(long encoded) {
             final double x = XYEncodingUtils.decode((int) (encoded >>> 32));
             final double y = XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFF));
-            return makePoint(x, y);
+            return new SpatialPoint(x, y);
         }
 
         public long pointAsLong(double x, double y) {
@@ -51,42 +49,7 @@ public enum SpatialCoordinateTypes {
         }
 
         public SpatialPoint pointAsPoint(Point point) {
-            return makePoint(point.getX(), point.getY());
-        }
-
-        private SpatialPoint makePoint(double x, double y) {
-            return new SpatialPoint() {
-                @Override
-                public double getX() {
-                    return x;
-                }
-
-                @Override
-                public double getY() {
-                    return y;
-                }
-
-                @Override
-                public int hashCode() {
-                    return 31 * Double.hashCode(x) + Double.hashCode(y);
-                }
-
-                @Override
-                public boolean equals(Object obj) {
-                    if (obj == null) {
-                        return false;
-                    }
-                    if (obj instanceof SpatialPoint other) {
-                        return x == other.getX() && y == other.getY();
-                    }
-                    return false;
-                }
-
-                @Override
-                public String toString() {
-                    return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
-                }
-            };
+            return new SpatialPoint(point.getX(), point.getY());
         }
     };
 

@@ -440,14 +440,16 @@ public class ReplicationOperationTests extends ESTestCase {
         final int unassignedReplicas = randomInt(2);
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
         final int activeShardCount = randomIntBetween(0, totalShards);
-        final boolean stateless = randomBoolean();
+        final boolean unpromotableReplicas = randomBoolean();
         Request request = new Request(shardId).waitForActiveShards(
             activeShardCount == totalShards ? ActiveShardCount.ALL : ActiveShardCount.from(activeShardCount)
         );
-        // In the case of stateless, only the search/replica assigned shards are calculated as active shards. But in other cases, or when
-        // the wait is for ALL active shards, ReplicationOperation#checkActiveShardCount() takes into account the primary shard as well,
-        // and that is why we need to increment the assigned replicas by 1 when calculating the actual active shards.
-        final int actualActiveShards = assignedReplicas + ((stateless && request.waitForActiveShards() != ActiveShardCount.ALL) ? 0 : 1);
+        // In the case of unpromotables, only the search/replica assigned shards are calculated as active shards. But in other cases, or
+        // when the wait is for ALL active shards, ReplicationOperation#checkActiveShardCount() takes into account the primary shard as
+        // well, and that is why we need to increment the assigned replicas by 1 when calculating the actual active shards.
+        final int actualActiveShards = assignedReplicas + ((unpromotableReplicas && request.waitForActiveShards() != ActiveShardCount.ALL)
+            ? 0
+            : 1);
         final boolean passesActiveShardCheck = activeShardCount <= actualActiveShards;
 
         ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
@@ -462,22 +464,22 @@ public class ReplicationOperationTests extends ESTestCase {
             index,
             true,
             ShardRoutingState.STARTED,
-            stateless ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.DEFAULT,
+            unpromotableReplicas ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.DEFAULT,
             Arrays.stream(replicaStates)
                 .map(
                     shardRoutingState -> new Tuple<>(
                         shardRoutingState,
-                        stateless ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.DEFAULT
+                        unpromotableReplicas ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.DEFAULT
                     )
                 )
                 .toList()
         );
         logger.debug(
-            "using active shards [{}], assigned shards [{}], total shards [{}]. stateless [{}]. expecting op to [{}]. using state: \n{}",
+            "using active shards [{}], assigned shards [{}], total shards [{}]. unpromotable replicas [{}]. expecting op to [{}]. using state: \n{}",
             request.waitForActiveShards(),
             1 + assignedReplicas,
             1 + assignedReplicas + unassignedReplicas,
-            stateless,
+            unpromotableReplicas,
             passesActiveShardCheck ? "succeed" : "retry",
             state
         );

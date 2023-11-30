@@ -176,19 +176,24 @@ public record ActiveShardCount(int value) implements Writeable {
      */
     public EnoughShards enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
         final int activeShardCount = shardRoutingTable.activeShards().size();
+        boolean enoughShards = false;
+        int currentActiveShards = activeShardCount;
         if (this == ActiveShardCount.ALL) {
-            return new EnoughShards(activeShardCount == shardRoutingTable.size(), activeShardCount);
+            enoughShards = activeShardCount == shardRoutingTable.size();
         } else if (value == 0) {
-            return new EnoughShards(true, activeShardCount);
+            enoughShards = true;
         } else if (value == 1) {
             if (shardRoutingTable.hasSearchShards()) {
-                return new EnoughShards(shardRoutingTable.getActiveSearchShardCount() >= 1, shardRoutingTable.getActiveSearchShardCount());
+                enoughShards = shardRoutingTable.getActiveSearchShardCount() >= 1;
+                currentActiveShards = shardRoutingTable.getActiveSearchShardCount();
             } else {
-                return new EnoughShards(activeShardCount >= 1, activeShardCount);
+                enoughShards = activeShardCount >= 1;
             }
         } else {
-            return new EnoughShards(shardRoutingTable.getActiveSearchShardCount() >= value, shardRoutingTable.getActiveSearchShardCount());
+            enoughShards = shardRoutingTable.getActiveSearchShardCount() >= value;
+            currentActiveShards = shardRoutingTable.getActiveSearchShardCount();
         }
+        return new EnoughShards(enoughShards, currentActiveShards);
     }
 
     @Override

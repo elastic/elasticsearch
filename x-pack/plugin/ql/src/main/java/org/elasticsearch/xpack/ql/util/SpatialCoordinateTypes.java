@@ -22,7 +22,7 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 
 public enum SpatialCoordinateTypes {
-    Geo {
+    GEO {
         public SpatialPoint longAsPoint(long encoded) {
             return new GeoPoint(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
         }
@@ -37,7 +37,7 @@ public enum SpatialCoordinateTypes {
             return new GeoPoint(point.getY(), point.getX());
         }
     },
-    Cartesian {
+    CARTESIAN {
         public SpatialPoint longAsPoint(long encoded) {
             final double x = XYEncodingUtils.decode((int) (encoded >>> 32));
             final double y = XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFF));

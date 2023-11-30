@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Cartesian;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 
 public class ToCartesianPoint extends AbstractConvertFunction {
 
@@ -60,6 +60,6 @@ public class ToCartesianPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
-        return Cartesian.pointAsLong(Cartesian.stringAsPoint(in.utf8ToString()));
+        return CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(in.utf8ToString()));
     }
 }

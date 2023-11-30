@@ -37,8 +37,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomCartesianPoint;
 import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Cartesian;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -680,12 +680,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     private static List<TypedDataSupplier> geoPointCases() {
-        return List.of(new TypedDataSupplier("<geo_point>", () -> Geo.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
+        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
     }
 
     private static List<TypedDataSupplier> cartesianPointCases() {
         return List.of(
-            new TypedDataSupplier("<cartesian_point>", () -> Cartesian.pointAsLong(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
+            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsLong(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
         );
     }
 

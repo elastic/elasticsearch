@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class TextFormatTests extends ESTestCase {
 
@@ -255,7 +255,7 @@ public class TextFormatTests extends ESTestCase {
                     .appendBytesRef(new BytesRef("Mind Train"))
                     .build(),
                 new IntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock(),
-                new LongArrayVector(new long[] { Geo.pointAsLong(12, 56), Geo.pointAsLong(-97, 26) }, 2).asBlock()
+                new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock()
             )
         );
 

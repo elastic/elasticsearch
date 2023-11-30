@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class ToGeoPoint extends AbstractConvertFunction {
 
@@ -60,6 +60,6 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
-        return Geo.pointAsLong(Geo.stringAsPoint(in.utf8ToString()));
+        return GEO.pointAsLong(GEO.stringAsPoint(in.utf8ToString()));
     }
 }

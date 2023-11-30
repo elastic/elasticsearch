@@ -35,8 +35,8 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Cartesian;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     /**
@@ -411,7 +411,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         DataType expectedDataType,
         BiFunction<Integer, LongStream, Matcher<Object>> matcher
     ) {
-        points(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, Geo, ESTestCase::randomGeoPoint, matcher);
+        points(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, GEO, ESTestCase::randomGeoPoint, matcher);
     }
 
     /**
@@ -443,7 +443,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             evaluatorName,
             EsqlDataTypes.CARTESIAN_POINT,
             expectedDataType,
-            Cartesian,
+            CARTESIAN,
             ESTestCase::randomCartesianPoint,
             matcher
         );

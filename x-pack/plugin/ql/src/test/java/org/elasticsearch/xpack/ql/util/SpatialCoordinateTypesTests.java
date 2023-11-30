@@ -21,8 +21,8 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
 
     private static final Map<SpatialCoordinateTypes, TestTypeFunctions> types = new LinkedHashMap<>();
     static {
-        types.put(SpatialCoordinateTypes.Geo, new TestTypeFunctions(ESTestCase::randomGeoPoint, v -> 1e-5));
-        types.put(SpatialCoordinateTypes.Cartesian, new TestTypeFunctions(ESTestCase::randomCartesianPoint, v -> Math.abs(v / 1e5)));
+        types.put(SpatialCoordinateTypes.GEO, new TestTypeFunctions(ESTestCase::randomGeoPoint, v -> 1e-5));
+        types.put(SpatialCoordinateTypes.CARTESIAN, new TestTypeFunctions(ESTestCase::randomCartesianPoint, v -> Math.abs(v / 1e5)));
     }
 
     record TestTypeFunctions(Supplier<SpatialPoint> randomPoint, Function<Double, Double> error) {}

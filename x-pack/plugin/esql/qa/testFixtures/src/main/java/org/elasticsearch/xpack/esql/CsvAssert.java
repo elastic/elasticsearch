@@ -29,8 +29,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Cartesian;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -202,9 +202,9 @@ public final class CsvAssert {
                         if (expectedType == Type.DATETIME) {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
                         } else if (expectedType == Type.GEO_POINT) {
-                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> Geo.longAsPoint((long) x));
+                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> GEO.longAsPoint((long) x));
                         } else if (expectedType == Type.CARTESIAN_POINT) {
-                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> Cartesian.longAsPoint((long) x));
+                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> CARTESIAN.longAsPoint((long) x));
                         } else if (expectedType == Type.IP) {
                             // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));

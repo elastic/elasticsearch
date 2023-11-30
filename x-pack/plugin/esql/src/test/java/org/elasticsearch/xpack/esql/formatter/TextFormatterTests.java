@@ -23,7 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class TextFormatterTests extends ESTestCase {
@@ -57,7 +57,7 @@ public class TextFormatterTests extends ESTestCase {
                         UTC_DATE_TIME_FORMATTER.parseMillis("2000-03-15T21:34:37.443Z") },
                     2
                 ).asBlock(),
-                new LongArrayVector(new long[] { Geo.pointAsLong(12, 56), Geo.pointAsLong(-97, 26) }, 2).asBlock(),
+                new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
                 Block.constantNullBlock(2)
             )
         ),
@@ -119,7 +119,7 @@ public class TextFormatterTests extends ESTestCase {
                             UTC_DATE_TIME_FORMATTER.parseMillis("2231-12-31T23:59:59.999Z") },
                         2
                     ).asBlock(),
-                    new LongArrayVector(new long[] { Geo.pointAsLong(12, 56), Geo.pointAsLong(-97, 26) }, 2).asBlock(),
+                    new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
                     Block.constantNullBlock(2)
                 )
             ),

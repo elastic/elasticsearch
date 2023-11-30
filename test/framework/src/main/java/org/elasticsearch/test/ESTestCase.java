@@ -1180,10 +1180,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomFrom(FormatNames.values()).getName();
     }
 
+    /**
+     * Generate a random valid point constrained to geographic ranges (lat, lon ranges).
+     */
     public static SpatialPoint randomGeoPoint() {
         return new GeoPoint(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true));
     }
 
+    /**
+     * Generate a random valid point constrained to cartesian ranges.
+     */
     public static SpatialPoint randomCartesianPoint() {
         double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
         double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);

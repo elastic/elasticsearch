@@ -30,6 +30,19 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED = new NodeFeature(
         "indices.delete_template_multiple_names_supported"
     );
+    public static final NodeFeature ML_NEW_MEMORY_FORMAT = new NodeFeature("ml.new_memory_format");
+
+    /** These are "pure test" features: normally we would not need them, and test for TransportVersion/fallback to Version (see for example
+     * {@code ESRestTestCase#minimumTransportVersion()}. However, some tests explicitly check and validate the content of a response, so
+     * we need these features to support them.
+     */
+    public static final NodeFeature TRANSPORT_VERSION_SUPPORTED = new NodeFeature("transport_version_supported");
+    public static final NodeFeature STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION = new NodeFeature(
+        "state.transport_version_to_nodes_version"
+    );
+
+    // Ref: https://github.com/elastic/elasticsearch/pull/86416
+    public static final NodeFeature ML_MEMORY_OVERHEAD_FIXED = new NodeFeature("ml.memory_overhead_fixed");
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
@@ -39,7 +52,11 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(HIDDEN_INDICES_SUPPORTED, Version.V_7_7_0),
             entry(COMPONENT_TEMPLATE_SUPPORTED, Version.V_7_8_0),
             entry(DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED, Version.V_7_13_0),
-            entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0)
+            entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0),
+            entry(ML_NEW_MEMORY_FORMAT, Version.V_8_11_0),
+            entry(TRANSPORT_VERSION_SUPPORTED, Version.V_8_8_0),
+            entry(STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION, Version.V_8_11_0),
+            entry(ML_MEMORY_OVERHEAD_FIXED, Version.V_8_2_1)
         );
     }
 }

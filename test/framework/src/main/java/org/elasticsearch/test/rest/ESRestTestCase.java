@@ -2107,7 +2107,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return minVersion;
     }
 
-    private static Optional<Version> parseLegacyVersion(String version) {
+    protected static Optional<Version> parseLegacyVersion(String version) {
         var semanticVersionMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
         if (semanticVersionMatcher.matches()) {
             return Optional.of(Version.fromString(semanticVersionMatcher.group(1)));

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -78,7 +78,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             case MIXED -> {
                 assumeTrue(
                     "We should only test if old cluster is before new cluster",
-                    isOriginalClusterVersionAtLeast(Version.CURRENT) == false
+                    UPGRADE_FROM_VERSION.equals(Build.current().version()) == false
                 );
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
@@ -90,7 +90,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             case UPGRADED -> {
                 assumeTrue(
                     "We should only test if old cluster is before new cluster",
-                    isOriginalClusterVersionAtLeast(Version.CURRENT) == false
+                    UPGRADE_FROM_VERSION.equals(Build.current().version()) == false
                 );
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");

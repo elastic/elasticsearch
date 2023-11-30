@@ -73,9 +73,35 @@ public class IngestStatsTests extends ESTestCase {
 
     public void testProcessorStatsMergeZeroCounts() {
         {
-            var first = Map.of("pipeline-1", randomPipelineProcessorStats());
+            var expected = randomPipelineProcessorStats();
+            var first = Map.of("pipeline-1", expected);
+
+            // merging with an empty map yields the non-empty map
             assertEquals(IngestStats.merge(Map.of(), first), first);
             assertEquals(IngestStats.merge(first, Map.of()), first);
+
+            // it's the same exact reference, in fact
+            assertSame(expected, IngestStats.merge(Map.of(), first).get("pipeline-1"));
+            assertSame(expected, IngestStats.merge(first, Map.of()).get("pipeline-1"));
+        }
+        {
+            var expected = randomPipelineProcessorStats();
+            var first = Map.of("pipeline-1", expected);
+            var zero = List.of(
+                new IngestStats.ProcessorStat("proc-1", "type-1", zeroStats()),
+                new IngestStats.ProcessorStat("proc-1", "type-2", zeroStats()),
+                new IngestStats.ProcessorStat("proc-2", "type-1", zeroStats()),
+                new IngestStats.ProcessorStat("proc-3", "type-3", zeroStats())
+            );
+            var second = Map.of("pipeline-1", zero);
+
+            // merging with a zero map yields the non-zero map
+            assertEquals(IngestStats.merge(second, first), first);
+            assertEquals(IngestStats.merge(first, second), first);
+
+            // it's the same exact reference, in fact
+            assertSame(expected, IngestStats.merge(second, first).get("pipeline-1"));
+            assertSame(expected, IngestStats.merge(first, second).get("pipeline-1"));
         }
     }
 
@@ -216,5 +242,9 @@ public class IngestStatsTests extends ESTestCase {
 
     private static IngestStats.Stats randomStats() {
         return new IngestStats.Stats(randomLong(), randomLong(), randomLong(), randomLong());
+    }
+
+    private static IngestStats.Stats zeroStats() {
+        return new IngestStats.Stats(0, 0, 0, 0);
     }
 }

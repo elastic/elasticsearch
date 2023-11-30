@@ -107,6 +107,85 @@ setup:
   - match: { filtering.1.draft.rules.0.id: "RULE-DRAFT-1" }
 
 ---
+"Update Connector Filtering - 404 status code returned when connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_filtering:
+        connector_id: test-non-existent-connector
+        body:
+          filtering:
+            - active:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-0
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+              domain: DEFAULT
+              draft:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-0
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+            - active:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-1
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+              domain: TEST
+              draft:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-1
+                    order: 0
+                    policy: exclude
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+
+---
 "Update Connector Filtering - 400 status code returned when required fields are missing":
   - do:
       catch: "bad_request"
@@ -118,3 +197,82 @@ setup:
 
   - match:
       status: 400
+
+---
+"Update Connector Filtering - 400 status code returned with wrong datetime expression":
+  - do:
+      catch: "bad_request"
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          filtering:
+            - active:
+                advanced_snippet:
+                  created_at: "this-is-not-a-datetime-!!!!"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-0
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+              domain: DEFAULT
+              draft:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-0
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+            - active:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-1
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+              domain: TEST
+              draft:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-1
+                    order: 0
+                    policy: exclude
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid

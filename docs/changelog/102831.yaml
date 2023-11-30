@@ -1,0 +1,8 @@
+pr: 102831
+summary: Fix memory tracking in TopN.Row
+area: ES|QL
+type: bug
+issues:
+ - 102784
+ - 102790
+ - 102683

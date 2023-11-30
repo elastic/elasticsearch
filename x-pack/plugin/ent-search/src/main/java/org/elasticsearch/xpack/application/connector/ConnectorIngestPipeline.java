@@ -102,15 +102,6 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public XContentBuilder toXContentConnectorUpdateRequest(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.field(Connector.PIPELINE_FIELD.getPreferredName(), this);
-        }
-        builder.endObject();
-        return builder;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(extractBinaryContent);

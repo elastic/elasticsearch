@@ -1,0 +1,5 @@
+pr: 102769
+summary: Add support for splitting saml groups by delimiter
+area: Security
+type: enhancement
+issues: []

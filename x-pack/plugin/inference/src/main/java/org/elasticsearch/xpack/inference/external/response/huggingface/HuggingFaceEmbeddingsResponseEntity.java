@@ -80,6 +80,13 @@ public class HuggingFaceEmbeddingsResponseEntity {
      *         ]
      *     </code>
      * </pre>
+     *
+     * Example models with this response format:
+     * <a href="https://huggingface.co/intfloat/e5-small-v2">intfloat/e5-small-v2</a>
+     * <a href="https://huggingface.co/intfloat/e5-base-v2">intfloat/e5-base-v2</a>
+     * <a href="https://huggingface.co/intfloat/multilingual-e5-base">intfloat/multilingual-e5-base</a>
+     * <a href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2">sentence-transformers/all-MiniLM-L6-v2</a>
+     * <a href="https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2">sentence-transformers/all-MiniLM-L12-v2</a>
      */
     private static TextEmbeddingResults parseArrayFormat(XContentParser parser) throws IOException {
         List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
@@ -121,6 +128,10 @@ public class HuggingFaceEmbeddingsResponseEntity {
      *         }
      *     </code>
      * </pre>
+     *
+     * Example models with this response format:
+     * <a href="https://huggingface.co/intfloat/multilingual-e5-small">intfloat/multilingual-e5-small</a>
+     * <a href="https://huggingface.co/sentence-transformers/all-mpnet-base-v2">sentence-transformers/all-mpnet-base-v2</a>
      */
     private static TextEmbeddingResults parseObjectFormat(XContentParser parser) throws IOException {
         positionParserAtTokenAfterField(parser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);

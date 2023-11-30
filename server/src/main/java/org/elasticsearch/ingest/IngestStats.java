@@ -264,7 +264,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
 
         private static List<ProcessorStat> merge(List<ProcessorStat> first, List<ProcessorStat> second) {
             // in the simple case, this amounts to summing up the stats in the first and second and returning
-            // a new list of stats that contains the sum. but there are few not-quite-so-simple cases, too,
+            // a new list of stats that contains the sum. but there are a few not-quite-so-simple cases, too,
             // so this logic is a little bit intricate.
 
             // total up the stats across both sides

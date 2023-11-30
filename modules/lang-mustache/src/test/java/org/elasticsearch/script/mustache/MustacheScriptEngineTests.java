@@ -202,11 +202,11 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     public void testDetectMissingParam() throws IOException {
         Map<String, String> scriptOptions = Map.ofEntries(Map.entry(Script.DETECT_MISSING_PARAMS_OPTION, "true"));
-        String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
-        TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
 
         // fails when a param is missing and the DETECT_MISSING_PARAMS_OPTION option is set to true.
         {
+            String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
             Map<String, Object> params = Collections.emptyMap();
             GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
             assertThat(e.getRootCause(), instanceOf(MustacheScriptEngine.InvalidParameterException.class));
@@ -215,6 +215,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
         // fails when params is null and the DETECT_MISSING_PARAMS_OPTION option is set to true.
         {
+            String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
             GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(null).execute());
             assertThat(e.getRootCause(), instanceOf(MustacheScriptEngine.InvalidParameterException.class));
             assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query_string] is missing"));
@@ -222,8 +224,18 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
         // works as expected when params are specified and the DETECT_MISSING_PARAMS_OPTION option is set to true
         {
+            String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
             Map<String, Object> params = Map.ofEntries(Map.entry("query_string", "foo"));
             assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"foo\" }"));
+        }
+
+        // do not throw when using a missing param in the conditional when DETECT_MISSING_PARAMS_OPTION option is set to true
+        {
+            String source = "{\"match\": { \"field\": \"{{#query_string}}{{.}}{{/query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of();
+            assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
         }
     }
 

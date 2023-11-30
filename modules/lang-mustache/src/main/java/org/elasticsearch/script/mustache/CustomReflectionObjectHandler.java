@@ -8,6 +8,12 @@
 
 package org.elasticsearch.script.mustache;
 
+import com.github.mustachejava.Binding;
+import com.github.mustachejava.Code;
+import com.github.mustachejava.ObjectHandler;
+import com.github.mustachejava.TemplateContext;
+import com.github.mustachejava.codes.ValueCode;
+import com.github.mustachejava.reflect.GuardedBinding;
 import com.github.mustachejava.reflect.MissingWrapper;
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
 import com.github.mustachejava.util.Wrapper;
@@ -50,14 +56,23 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
     }
 
     @Override
-    public Wrapper find(String name, List<Object> scopes) {
-        Wrapper wrapper = super.find(name, scopes);
+    public Binding createBinding(String name, TemplateContext tc, Code code) {
+        return detectMissingParams ? new DetectMissingParamsGuardedBinding(this, name, tc, code) : super.createBinding(name, tc, code);
+    }
 
-        if (detectMissingParams && wrapper instanceof MissingWrapper) {
-            throw new MustacheScriptEngine.InvalidParameterException("Parameter [" + name + "] is missing");
+    static class DetectMissingParamsGuardedBinding extends GuardedBinding {
+        private final Code code;
+        DetectMissingParamsGuardedBinding(ObjectHandler oh, String name, TemplateContext tc, Code code) {
+            super(oh, name, tc, code);
+            this.code = code;
         }
-
-        return wrapper;
+        protected synchronized Wrapper getWrapper(String name, List<Object> scopes) {
+            Wrapper wrapper = super.getWrapper(name, scopes);
+            if (wrapper instanceof MissingWrapper && code instanceof ValueCode) {
+                throw new MustacheScriptEngine.InvalidParameterException("Parameter [" + name + "] is missing");
+            }
+            return wrapper;
+        }
     }
 
     @Override

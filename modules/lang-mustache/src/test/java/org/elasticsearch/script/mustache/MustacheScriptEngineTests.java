@@ -200,8 +200,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
         assertThat(TemplateScript.execute(), equalTo("{\"match_all\":{}}"));
     }
 
-    public void testDetectMissingParam() throws IOException {
-        Map<String, String> scriptOptions = Map.ofEntries(Map.entry(Script.DETECT_MISSING_PARAMS_OPTION, "true"));
+    public void testDetectMissingParam() {
+        Map<String, String> scriptOptions = Map.ofEntries(Map.entry(MustacheScriptEngine.DETECT_MISSING_PARAMS_OPTION, "true"));
 
         // fails when a param is missing and the DETECT_MISSING_PARAMS_OPTION option is set to true.
         {
@@ -209,7 +209,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
             Map<String, Object> params = Collections.emptyMap();
             GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
-            assertThat(e.getRootCause(), instanceOf(MustacheScriptEngine.InvalidParameterException.class));
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
             assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query_string] is missing"));
         }
 
@@ -218,7 +218,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
             TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
             GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(null).execute());
-            assertThat(e.getRootCause(), instanceOf(MustacheScriptEngine.InvalidParameterException.class));
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
             assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query_string] is missing"));
         }
 
@@ -239,7 +239,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
     }
 
-    public void testMissingParam() throws IOException {
+    public void testMissingParam() {
         Map<String, String> scriptOptions = Collections.emptyMap();
         String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
         TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);

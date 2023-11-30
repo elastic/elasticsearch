@@ -38,6 +38,10 @@ import static org.elasticsearch.core.Strings.format;
  * {@link Mustache} object can then be re-used for subsequent executions.
  */
 public final class MustacheScriptEngine implements ScriptEngine {
+    /**
+     * Compiler option to enable detection of missing parameters.
+     */
+    public static final String DETECT_MISSING_PARAMS_OPTION = "detect_missing_params";
     private static final Logger logger = LogManager.getLogger(MustacheScriptEngine.class);
 
     public static final String NAME = "mustache";
@@ -81,8 +85,8 @@ public final class MustacheScriptEngine implements ScriptEngine {
             builder.mediaType(options.get(Script.CONTENT_TYPE_OPTION));
         }
 
-        if (options.containsKey(Script.DETECT_MISSING_PARAMS_OPTION)) {
-            builder.detectMissingParams(Boolean.valueOf(options.get(Script.DETECT_MISSING_PARAMS_OPTION)));
+        if (options.containsKey(DETECT_MISSING_PARAMS_OPTION)) {
+            builder.detectMissingParams(Boolean.valueOf(options.get(DETECT_MISSING_PARAMS_OPTION)));
         }
 
         return builder.build();
@@ -126,13 +130,8 @@ public final class MustacheScriptEngine implements ScriptEngine {
         }
 
         public boolean shouldLogException(Throwable e) {
-            return e.getCause() != null && e.getCause() instanceof InvalidParameterException == false;
+            return e.getCause() != null && e.getCause() instanceof MustacheInvalidParameterException == false;
         }
     }
 
-    static class InvalidParameterException extends MustacheException {
-        InvalidParameterException(String message) {
-            super(message, null, null);
-        }
-    }
 }

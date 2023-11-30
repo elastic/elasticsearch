@@ -60,23 +60,6 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         return detectMissingParams ? new DetectMissingParamsGuardedBinding(this, name, tc, code) : super.createBinding(name, tc, code);
     }
 
-    static class DetectMissingParamsGuardedBinding extends GuardedBinding {
-        private final Code code;
-
-        DetectMissingParamsGuardedBinding(ObjectHandler oh, String name, TemplateContext tc, Code code) {
-            super(oh, name, tc, code);
-            this.code = code;
-        }
-
-        protected synchronized Wrapper getWrapper(String name, List<Object> scopes) {
-            Wrapper wrapper = super.getWrapper(name, scopes);
-            if (wrapper instanceof MissingWrapper && code instanceof ValueCode) {
-                throw new MustacheScriptEngine.InvalidParameterException("Parameter [" + name + "] is missing");
-            }
-            return wrapper;
-        }
-    }
-
     @Override
     @SuppressWarnings("rawtypes")
     protected AccessibleObject findMember(Class sClass, String name) {
@@ -93,6 +76,23 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
          * "you will never find success going down this path, so don't bother trying"
          */
         return null;
+    }
+
+    static class DetectMissingParamsGuardedBinding extends GuardedBinding {
+        private final Code code;
+
+        DetectMissingParamsGuardedBinding(ObjectHandler oh, String name, TemplateContext tc, Code code) {
+            super(oh, name, tc, code);
+            this.code = code;
+        }
+
+        protected synchronized Wrapper getWrapper(String name, List<Object> scopes) {
+            Wrapper wrapper = super.getWrapper(name, scopes);
+            if (wrapper instanceof MissingWrapper && code instanceof ValueCode) {
+                throw new MustacheInvalidParameterException("Parameter [" + name + "] is missing");
+            }
+            return wrapper;
+        }
     }
 
     static final class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {

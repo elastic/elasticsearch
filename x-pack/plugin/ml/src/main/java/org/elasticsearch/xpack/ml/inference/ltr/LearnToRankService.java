@@ -15,6 +15,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.script.mustache.MustacheInvalidParameterException;
+import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -46,7 +48,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CO
 
 public class LearnToRankService {
     private static final Map<String, String> SCRIPT_OPTIONS = Map.ofEntries(
-        entry(Script.DETECT_MISSING_PARAMS_OPTION, Boolean.TRUE.toString())
+        entry(MustacheScriptEngine.DETECT_MISSING_PARAMS_OPTION, Boolean.TRUE.toString())
     );
     private final ModelLoadingService modelLoadingService;
     private final TrainedModelProvider trainedModelProvider;
@@ -187,6 +189,10 @@ public class LearnToRankService {
                 QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT)
             );
         } catch (GeneralScriptException e) {
+            if (e.getRootCause() instanceof MustacheInvalidParameterException == false) {
+                throw(e);
+            }
+
             return new QueryExtractorBuilder(
                 queryExtractorBuilder.featureName(),
                 QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder())

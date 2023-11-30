@@ -95,11 +95,6 @@ public final class Script implements ToXContentObject, Writeable {
     public static final String CONTENT_TYPE_OPTION = "content_type";
 
     /**
-     * Compiler option to enable missing parameters detection.
-     */
-    public static final String DETECT_MISSING_PARAMS_OPTION = "detect_missing_params";
-
-    /**
      * Standard {@link ParseField} for outer level of script queries.
      */
     public static final ParseField SCRIPT_PARSE_FIELD = new ParseField("script");

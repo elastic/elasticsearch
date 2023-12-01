@@ -124,7 +124,7 @@ grouping
 
 fromIdentifier
     : FROM_UNQUOTED_IDENTIFIER
-    | FROM_QUOTED_IDENTIFIER
+    | QUOTED_IDENTIFIER
     ;
 
 qualifiedName
@@ -246,7 +246,7 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=qualifiedNamePattern (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=fromIdentifier (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause

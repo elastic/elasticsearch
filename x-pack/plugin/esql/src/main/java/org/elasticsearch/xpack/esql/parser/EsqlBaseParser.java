@@ -28,13 +28,14 @@ public class EsqlBaseParser extends Parser {
     PLUS=58, MINUS=59, ASTERISK=60, SLASH=61, PERCENT=62, OPENING_BRACKET=63, 
     CLOSING_BRACKET=64, UNQUOTED_IDENTIFIER=65, QUOTED_IDENTIFIER=66, EXPR_LINE_COMMENT=67, 
     EXPR_MULTILINE_COMMENT=68, EXPR_WS=69, METADATA=70, FROM_UNQUOTED_IDENTIFIER=71, 
-    FROM_QUOTED_IDENTIFIER=72, SRC_LINE_COMMENT=73, SRC_MULTILINE_COMMENT=74, 
-    SRC_WS=75, PROJECT_UNQUOTED_IDENTIFIER=76, PROJECT_LINE_COMMENT=77, PROJECT_MULTILINE_COMMENT=78, 
-    PROJECT_WS=79, AS=80, RENAME_LINE_COMMENT=81, RENAME_MULTILINE_COMMENT=82, 
-    RENAME_WS=83, ON=84, WITH=85, ENRICH_LINE_COMMENT=86, ENRICH_MULTILINE_COMMENT=87, 
-    ENRICH_WS=88, MVEXPAND_LINE_COMMENT=89, MVEXPAND_MULTILINE_COMMENT=90, 
-    MVEXPAND_WS=91, INFO=92, FUNCTIONS=93, SHOW_LINE_COMMENT=94, SHOW_MULTILINE_COMMENT=95, 
-    SHOW_WS=96;
+    FROM_LINE_COMMENT=72, FROM_MULTILINE_COMMENT=73, FROM_WS=74, PROJECT_UNQUOTED_IDENTIFIER=75, 
+    PROJECT_LINE_COMMENT=76, PROJECT_MULTILINE_COMMENT=77, PROJECT_WS=78, 
+    AS=79, RENAME_LINE_COMMENT=80, RENAME_MULTILINE_COMMENT=81, RENAME_WS=82, 
+    ON=83, WITH=84, ENRICH_LINE_COMMENT=85, ENRICH_MULTILINE_COMMENT=86, ENRICH_WS=87, 
+    ENRICH_FIELD_LINE_COMMENT=88, ENRICH_FIELD_MULTILINE_COMMENT=89, ENRICH_FIELD_WS=90, 
+    MVEXPAND_LINE_COMMENT=91, MVEXPAND_MULTILINE_COMMENT=92, MVEXPAND_WS=93, 
+    INFO=94, FUNCTIONS=95, SHOW_LINE_COMMENT=96, SHOW_MULTILINE_COMMENT=97, 
+    SHOW_WS=98;
   public static final int
     RULE_singleStatement = 0, RULE_query = 1, RULE_sourceCommand = 2, RULE_processingCommand = 3, 
     RULE_whereCommand = 4, RULE_booleanExpression = 5, RULE_regexBooleanExpression = 6, 
@@ -80,8 +81,8 @@ public class EsqlBaseParser extends Parser {
       "'or'", "'?'", "'rlike'", "')'", "'true'", "'=='", "'!='", "'<'", "'<='", 
       "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", null, "']'", null, 
       null, null, null, null, "'metadata'", null, null, null, null, null, null, 
-      null, null, null, "'as'", null, null, null, "'on'", "'with'", null, null, 
-      null, null, null, null, "'info'", "'functions'"
+      null, null, "'as'", null, null, null, "'on'", "'with'", null, null, null, 
+      null, null, null, null, null, null, "'info'", "'functions'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -97,11 +98,12 @@ public class EsqlBaseParser extends Parser {
       "TRUE", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", 
       "SLASH", "PERCENT", "OPENING_BRACKET", "CLOSING_BRACKET", "UNQUOTED_IDENTIFIER", 
       "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT", "EXPR_WS", 
-      "METADATA", "FROM_UNQUOTED_IDENTIFIER", "FROM_QUOTED_IDENTIFIER", "SRC_LINE_COMMENT", 
-      "SRC_MULTILINE_COMMENT", "SRC_WS", "PROJECT_UNQUOTED_IDENTIFIER", "PROJECT_LINE_COMMENT", 
-      "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", "AS", "RENAME_LINE_COMMENT", 
-      "RENAME_MULTILINE_COMMENT", "RENAME_WS", "ON", "WITH", "ENRICH_LINE_COMMENT", 
-      "ENRICH_MULTILINE_COMMENT", "ENRICH_WS", "MVEXPAND_LINE_COMMENT", "MVEXPAND_MULTILINE_COMMENT", 
+      "METADATA", "FROM_UNQUOTED_IDENTIFIER", "FROM_LINE_COMMENT", "FROM_MULTILINE_COMMENT", 
+      "FROM_WS", "PROJECT_UNQUOTED_IDENTIFIER", "PROJECT_LINE_COMMENT", "PROJECT_MULTILINE_COMMENT", 
+      "PROJECT_WS", "AS", "RENAME_LINE_COMMENT", "RENAME_MULTILINE_COMMENT", 
+      "RENAME_WS", "ON", "WITH", "ENRICH_LINE_COMMENT", "ENRICH_MULTILINE_COMMENT", 
+      "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", "ENRICH_FIELD_MULTILINE_COMMENT", 
+      "ENRICH_FIELD_WS", "MVEXPAND_LINE_COMMENT", "MVEXPAND_MULTILINE_COMMENT", 
       "MVEXPAND_WS", "INFO", "FUNCTIONS", "SHOW_LINE_COMMENT", "SHOW_MULTILINE_COMMENT", 
       "SHOW_WS"
     };
@@ -2283,7 +2285,7 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class FromIdentifierContext extends ParserRuleContext {
     public TerminalNode FROM_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.FROM_UNQUOTED_IDENTIFIER, 0); }
-    public TerminalNode FROM_QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.FROM_QUOTED_IDENTIFIER, 0); }
+    public TerminalNode QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.QUOTED_IDENTIFIER, 0); }
     @SuppressWarnings("this-escape")
     public FromIdentifierContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -2313,7 +2315,7 @@ public class EsqlBaseParser extends Parser {
       {
       setState(308);
       _la = _input.LA(1);
-      if ( !(_la==FROM_UNQUOTED_IDENTIFIER || _la==FROM_QUOTED_IDENTIFIER) ) {
+      if ( !(_la==QUOTED_IDENTIFIER || _la==FROM_UNQUOTED_IDENTIFIER) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -4373,14 +4375,11 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class EnrichCommandContext extends ParserRuleContext {
-    public QualifiedNamePatternContext policyName;
+    public FromIdentifierContext policyName;
     public QualifiedNamePatternContext matchField;
     public TerminalNode ENRICH() { return getToken(EsqlBaseParser.ENRICH, 0); }
-    public List<QualifiedNamePatternContext> qualifiedNamePattern() {
-      return getRuleContexts(QualifiedNamePatternContext.class);
-    }
-    public QualifiedNamePatternContext qualifiedNamePattern(int i) {
-      return getRuleContext(QualifiedNamePatternContext.class,i);
+    public FromIdentifierContext fromIdentifier() {
+      return getRuleContext(FromIdentifierContext.class,0);
     }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
     public TerminalNode WITH() { return getToken(EsqlBaseParser.WITH, 0); }
@@ -4389,6 +4388,9 @@ public class EsqlBaseParser extends Parser {
     }
     public EnrichWithClauseContext enrichWithClause(int i) {
       return getRuleContext(EnrichWithClauseContext.class,i);
+    }
+    public QualifiedNamePatternContext qualifiedNamePattern() {
+      return getRuleContext(QualifiedNamePatternContext.class,0);
     }
     public List<TerminalNode> COMMA() { return getTokens(EsqlBaseParser.COMMA); }
     public TerminalNode COMMA(int i) {
@@ -4424,7 +4426,7 @@ public class EsqlBaseParser extends Parser {
       setState(494);
       match(ENRICH);
       setState(495);
-      ((EnrichCommandContext)_localctx).policyName = qualifiedNamePattern();
+      ((EnrichCommandContext)_localctx).policyName = fromIdentifier();
       setState(498);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,48,_ctx) ) {
@@ -4582,7 +4584,7 @@ public class EsqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\u0004\u0001`\u0207\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
+    "\u0004\u0001b\u0207\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
     "\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004\u0002"+
     "\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007\u0002"+
     "\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b\u0002"+
@@ -4658,8 +4660,8 @@ public class EsqlBaseParser extends Parser {
     "\u0003/\u01fe\b/\u00010\u00010\u00010\u00030\u0203\b0\u00010\u00010\u0001"+
     "0\u0000\u0003\u0002\n\u00101\u0000\u0002\u0004\u0006\b\n\f\u000e\u0010"+
     "\u0012\u0014\u0016\u0018\u001a\u001c\u001e \"$&(*,.02468:<>@BDFHJLNPR"+
-    "TVXZ\\^`\u0000\t\u0001\u0000:;\u0001\u0000<>\u0001\u0000GH\u0001\u0000"+
-    "AB\u0002\u0000BBLL\u0002\u0000  ##\u0001\u0000&\'\u0002\u0000%%33\u0001"+
+    "TVXZ\\^`\u0000\t\u0001\u0000:;\u0001\u0000<>\u0002\u0000BBGG\u0001\u0000"+
+    "AB\u0002\u0000BBKK\u0002\u0000  ##\u0001\u0000&\'\u0002\u0000%%33\u0001"+
     "\u000049\u0224\u0000b\u0001\u0000\u0000\u0000\u0002e\u0001\u0000\u0000"+
     "\u0000\u0004t\u0001\u0000\u0000\u0000\u0006\u0083\u0001\u0000\u0000\u0000"+
     "\b\u0085\u0001\u0000\u0000\u0000\n\u00a4\u0001\u0000\u0000\u0000\f\u00bf"+
@@ -4868,7 +4870,7 @@ public class EsqlBaseParser extends Parser {
     "\u01ab\u01a9\u0001\u0000\u0000\u0000\u01ac\u01af\u0001\u0000\u0000\u0000"+
     "\u01ad\u01ab\u0001\u0000\u0000\u0000\u01ad\u01ae\u0001\u0000\u0000\u0000"+
     "\u01ae?\u0001\u0000\u0000\u0000\u01af\u01ad\u0001\u0000\u0000\u0000\u01b0"+
-    "\u01b1\u0003,\u0016\u0000\u01b1\u01b2\u0005P\u0000\u0000\u01b2\u01b3\u0003"+
+    "\u01b1\u0003,\u0016\u0000\u01b1\u01b2\u0005O\u0000\u0000\u01b2\u01b3\u0003"+
     ",\u0016\u0000\u01b3A\u0001\u0000\u0000\u0000\u01b4\u01b5\u0005\u0001\u0000"+
     "\u0000\u01b5\u01b6\u0003\u0012\t\u0000\u01b6\u01b8\u0003T*\u0000\u01b7"+
     "\u01b9\u0003H$\u0000\u01b8\u01b7\u0001\u0000\u0000\u0000\u01b8\u01b9\u0001"+
@@ -4896,13 +4898,13 @@ public class EsqlBaseParser extends Parser {
     "\u0003Z-\u0000\u01e3Y\u0001\u0000\u0000\u0000\u01e4\u01e5\u0005?\u0000"+
     "\u0000\u01e5\u01e6\u0003\u0002\u0001\u0000\u01e6\u01e7\u0005@\u0000\u0000"+
     "\u01e7[\u0001\u0000\u0000\u0000\u01e8\u01e9\u0005\u000f\u0000\u0000\u01e9"+
-    "\u01ed\u0005\\\u0000\u0000\u01ea\u01eb\u0005\u000f\u0000\u0000\u01eb\u01ed"+
-    "\u0005]\u0000\u0000\u01ec\u01e8\u0001\u0000\u0000\u0000\u01ec\u01ea\u0001"+
+    "\u01ed\u0005^\u0000\u0000\u01ea\u01eb\u0005\u000f\u0000\u0000\u01eb\u01ed"+
+    "\u0005_\u0000\u0000\u01ec\u01e8\u0001\u0000\u0000\u0000\u01ec\u01ea\u0001"+
     "\u0000\u0000\u0000\u01ed]\u0001\u0000\u0000\u0000\u01ee\u01ef\u0005\u0003"+
-    "\u0000\u0000\u01ef\u01f2\u0003,\u0016\u0000\u01f0\u01f1\u0005T\u0000\u0000"+
+    "\u0000\u0000\u01ef\u01f2\u0003(\u0014\u0000\u01f0\u01f1\u0005S\u0000\u0000"+
     "\u01f1\u01f3\u0003,\u0016\u0000\u01f2\u01f0\u0001\u0000\u0000\u0000\u01f2"+
     "\u01f3\u0001\u0000\u0000\u0000\u01f3\u01fd\u0001\u0000\u0000\u0000\u01f4"+
-    "\u01f5\u0005U\u0000\u0000\u01f5\u01fa\u0003`0\u0000\u01f6\u01f7\u0005"+
+    "\u01f5\u0005T\u0000\u0000\u01f5\u01fa\u0003`0\u0000\u01f6\u01f7\u0005"+
     "\"\u0000\u0000\u01f7\u01f9\u0003`0\u0000\u01f8\u01f6\u0001\u0000\u0000"+
     "\u0000\u01f9\u01fc\u0001\u0000\u0000\u0000\u01fa\u01f8\u0001\u0000\u0000"+
     "\u0000\u01fa\u01fb\u0001\u0000\u0000\u0000\u01fb\u01fe\u0001\u0000\u0000"+

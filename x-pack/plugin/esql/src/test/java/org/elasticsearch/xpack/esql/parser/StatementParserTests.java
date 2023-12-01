@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -54,6 +55,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -61,6 +63,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -811,6 +814,13 @@ public class StatementParserTests extends ESTestCase {
         Filter w = (Filter) where;
         assertThat(w.child(), equalTo(PROCESSING_CMD_INPUT));
         assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
+    }
+
+    public void testQuotedName() {
+        // row `my-field`=123 | stats count(`my-field`) | eval x = `count(`my-field`)`
+        LogicalPlan plan = processingCommand("stats count(`my-field`) |  keep `count(my-field)`");
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("count(my-field)"));
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

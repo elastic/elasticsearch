@@ -311,7 +311,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
         return p -> {
-            final NamedExpression policyName = visitQualifiedNamePattern(ctx.policyName);
+            String policyName = visitFromIdentifier(ctx.policyName);
             var source = source(ctx);
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField.name().contains("*")) {
@@ -326,7 +326,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return new Enrich(
                 source,
                 p,
-                new Literal(source(ctx.policyName), policyName.name(), DataTypes.KEYWORD),
+                new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD),
                 matchField,
                 null,
                 keepClauses.isEmpty() ? List.of() : keepClauses

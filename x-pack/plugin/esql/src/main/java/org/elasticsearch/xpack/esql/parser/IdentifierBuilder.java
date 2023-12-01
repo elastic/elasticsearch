@@ -30,7 +30,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitFromIdentifier(FromIdentifierContext ctx) {
-        return ctx == null ? null : unquoteIdentifier(ctx.FROM_QUOTED_IDENTIFIER(), ctx.FROM_UNQUOTED_IDENTIFIER());
+        return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.FROM_UNQUOTED_IDENTIFIER());
     }
 
     static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {

@@ -68,25 +68,25 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
-        var reponse = client().performRequest(request);
-        assertOkOrCreated(reponse);
-        return entityAsMap(reponse);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
     }
 
     protected Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("GET", endpoint);
-        var reponse = client().performRequest(request);
-        assertOkOrCreated(reponse);
-        return entityAsMap(reponse);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
     }
 
     protected Map<String, Object> getAllModels() throws IOException {
         var endpoint = Strings.format("_inference/_all");
         var request = new Request("GET", endpoint);
-        var reponse = client().performRequest(request);
-        assertOkOrCreated(reponse);
-        return entityAsMap(reponse);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
     }
 
     protected Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
@@ -102,9 +102,9 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         bodyBuilder.append("]}");
 
         request.setJsonEntity(bodyBuilder.toString());
-        var reponse = client().performRequest(request);
-        assertOkOrCreated(reponse);
-        return entityAsMap(reponse);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
     }
 
     @SuppressWarnings("unchecked")
@@ -119,6 +119,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     protected static void assertOkOrCreated(Response response) throws IOException {
         int statusCode = response.getStatusLine().getStatusCode();
+        // Once EntityUtils.toString(entity) is called the entity cannot be reused.
+        // Avoid that call with check here.
         if (statusCode == 200 || statusCode == 201) {
             return;
         }

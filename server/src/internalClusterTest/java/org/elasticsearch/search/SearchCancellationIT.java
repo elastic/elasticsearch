@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -51,7 +50,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102257")
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
     @Override

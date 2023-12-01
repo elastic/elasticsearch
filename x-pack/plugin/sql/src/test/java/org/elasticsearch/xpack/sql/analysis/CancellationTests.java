@@ -9,15 +9,15 @@ package org.elasticsearch.xpack.sql.analysis;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,7 +31,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
-import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequestBuilder;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
@@ -72,7 +71,7 @@ public class CancellationTests extends ESTestCase {
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM bar").request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client).query("SELECT foo FROM bar").request();
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<>() {
             @Override
             public void onResponse(SqlQueryResponse sqlSearchResponse) {
@@ -135,8 +134,7 @@ public class CancellationTests extends ESTestCase {
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM " + indices[0])
-            .request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client).query("SELECT foo FROM " + indices[0]).request();
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<>() {
             @Override
             public void onResponse(SqlQueryResponse sqlSearchResponse) {
@@ -192,11 +190,11 @@ public class CancellationTests extends ESTestCase {
             ActionListener<OpenPointInTimeResponse> listener = (ActionListener<OpenPointInTimeResponse>) invocation.getArguments()[2];
             listener.onResponse(new OpenPointInTimeResponse(pitId));
             return null;
-        }).when(client).execute(eq(OpenPointInTimeAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportOpenPointInTimeAction.TYPE), any(), any());
 
         // Emulation of search cancellation
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        when(client.prepareSearch(any())).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indices));
+        when(client.prepareSearch(any())).thenReturn(new SearchRequestBuilder(client).setIndices(indices));
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             SearchRequest request = (SearchRequest) invocation.getArguments()[1];
@@ -209,7 +207,7 @@ public class CancellationTests extends ESTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onFailure(new TaskCancelledException("cancelled"));
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), searchRequestCaptor.capture(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
 
         // Emulation of close pit
         doAnswer(invocation -> {
@@ -220,11 +218,11 @@ public class CancellationTests extends ESTestCase {
             ActionListener<ClosePointInTimeResponse> listener = (ActionListener<ClosePointInTimeResponse>) invocation.getArguments()[2];
             listener.onResponse(new ClosePointInTimeResponse(true, 1));
             return null;
-        }).when(client).execute(eq(ClosePointInTimeAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportClosePointInTimeAction.TYPE), any(), any());
 
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query(query).request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client).query(query).request();
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<>() {
             @Override
@@ -242,9 +240,9 @@ public class CancellationTests extends ESTestCase {
         assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
         // Final verification to ensure no more interaction
         verify(client).fieldCaps(any(), any());
-        verify(client, times(1)).execute(eq(OpenPointInTimeAction.INSTANCE), any(), any());
-        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), any(), any());
-        verify(client, times(1)).execute(eq(ClosePointInTimeAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(TransportOpenPointInTimeAction.TYPE), any(), any());
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), any(), any());
+        verify(client, times(1)).execute(eq(TransportClosePointInTimeAction.TYPE), any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);

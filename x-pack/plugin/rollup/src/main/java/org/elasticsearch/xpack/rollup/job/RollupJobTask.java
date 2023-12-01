@@ -15,8 +15,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
@@ -130,7 +130,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 job.getHeaders(),
                 ClientHelper.ROLLUP_ORIGIN,
                 client,
-                SearchAction.INSTANCE,
+                TransportSearchAction.TYPE,
                 buildSearchRequest(),
                 nextPhase
             );

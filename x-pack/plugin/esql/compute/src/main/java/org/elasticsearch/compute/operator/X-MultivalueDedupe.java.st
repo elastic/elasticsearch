@@ -191,11 +191,11 @@ $endif$
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
 $if(BytesRef)$
-    public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, BytesRefHash hash) {
 $else$
-    public MultivalueDedupe.HashResult hash(LongHash hash) {
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, LongHash hash) {
 $endif$
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount())) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);

@@ -72,7 +72,7 @@ public abstract class GeoCsvSpecTestCase extends SpecBaseIntegrationTestCase {
     // make sure ES uses UTC (otherwise JDBC driver picks up the JVM timezone per spec/convention)
     @Override
     protected Properties connectionProperties() {
-        Properties connectionProperties = new Properties();
+        Properties connectionProperties = super.connectionProperties();
         connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
         return connectionProperties;
     }

@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -108,7 +108,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         searchRequest.source(source);
         searchRequest.setParentTask(parentTaskId);
         client.execute(
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             new ThreadedActionListener<>(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), forecastStatsHandler)
         );

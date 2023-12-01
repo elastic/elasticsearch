@@ -822,6 +822,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                 );
             }
         }
+
+        public boolean hasNormalizer() {
+            return normalizer != Lucene.KEYWORD_ANALYZER;
+        }
     }
 
     private final boolean indexed;

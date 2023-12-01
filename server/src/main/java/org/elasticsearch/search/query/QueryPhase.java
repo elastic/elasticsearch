@@ -43,10 +43,12 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+import static org.elasticsearch.search.SearchService.queryStillMatchesAfterRewrite;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
@@ -59,6 +61,17 @@ public class QueryPhase {
     private QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        try {
+            // Some searches that will never match can still fall through and we endup running query that will produce no results.
+            // However even in that case we sometimes do expensive things like loading global ordinals. This rewrite should prevent this.
+            // Note that if SearchService#executeQueryPhase(...) always do a can match then we don't need this code here.
+            if (queryStillMatchesAfterRewrite(searchContext.request(), searchContext.getSearchExecutionContext()) == false) {
+                return;
+            }
+        } catch (IOException e) {
+            throw new QueryPhaseExecutionException(searchContext.shardTarget(), "query phase rewrite failed", e);
+        }
+
         if (searchContext.rankShardContext() == null) {
             executeQuery(searchContext);
         } else {

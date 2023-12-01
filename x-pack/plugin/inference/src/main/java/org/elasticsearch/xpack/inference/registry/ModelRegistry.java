@@ -17,6 +17,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -276,11 +277,11 @@ public class ModelRegistry {
             false
         );
 
-        client.prepareBulk()
-            .add(configRequest)
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        bulkRequestBuilder.add(configRequest)
             .add(secretsRequest)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute(bulkResponseActionListener);
+            .execute(ActionListener.releaseAfter(bulkResponseActionListener, bulkRequestBuilder));
     }
 
     private static ActionListener<BulkResponse> getStoreModelListener(Model model, ActionListener<Boolean> listener) {

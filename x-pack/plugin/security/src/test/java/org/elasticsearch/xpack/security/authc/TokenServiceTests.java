@@ -152,7 +152,6 @@ public class TokenServiceTests extends ESTestCase {
         .build();
     private MockLicenseState licenseState;
     private SecurityContext securityContext;
-    private BulkRequestBuilder bulkRequestBuilder;
 
     @Before
     public void setupClient() {
@@ -165,8 +164,7 @@ public class TokenServiceTests extends ESTestCase {
             return builder;
         }).when(client).prepareGet(anyString(), anyString());
         when(client.prepareIndex(any(String.class))).thenReturn(new IndexRequestBuilder(client));
-        bulkRequestBuilder = new BulkRequestBuilder(client); // closed in the test's cleanup() method
-        when(client.prepareBulk()).thenReturn(bulkRequestBuilder);
+        when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
         when(client.prepareUpdate(any(String.class), any(String.class))).thenAnswer(inv -> {
             final String index = (String) inv.getArguments()[0];
             final String id = (String) inv.getArguments()[1];
@@ -232,13 +230,6 @@ public class TokenServiceTests extends ESTestCase {
         if (randomBoolean()) {
             // before refresh tokens used GET, i.e. TokenService#VERSION_GET_TOKEN_DOC_FOR_REFRESH
             pre8500040OldNode = addAnotherPre8500DataNode(this.clusterService);
-        }
-    }
-
-    @After
-    public void cleanup() {
-        if (bulkRequestBuilder != null) {
-            bulkRequestBuilder.close();
         }
     }
 

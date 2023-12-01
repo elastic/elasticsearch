@@ -7,14 +7,17 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.application.connector.Connector;
@@ -151,6 +154,24 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testDeleteConnectorSyncJob() throws Exception {
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connector.getConnectorId()
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+
+        assertThat(syncJobId, notNullValue());
+
+        DeleteResponse deleteResponse = awaitDeleteConnectorSyncJob(syncJobId);
+
+        assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
+    }
+
+    public void testDeleteConnectorSyncJob_WithMissingSyncJobId_ExpectException() {
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnectorSyncJob("non-existing-sync-job-id"));
+    }
+
     private Map<String, Object> getConnectorSyncJobSourceById(String syncJobId) throws ExecutionException, InterruptedException,
         TimeoutException {
         GetRequest getRequest = new GetRequest(ConnectorSyncJobIndexService.CONNECTOR_SYNC_JOB_INDEX_NAME, syncJobId);
@@ -181,6 +202,31 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
         boolean requestTimedOut = latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         assertTrue("Timeout waiting for put request", requestTimedOut);
+    }
+
+    private DeleteResponse awaitDeleteConnectorSyncJob(String connectorSyncJobId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorSyncJobIndexService.deleteConnectorSyncJob(connectorSyncJobId, new ActionListener<>() {
+            @Override
+            public void onResponse(DeleteResponse deleteResponse) {
+                resp.set(deleteResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for delete request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from delete request", resp.get());
+        return resp.get();
     }
 
     private PostConnectorSyncJobAction.Response awaitPutConnectorSyncJob(PostConnectorSyncJobAction.Request syncJobRequest)

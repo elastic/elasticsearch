@@ -47,6 +47,8 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<EsqlQueryResponse> {
@@ -115,6 +117,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
                 );
                 case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
+                case "geo_point" -> ((LongBlock.Builder) builder).appendLong(GEO.pointAsLong(randomGeoPoint()));
+                case "cartesian_point" -> ((LongBlock.Builder) builder).appendLong(CARTESIAN.pointAsLong(randomCartesianPoint()));
                 case "null" -> builder.appendNull();
                 case "_source" -> {
                     try {

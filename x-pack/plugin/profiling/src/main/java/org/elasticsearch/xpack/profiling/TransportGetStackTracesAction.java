@@ -839,7 +839,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             return samplingRate;
         }
 
-        public void setRequestedDuration(double requestedDuration) {
+        public void setRequestedDuration(Double requestedDuration) {
             this.requestedDuration = requestedDuration;
         }
 

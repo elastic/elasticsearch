@@ -15,6 +15,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -84,6 +85,25 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
 
         assertThat(filteringList, equalTo(indexedConnector.getFiltering()));
+    }
+
+    public void testUpdateConnectorScheduling() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        DocWriteResponse resp = awaitPutConnector(connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        ConnectorScheduling updatedScheduling = ConnectorTestUtils.getRandomConnectorScheduling();
+
+        UpdateConnectorSchedulingAction.Request updateSchedulingRequest = new UpdateConnectorSchedulingAction.Request(
+            connector.getConnectorId(),
+            updatedScheduling
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorScheduling(updateSchedulingRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        assertThat(updatedScheduling, equalTo(indexedConnector.getScheduling()));
     }
 
     private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
@@ -211,4 +231,28 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    private UpdateResponse awaitUpdateConnectorScheduling(UpdateConnectorSchedulingAction.Request updatedScheduling) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorScheduling(updatedScheduling, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update scheduling request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update scheduling request", resp.get());
+        return resp.get();
+    }
 }

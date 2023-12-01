@@ -51,14 +51,20 @@ import org.elasticsearch.xpack.application.connector.action.RestGetConnectorActi
 import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.TransportDeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportGetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.RestDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestPostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.TransportDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportPostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
@@ -120,6 +126,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     public static final String CONNECTOR_API_ENDPOINT = "_connector";
 
+    public static final String CONNECTOR_SYNC_JOB_API_ENDPOINT = CONNECTOR_API_ENDPOINT + "/_sync_job";
+
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
     public static final String FEATURE_NAME = "ent_search";
@@ -179,9 +187,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
                     new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
                     new ActionHandler<>(UpdateConnectorFilteringAction.INSTANCE, TransportUpdateConnectorFilteringAction.class),
+                    new ActionHandler<>(UpdateConnectorSchedulingAction.INSTANCE, TransportUpdateConnectorSchedulingAction.class),
 
                     // SyncJob API
-                    new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class)
+                    new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class),
+                    new ActionHandler<>(DeleteConnectorSyncJobAction.INSTANCE, TransportDeleteConnectorSyncJobAction.class)
                 )
             );
         }
@@ -238,9 +248,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestListConnectorAction(),
                     new RestPutConnectorAction(),
                     new RestUpdateConnectorFilteringAction(),
+                    new RestUpdateConnectorSchedulingAction(),
 
                     // SyncJob API
-                    new RestPostConnectorSyncJobAction()
+                    new RestPostConnectorSyncJobAction(),
+                    new RestDeleteConnectorSyncJobAction()
                 )
             );
         }

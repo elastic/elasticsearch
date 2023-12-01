@@ -8,6 +8,8 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+
 import java.util.Map;
 
 public interface Repositories {
@@ -24,4 +26,21 @@ public interface Repositories {
      * @throws RepositoryMissingException if repository with such name isn't registered
      */
     Repository repository(String repositoryName);
+
+    /**
+     * Creates a repository holder.
+     *
+     * <p>WARNING: This method is intended for expert only usage mainly in plugins/modules. Please take note of the following:</p>
+     *
+     * <ul>
+     *     <li>This method does not register the repository (e.g., in the cluster state).</li>
+     *     <li>This method starts the repository. The repository should be closed after use.</li>
+     *     <li>The repository metadata should be associated to an already registered non-internal repository type and factory pair.</li>
+     * </ul>
+     *
+     * @param repositoryMetadata the repository metadata
+     * @return the started repository
+     * @throws RepositoryException if repository type is not registered
+     */
+    Repository createRepository(RepositoryMetadata repositoryMetadata);
 }

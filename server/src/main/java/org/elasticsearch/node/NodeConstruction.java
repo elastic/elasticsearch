@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -582,16 +583,24 @@ class NodeConstruction {
             this.service = Objects.requireNonNull(service);
         }
 
+        private RepositoriesService service() {
+            if (service == null) throw new IllegalStateException("Repositories implementation hasn't been set yet");
+            return service;
+        }
+
         @Override
         public Map<String, Repository> getRepositories() {
-            if (service == null) throw new IllegalStateException("Repositories implementation hasn't been set yet");
-            return service.getRepositories();
+            return service().getRepositories();
         }
 
         @Override
         public Repository repository(String repositoryName) {
-            if (service == null) throw new IllegalStateException("Repositories implementation hasn't been set yet");
-            return service.repository(repositoryName);
+            return service().repository(repositoryName);
+        }
+
+        @Override
+        public Repository createRepository(RepositoryMetadata repositoryMetadata) {
+            return service().createRepository(repositoryMetadata);
         }
     }
 

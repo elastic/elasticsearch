@@ -5,79 +5,53 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.action;
+package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
-public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.Response> {
+public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.Response> {
 
-    public static final PutInferenceModelAction INSTANCE = new PutInferenceModelAction();
-    public static final String NAME = "cluster:admin/xpack/inference/put";
+    public static final GetInferenceModelAction INSTANCE = new GetInferenceModelAction();
+    public static final String NAME = "cluster:admin/xpack/inference/get";
 
-    public PutInferenceModelAction() {
-        super(NAME, PutInferenceModelAction.Response::new);
+    public GetInferenceModelAction() {
+        super(NAME, GetInferenceModelAction.Response::new);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<GetInferenceModelAction.Request> {
 
-        private final TaskType taskType;
         private final String modelId;
-        private final BytesReference content;
-        private final XContentType contentType;
+        private final TaskType taskType;
 
-        public Request(String taskType, String modelId, BytesReference content, XContentType contentType) {
-            this.taskType = TaskType.fromStringOrStatusException(taskType);
+        public Request(String modelId, String taskType) {
             this.modelId = modelId;
-            this.content = content;
-            this.contentType = contentType;
+            this.taskType = TaskType.fromStringOrStatusException(taskType);
+        }
+
+        public Request(String modelId, TaskType taskType) {
+            this.modelId = modelId;
+            this.taskType = taskType;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.modelId = in.readString();
             this.taskType = TaskType.fromStream(in);
-            this.content = in.readBytesReference();
-            this.contentType = in.readEnum(XContentType.class);
-        }
-
-        public TaskType getTaskType() {
-            return taskType;
-        }
-
-        public String getModelId() {
-            return modelId;
-        }
-
-        public BytesReference getContent() {
-            return content;
-        }
-
-        public XContentType getContentType() {
-            return contentType;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(modelId);
-            taskType.writeTo(out);
-            out.writeBytesReference(content);
-            XContentHelper.writeTo(out, contentType);
         }
 
         @Override
@@ -85,61 +59,91 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             return null;
         }
 
+        public String getModelId() {
+            return modelId;
+        }
+
+        public TaskType getTaskType() {
+            return taskType;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(modelId);
+            taskType.writeTo(out);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return taskType == request.taskType
-                && Objects.equals(modelId, request.modelId)
-                && Objects.equals(content, request.content)
-                && contentType == request.contentType;
+            return Objects.equals(modelId, request.modelId) && taskType == request.taskType;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, modelId, content, contentType);
+            return Objects.hash(modelId, taskType);
         }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final ModelConfigurations model;
+        private final List<ModelConfigurations> models;
 
-        public Response(ModelConfigurations model) {
-            this.model = model;
+        public Response(List<ModelConfigurations> models) {
+            this.models = models;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            model = new ModelConfigurations(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GET_MULTIPLE_MODELS)) {
+                models = in.readCollectionAsList(ModelConfigurations::new);
+            } else {
+                models = new ArrayList<>();
+                models.add(new ModelConfigurations(in));
+            }
         }
 
-        public ModelConfigurations getModel() {
-            return model;
+        public List<ModelConfigurations> getModels() {
+            return models;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            model.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GET_MULTIPLE_MODELS)) {
+                out.writeCollection(models);
+            } else {
+                models.get(0).writeTo(out);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return model.toXContent(builder, params);
+            builder.startObject();
+            builder.startArray("models");
+            for (var model : models) {
+                if (model != null) {
+                    model.toXContent(builder, params);
+                }
+            }
+            builder.endArray();
+            builder.endObject();
+            return builder;
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(model, response.model);
+            GetInferenceModelAction.Response response = (GetInferenceModelAction.Response) o;
+            return Objects.equals(models, response.models);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(model);
+            return Objects.hash(models);
         }
     }
 }

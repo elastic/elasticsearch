@@ -280,6 +280,7 @@ public class Constants {
         "cluster:admin/xpack/watcher/settings/update",
         "cluster:admin/xpack/watcher/watch/put",
         "cluster:internal/remote_cluster/nodes",
+        "cluster:internal/xpack/ml/coordinatedinference",
         "cluster:internal/xpack/ml/datafeed/isolate",
         "cluster:internal/xpack/ml/datafeed/running_state",
         "cluster:internal/xpack/ml/inference/infer",

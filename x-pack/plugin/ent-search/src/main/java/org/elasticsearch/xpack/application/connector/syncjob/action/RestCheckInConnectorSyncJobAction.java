@@ -18,28 +18,29 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants.CONNECTOR_SYNC_JOB_ID_PARAM;
 
-public class RestDeleteConnectorSyncJobAction extends BaseRestHandler {
+public class RestCheckInConnectorSyncJobAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "connector_sync_job_delete_action";
+        return "connector_sync_job_check_in_action";
     }
 
     @Override
     public List<Route> routes() {
         return List.of(
             new Route(
-                RestRequest.Method.DELETE,
-                "/" + EnterpriseSearch.CONNECTOR_SYNC_JOB_API_ENDPOINT + "/{" + CONNECTOR_SYNC_JOB_ID_PARAM + "}"
+                RestRequest.Method.PUT,
+                "/" + EnterpriseSearch.CONNECTOR_SYNC_JOB_API_ENDPOINT + "/{" + CONNECTOR_SYNC_JOB_ID_PARAM + "}/_check_in"
             )
         );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        DeleteConnectorSyncJobAction.Request request = new DeleteConnectorSyncJobAction.Request(
+        CheckInConnectorSyncJobAction.Request request = new CheckInConnectorSyncJobAction.Request(
             restRequest.param(CONNECTOR_SYNC_JOB_ID_PARAM)
         );
-        return restChannel -> client.execute(DeleteConnectorSyncJobAction.INSTANCE, request, new RestToXContentListener<>(restChannel));
+
+        return restChannel -> client.execute(CheckInConnectorSyncJobAction.INSTANCE, request, new RestToXContentListener<>(restChannel));
     }
 }

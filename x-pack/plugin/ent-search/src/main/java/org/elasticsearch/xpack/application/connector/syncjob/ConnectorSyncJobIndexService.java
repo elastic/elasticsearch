@@ -19,10 +19,13 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
@@ -177,7 +180,7 @@ public class ConnectorSyncJobIndexService {
         try {
             clientWithOrigin.delete(
                 deleteRequest,
-                new DelegatingIndexNotFoundActionListener<>(connectorSyncJobId, listener, (l, deleteResponse) -> {
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, deleteResponse) -> {
                     if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                         l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
                         return;
@@ -191,15 +194,49 @@ public class ConnectorSyncJobIndexService {
     }
 
     /**
+     * Checks in the {@link ConnectorSyncJob} in the underlying index.
+     * In this context "checking in" means to update the "last_seen" timestamp to the time, when the method was called.
+     *
+     * @param connectorSyncJobId     The id of the connector sync job object.
+     * @param listener               The action listener to invoke on response/failure.
+     */
+    public void checkInConnectorSyncJob(String connectorSyncJobId, ActionListener<UpdateResponse> listener) {
+        Instant newLastSeen = Instant.now();
+
+        final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        ).doc(Map.of(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName(), newLastSeen));
+
+        try {
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Listeners that checks failures for IndexNotFoundException, and transforms them in ResourceNotFoundException,
      * invoking onFailure on the delegate listener
      */
-    static class DelegatingIndexNotFoundActionListener<T, R> extends DelegatingActionListener<T, R> {
+    static class DelegatingIndexNotFoundOrDocumentMissingActionListener<T, R> extends DelegatingActionListener<T, R> {
 
         private final BiConsumer<ActionListener<R>, T> bc;
         private final String connectorSyncJobId;
 
-        DelegatingIndexNotFoundActionListener(String connectorSyncJobId, ActionListener<R> delegate, BiConsumer<ActionListener<R>, T> bc) {
+        DelegatingIndexNotFoundOrDocumentMissingActionListener(
+            String connectorSyncJobId,
+            ActionListener<R> delegate,
+            BiConsumer<ActionListener<R>, T> bc
+        ) {
             super(delegate);
             this.bc = bc;
             this.connectorSyncJobId = connectorSyncJobId;
@@ -213,7 +250,7 @@ public class ConnectorSyncJobIndexService {
         @Override
         public void onFailure(Exception e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof IndexNotFoundException) {
+            if (cause instanceof IndexNotFoundException || cause instanceof DocumentMissingException) {
                 delegate.onFailure(new ResourceNotFoundException("connector sync job [" + connectorSyncJobId + "] not found"));
                 return;
             }

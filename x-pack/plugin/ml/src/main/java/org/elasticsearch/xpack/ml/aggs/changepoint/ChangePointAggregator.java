@@ -233,9 +233,9 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         double[] weights = Arrays.copyOf(values, values.length);
         Arrays.sort(weights);
         // We have to be careful here if we have a lot of duplicate values. To avoid marking
-        // runs of duplicates as outliers we define them to be the smallest (largest) value
-        // strictly less (greater) than the value at i (values.length - i - 1). This means
-        // if i lands in a run of duplicates entire run will be maked as inliers.
+        // runs of duplicates as outliers we define outliers to be the smallest (largest)
+        // value strictly less (greater) than the value at i (values.length - i - 1). This
+        // means if i lands in a run of duplicates the entire run will be marked as inliers.
         double a = weights[i];
         double b = weights[values.length - i - 1];
         for (int j = 0; j < values.length; j++) {

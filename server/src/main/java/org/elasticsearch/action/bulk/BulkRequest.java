@@ -491,7 +491,6 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public void close() {
-        if (true) new RuntimeException("who did this??").printStackTrace();
         decRef();
     }
 

@@ -317,7 +317,7 @@ public abstract class DocumentParserContext {
             && mappingLookup.objectMappers().containsKey(fullName) == false
             && dynamicMappers.containsKey(fullName) == false) {
             int additionalFieldsToAdd = getNewDynamicMappersSize() + builder.mapperSize();
-            if (dynamic == ObjectMapper.Dynamic.TRUE_UNTIL_LIMIT) {
+            if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
                     addIgnoredField(fullName);
                     return false;
@@ -415,7 +415,14 @@ public abstract class DocumentParserContext {
      */
     final boolean addDynamicRuntimeField(RuntimeField runtimeField) {
         if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
-            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), getNewDynamicMappersSize() + 1);
+            if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
+                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), dynamicRuntimeFields.size() + 1)) {
+                    addIgnoredField(runtimeField.name());
+                    return false;
+                }
+            } else {
+                mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), getNewDynamicMappersSize() + 1);
+            }
         }
         dynamicRuntimeFields.computeIfAbsent(runtimeField.name(), k -> new ArrayList<>(1)).add(runtimeField);
         return true;

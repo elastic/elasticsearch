@@ -51,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
@@ -132,7 +133,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
     public void testConcurrentDynamicUpdates() throws Throwable {
         int numberOfFieldsToCreate = 32;
-        Map<String, Object> properties = indexConcurrently(numberOfFieldsToCreate, Settings.builder(), Map.of());
+        Map<String, Object> properties = indexConcurrently(numberOfFieldsToCreate, Settings.builder());
         assertThat(properties, aMapWithSize(numberOfFieldsToCreate));
         for (int i = 0; i < numberOfFieldsToCreate; i++) {
             assertThat(properties, hasKey("field" + i));
@@ -143,8 +144,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
         int numberOfFieldsToCreate = 32;
         Map<String, Object> properties = indexConcurrently(
             numberOfFieldsToCreate,
-            Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsToCreate),
-            Map.of("dynamic", "true_until_limit")
+            Settings.builder()
+                .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsToCreate)
+                .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
         );
         // every field is a multi-field (text + keyword)
         assertThat(properties, aMapWithSize(16));
@@ -157,9 +159,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertEquals(16, ignoredFields);
     }
 
-    private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings, Map<String, Object> mapping)
-        throws Throwable {
-        indicesAdmin().prepareCreate("index").setSettings(settings).setMapping(mapping).get();
+    private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings) throws Throwable {
+        indicesAdmin().prepareCreate("index").setSettings(settings).get();
         ensureGreen("index");
         final Thread[] indexThreads = new Thread[numberOfFieldsToCreate];
         final CountDownLatch startLatch = new CountDownLatch(1);
@@ -349,6 +350,14 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
     }
 
+    public void testIgnoreDynamicBeyondLimitRuntimeFields() throws Exception {
+        var fields = indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2)), Map.of("dynamic", "runtime"))
+            .getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+        assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+    }
+
     public void testFieldLimitRuntimeAndDynamic() throws Exception {
         assertAcked(
             indicesAdmin().prepareCreate("test")
@@ -391,9 +400,21 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     private SearchHit indexIgnoreDynamicBeyond(int fieldLimit, Map<String, Object> source) throws Exception {
-        prepareCreate("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), fieldLimit)).setMapping(
-            Map.of("dynamic", "true_until_limit")
-        ).get();
+        return indexIgnoreDynamicBeyond(fieldLimit, source, Map.of());
+    }
+
+    private SearchHit indexIgnoreDynamicBeyond(int fieldLimit, Map<String, Object> source, Map<String, Object> mapping) throws Exception {
+        client().admin()
+            .indices()
+            .prepareCreate("index")
+            .setSettings(
+                Settings.builder()
+                    .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), fieldLimit)
+                    .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+                    .build()
+            )
+            .setMapping(mapping)
+            .get();
         ensureGreen("index");
         client().prepareIndex("index").setId("1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(source).get();
         return client().prepareSearch("index").setQuery(new MatchAllQueryBuilder()).addFetchField("*").get().getHits().getHits()[0];

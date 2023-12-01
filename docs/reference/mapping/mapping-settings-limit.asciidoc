@@ -21,7 +21,7 @@ limits the maximum number of clauses in a query.
 [TIP]
 ====
 If your field mappings contain a large, arbitrary set of keys, consider using the <<flattened,flattened>> data type,
-or setting the mapping parameter <<dynamic-parameters, `dynamic: true_until_limit`>>.
+or setting the index setting `index.mapping.total_fields.ignore_dynamic_beyond_limit` to `true`.
 ====
 
 `index.mapping.depth.limit`::

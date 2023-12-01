@@ -52,12 +52,6 @@ public class ObjectMapper extends Mapper {
                 return DynamicFieldsBuilder.DYNAMIC_TRUE;
             }
         },
-        TRUE_UNTIL_LIMIT {
-            @Override
-            DynamicFieldsBuilder getDynamicFieldsBuilder() {
-                return DynamicFieldsBuilder.DYNAMIC_TRUE;
-            }
-        },
         FALSE,
         STRICT,
         RUNTIME {
@@ -240,8 +234,6 @@ public class ObjectMapper extends Mapper {
                     builder.dynamic(Dynamic.STRICT);
                 } else if (value.equalsIgnoreCase("runtime")) {
                     builder.dynamic(Dynamic.RUNTIME);
-                } else if (value.equalsIgnoreCase("true_until_limit")) {
-                    builder.dynamic(Dynamic.TRUE_UNTIL_LIMIT);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);

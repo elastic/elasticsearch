@@ -21,12 +21,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class HuggingFaceElserRequest implements Request {
+public class HuggingFaceInferenceRequest implements Request {
 
     private final HuggingFaceAccount account;
-    private final HuggingFaceElserRequestEntity entity;
+    private final HuggingFaceInferenceRequestEntity entity;
 
-    public HuggingFaceElserRequest(HuggingFaceAccount account, HuggingFaceElserRequestEntity entity) {
+    public HuggingFaceInferenceRequest(HuggingFaceAccount account, HuggingFaceInferenceRequestEntity entity) {
         this.account = Objects.requireNonNull(account);
         this.entity = Objects.requireNonNull(entity);
     }

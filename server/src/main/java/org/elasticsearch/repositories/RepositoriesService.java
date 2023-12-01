@@ -71,7 +71,7 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
  */
-public class RepositoriesService extends AbstractLifecycleComponent implements ClusterStateApplier {
+public class RepositoriesService extends AbstractLifecycleComponent implements Repositories, ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RepositoriesService.class);
 
@@ -648,13 +648,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    /**
-     * Returns registered repository
-     *
-     * @param repositoryName repository name
-     * @return registered repository
-     * @throws RepositoryMissingException if repository with such name isn't registered
-     */
+    @Override
     public Repository repository(String repositoryName) {
         Repository repository = repositories.get(repositoryName);
         if (repository != null) {
@@ -667,9 +661,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         throw new RepositoryMissingException(repositoryName);
     }
 
-    /**
-     * @return the current collection of registered repositories, keyed by name.
-     */
+    @Override
     public Map<String, Repository> getRepositories() {
         return unmodifiableMap(repositories);
     }

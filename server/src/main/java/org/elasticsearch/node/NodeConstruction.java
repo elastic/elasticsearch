@@ -160,6 +160,7 @@ import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
+import org.elasticsearch.repositories.Repositories;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -573,23 +574,24 @@ class NodeConstruction {
         return registry;
     }
 
-    private static class RepositoryServiceReference implements Supplier<RepositoriesService>, Function<String, Repository> {
+    private static class RepositoriesReference implements Repositories {
         private RepositoriesService service;
 
         private void set(RepositoriesService service) {
-            if (this.service != null) throw new IllegalStateException("RepositoriesService has already been set");
+            if (this.service != null) throw new IllegalStateException("Repositories implementation has already been set");
             this.service = Objects.requireNonNull(service);
         }
 
         @Override
-        public RepositoriesService get() {
-            if (service == null) throw new IllegalStateException("RepositoriesService hasn't been set yet");
-            return service;
+        public Map<String, Repository> getRepositories() {
+            if (service == null) throw new IllegalStateException("Repositories implementation hasn't been set yet");
+            return service.getRepositories();
         }
 
         @Override
-        public Repository apply(String s) {
-            return get().repository(s);
+        public Repository repository(String repositoryName) {
+            if (service == null) throw new IllegalStateException("Repositories implementation hasn't been set yet");
+            return service.repository(repositoryName);
         }
     }
 
@@ -653,7 +655,7 @@ class NodeConstruction {
 
         SystemIndices systemIndices = createSystemIndices(settings);
 
-        RepositoryServiceReference repositoriesServiceReference = new RepositoryServiceReference();
+        RepositoriesReference repositoriesServiceReference = new RepositoriesReference();
         RerouteServiceReference rerouteServiceReference = new RerouteServiceReference();
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
@@ -795,7 +797,7 @@ class NodeConstruction {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Repositories repositories,
             TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService,

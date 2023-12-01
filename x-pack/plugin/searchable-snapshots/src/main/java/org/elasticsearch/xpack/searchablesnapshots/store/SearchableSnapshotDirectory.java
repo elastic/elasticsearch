@@ -42,7 +42,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repositories;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -554,7 +554,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public static Directory create(
-        RepositoriesService repositories,
+        Repositories repositories,
         CacheService cache,
         IndexSettings indexSettings,
         ShardPath shardPath,

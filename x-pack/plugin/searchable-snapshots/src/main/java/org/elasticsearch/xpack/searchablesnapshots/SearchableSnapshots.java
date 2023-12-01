@@ -58,7 +58,7 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repositories;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -246,7 +246,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(",", DataTier.DATA_CONTENT, DataTier.DATA_HOT);
     private static final int SEARCHABLE_SNAPSHOTS_INDEX_MAPPINGS_VERSION = 1;
 
-    private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
+    private volatile Repositories repositories;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
     private final SetOnce<SharedBlobCacheService<CacheKey>> frozenCacheService = new SetOnce<>();
@@ -319,7 +319,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
 
         final List<Object> components = new ArrayList<>();
-        this.repositoriesServiceSupplier = services.repositoriesServiceSupplier();
+        this.repositories = services.repositories();
         this.threadPool.set(threadPool);
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), services.rerouteService()));
         if (DiscoveryNode.canContainData(settings)) {
@@ -419,8 +419,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(SEARCHABLE_SNAPSHOT_STORE_TYPE, (indexSettings, shardPath) -> {
-            final RepositoriesService repositories = repositoriesServiceSupplier.get();
-            assert repositories != null;
             final CacheService cache = cacheService.get();
             assert cache != null;
             final ThreadPool threadPool = this.threadPool.get();

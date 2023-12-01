@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repositories;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -42,7 +42,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
@@ -125,11 +124,10 @@ public abstract class Plugin implements Closeable {
         IndexNameExpressionResolver indexNameExpressionResolver();
 
         /**
-         * A supplier for the service that manages snapshot repositories.
-         * This will return null when {@link #createComponents(PluginServices)} is called,
-         * but will return the repositories service once the node is initialized.
+         * An object to access repositories.
+         * Note that this will not fully work until node has been initialized.
          */
-        Supplier<RepositoriesService> repositoriesServiceSupplier();
+        Repositories repositories();
 
         /**
          * An interface for distributed tracing

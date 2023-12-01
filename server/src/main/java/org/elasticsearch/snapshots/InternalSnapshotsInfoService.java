@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.Repositories;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -36,7 +37,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Queue;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -58,7 +58,7 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
     );
 
     private final ThreadPool threadPool;
-    private final Function<String, Repository> resolveRepository;
+    private final Repositories repositories;
     private final RerouteService rerouteService;
 
     /** contains the snapshot shards for which the size is known **/
@@ -86,11 +86,11 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
     public InternalSnapshotsInfoService(
         final Settings settings,
         final ClusterService clusterService,
-        final Function<String, Repository> resolveRepository,
+        final Repositories repositories,
         final RerouteService rerouteService
     ) {
         this.threadPool = clusterService.getClusterApplierService().threadPool();
-        this.resolveRepository = resolveRepository;
+        this.repositories = repositories;
         this.rerouteService = rerouteService;
         this.knownSnapshotShards = ImmutableOpenMap.of();
         this.unknownSnapshotShards = new LinkedHashSet<>();
@@ -209,7 +209,7 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
 
         @Override
         protected void doRun() throws Exception {
-            final Repository repository = resolveRepository.apply(snapshotShard.snapshot.getRepository());
+            final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
 
             logger.debug("fetching snapshot shard size for {}", snapshotShard);
             final long snapshotShardSize = repository.getShardSnapshotStatus(

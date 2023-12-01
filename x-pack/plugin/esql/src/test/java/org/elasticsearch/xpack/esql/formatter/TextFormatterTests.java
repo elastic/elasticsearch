@@ -61,6 +61,7 @@ public class TextFormatterTests extends ESTestCase {
                 Block.constantNullBlock(2)
             )
         ),
+        null,
         randomBoolean()
     );
 
@@ -123,6 +124,7 @@ public class TextFormatterTests extends ESTestCase {
                     Block.constantNullBlock(2)
                 )
             ),
+            null,
             randomBoolean()
         );
 
@@ -161,6 +163,7 @@ public class TextFormatterTests extends ESTestCase {
                                     .build()
                             )
                         ),
+                        null,
                         randomBoolean()
                     )
                 ).format(false)

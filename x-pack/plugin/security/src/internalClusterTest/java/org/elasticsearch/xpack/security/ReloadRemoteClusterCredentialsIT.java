@@ -44,8 +44,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.BeforeClass;
@@ -58,9 +56,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -256,29 +252,6 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             if (success == false) {
                 service.close();
             }
-        }
-    }
-
-    private void assertContainsHeadersExpectedForCrossClusterAccess(final Map<String, String> actualHeaders) {
-        assertContainsHeadersExpectedForCrossClusterAccess(actualHeaders, true);
-    }
-
-    private void assertContainsHeadersExpectedForCrossClusterAccess(final Map<String, String> actualHeaders, boolean includeRequestId) {
-        assertThat(
-            actualHeaders.keySet(),
-            includeRequestId
-                ? containsInAnyOrder(
-                    CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
-                    CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,
-                    AuditUtil.AUDIT_REQUEST_ID
-                )
-                : containsInAnyOrder(
-                    CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
-                    CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
-                )
-        );
-        if (includeRequestId) {
-            assertThat(actualHeaders.get(AuditUtil.AUDIT_REQUEST_ID), not(emptyOrNullString()));
         }
     }
 

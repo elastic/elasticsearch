@@ -34,14 +34,16 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query, flo
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField DEFAULT_SCORE = new ParseField("default_score");
 
+    public static float DEFAULT_SCORE_DEFAULT = 0f;
+
     private static final ConstructingObjectParser<QueryExtractorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
-        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1], Objects.requireNonNullElse((Float) a[2], 0f))
+        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1], Objects.requireNonNullElse((Float) a[2], DEFAULT_SCORE_DEFAULT))
     );
     private static final ConstructingObjectParser<QueryExtractorBuilder, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
         true,
-        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1], Objects.requireNonNullElse((Float) a[2], 0f))
+        a -> new QueryExtractorBuilder((String) a[0], (QueryProvider) a[1], Objects.requireNonNullElse((Float) a[2], DEFAULT_SCORE_DEFAULT))
     );
     static {
         PARSER.declareString(constructorArg(), FEATURE_NAME);
@@ -62,7 +64,7 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query, flo
     }
 
     public QueryExtractorBuilder(String featureName, QueryProvider query) {
-        this(featureName, query, 0);
+        this(featureName, query, DEFAULT_SCORE_DEFAULT);
     }
 
     public QueryExtractorBuilder(String featureName, QueryProvider query, float defaultScore) {

@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+$if(Point)$
+import org.elasticsearch.common.geo.SpatialPoint;
+$endif$
 import org.elasticsearch.core.Releasables;
 
 /**

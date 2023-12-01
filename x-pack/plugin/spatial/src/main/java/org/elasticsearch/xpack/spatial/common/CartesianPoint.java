@@ -26,29 +26,26 @@ import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Represents a point in the cartesian space.
  */
-public class CartesianPoint implements SpatialPoint, ToXContentFragment {
+public class CartesianPoint extends SpatialPoint implements ToXContentFragment {
 
     private static final String X_FIELD = "x";
     private static final String Y_FIELD = "y";
     private static final String Z_FIELD = "z";
 
-    protected double x;
-    protected double y;
-
-    public CartesianPoint() {}
+    public CartesianPoint() {
+        super(0, 0);
+    }
 
     public CartesianPoint(double x, double y) {
-        this.x = x;
-        this.y = y;
+        super(x, y);
     }
 
     public CartesianPoint(SpatialPoint template) {
-        this(template.getX(), template.getY());
+        super(template);
     }
 
     public CartesianPoint reset(double x, double y) {
@@ -149,39 +146,6 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
     }
 
     @Override
-    public double getX() {
-        return this.x;
-    }
-
-    @Override
-    public double getY() {
-        return this.y;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        CartesianPoint point = (CartesianPoint) o;
-
-        if (Double.compare(point.x, x) != 0) return false;
-        if (Double.compare(point.y, y) != 0) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(x, y);
-    }
-
-    @Override
-    public String toString() {
-        return x + ", " + y;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject().field(X_FIELD, x).field(Y_FIELD, y).endObject();
     }
@@ -244,7 +208,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
         }
     }
 
-    private static GenericPointParser<CartesianPoint> cartesianPointParser = new GenericPointParser<>("point", "x", "y", false) {
+    private static final GenericPointParser<CartesianPoint> cartesianPointParser = new GenericPointParser<>("point", "x", "y", false) {
 
         @Override
         public void assertZValue(boolean ignoreZValue, double zValue) {

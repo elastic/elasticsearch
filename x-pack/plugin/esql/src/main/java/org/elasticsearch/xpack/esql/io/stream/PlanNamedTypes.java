@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
@@ -172,6 +176,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -180,6 +185,7 @@ import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -190,6 +196,10 @@ import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 /**
  * A utility class that consists solely of static methods that describe how to serialize and
@@ -1572,13 +1582,61 @@ public final class PlanNamedTypes {
     // -- Expressions (other)
 
     static Literal readLiteral(PlanStreamInput in) throws IOException {
-        return new Literal(in.readSource(), in.readGenericValue(), in.dataTypeFromTypeName(in.readString()));
+        return new Literal(
+            in.readSource(),
+            in.readGenericValue(),
+            in.dataTypeFromTypeName(in.readString()),
+            PlanNamedTypes::mapToLiteralValue
+        );
     }
 
     static void writeLiteral(PlanStreamOutput out, Literal literal) throws IOException {
         out.writeNoSource();
-        out.writeGenericValue(literal.value());
+        out.writeGenericValue(mapFromLiteralValue(literal));
         out.writeString(literal.dataType().typeName());
+    }
+
+    /**
+     * Not all literal values are currently supported in StreamInput/StreamOutput as generic values.
+     * This mapper allows for addition of new and interesting values without (yet) changing transport version.
+     * This only makes sense during the pre-GA version of ESQL. When we get near GA we want TransportVersion support.
+     * TODO: Implement TransportVersion checks before GA (eg. by adding to StreamInput/StreamOutput directly)
+     */
+    private static Object mapFromLiteralValue(Literal literal) {
+        if (literal.dataType() == GEO_POINT || literal.dataType() == CARTESIAN_POINT) {
+            if (literal.value() instanceof List<?> list) {
+                return list.stream().map(v -> pointAsWKB((SpatialPoint) v)).toList();
+            }
+            return pointAsWKB((SpatialPoint) literal.value());
+        }
+        return literal.value();
+    }
+
+    /**
+     * Not all literal values are currently supported in StreamInput/StreamOutput as generic values.
+     * This mapper allows for addition of new and interesting values without (yet) changing transport version.
+     * This only makes sense during the pre-GA version of ESQL. When we get near GA we want TransportVersion support.
+     * TODO: Implement TransportVersion checks before GA (eg. by adding to StreamInput/StreamOutput directly)
+     */
+    private static Object mapToLiteralValue(DataType dataType, Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream().map(v -> mapToLiteralValue(dataType, v)).toList();
+        }
+        if (value instanceof byte[] bytes) {
+            if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
+                return wkbAsPoint(dataType, bytes);
+            }
+        }
+        return value;
+    }
+
+    private static byte[] pointAsWKB(SpatialPoint point) {
+        return WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN);
+    }
+
+    private static SpatialPoint wkbAsPoint(DataType dataType, byte[] bytes) {
+        Point point = (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, bytes);
+        return dataType == GEO_POINT ? GEO.pointAsPoint(point) : CARTESIAN.pointAsPoint(point);
     }
 
     static Order readOrder(PlanStreamInput in) throws IOException {

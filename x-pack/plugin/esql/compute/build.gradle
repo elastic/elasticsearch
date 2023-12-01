@@ -30,27 +30,30 @@ spotless {
   }
 }
 
-def prop(Type, type, TYPE, BYTES) {
+def prop(Type, type, TYPE, BYTES, Array) {
   return [
     "Type" : Type,
     "type" : type,
     "TYPE" : TYPE,
     "BYTES" : BYTES,
+    "Array" : Array,
 
     "int" : type == "int" ? "true" : "",
     "long" : type == "long" ? "true" : "",
     "double" : type == "double" ? "true" : "",
     "BytesRef" : type == "BytesRef" ? "true" : "",
+    "Point" : type == "SpatialPoint" ? "true" : "",
     "boolean" : type == "boolean" ? "true" : "",
   ]
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES")
-  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES")
-  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF")
-  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES")
+  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES", "IntArray")
+  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES", "LongArray")
+  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
+  var pointProperties    = prop("Point", "SpatialPoint", "POINT", "16", "ObjectArray<SpatialPoint>")
+  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {
@@ -72,6 +75,11 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile =  vectorInputFile
     it.outputFile = "org/elasticsearch/compute/data/BytesRefVector.java"
+  }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  vectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointVector.java"
   }
   template {
     it.properties = booleanProperties
@@ -101,6 +109,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/data/BytesRefArrayVector.java"
   }
   template {
+    it.properties = pointProperties
+    it.inputFile =  arrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointArrayVector.java"
+  }
+  template {
     it.properties = booleanProperties
     it.inputFile =  arrayVectorInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanArrayVector.java"
@@ -121,6 +134,11 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile =  bigArrayVectorInputFile
     it.outputFile = "org/elasticsearch/compute/data/DoubleBigArrayVector.java"
+  }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  bigArrayVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointBigArrayVector.java"
   }
   template {
     it.properties = booleanProperties
@@ -150,6 +168,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/data/ConstantBytesRefVector.java"
   }
   template {
+    it.properties = pointProperties
+    it.inputFile =  constantVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/ConstantPointVector.java"
+  }
+  template {
     it.properties = booleanProperties
     it.inputFile =  constantVectorInputFile
     it.outputFile = "org/elasticsearch/compute/data/ConstantBooleanVector.java"
@@ -175,6 +198,11 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile =  blockInputFile
     it.outputFile = "org/elasticsearch/compute/data/BytesRefBlock.java"
+  }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  blockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointBlock.java"
   }
   template {
     it.properties = booleanProperties
@@ -204,6 +232,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/data/BytesRefArrayBlock.java"
   }
   template {
+    it.properties = pointProperties
+    it.inputFile =  arrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointArrayBlock.java"
+  }
+  template {
     it.properties = booleanProperties
     it.inputFile =  arrayBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanArrayBlock.java"
@@ -224,6 +257,11 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile =  bigArrayBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/DoubleBigArrayBlock.java"
+  }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointBigArrayBlock.java"
   }
   template {
     it.properties = booleanProperties
@@ -253,6 +291,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/data/BytesRefVectorBlock.java"
   }
   template {
+    it.properties = pointProperties
+    it.inputFile =  vectorBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointVectorBlock.java"
+  }
+  template {
     it.properties = booleanProperties
     it.inputFile =  vectorBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanVectorBlock.java"
@@ -278,6 +321,11 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile =  blockBuildersInputFile
     it.outputFile = "org/elasticsearch/compute/data/BytesRefBlockBuilder.java"
+  }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  blockBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointBlockBuilder.java"
   }
   template {
     it.properties = booleanProperties
@@ -307,6 +355,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/data/BytesRefVectorBuilder.java"
   }
   template {
+    it.properties = pointProperties
+    it.inputFile =  vectorBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointVectorBuilder.java"
+  }
+  template {
     it.properties = booleanProperties
     it.inputFile =  vectorBuildersInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanVectorBuilder.java"
@@ -326,6 +379,11 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile =  vectorFixedBuildersInputFile
     it.outputFile = "org/elasticsearch/compute/data/DoubleVectorFixedBuilder.java"
+  }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  vectorFixedBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointVectorFixedBuilder.java"
   }
   template {
     it.properties = booleanProperties
@@ -381,6 +439,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeDouble.java"
   }
   template {
+    it.properties = pointProperties
+    it.inputFile =  multivalueDedupeInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupePoint.java"
+  }
+  template {
     it.properties = bytesRefProperties
     it.inputFile =  multivalueDedupeInputFile
     it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeBytesRef.java"
@@ -411,6 +474,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  keyExtractorInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForDouble.java"
   }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  keyExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForPoint.java"
+  }
   File valueExtractorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/topn/X-ValueExtractor.java.st")
   template {
     it.properties = bytesRefProperties
@@ -437,6 +505,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  valueExtractorInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForDouble.java"
   }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  valueExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForPoint.java"
+  }
   File resultBuilderInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/topn/X-ResultBuilder.java.st")
   template {
     it.properties = bytesRefProperties
@@ -462,5 +535,10 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile =  resultBuilderInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForDouble.java"
+  }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  resultBuilderInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForPoint.java"
   }
 }

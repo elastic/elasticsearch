@@ -8,6 +8,9 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+$if(Point)$
+import org.elasticsearch.common.geo.SpatialPoint;
+$endif$
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 

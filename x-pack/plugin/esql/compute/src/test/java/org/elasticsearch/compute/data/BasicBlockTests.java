@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -25,6 +26,7 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -822,6 +824,7 @@ public class BasicBlockTests extends ESTestCase {
                     case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
                     case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
                     case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
+                    case POINT -> ((PointBlock) block).getPoint(i++);
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }
@@ -869,6 +872,7 @@ public class BasicBlockTests extends ESTestCase {
     ) {
         List<List<Object>> values = new ArrayList<>();
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
+            Supplier<SpatialPoint> pointSupplier = randomBoolean() ? ESTestCase::randomGeoPoint : ESTestCase::randomCartesianPoint;
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
                 if (valueCount == 0 || nullAllowed && randomBoolean()) {
@@ -908,6 +912,11 @@ public class BasicBlockTests extends ESTestCase {
                             boolean b = randomBoolean();
                             valuesAtPosition.add(b);
                             ((BooleanBlock.Builder) builder).appendBoolean(b);
+                        }
+                        case POINT -> {
+                            SpatialPoint pt = new SpatialPoint(pointSupplier.get());
+                            valuesAtPosition.add(pt);
+                            ((PointBlock.Builder) builder).appendPoint(pt);
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

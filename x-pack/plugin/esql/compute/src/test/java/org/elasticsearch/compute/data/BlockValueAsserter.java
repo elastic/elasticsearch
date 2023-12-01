@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.util.List;
 
@@ -35,6 +36,7 @@ public class BlockValueAsserter {
                     case DOUBLE -> assertDoubleRowValues((DoubleBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case BYTES_REF -> assertBytesRefRowValues((BytesRefBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case BOOLEAN -> assertBooleanRowValues((BooleanBlock) block, firstValueIndex, valueCount, expectedRowValues);
+                    case POINT -> assertPointRowValues((PointBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     default -> throw new IllegalArgumentException("Unsupported element type [" + block.elementType() + "]");
                 }
             }
@@ -85,6 +87,13 @@ public class BlockValueAsserter {
                 expectedValue = (Boolean) expectedRowValues.get(valueIndex);
             }
             assertThat(block.getBoolean(firstValueIndex + valueIndex), is(equalTo(expectedValue)));
+        }
+    }
+
+    private static void assertPointRowValues(PointBlock block, int firstValueIndex, int valueCount, List<Object> expectedRowValues) {
+        for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+            SpatialPoint expectedValue = (SpatialPoint) expectedRowValues.get(valueIndex);
+            assertThat(block.getPoint(firstValueIndex + valueIndex), is(equalTo(expectedValue)));
         }
     }
 }

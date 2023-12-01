@@ -13,12 +13,23 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
+$elseif(Point)$
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.geo.SpatialPoint;
+
+import java.util.Arrays;
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 $endif$
 import java.util.BitSet;
+
+$if(Point)$
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
+$endif$
 
 /**
  * Block implementation that stores an array of $type$.
@@ -125,8 +136,14 @@ $endif$
     }
 
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int[] firstValueIndexes, BitSet nullsMask) {
+    $if(Point)$
+        long valuesEstimate = (long) NUM_BYTES_ARRAY_HEADER + ((long) Long.BYTES * 2 + (long) NUM_BYTES_OBJECT_REF) * values.length;
+        return BASE_RAM_BYTES_USED + alignObjectSize(valuesEstimate) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    $else$
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
             + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    $endif$
     }
 
     @Override

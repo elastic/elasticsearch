@@ -8,7 +8,12 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.$if(boolean)$Bit$else$$Type$$endif$Array;
+$if(Point)$
+import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.common.util.ObjectArray;
+$else$
+import org.elasticsearch.common.util.$Array$;
+$endif$
 import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
@@ -20,10 +25,10 @@ import java.util.BitSet;
 public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = 0; // TODO: fix this
-    private final $if(boolean)$Bit$else$$Type$$endif$Array values;
+    private final $Array$ values;
 
     public $Type$BigArrayBlock(
-        $if(boolean)$Bit$else$$Type$$endif$Array values,
+        $Array$ values,
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,

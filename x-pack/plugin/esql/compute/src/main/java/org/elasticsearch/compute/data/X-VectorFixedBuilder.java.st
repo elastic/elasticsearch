@@ -7,7 +7,13 @@
 
 package org.elasticsearch.compute.data;
 
+$if(Point)$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.geo.SpatialPoint;
+
+$else$
+import org.apache.lucene.util.RamUsageEstimator;
+$endif$
 
 /**
  * Builder for {@link $Type$Vector}s that never grows. Prefer this to
@@ -39,11 +45,19 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
     }
 
     private static long ramBytesUsed(int size) {
+$if(Point)$
+        return size == 1
+            ? ConstantPointVector.RAM_BYTES_USED
+            : PointArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * ($BYTES$ + RamUsageEstimator.NUM_BYTES_OBJECT_REF)
+            );
+$else$
         return size == 1
             ? Constant$Type$Vector.RAM_BYTES_USED
             : $Type$ArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
                 (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * $BYTES$
             );
+$endif$
     }
 
     @Override

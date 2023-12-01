@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +30,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -100,8 +103,8 @@ public final class ResponseValueUtils {
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
-            case "geo_point" -> GEO.longAsPoint(((LongBlock) block).getLong(offset));
-            case "cartesian_point" -> CARTESIAN.longAsPoint(((LongBlock) block).getLong(offset));
+            case "geo_point" -> pointValueAt(GEO, dataType, block, offset);
+            case "cartesian_point" -> pointValueAt(CARTESIAN, dataType, block, offset);
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -116,6 +119,16 @@ public final class ResponseValueUtils {
             }
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
+    }
+
+    private static SpatialPoint pointValueAt(SpatialCoordinateTypes spatial, String dataType, Block block, int offset) {
+        if (block instanceof LongBlock longBlock) {
+            return spatial.longAsPoint(longBlock.getLong(offset));
+        } else if (block instanceof PointBlock pointBlock) {
+            return spatial.pointAsPoint(pointBlock.getPoint(offset));
+        } else {
+            throw new IllegalArgumentException("Unsupported block type for " + dataType + ": " + block.getWriteableName());
+        }
     }
 
     /**
@@ -161,12 +174,12 @@ public final class ResponseValueUtils {
                         }
                     }
                     case "geo_point" -> {
-                        long longVal = GEO.pointAsLong(GEO.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                        SpatialPoint pointVal = GEO.stringAsPoint(value.toString());
+                        ((PointBlock.Builder) builder).appendPoint(pointVal);
                     }
                     case "cartesian_point" -> {
-                        long longVal = CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                        SpatialPoint pointVal = CARTESIAN.stringAsPoint(value.toString());
+                        ((PointBlock.Builder) builder).appendPoint(pointVal);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }

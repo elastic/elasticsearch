@@ -61,6 +61,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+        // TODO: see if we can get the FieldExtractExec to know if spatial types need to be read from source or doc values, and capture
+        // that information in the BlockReaderFactories.loaders method so it is passed in the BlockLoaderContext
+        // to GeoPointFieldMapper.blockLoader
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
         List<ValuesSourceReaderOperator.ShardContext> readers = searchContexts.stream()
@@ -75,7 +78,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             layout.append(attr);
             DataType dataType = attr.dataType();
             String fieldName = attr.name();
-            List<BlockLoader> loaders = BlockReaderFactories.loaders(searchContexts, fieldName, EsqlDataTypes.isUnsupported(dataType));
+            List<BlockLoader> loaders = BlockReaderFactories.loaders(
+                searchContexts,
+                fieldName,
+                EsqlDataTypes.isUnsupported(dataType),
+                false
+            );
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, loaders));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
@@ -166,7 +174,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            BlockReaderFactories.loaders(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType())),
+            BlockReaderFactories.loaders(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType()), true),
             shardContexts,
             groupElementType,
             docChannel,

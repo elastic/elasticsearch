@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -23,24 +24,19 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 
 public class ToCartesianPoint extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
-        Map.entry(LONG, (fieldEval, source) -> fieldEval),
-        Map.entry(UNSIGNED_LONG, (fieldEval, source) -> fieldEval),
+        Map.entry(LONG, ToCartesianPointFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToCartesianPointFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(returnType = "cartesian_point")
-    public ToCartesianPoint(
-        Source source,
-        @Param(name = "v", type = { "cartesian_point", "long", "unsigned_long", "keyword", "text" }) Expression field
-    ) {
+    public ToCartesianPoint(Source source, @Param(name = "v", type = { "cartesian_point", "long", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 
@@ -65,7 +61,12 @@ public class ToCartesianPoint extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
-    static long fromKeyword(BytesRef in) {
-        return CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(in.utf8ToString()));
+    static SpatialPoint fromKeyword(BytesRef in) {
+        return CARTESIAN.stringAsPoint(in.utf8ToString());
+    }
+
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
+    static SpatialPoint fromLong(long encoded) {
+        return CARTESIAN.longAsPoint(encoded);
     }
 }

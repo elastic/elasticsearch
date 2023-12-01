@@ -510,6 +510,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
+        public BlockLoader.PointBuilder points(int expectedCount) {
+            return factory.newPointBlockBuilder(expectedCount);
+        }
+
+        @Override
         public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
             return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }

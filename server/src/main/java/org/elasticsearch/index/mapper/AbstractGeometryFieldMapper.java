@@ -87,6 +87,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {
 
         protected final Parser<T> geometryParser;
+        private final T nullValue;
 
         protected AbstractGeometryFieldType(
             String name,
@@ -94,9 +95,11 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             boolean stored,
             boolean hasDocValues,
             Parser<T> geometryParser,
+            T nullValue,
             Map<String, String> meta
         ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
+            this.nullValue = nullValue;
             this.geometryParser = geometryParser;
         }
 
@@ -135,6 +138,18 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                     return formatter.apply(values);
                 }
             };
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // TODO: If we have doc-values we have to use them, due to BlockSourceReader.columnAtATimeReader() returning null
+            if (blContext.forStats() && hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
+            // TODO: Enhance BlockLoaderContext with knowledge about preferring to load from source (see EsPhysicalOperationProviders)
+            return new BlockSourceReader.PointsBlockLoader(
+                valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
+            );
         }
     }
 

@@ -11,25 +11,28 @@ import org.apache.lucene.util.ArrayUtil;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefHash;
+$elseif(Point)$
+import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.common.util.LongHash;
 $else$
 import org.elasticsearch.common.util.LongHash;
 $endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-$if(int)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+$if(int)$
 import org.elasticsearch.compute.data.IntBlock;
 
 $elseif(long)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
+$elseif(Point)$
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.PointBlock;
+
 $else$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
 
@@ -50,9 +53,9 @@ $if(BytesRef)$
     private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
 $elseif(double)$
     private static final int ALWAYS_COPY_MISSING = 110;
-$elseif(int)$
-    private static final int ALWAYS_COPY_MISSING = 300;
-$elseif(long)$
+$elseif(Point)$
+    private static final int ALWAYS_COPY_MISSING = 110;
+$else$
     private static final int ALWAYS_COPY_MISSING = 300;
 $endif$
 
@@ -351,6 +354,8 @@ $endif$
             for (int j = 0; j < w; j++) {
 $if(BytesRef)$
                 if (v.equals(work[j])) {
+$elseif(Point)$
+                if (v.equals(work[j])) {
 $else$
                 if (v == work[j]) {
 $endif$
@@ -389,6 +394,8 @@ $endif$
         builder.append$Type$(prev);
         for (int i = 1; i < w; i++) {
 $if(BytesRef)$
+            if (false == prev.equals(work[i])) {
+$elseif(Point)$
             if (false == prev.equals(work[i])) {
 $else$
             if (prev != work[i]) {
@@ -437,6 +444,8 @@ $endif$
         for (int i = 1; i < w; i++) {
 $if(BytesRef)$
             if (false == prev.equals(work[i])) {
+$elseif(Point)$
+            if (false == prev.equals(work[i])) {
 $else$
             if (prev != work[i]) {
 $endif$
@@ -472,6 +481,11 @@ $if(BytesRef)$
                 work[w].length = prev.length;
                 w++;
             }
+$elseif(Point)$
+            if (false == prev.equals(work[i])) {
+                prev = work[i];
+                work[w++] = prev;
+            }
 $else$
             if (prev != work[i]) {
                 prev = work[i];
@@ -506,6 +520,8 @@ $else$
 $endif$
 $if(double)$
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(Double.doubleToLongBits(v)))));
+$elseif(Point)$
+        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v.hashCode()))));
 $else$
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v))));
 $endif$

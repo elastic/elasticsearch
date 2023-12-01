@@ -17,9 +17,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -40,25 +38,23 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, EsqlDataTypes.CARTESIAN_POINT, l -> l, List.of());
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            attribute,
-            EsqlDataTypes.CARTESIAN_POINT,
-            l -> l,
-            Long.MIN_VALUE,
-            Long.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            attribute,
-            EsqlDataTypes.CARTESIAN_POINT,
-            NumericUtils::asLongUnsigned,
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-
+        TestCaseSupplier.forUnaryLong(suppliers, evaluatorName.apply("FromLong"), EsqlDataTypes.CARTESIAN_POINT, l -> {
+            try {
+                return CARTESIAN.longAsPoint(l);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }, Long.MIN_VALUE, Long.MAX_VALUE, l -> {
+            try {
+                CARTESIAN.longAsPoint(l.longValue());
+                return List.of();
+            } catch (IllegalArgumentException e) {
+                return List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: " + e.getMessage()
+                );
+            }
+        });
         // random strings that don't look like a cartesian point
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -85,7 +81,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
                 )
             ),
             EsqlDataTypes.CARTESIAN_POINT,
-            bytesRef -> CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(((BytesRef) bytesRef).utf8ToString())),
+            bytesRef -> CARTESIAN.stringAsPoint(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
 

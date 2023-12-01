@@ -561,7 +561,7 @@ public class SamlRealmTests extends SamlTestCase {
 
         final Settings settings = Settings.builder()
             .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
-            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiter.groups", delimiter)
+            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter)
             .build();
 
         final RealmConfig config = buildConfig(settings);
@@ -590,7 +590,7 @@ public class SamlRealmTests extends SamlTestCase {
     public void testAttributeSelectionWithDelimiterAndPatternThrowsSettingsException() throws Exception {
         final Settings settings = Settings.builder()
             .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
-            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiter.groups", ",")
+            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", ",")
             .put(REALM_SETTINGS_PREFIX + ".attribute_patterns.groups", "^(.+)@\\w+.example.com$")
             .build();
 
@@ -605,7 +605,7 @@ public class SamlRealmTests extends SamlTestCase {
             () -> SamlRealm.AttributeParser.forSetting(logger, groupSetting, config, false)
         );
 
-        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_delimiter.groups"));
+        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups"));
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_patterns.groups"));
     }
 
@@ -614,7 +614,7 @@ public class SamlRealmTests extends SamlTestCase {
 
         final Settings settings = Settings.builder()
             .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
-            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiter.groups", delimiter)
+            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter)
             .build();
 
         final RealmConfig config = buildConfig(settings);

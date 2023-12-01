@@ -224,7 +224,7 @@ public class SamlRealmSettings {
     }
 
     public static final class PatternDelimiterAttributeSetting {
-        public static final String ATTRIBUTE_DELIMITER_PREFIX = "attribute_delimiter.";
+        public static final String ATTRIBUTE_DELIMITERS_PREFIX = "attribute_delimiters.";
         private final Setting.AffixSetting<String> delimiter;
         private final PatternAttributeSetting patternAttributeSetting;
 
@@ -234,7 +234,7 @@ public class SamlRealmSettings {
 
         public PatternDelimiterAttributeSetting(String name) {
             this.patternAttributeSetting = new PatternAttributeSetting(name);
-            this.delimiter = RealmSettings.simpleString(TYPE, ATTRIBUTE_DELIMITER_PREFIX + name, Setting.Property.NodeScope);
+            this.delimiter = RealmSettings.simpleString(TYPE, ATTRIBUTE_DELIMITERS_PREFIX + name, Setting.Property.NodeScope);
         }
 
         public Setting.AffixSetting<String> getDelimiter() {

@@ -26,7 +26,11 @@ public class QueryExtractorBuilderTests extends AbstractXContentSerializingTestC
     protected boolean lenient;
 
     public static QueryExtractorBuilder randomInstance() {
-        return new QueryExtractorBuilder(randomAlphaOfLength(10), QueryProviderTests.createRandomValidQueryProvider(), randomFloat());
+        return new QueryExtractorBuilder(
+            randomAlphaOfLength(10),
+            QueryProviderTests.createRandomValidQueryProvider(),
+            randomFrom(0f, randomFloat())
+        );
     }
 
     @Before
@@ -67,7 +71,7 @@ public class QueryExtractorBuilderTests extends AbstractXContentSerializingTestC
             case 2 -> new QueryExtractorBuilder(
                 instance.featureName(),
                 instance.query(),
-                randomValueOtherThan(instance.defaultScore(), () -> randomFloat())
+                randomValueOtherThan(instance.defaultScore(), () -> randomFrom(0f, randomFloat()))
             );
             default -> throw new AssertionError("unknown random case for instance mutation");
         };

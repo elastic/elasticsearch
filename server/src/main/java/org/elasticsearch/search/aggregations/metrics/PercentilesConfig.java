@@ -46,19 +46,6 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         return method.configFromStream(in);
     }
 
-    /**
-     * Deprecated: construct a {@link PercentilesConfig} directly instead
-     */
-    @Deprecated
-    public static PercentilesConfig fromLegacy(PercentilesMethod method, double compression, int numberOfSignificantDigits) {
-        if (method.equals(PercentilesMethod.TDIGEST)) {
-            return new TDigest(compression);
-        } else if (method.equals(PercentilesMethod.HDR)) {
-            return new Hdr(numberOfSignificantDigits);
-        }
-        throw new IllegalArgumentException("Unsupported percentiles algorithm [" + method + "]");
-    }
-
     public PercentilesMethod getMethod() {
         return method;
     }

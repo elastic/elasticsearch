@@ -121,7 +121,6 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
-import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -139,7 +138,6 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
-import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -543,13 +541,6 @@ class NodeConstruction {
 
         localNodeFactory = new Node.LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
-        InferenceServiceRegistry inferenceServiceRegistry = new InferenceServiceRegistry(
-            pluginsService.filterPlugins(InferenceServicePlugin.class).toList(),
-            new InferenceServicePlugin.InferenceServiceFactoryContext(client)
-        );
-        resourcesToClose.add(inferenceServiceRegistry);
-        modules.bindToInstance(InferenceServiceRegistry.class, inferenceServiceRegistry);
-
         namedWriteableRegistry = new NamedWriteableRegistry(
             Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
@@ -557,8 +548,7 @@ class NodeConstruction {
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.flatMap(Plugin::getNamedWriteables),
                 ClusterModule.getNamedWriteables().stream(),
-                SystemIndexMigrationExecutor.getNamedWriteables().stream(),
-                inferenceServiceRegistry.getNamedWriteables().stream()
+                SystemIndexMigrationExecutor.getNamedWriteables().stream()
             ).flatMap(Function.identity()).toList()
         );
         xContentRegistry = new NamedXContentRegistry(
@@ -682,6 +672,7 @@ class NodeConstruction {
     private record PluginServiceInstances(
         Client client,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
         ServiceHelpers helpers,
         ResourceWatcherService resourceWatcherService,
@@ -764,7 +755,6 @@ class NodeConstruction {
 
         RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
         rerouteServiceReference.set(rerouteService);
-        clusterService.setRerouteService(rerouteService);
 
         clusterInfoService.addListener(
             new DiskThresholdMonitor(
@@ -856,6 +846,7 @@ class NodeConstruction {
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
+            rerouteService,
             threadPool,
             helpers,
             createResourceWatcherService(settings, threadPool),
@@ -891,6 +882,7 @@ class NodeConstruction {
             helpers.systemIndices(),
             helpers.getTracer(),
             clusterService,
+            rerouteService,
             buildReservedStateHandlers(
                 settingsModule,
                 clusterService,
@@ -976,6 +968,7 @@ class NodeConstruction {
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,
             clusterService,
+            rerouteService,
             clusterModule.getIndexNameExpressionResolver(),
             repositoryService,
             transportService,

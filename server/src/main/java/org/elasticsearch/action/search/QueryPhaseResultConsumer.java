@@ -12,12 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -40,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
@@ -563,27 +566,41 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * Optimized phase result consumer that only counts the number of hits and does not
      * store any other information.
      */
-    static class CountOnlyQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
+    static class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseResult> {
         AtomicReference<TotalHits.Relation> relationAtomicReference = new AtomicReference<>(TotalHits.Relation.EQUAL_TO);
         LongAdder totalHits = new LongAdder();
+
+        private final FixedBitSet results;
         private final SearchProgressListener progressListener;
-        public CountOnlyQueryPhaseResultConsumer(SearchRequest request, Executor executor, CircuitBreaker circuitBreaker, SearchPhaseController controller, Supplier<Boolean> isCanceled, SearchProgressListener progressListener, int numShards, Consumer<Exception> onPartialMergeFailure) {
-            super(request, executor, circuitBreaker, controller, isCanceled, progressListener, numShards, onPartialMergeFailure);
+
+        public CountOnlyQueryPhaseResultConsumer(SearchProgressListener progressListener, int numShards) {
+            super(numShards);
             this.progressListener = progressListener;
+            this.results = new FixedBitSet(numShards + 1);
         }
 
         @Override
-        protected void doClose() {
-            super.doClose();
+        Stream<SearchPhaseResult> getSuccessfulResults() {
+            return Stream.empty();
         }
 
         @Override
         public void consumeResult(SearchPhaseResult result, Runnable next) {
+            assert results.get(result.getShardIndex()) == false : "shardIndex: " + result.getShardIndex() + " is already set";
+            results.set(result.getShardIndex());
             // set the relation to the first non-equal relation
             relationAtomicReference.compareAndSet(TotalHits.Relation.EQUAL_TO, result.queryResult().getTotalHits().relation);
             totalHits.add(result.queryResult().getTotalHits().value);
             progressListener.notifyQueryResult(result.getShardIndex(), result.queryResult());
             next.run();
+        }
+
+        @Override
+        boolean hasResult(int shardIndex) {
+            if (shardIndex >= results.length()) {
+                return false;
+            }
+            return results.get(shardIndex);
         }
 
         @Override
@@ -607,7 +624,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             );
             if (progressListener != SearchProgressListener.NOOP) {
                 progressListener.notifyFinalReduce(
-                    SearchProgressListener.buildSearchShards(results.asList()),
+                    List.of(),
                     reducePhase.totalHits(),
                     reducePhase.aggregations(),
                     reducePhase.numReducePhases()
@@ -616,5 +633,27 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return reducePhase;
         }
 
+        @Override
+        AtomicArray<SearchPhaseResult> getAtomicArray() {
+            return new AtomicArray<>(0);
+        }
+
+        @Override
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return true;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return false;
+        }
     }
 }

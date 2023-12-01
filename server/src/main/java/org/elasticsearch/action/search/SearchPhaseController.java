@@ -783,7 +783,7 @@ public final class SearchPhaseController {
     /**
      * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
      */
-    QueryPhaseResultConsumer newSearchPhaseResults(
+    SearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(
         Executor executor,
         CircuitBreaker circuitBreaker,
         Supplier<Boolean> isCanceled,
@@ -793,24 +793,15 @@ public final class SearchPhaseController {
         Consumer<Exception> onPartialMergeFailure
     ) {
         final int size = request.source() == null || request.source().size() == -1 ? SearchService.DEFAULT_SIZE : request.source().size();
-        // Use the new CountOnlyQueryPhaseResultConsumer for requests without aggs, suggest, etc. things only wanting a total count and returning no hits
+        // Use the new CountOnlyQueryPhaseResultConsumer for requests without aggs, suggest, etc. things only wanting a total count and
+        // returning no hits
         if (size == 0
             && request.source().aggregations() == null
             && request.source().suggest() == null
             && request.source().knnSearch().isEmpty()
             && request.source().profile() == false
-            && request.resolveTrackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE
-        ) {
-            return new QueryPhaseResultConsumer.CountOnlyQueryPhaseResultConsumer(
-                request,
-                executor,
-                circuitBreaker,
-                this,
-                isCanceled,
-                listener,
-                numShards,
-                onPartialMergeFailure
-            );
+            && request.resolveTrackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+            return new QueryPhaseResultConsumer.CountOnlyQueryPhaseResultConsumer(listener, numShards);
         }
         return new QueryPhaseResultConsumer(
             request,

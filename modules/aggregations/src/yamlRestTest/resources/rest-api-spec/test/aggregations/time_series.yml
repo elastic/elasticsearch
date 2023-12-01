@@ -341,5 +341,7 @@ setup:
   - match: { hits.total.value: 2 }
   - length: { aggregations: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: { "key": "10" } }
+  - match: { aggregations.ts.buckets.0.key: { "key": "11" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
+  - match: { aggregations.ts.buckets.1.key: { "key": "10" } }
+  - match: { aggregations.ts.buckets.1.doc_count: 1 }

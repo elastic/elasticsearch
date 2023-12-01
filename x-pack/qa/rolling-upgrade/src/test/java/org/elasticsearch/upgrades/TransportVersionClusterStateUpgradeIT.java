@@ -146,7 +146,6 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                     assertThat(
                         nodeDescription,
                         transportVersion,
-                        // isOriginalClusterVersionAtLeast(VERSION_INTRODUCING_TRANSPORT_VERSIONS)
                         clusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED)
                             ? equalTo(TransportVersion.current())
                             : oneOf(TransportVersion.current(), FIRST_TRANSPORT_VERSION)

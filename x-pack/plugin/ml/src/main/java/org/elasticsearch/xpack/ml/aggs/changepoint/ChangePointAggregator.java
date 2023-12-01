@@ -140,6 +140,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         logger.trace("timeWindow: [{}]", Arrays.toString(timeWindow));
 
         double[] timeWindowWeights = outlierWeights(timeWindow);
+        logger.trace("timeWindowWeights: [{}]", Arrays.toString(timeWindowWeights));
         RunningStats dataRunningStats = RunningStats.from(timeWindow, i -> timeWindowWeights[i]);
         DataStats dataStats = new DataStats(
             dataRunningStats.count(),
@@ -147,6 +148,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             dataRunningStats.variance(),
             candidateChangePoints.length
         );
+        logger.trace("dataStats: [{}]", dataStats);
         TestStats stationary = new TestStats(Type.STATIONARY, 1.0, dataStats.var(), 1.0, dataStats);
 
         // Should never happen but just in case.
@@ -207,7 +209,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
         logger.trace("best: [{}]", best.pValueVsStationary());
 
-        // We're not very confident in the change point, so check if a distribution change fits the data better.
+        // We're not very confident in the change point, so check if a distribution change
+        // fits the data better.
         if (best.pValueVsStationary() > 1e-5) {
             TestStats distChange = testDistributionChange(
                 dataStats,
@@ -229,10 +232,14 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         int i = (int) Math.ceil(0.025 * values.length);
         double[] weights = Arrays.copyOf(values, values.length);
         Arrays.sort(weights);
+        // We have to be careful here if we have a lot of duplicate values. To avoid marking
+        // runs of duplicates as outliers we define them to be the smallest (largest) value
+        // strictly less (greater) than the value at i (values.length - i - 1). This means
+        // if i lands in a run of duplicates entire run will be maked as inliers.
         double a = weights[i];
-        double b = weights[values.length - i];
+        double b = weights[values.length - i - 1];
         for (int j = 0; j < values.length; j++) {
-            if (values[j] < b && values[j] >= a) {
+            if (values[j] <= b && values[j] >= a) {
                 weights[j] = 1.0;
             } else {
                 weights[j] = 0.01;

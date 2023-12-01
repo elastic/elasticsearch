@@ -19,8 +19,8 @@ public class RecoveryRequestBuilder extends BroadcastOperationRequestBuilder<Rec
     /**
      * Constructs a new recovery information request builder.
      */
-    public RecoveryRequestBuilder(ElasticsearchClient client, RecoveryAction action) {
-        super(client, action, new RecoveryRequest());
+    public RecoveryRequestBuilder(ElasticsearchClient client) {
+        super(client, RecoveryAction.INSTANCE, new RecoveryRequest());
     }
 
     public RecoveryRequestBuilder setDetailed(boolean detailed) {

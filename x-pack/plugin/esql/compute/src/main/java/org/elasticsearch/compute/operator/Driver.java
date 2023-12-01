@@ -52,6 +52,7 @@ public class Driver implements Releasable, Describable {
     private final DriverContext driverContext;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
+    private final List<DriverStatus.OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
 
@@ -97,7 +98,9 @@ public class Driver implements Releasable, Describable {
         this.activeOperators.add(sink);
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
-        this.status = new AtomicReference<>(new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of()));
+        this.status = new AtomicReference<>(
+            new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of(), List.of())
+        );
     }
 
     /**
@@ -229,7 +232,9 @@ public class Driver implements Releasable, Describable {
                 List<Operator> finishedOperators = this.activeOperators.subList(0, index + 1);
                 Iterator<Operator> itr = finishedOperators.iterator();
                 while (itr.hasNext()) {
-                    itr.next().close();
+                    Operator op = itr.next();
+                    statusOfCompletedOperators.add(new DriverStatus.OperatorStatus(op.toString(), op.status()));
+                    op.close();
                     itr.remove();
                 }
 
@@ -394,7 +399,8 @@ public class Driver implements Releasable, Describable {
             sessionId,
             System.currentTimeMillis(),
             status,
-            activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
+            statusOfCompletedOperators,
+            activeOperators.stream().map(op -> new DriverStatus.OperatorStatus(op.toString(), op.status())).toList()
         );
     }
 }

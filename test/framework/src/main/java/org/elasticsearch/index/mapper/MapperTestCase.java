@@ -1239,6 +1239,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertNoDocValueLoader(b -> b.startArray("field").endArray());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102869")
     public final void testBlockLoaderFromColumnReader() throws IOException {
         testBlockLoader(true);
     }

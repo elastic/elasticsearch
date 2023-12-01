@@ -116,26 +116,14 @@ public class InferenceRunner {
             }
         } catch (Exception e) {
             LOGGER.error(() -> format("[%s] Error running inference on model [%s]", config.getId(), modelId), e);
-
-            if (e instanceof ElasticsearchException) {
-                if (e instanceof ElasticsearchStatusException) {
-                    Throwable rootCause = ((ElasticsearchStatusException) e).getRootCause();
-                    throw new ElasticsearchStatusException(
-                        "[{}] failed running inference on model [{}]; cause was [{}]",
-                        ((ElasticsearchStatusException) e).status(),
-                        rootCause,
-                        config.getId(),
-                        modelId,
-                        rootCause.getMessage()
-                    );
-                }
-                Throwable rootCause = ((ElasticsearchException) e).getRootCause();
-                throw new ElasticsearchException(
+            if (e instanceof ElasticsearchException elasticsearchException) {
+                throw new ElasticsearchStatusException(
                     "[{}] failed running inference on model [{}]; cause was [{}]",
-                    rootCause,
+                    elasticsearchException.status(),
+                    elasticsearchException.getRootCause(),
                     config.getId(),
                     modelId,
-                    rootCause.getMessage()
+                    elasticsearchException.getRootCause().getMessage()
                 );
             }
             throw ExceptionsHelper.serverError(

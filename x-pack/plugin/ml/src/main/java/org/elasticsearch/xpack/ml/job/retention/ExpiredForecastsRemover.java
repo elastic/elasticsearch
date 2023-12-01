@@ -153,16 +153,18 @@ public class ExpiredForecastsRemover implements MlDataRemover {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof ElasticsearchStatusException) {
+                if (e instanceof ElasticsearchException elasticsearchException) {
                     listener.onFailure(
-                        new ElasticsearchStatusException(
+                        new ElasticsearchException(
                             "Failed to remove expired forecasts",
-                            ((ElasticsearchStatusException) e).status(),
-                            e
+                            elasticsearchException.status(),
+                            elasticsearchException
                         )
                     );
                 } else {
-                    listener.onFailure(new ElasticsearchException("Failed to remove expired forecasts", e));
+                    listener.onFailure(
+                        new ElasticsearchStatusException("Failed to remove expired forecasts", RestStatus.TOO_MANY_REQUESTS, e)
+                    );
                 }
             }
         });

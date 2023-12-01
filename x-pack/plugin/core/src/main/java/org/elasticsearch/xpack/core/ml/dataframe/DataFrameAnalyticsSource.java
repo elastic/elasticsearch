@@ -174,7 +174,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
             } else {
                 throw new ElasticsearchStatusException(
                     queryProvider.getParsingException().getMessage(),
-                    RestStatus.REQUEST_TIMEOUT,
+                    RestStatus.BAD_REQUEST,
                     queryProvider.getParsingException()
                 );
             }

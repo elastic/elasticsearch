@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * This file has been contributed to be a Generative AI
  */
 
 package org.elasticsearch.xpack.ml.datafeed;
@@ -111,9 +113,20 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
                 logger.debug(() -> "[" + update.getId() + "] datafeed successfully updated");
             } catch (Exception ex) {
                 logger.warn(() -> "[" + update.getId() + "] failed being updated", ex);
-                failures.add(
-                    new ElasticsearchStatusException("Failed to update datafeed {}", RestStatus.REQUEST_TIMEOUT, ex, update.getId())
-                );
+                if (ex instanceof ElasticsearchStatusException elasticsearchStatusException) {
+                    failures.add(
+                        new ElasticsearchStatusException(
+                            "Failed to update datafeed {}",
+                            elasticsearchStatusException.status(),
+                            elasticsearchStatusException,
+                            update.getId()
+                        )
+                    );
+                } else {
+                    failures.add(
+                        new ElasticsearchStatusException("Failed to update datafeed {}", RestStatus.REQUEST_TIMEOUT, ex, update.getId())
+                    );
+                }
             }
         }
         if (failures.isEmpty()) {

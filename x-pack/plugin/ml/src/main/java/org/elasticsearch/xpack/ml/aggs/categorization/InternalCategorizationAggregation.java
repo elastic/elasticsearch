@@ -116,7 +116,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
                         + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
                         + "] or higher and others have a version before this",
-                    RestStatus.REQUEST_TIMEOUT
+                    RestStatus.BAD_REQUEST
                 );
             }
             serializableCategory = new SerializableTokenListCategory(in);
@@ -135,7 +135,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
                         + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
                         + "] or higher and others have a version before this",
-                    RestStatus.REQUEST_TIMEOUT
+                    RestStatus.BAD_REQUEST
                 );
             }
             serializableCategory.writeTo(out);
@@ -248,7 +248,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
                     + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
                     + "] or higher and others have a version before this",
-                RestStatus.REQUEST_TIMEOUT
+                RestStatus.BAD_REQUEST
             );
         }
         this.similarityThreshold = in.readVInt();
@@ -267,7 +267,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
                     + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
                     + "] or higher and others have a version before this",
-                RestStatus.REQUEST_TIMEOUT
+                RestStatus.BAD_REQUEST
             );
         }
         out.writeVInt(similarityThreshold);

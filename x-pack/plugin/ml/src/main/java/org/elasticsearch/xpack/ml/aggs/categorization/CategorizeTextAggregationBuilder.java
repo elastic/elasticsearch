@@ -130,7 +130,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
                     + ALGORITHM_CHANGED_VERSION
                     + "] or higher and others have a version before this",
-                RestStatus.REQUEST_TIMEOUT
+                RestStatus.BAD_REQUEST
             );
         }
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
@@ -287,7 +287,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
                     + ALGORITHM_CHANGED_VERSION
                     + "] or higher and others have a version before this",
-                RestStatus.REQUEST_TIMEOUT
+                RestStatus.BAD_REQUEST
             );
         }
         bucketCountThresholds.writeTo(out);

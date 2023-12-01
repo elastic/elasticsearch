@@ -62,7 +62,7 @@ final class ProcessContext {
                 throw ExceptionsHelper.serverError("Failed to acquire process lock for job [" + jobTask.getJobId() + "]");
             }
         } catch (InterruptedException e) {
-            throw new ElasticsearchStatusException(e.getMessage(), RestStatus.TOO_MANY_REQUESTS, e.getCause());
+            throw new ElasticsearchStatusException(e.getMessage(), RestStatus.TOO_MANY_REQUESTS, e);
         }
     }
 

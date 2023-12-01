@@ -193,7 +193,7 @@ public class ResultsPersisterService {
             finalListener.onFailure(
                 new ElasticsearchStatusException(
                     "Bulk indexing has failed as {}",
-                    RestStatus.REQUEST_TIMEOUT,
+                    RestStatus.TOO_MANY_REQUESTS,
                     isShutdown ? "node is shutting down." : "machine learning feature is being reset."
                 )
             );
@@ -235,7 +235,7 @@ public class ResultsPersisterService {
         if (isShutdown || isResetMode) {
             throw new ElasticsearchStatusException(
                 "Bulk indexing has failed as {}",
-                RestStatus.REQUEST_TIMEOUT,
+                RestStatus.TOO_MANY_REQUESTS,
                 isShutdown ? "node is shutting down." : "machine learning feature is being reset."
             );
         }

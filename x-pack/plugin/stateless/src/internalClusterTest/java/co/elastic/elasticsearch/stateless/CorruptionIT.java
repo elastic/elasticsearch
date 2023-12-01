@@ -21,10 +21,10 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -56,6 +56,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -90,14 +91,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
  * TODO: Increase network delay disruption and maybe use other NetworkDisruption types.
  * TODO: Add random object store failures beyond max retries (https://elasticco.atlassian.net/browse/ES-6453)
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-7393, https://elasticco.atlassian.net/browse/ES-7394")
 public class CorruptionIT extends AbstractStatelessIntegTestCase {
 
     private static final boolean TEST_HARDER = RandomizedTest.systemPropertyAsBoolean("tests.harder", false);
 
     private final int MAX_BULK_SIZE = TEST_HARDER ? 500 : 50;
-    private final int MAX_DOCS_PER_BULK = TEST_HARDER ? 100 : 10;
-    private final int MAX_SHARDS = TEST_HARDER ? 50 : 3;
+    private final int MAX_DOCS_PER_BULK = TEST_HARDER ? 100 : 20;
+    private final int MAX_SHARDS = TEST_HARDER ? 50 : 5;
     private final int MAX_SEARCHERS_AND_INDEXERS = TEST_HARDER ? 20 : 3;
     private final Tuple<Long, Long> FORCE_MERGE_SLEEP = TEST_HARDER ? tuple(10L, 1_000L) : tuple(2_000L, 5_000L);
     private final Tuple<Long, Long> ALLOCATION_UPDATE_SLEEP = TEST_HARDER ? tuple(0L, 500L) : tuple(2_000L, 5_000L);
@@ -120,8 +120,14 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
      */
     public void testConcurrentOperations() throws Exception {
         startMasterOnlyNode();
-        var searchNodes = startSearchNodes(2);
-        var indexNodes = startIndexNodes(2);
+        var settings = randomBoolean()
+            ? Settings.EMPTY
+            : Settings.builder()
+                .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "4kb")
+                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "16kb")
+                .build();
+        var searchNodes = List.of(startSearchNode(settings), startSearchNode(settings));
+        var indexNodes = List.of(startIndexNode(settings), startIndexNode(settings));
         final String indexName = randomIdentifier();
         createIndex(
             indexName,
@@ -149,12 +155,12 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                 Set<String> existingDocIds = new HashSet<>();
                 for (int bulk = 0; bulk < bulks & stop.get() == false; bulk++) {
                     var bulkRequest = client().prepareBulk();
-                    var docs = randomIntBetween(1, MAX_DOCS_PER_BULK);
+                    var docs = randomIntBetween(5, MAX_DOCS_PER_BULK);
                     IntStream.range(0, docs)
                         .forEach(
-                            i -> bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)))
+                            i -> bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfLengthBetween(100, 2000)))
                         );
-                    if (randomBoolean()) {
+                    if (randomBoolean() && false) { // Do not update to avoid hitting https://elasticco.atlassian.net/browse/ES-6563
                         var updateCount = Math.min(existingDocIds.size(), randomIntBetween(1, MAX_DOCS_PER_BULK / 2));
                         var idsToUpdate = randomSubsetOf(updateCount, existingDocIds);
                         idsToUpdate.forEach(
@@ -164,7 +170,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                         );
                     }
                     Set<String> idsToDelete = new HashSet<>();
-                    if (randomBoolean()) {
+                    if (randomBoolean() && false) { // Do not delete to avoid hitting https://elasticco.atlassian.net/browse/ES-6563
                         var deleteCount = Math.min(existingDocIds.size(), randomIntBetween(1, MAX_DOCS_PER_BULK / 2));
                         idsToDelete = new HashSet<>(randomSubsetOf(deleteCount, existingDocIds));
                         idsToDelete.forEach(id -> bulkRequest.add(new DeleteRequest(indexName, id)));

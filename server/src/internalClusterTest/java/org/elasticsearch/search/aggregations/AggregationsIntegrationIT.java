@@ -54,6 +54,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
                 } else {
                     assertNull(response.getAggregations());
                 }
-            });
+            }
+        );
     }
 }

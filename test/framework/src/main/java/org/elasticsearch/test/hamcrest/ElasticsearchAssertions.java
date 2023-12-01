@@ -381,7 +381,6 @@ public class ElasticsearchAssertions {
         List<SearchResponse> allResponses
     ) {}
 
-
     /**
      *
      * @param keepAlive

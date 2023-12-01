@@ -33,6 +33,9 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
     static final String API_KEY = "api_key";
 
     public static DefaultSecretSettings fromMap(Map<String, Object> map) {
+        if (map == null) {
+            return null;
+        }
         ValidationException validationException = new ValidationException();
         SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
 

@@ -13,9 +13,11 @@ import org.apache.lucene.index.NumericDocValues;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.isNotUnitVector;
-
-public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
+/**
+ * Provides the denormalized vectors. Float vectors stored with cosine similarity are normalized by default. So when reading the value
+ * for scripts, we to denormalize them.
+ */
+public class DenormalizedCosineFloatVectorValues extends FloatVectorValues {
 
     private final FloatVectorValues in;
     private final NumericDocValues magnitudeIn;
@@ -24,7 +26,7 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
     private boolean hasMagnitude;
     private int docId = -1;
 
-    public NormalizedCosineFloatVectorValues(FloatVectorValues in, NumericDocValues magnitudeIn) {
+    public DenormalizedCosineFloatVectorValues(FloatVectorValues in, NumericDocValues magnitudeIn) {
         this.in = in;
         this.magnitudeIn = magnitudeIn;
         this.vector = new float[in.dimension()];
@@ -90,11 +92,11 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
         }
         int currentDoc = magnitudeIn.docID();
         if (docId == currentDoc) {
-            return isNotUnitVector(magnitude);
+            return true;
         } else {
             if (magnitudeIn.advanceExact(docId)) {
                 magnitude = Float.intBitsToFloat((int) magnitudeIn.longValue());
-                return isNotUnitVector(magnitude);
+                return true;
             } else {
                 magnitude = 1f;
                 return false;

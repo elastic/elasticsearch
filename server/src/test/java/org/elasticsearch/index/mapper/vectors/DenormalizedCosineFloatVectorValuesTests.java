@@ -17,10 +17,10 @@ import java.util.Arrays;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.index.mapper.vectors.KnnDenseVectorScriptDocValuesTests.wrap;
 
-public class NormalizedCosineFloatVectorValuesTests extends ESTestCase {
+public class DenormalizedCosineFloatVectorValuesTests extends ESTestCase {
 
     public void testEmptyVectors() throws IOException {
-        NormalizedCosineFloatVectorValues normalizedCosineFloatVectorValues = new NormalizedCosineFloatVectorValues(
+        DenormalizedCosineFloatVectorValues normalizedCosineFloatVectorValues = new DenormalizedCosineFloatVectorValues(
             wrap(new float[0][0]),
             wrapMagnitudes(new float[0])
         );
@@ -41,7 +41,7 @@ public class NormalizedCosineFloatVectorValuesTests extends ESTestCase {
             normalizedVectors[i] = copyAndNormalize(vector, mag);
         }
 
-        NormalizedCosineFloatVectorValues normalizedCosineFloatVectorValues = new NormalizedCosineFloatVectorValues(
+        DenormalizedCosineFloatVectorValues normalizedCosineFloatVectorValues = new DenormalizedCosineFloatVectorValues(
             wrap(normalizedVectors),
             wrapMagnitudes(magnitudes)
         );

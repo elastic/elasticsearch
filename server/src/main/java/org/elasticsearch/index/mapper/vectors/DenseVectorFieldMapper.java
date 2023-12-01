@@ -475,7 +475,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                                 if (values == null) {
                                     return null;
                                 }
-                                return new NormalizedCosineFloatVectorValues(
+                                return new DenormalizedCosineFloatVectorValues(
                                     values,
                                     in.getNumericDocValues(fieldName + COSINE_MAGNITUDE_FIELD_SUFFIX)
                                 );
@@ -973,13 +973,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
                 if (similarity == VectorSimilarity.COSINE
                     && ElementType.FLOAT.equals(elementType)
-                    && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)) {
-                    if (isNotUnitVector(squaredMagnitude)) {
-                        float length = (float) Math.sqrt(squaredMagnitude);
-                        queryVector = Arrays.copyOf(queryVector, queryVector.length);
-                        for (int i = 0; i < queryVector.length; i++) {
-                            queryVector[i] /= length;
-                        }
+                    && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)
+                    && isNotUnitVector(squaredMagnitude)) {
+                    float length = (float) Math.sqrt(squaredMagnitude);
+                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
+                    for (int i = 0; i < queryVector.length; i++) {
+                        queryVector[i] /= length;
                     }
                 }
             }

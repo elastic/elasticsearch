@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
@@ -125,16 +124,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         InferenceResults inferenceResults = inferenceResultsList.get(0);
-        if (inferenceResults instanceof TextExpansionResults expansionResults) {
-            SemanticTextFieldMapper.SemanticTextFieldType mapper = (SemanticTextFieldMapper.SemanticTextFieldType) context.getFieldType(
-                fieldName
-            );
-            return mapper.textExpansionQuery(expansionResults, context);
-        }
-
-        throw new IllegalArgumentException(
-            "field [" + fieldName + "] does not use a model that outputs sparse vector inference results"
+        SemanticTextFieldMapper.SemanticTextFieldType mapper = (SemanticTextFieldMapper.SemanticTextFieldType) context.getFieldType(
+            fieldName
         );
+        return mapper.semanticQuery(inferenceResults, context);
     }
 
     @Override

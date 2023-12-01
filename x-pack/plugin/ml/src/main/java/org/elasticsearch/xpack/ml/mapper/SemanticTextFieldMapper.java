@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
@@ -110,10 +111,18 @@ public class SemanticTextFieldMapper extends FieldMapper {
             return sparseVectorFieldType.termQuery(value, context);
         }
 
-        public Query textExpansionQuery(TextExpansionResults expansionResults, SearchExecutionContext context) {
+        public Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) {
+
+            if (inferenceResults instanceof TextExpansionResults == false) {
+                throw new IllegalArgumentException(
+                    "field [" + name() + "] does not use a model that outputs sparse vector inference results"
+                );
+            }
+
+            TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
             String fieldName = name() + "." + "inference";
             BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
-            for (var weightedToken : expansionResults.getWeightedTokens()) {
+            for (var weightedToken : textExpansionResults.getWeightedTokens()) {
                 queryBuilder.add(
                     new BooleanClause(
                         FeatureField.newLinearQuery(fieldName, indexedValueForSearch(weightedToken.token()), weightedToken.weight()),

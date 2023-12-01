@@ -15,8 +15,6 @@ public class MapperMergeContext {
 
     private final MapperBuilderContext mapperBuilderContext;
     private final AtomicLong remainingFieldsUntilLimit;
-    private final ObjectMapper.Dynamic dynamic;
-    private final boolean autoUpdate;
 
     /**
      * The root context, to be used when building a tree of mappers
@@ -25,14 +23,10 @@ public class MapperMergeContext {
         boolean isSourceSynthetic,
         boolean isDataStream,
         long remainingFieldsUntilLimit,
-        ObjectMapper.Dynamic dynamic,
-        boolean autoUpdate
-    ) {
+        MapperService.MergeReason mergeReason) {
         return new MapperMergeContext(
             MapperBuilderContext.root(isSourceSynthetic, isDataStream),
-            new AtomicLong(remainingFieldsUntilLimit),
-            dynamic,
-            autoUpdate
+            new AtomicLong(mergeReason.isAutoUpdate() ? remainingFieldsUntilLimit : Long.MAX_VALUE)
         );
     }
 
@@ -51,27 +45,23 @@ public class MapperMergeContext {
      * Outside of that context, this is safe, though.
      */
     public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext) {
-        return new MapperMergeContext(mapperBuilderContext, new AtomicLong(0), null, false);
+        return new MapperMergeContext(mapperBuilderContext, new AtomicLong(Long.MAX_VALUE));
     }
 
-    protected MapperMergeContext(
+    private MapperMergeContext(
         MapperBuilderContext mapperBuilderContext,
-        AtomicLong remainingFieldsUntilLimit,
-        ObjectMapper.Dynamic dynamic,
-        boolean autoUpdate
+        AtomicLong remainingFieldsUntilLimit
     ) {
         this.mapperBuilderContext = mapperBuilderContext;
         this.remainingFieldsUntilLimit = remainingFieldsUntilLimit;
-        this.dynamic = dynamic;
-        this.autoUpdate = autoUpdate;
     }
 
-    public MapperMergeContext createChildContext(String name, ObjectMapper.Dynamic dynamic) {
-        return createChildContext(mapperBuilderContext.createChildContext(name), dynamic);
+    public MapperMergeContext createChildContext(String name) {
+        return createChildContext(mapperBuilderContext.createChildContext(name));
     }
 
-    public MapperMergeContext createChildContext(MapperBuilderContext childContext, ObjectMapper.Dynamic dynamic) {
-        return new MapperMergeContext(childContext, remainingFieldsUntilLimit, dynamic == null ? this.dynamic : dynamic, autoUpdate);
+    public MapperMergeContext createChildContext(MapperBuilderContext childContext) {
+        return new MapperMergeContext(childContext, remainingFieldsUntilLimit);
     }
 
     public MapperBuilderContext getMapperBuilderContext() {
@@ -113,6 +103,6 @@ public class MapperMergeContext {
     }
 
     public boolean canAddField(int fieldSize) {
-        return autoUpdate == false || dynamic != ObjectMapper.Dynamic.TRUE_UNTIL_LIMIT || remainingFieldsUntilLimit.get() >= fieldSize;
+        return remainingFieldsUntilLimit.get() >= fieldSize;
     }
 }

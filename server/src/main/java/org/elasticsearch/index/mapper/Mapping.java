@@ -145,9 +145,7 @@ public final class Mapping implements ToXContentFragment {
             isSourceSynthetic(),
             false,
             remainingFieldsUntilLimit,
-            root.dynamic(),
-            reason.isAutoUpdate()
-        );
+            reason);
         RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, mergeContext);
 
         // When merging metadata fields as part of applying an index template, new field definitions

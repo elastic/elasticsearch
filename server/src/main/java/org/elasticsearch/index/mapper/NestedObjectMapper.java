@@ -275,8 +275,7 @@ public class NestedObjectMapper extends ObjectMapper {
             parentIncludedInRoot |= this.includeInParent.value();
         }
         return mapperMergeContext.createChildContext(
-            new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot),
-            dynamic
+            new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot)
         );
     }
 

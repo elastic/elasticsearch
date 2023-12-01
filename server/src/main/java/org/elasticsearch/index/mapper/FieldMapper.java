@@ -1228,7 +1228,7 @@ public abstract class FieldMapper extends Mapper {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            MapperMergeContext childContext = mapperBuilderContext.createChildContext(in.simpleName(), null);
+            MapperMergeContext childContext = mapperBuilderContext.createChildContext(in.simpleName());
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }

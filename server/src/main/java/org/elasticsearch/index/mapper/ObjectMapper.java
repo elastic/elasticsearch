@@ -470,7 +470,7 @@ public class ObjectMapper extends Mapper {
     }
 
     protected MapperMergeContext createChildContext(MapperMergeContext mapperBuilderContext, String name, Dynamic dynamic) {
-        return mapperBuilderContext.createChildContext(name, dynamic);
+        return mapperBuilderContext.createChildContext(name);
     }
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {

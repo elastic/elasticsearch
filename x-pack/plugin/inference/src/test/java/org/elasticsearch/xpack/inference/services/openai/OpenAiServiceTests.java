@@ -273,7 +273,12 @@ public class OpenAiServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config(), persistedConfig.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
@@ -301,7 +306,12 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config(), persistedConfig.secrets())
+                () -> service.parsePersistedConfigWithSecrets(
+                    "id",
+                    TaskType.SPARSE_EMBEDDING,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(
@@ -324,7 +334,12 @@ public class OpenAiServiceTests extends ESTestCase {
                 getSecretSettingsMap("secret")
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config(), persistedConfig.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
 
             assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
@@ -353,7 +368,12 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config(), persistedConfig.secrets())
+                () -> service.parsePersistedConfigWithSecrets(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(
@@ -381,7 +401,12 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config(), persistedConfig.secrets())
+                () -> service.parsePersistedConfigWithSecrets(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(
@@ -407,7 +432,12 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config(), persistedConfig.secrets())
+                () -> service.parsePersistedConfigWithSecrets(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(
@@ -435,7 +465,12 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config(), persistedConfig.secrets())
+                () -> service.parsePersistedConfigWithSecrets(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(
@@ -463,7 +498,12 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config(), persistedConfig.secrets())
+                () -> service.parsePersistedConfigWithSecrets(
+                    "id",
+                    TaskType.TEXT_EMBEDDING,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(

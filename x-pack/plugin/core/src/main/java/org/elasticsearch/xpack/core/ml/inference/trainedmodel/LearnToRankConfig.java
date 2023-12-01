@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -161,6 +162,11 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), featureExtractorBuilders);
+    }
+
+    @Override
+    public final String toString() {
+        return Strings.toString(this);
     }
 
     @Override

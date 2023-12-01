@@ -87,13 +87,8 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetCertificateInfoAction action) {
-            super(client, action, new Request());
-        }
-
         public RequestBuilder(ElasticsearchClient client) {
-            this(client, GetCertificateInfoAction.INSTANCE);
+            super(client, GetCertificateInfoAction.INSTANCE, new Request());
         }
     }
 

@@ -72,7 +72,7 @@ public class HuggingFaceElserService implements InferenceService {
     }
 
     @Override
-    public HuggingFaceElserModel parsePersistedConfig(
+    public HuggingFaceElserModel parsePersistedConfigWithSecrets(
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
@@ -85,6 +85,14 @@ public class HuggingFaceElserService implements InferenceService {
         HuggingFaceElserSecretSettings secretSettings = HuggingFaceElserSecretSettings.fromMap(secretSettingsMap);
 
         return new HuggingFaceElserModel(modelId, taskType, NAME, serviceSettings, secretSettings);
+    }
+
+    @Override
+    public HuggingFaceElserModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        HuggingFaceElserServiceSettings serviceSettings = HuggingFaceElserServiceSettings.fromMap(serviceSettingsMap);
+
+        return new HuggingFaceElserModel(modelId, taskType, NAME, serviceSettings, null);
     }
 
     @Override

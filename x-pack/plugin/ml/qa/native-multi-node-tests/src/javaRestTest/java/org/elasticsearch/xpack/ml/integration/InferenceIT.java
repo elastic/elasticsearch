@@ -283,7 +283,7 @@ public class InferenceIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String REGRESSION_CONFIG = Strings.format("""
+    public static final String REGRESSION_CONFIG = Strings.format("""
         {
             "input": {
                 "field_names": [
@@ -325,5 +325,4 @@ public class InferenceIT extends ESRestTestCase {
         request.setJsonEntity(modelConfiguration);
         client().performRequest(request);
     }
-
 }

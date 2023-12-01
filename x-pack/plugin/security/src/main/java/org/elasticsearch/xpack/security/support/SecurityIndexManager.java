@@ -432,7 +432,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             try {
                 consumer.accept(exception);
             } finally {
-                System.out.println("**** closing request after exception");
                 onCompletion.run();
             }
         };
@@ -440,20 +439,17 @@ public class SecurityIndexManager implements ClusterStateListener {
             try {
                 andThen.run();
             } finally {
-                System.out.println("**** closing request after success");
                 onCompletion.run();
             }
         };
         try {
             // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
             if (state == State.UNRECOVERED_STATE) {
-                System.out.println("**** here1");
                 throw new ElasticsearchStatusException(
                     "Cluster state has not been recovered yet, cannot write to the [" + state.concreteIndexName + "] index",
                     RestStatus.SERVICE_UNAVAILABLE
                 );
             } else if (state.indexExists() && state.isIndexUpToDate == false) {
-                System.out.println("**** here2");
                 throw new IllegalStateException(
                     "Index ["
                         + state.concreteIndexName
@@ -461,18 +457,15 @@ public class SecurityIndexManager implements ClusterStateListener {
                         + "Security features relying on the index will not be available until the upgrade API is run on the index"
                 );
             } else if (state.indexExists() == false) {
-                System.out.println("**** here3");
                 assert state.concreteIndexName != null;
                 final SystemIndexDescriptor descriptorForVersion = systemIndexDescriptor.getDescriptorCompatibleWith(
                     state.minimumNodeVersion
                 );
 
                 if (descriptorForVersion == null) {
-                    System.out.println("**** here4");
                     final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("create index");
                     errorConsumerWithCompletionHandler.accept(new IllegalStateException(error));
                 } else {
-                    System.out.println("**** here5");
                     logger.info(
                         "security index does not exist, creating [{}] with alias [{}]",
                         state.concreteIndexName,
@@ -485,7 +478,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                         .settings(descriptorForVersion.getSettings())
                         .alias(new Alias(descriptorForVersion.getAliasName()))
                         .waitForActiveShards(ActiveShardCount.ALL);
-                    System.out.println("**** here6");
+
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),
                         descriptorForVersion.getOrigin(),
@@ -493,7 +486,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                         new ActionListener<CreateIndexResponse>() {
                             @Override
                             public void onResponse(CreateIndexResponse createIndexResponse) {
-                                System.out.println("**** here7");
                                 if (createIndexResponse.isAcknowledged()) {
                                     andThenWithCompletionHandler.run();
                                 } else {
@@ -505,7 +497,6 @@ public class SecurityIndexManager implements ClusterStateListener {
 
                             @Override
                             public void onFailure(Exception e) {
-                                System.out.println("**** here8");
                                 final Throwable cause = ExceptionsHelper.unwrapCause(e);
                                 if (cause instanceof ResourceAlreadyExistsException) {
                                     // the index already exists - it was probably just created so this
@@ -520,16 +511,13 @@ public class SecurityIndexManager implements ClusterStateListener {
                     );
                 }
             } else if (state.mappingUpToDate == false) {
-                System.out.println("**** here9");
                 final SystemIndexDescriptor descriptorForVersion = systemIndexDescriptor.getDescriptorCompatibleWith(
                     state.minimumNodeVersion
                 );
                 if (descriptorForVersion == null) {
-                    System.out.println("**** here10");
                     final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("updating mapping");
                     errorConsumerWithCompletionHandler.accept(new IllegalStateException(error));
                 } else {
-                    System.out.println("**** here11");
                     logger.info(
                         "Index [{}] (alias [{}]) is not up to date. Updating mapping",
                         state.concreteIndexName,
@@ -556,11 +544,9 @@ public class SecurityIndexManager implements ClusterStateListener {
                     );
                 }
             } else {
-                System.out.println("**** here12");
                 andThenWithCompletionHandler.run();
             }
         } catch (Exception e) {
-            System.out.println("**** here13");
             errorConsumerWithCompletionHandler.accept(e);
         }
     }

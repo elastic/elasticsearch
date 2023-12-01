@@ -55,6 +55,15 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     private record SampleData(double[] values, double[] weights, Integer[] changePoints) {}
 
     private record DataStats(double nValues, double mean, double var, int nCandidateChangePoints) {
+        boolean varianceZeroToWorkingPrecision() {
+            // Our variance calculation is only accurate to ulp(length * mean)^(1/2),
+            // i.e. we compute it using the difference of squares method and don't use
+            // the Kahan correction. We treat anything as zero to working precision as
+            // zero. We should at some point switch to a more numerically stable approach
+            // for computing data statistics.
+            return var < Math.sqrt(Math.ulp(2.0 * nValues * mean));
+        }
+
         @Override
         public String toString() {
             return "DataStats{nValues=" + nValues + ", mean=" + mean + ", var=" + var + ", nCandidates=" + nCandidateChangePoints + "}";
@@ -128,10 +137,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     static ChangeType testForChange(MlAggsHelper.DoubleBucketValues bucketValues, int[] candidateChangePoints, double pValueThreshold) {
         double[] timeWindow = bucketValues.getValues();
-        double totalUnweightedVariance = RunningStats.from(timeWindow, i -> 1.0).variance();
-        if (totalUnweightedVariance == 0.0) {
-            return new ChangeType.Stationary();
-        }
         return testForChange(timeWindow, candidateChangePoints, pValueThreshold).changeType(bucketValues, slope(timeWindow));
     }
 
@@ -151,8 +156,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         logger.trace("dataStats: [{}]", dataStats);
         TestStats stationary = new TestStats(Type.STATIONARY, 1.0, dataStats.var(), 1.0, dataStats);
 
-        // Should never happen but just in case.
-        if (dataRunningStats.variance() == 0.0) {
+        if (dataStats.varianceZeroToWorkingPrecision()) {
             return stationary;
         }
 

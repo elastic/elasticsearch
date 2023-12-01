@@ -42,7 +42,7 @@ import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterCredentialsManager;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -96,7 +97,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
     @Override
     public void tearDown() throws Exception {
         try {
-            var builder = Settings.builder()
+            final var builder = Settings.builder()
                 .putNull("cluster.remote." + CLUSTER_ALIAS + ".mode")
                 .putNull("cluster.remote." + CLUSTER_ALIAS + ".proxy_address");
             client().admin().cluster().updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(builder)).get();
@@ -115,43 +116,53 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    public void testReloadRemoteClusterCredentials() throws Exception {
-        final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
+    public void testReloadRemoteClusterCredentialsInFirstTimeSetup() throws Exception {
+        final String credentials = randomAlphaOfLength(42);
+        writeCredentialsToKeyStore(credentials);
+        final RemoteClusterCredentialsManager clusterCredentialsManager = getInstanceFromNode(TransportService.class)
+            .getRemoteClusterService()
+            .getRemoteClusterCredentialsManager();
+        // Until we reload, credentials written to key store are not loaded into the credentials manager
+        assertThat(clusterCredentialsManager.hasCredentials(CLUSTER_ALIAS), is(false));
+        reloadSecureSettings();
+        assertThat(clusterCredentialsManager.resolveCredentials(CLUSTER_ALIAS), equalTo(credentials));
+
+        // Check that credentials get used for a remote connection, once we configure it
+        final BlockingQueue<CapturedHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
         try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, capturedHeaders)) {
             final TransportAddress remoteAddress = remoteTransport.getOriginalTransport()
                 .profileBoundAddresses()
                 .get("_remote_cluster")
                 .publishAddress();
 
-            final Environment environment = getInstanceFromNode(Environment.class);
-            final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-            final String credentials = randomAlphaOfLength(42);
-            keyStoreWrapper.setString("cluster.remote." + CLUSTER_ALIAS + ".credentials", credentials.toCharArray());
-            keyStoreWrapper.save(environment.configFile(), new char[0], false);
+            configureRemoteCluster(remoteAddress);
 
-            final RemoteClusterService remoteClusterService = getInstanceFromNode(TransportService.class).getRemoteClusterService();
-            assertThat(remoteClusterService.getRemoteClusterCredentialsManager().hasCredentials(CLUSTER_ALIAS), is(false));
-
-            successfulReloadCall();
-
-            assertThat(remoteClusterService.getRemoteClusterCredentialsManager().resolveCredentials(CLUSTER_ALIAS), equalTo(credentials));
-
-            final Settings.Builder builder = Settings.builder()
-                .put("cluster.remote." + CLUSTER_ALIAS + ".mode", "proxy")
-                .put("cluster.remote." + CLUSTER_ALIAS + ".proxy_address", remoteAddress.toString());
-            client().admin().cluster().updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(builder)).get();
-
+            // Run search to trigger header capturing on the receiving side
             client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
 
             assertThat(capturedHeaders, is(not(empty())));
-            for (CapturedActionWithHeaders actual : capturedHeaders) {
-                assertContainsCrossClusterAccessCredentialsHeader(credentials, actual);
+            for (CapturedHeaders actualHeaders : capturedHeaders) {
+                assertContainsCrossClusterAccessCredentialsHeader(credentials, actualHeaders);
             }
         }
 
     }
 
-    private void assertContainsCrossClusterAccessCredentialsHeader(String encodedCredential, CapturedActionWithHeaders actual) {
+    private void configureRemoteCluster(TransportAddress remoteAddress) throws InterruptedException, ExecutionException {
+        final Settings.Builder builder = Settings.builder()
+            .put("cluster.remote." + CLUSTER_ALIAS + ".mode", "proxy")
+            .put("cluster.remote." + CLUSTER_ALIAS + ".proxy_address", remoteAddress.toString());
+        clusterAdmin().updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(builder)).get();
+    }
+
+    private void writeCredentialsToKeyStore(String credentials) throws Exception {
+        final Environment environment = getInstanceFromNode(Environment.class);
+        final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
+        keyStoreWrapper.setString("cluster.remote." + CLUSTER_ALIAS + ".credentials", credentials.toCharArray());
+        keyStoreWrapper.save(environment.configFile(), new char[0], false);
+    }
+
+    private void assertContainsCrossClusterAccessCredentialsHeader(String encodedCredential, CapturedHeaders actual) {
         assertThat(actual.headers(), hasKey(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
         assertThat(
             actual.headers().get(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY),
@@ -162,7 +173,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
     public static MockTransportService startTransport(
         final String nodeName,
         final ThreadPool threadPool,
-        final BlockingQueue<CapturedActionWithHeaders> capturedHeaders
+        final BlockingQueue<CapturedHeaders> capturedHeaders
     ) {
         boolean success = false;
         final Settings settings = Settings.builder()
@@ -184,9 +195,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 ClusterStateRequest::new,
                 (request, channel, task) -> {
-                    capturedHeaders.add(
-                        new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
-                    );
+                    capturedHeaders.add(new CapturedHeaders(Map.copyOf(threadPool.getThreadContext().getHeaders())));
                     channel.sendResponse(
                         new ClusterStateResponse(ClusterName.DEFAULT, ClusterState.builder(ClusterName.DEFAULT).build(), false)
                     );
@@ -197,9 +206,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 RemoteClusterNodesAction.Request::new,
                 (request, channel, task) -> {
-                    capturedHeaders.add(
-                        new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
-                    );
+                    capturedHeaders.add(new CapturedHeaders(Map.copyOf(threadPool.getThreadContext().getHeaders())));
                     channel.sendResponse(new RemoteClusterNodesAction.Response(List.of()));
                 }
             );
@@ -208,9 +215,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
-                    capturedHeaders.add(
-                        new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
-                    );
+                    capturedHeaders.add(new CapturedHeaders(Map.copyOf(threadPool.getThreadContext().getHeaders())));
                     channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
@@ -219,9 +224,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchRequest::new,
                 (request, channel, task) -> {
-                    capturedHeaders.add(
-                        new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
-                    );
+                    capturedHeaders.add(new CapturedHeaders(Map.copyOf(threadPool.getThreadContext().getHeaders())));
                     channel.sendResponse(
                         new SearchResponse(
                             new InternalSearchResponse(
@@ -255,9 +258,9 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         }
     }
 
-    public record CapturedActionWithHeaders(String action, Map<String, String> headers) {}
+    public record CapturedHeaders(Map<String, String> headers) {}
 
-    private void successfulReloadCall() throws InterruptedException {
+    private void reloadSecureSettings() throws InterruptedException {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;

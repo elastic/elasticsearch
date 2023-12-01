@@ -50,8 +50,8 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final Map<String, Object> modelStats;
 
-    public InferenceFeatureSetUsage(boolean available, boolean enabled, Collection<ModelStats> modelStats) {
-        super(XPackField.INFERENCE, available, enabled);
+    public InferenceFeatureSetUsage(Collection<ModelStats> modelStats) {
+        super(XPackField.INFERENCE, true, true);
         this.modelStats = Map.of("models", modelStats.stream().map(ModelStats::asMap).collect(Collectors.toList()));
     }
 

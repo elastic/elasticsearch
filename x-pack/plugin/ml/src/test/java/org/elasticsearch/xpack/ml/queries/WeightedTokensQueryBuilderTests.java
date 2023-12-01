@@ -131,6 +131,44 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         }
     }
 
+    /**
+     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
+     */
+    @Override
+    public void testCacheability() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            Document document = new Document();
+            document.add(new FloatDocValuesField(RANK_FEATURES_FIELD, 1.0f));
+            iw.addDocument(document);
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+                WeightedTokensQueryBuilder queryBuilder = createTestQueryBuilder();
+                QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+
+                assertNotNull(rewriteQuery.toQuery(context));
+                assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+            }
+        }
+    }
+
+    /**
+     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
+     */
+    @Override
+    public void testMustRewrite() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            Document document = new Document();
+            document.add(new FloatDocValuesField(RANK_FEATURES_FIELD, 1.0f));
+            iw.addDocument(document);
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+                context.setAllowUnmappedFields(true);
+                WeightedTokensQueryBuilder queryBuilder = createTestQueryBuilder();
+                queryBuilder.toQuery(context);
+            }
+        }
+    }
+
     @Override
     protected void doAssertLuceneQuery(WeightedTokensQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, instanceOf(BooleanQuery.class));

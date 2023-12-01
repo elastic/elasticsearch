@@ -12,8 +12,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.util.SingleObjectCache;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
@@ -275,7 +273,13 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() throws IOException {
-        metrics.forEach(metric -> Releasables.closeExpectNoException((Releasable) metric));
+        metrics.forEach(metric -> {
+            try {
+                metric.close();
+            } catch (Exception ignore) {
+                // metrics close() method are not throwing Exception
+            }
+        });
     }
 
     /**

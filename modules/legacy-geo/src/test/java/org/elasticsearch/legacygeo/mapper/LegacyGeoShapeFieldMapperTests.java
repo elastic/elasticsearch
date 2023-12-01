@@ -77,6 +77,12 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    public void testTotalFieldsCount() throws IOException {
+        super.testTotalFieldsCount();
+        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
         checker.registerConflictCheck("strategy", fieldMapping(this::minimalMapping), fieldMapping(b -> {

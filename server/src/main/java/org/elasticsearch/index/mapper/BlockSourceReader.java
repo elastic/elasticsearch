@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -131,6 +132,24 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
+    public static class PointsBlockLoader extends SourceBlockLoader {
+        private final ValueFetcher fetcher;
+
+        public PointsBlockLoader(ValueFetcher fetcher) {
+            this.fetcher = fetcher;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.points(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context) {
+            return new Points(fetcher);
+        }
+    }
+
     private static class BytesRefs extends BlockSourceReader {
         BytesRef scratch = new BytesRef();
 
@@ -141,6 +160,23 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         protected void append(BlockLoader.Builder builder, Object v) {
             ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, (String) v));
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.Bytes";
+        }
+    }
+
+    private static class Points extends BlockSourceReader {
+
+        Points(ValueFetcher fetcher) {
+            super(fetcher);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.PointBuilder) builder).appendPoint((SpatialPoint) v);
         }
 
         @Override

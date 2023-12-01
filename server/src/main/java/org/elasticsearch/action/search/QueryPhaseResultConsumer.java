@@ -608,7 +608,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             SearchPhaseController.ReducedQueryPhase reducePhase = new SearchPhaseController.ReducedQueryPhase(
                 new TotalHits(totalHits.sum(), relationAtomicReference.get()),
                 0,
-                Float.NEGATIVE_INFINITY,
+                Float.NaN,
                 false,
                 false,
                 null,

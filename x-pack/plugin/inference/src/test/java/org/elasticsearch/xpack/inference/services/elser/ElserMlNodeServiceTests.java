@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -238,7 +238,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
     }
 
     private ElserMlNodeService createService(Client client) {
-        var context = new InferenceServicePlugin.InferenceServiceFactoryContext(client);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client);
         return new ElserMlNodeService(context);
     }
 }

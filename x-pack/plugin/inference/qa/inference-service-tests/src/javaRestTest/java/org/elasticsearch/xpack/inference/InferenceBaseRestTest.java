@@ -28,6 +28,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -111,13 +112,10 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, TaskType taskType) {
+    protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
         if (taskType == TaskType.SPARSE_EMBEDDING) {
-            var results = (List<String>) resultMap.get("result");
-            assertThat(results, not(empty()));
-            for (String result : results) {
-                assertThat(result, is(not(emptyString())));
-            }
+            var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
+            assertThat(results, hasSize(expectedNumberOfResults));
         } else {
             fail("test with task type [" + taskType + "] are not supported yet");
         }

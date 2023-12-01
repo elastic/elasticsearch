@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -19,7 +20,6 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -116,7 +116,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertEquals(model.getConfigurations().getService(), modelHolder.get().service());
 
-        var elserService = new ElserMlNodeService(new InferenceServicePlugin.InferenceServiceFactoryContext(mock(Client.class)));
+        var elserService = new ElserMlNodeService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
         ElserMlNodeModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
             modelHolder.get().modelId(),
             modelHolder.get().taskType(),

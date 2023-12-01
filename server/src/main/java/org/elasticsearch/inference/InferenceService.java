@@ -10,6 +10,7 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 
 import java.io.Closeable;
 import java.util.List;
@@ -17,6 +18,8 @@ import java.util.Map;
 import java.util.Set;
 
 public interface InferenceService extends Closeable {
+
+    default void init(Client client) {}
 
     String name();
 

@@ -13,8 +13,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.hasSize;
-
 public class MockInferenceServiceIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
@@ -32,7 +30,7 @@ public class MockInferenceServiceIT extends InferenceBaseRestTest {
 
         // The response is randomly generated, the input can be anything
         var inference = inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
-        assertNonEmptyInferenceResults(inference, TaskType.SPARSE_EMBEDDING);
+        assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
     }
 
     @SuppressWarnings("unchecked")
@@ -47,9 +45,7 @@ public class MockInferenceServiceIT extends InferenceBaseRestTest {
             List.of(randomAlphaOfLength(5), randomAlphaOfLength(10), randomAlphaOfLength(15))
         );
 
-        var results = (List<Map<String, Object>>) inference.get("result");
-        assertThat(results, hasSize(3));
-        assertNonEmptyInferenceResults(inference, TaskType.SPARSE_EMBEDDING);
+        assertNonEmptyInferenceResults(inference, 3, TaskType.SPARSE_EMBEDDING);
     }
 
     @SuppressWarnings("unchecked")

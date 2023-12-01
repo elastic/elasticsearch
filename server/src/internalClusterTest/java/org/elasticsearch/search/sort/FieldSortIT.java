@@ -2157,8 +2157,10 @@ public class FieldSortIT extends ESIntegTestCase {
         refresh();
 
         assertNoFailures(
-            client().prepareSearch("index_long", "index_double", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean"))
-                .setSize(10).get()
+            client().prepareSearch("index_long", "index_double", "index_other")
+                .addSort(new FieldSortBuilder("foo").unmappedType("boolean"))
+                .setSize(10)
+                .get()
         );
     }
 }

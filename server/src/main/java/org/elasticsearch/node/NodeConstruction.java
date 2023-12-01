@@ -745,53 +745,6 @@ class NodeConstruction {
             shardLimitValidator,
             threadPool
         );
-
-        record PluginServiceInstances(
-            Client client,
-            ClusterService clusterService,
-            RerouteService rerouteService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            TelemetryProvider telemetryProvider,
-            AllocationService allocationService,
-            IndicesService indicesService,
-            FeatureService featureService,
-            SystemIndices systemIndices
-        ) implements Plugin.PluginServices {}
-        PluginServiceInstances pluginServices = new PluginServiceInstances(
-            client,
-            clusterService,
-            rerouteService,
-            threadPool,
-            createResourceWatcherService(settings, threadPool),
-            scriptService,
-            xContentRegistry,
-            environment,
-            nodeEnvironment,
-            namedWriteableRegistry,
-            clusterModule.getIndexNameExpressionResolver(),
-            repositoriesServiceReference::get,
-            telemetryProvider,
-            clusterModule.getAllocationService(),
-            indicesService,
-            featureService,
-            systemIndices
-        );
-
-        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
-
-        var terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
-            .stream()
-            .map(TerminationHandlerProvider::handler);
-        terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
-
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
@@ -890,6 +843,53 @@ class NodeConstruction {
         );
         RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
         repositoriesServiceReference.set(repositoryService);
+
+        record PluginServiceInstances(
+            Client client,
+            ClusterService clusterService,
+            RerouteService rerouteService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            TelemetryProvider telemetryProvider,
+            AllocationService allocationService,
+            IndicesService indicesService,
+            FeatureService featureService,
+            SystemIndices systemIndices
+        ) implements Plugin.PluginServices {}
+        PluginServiceInstances pluginServices = new PluginServiceInstances(
+            client,
+            clusterService,
+            rerouteService,
+            threadPool,
+            createResourceWatcherService(settings, threadPool),
+            scriptService,
+            xContentRegistry,
+            environment,
+            nodeEnvironment,
+            namedWriteableRegistry,
+            clusterModule.getIndexNameExpressionResolver(),
+            repositoriesServiceReference::get,
+            telemetryProvider,
+            clusterModule.getAllocationService(),
+            indicesService,
+            featureService,
+            systemIndices
+        );
+
+        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
+
+        var terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
+            .stream()
+            .map(TerminationHandlerProvider::handler);
+        terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
+
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,
             clusterService,

@@ -84,7 +84,9 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query, flo
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FEATURE_NAME.getPreferredName(), featureName);
-        builder.field(DEFAULT_SCORE.getPreferredName(), defaultScore);
+        if (defaultScore > 0f) {
+            builder.field(DEFAULT_SCORE.getPreferredName(), defaultScore);
+        }
         builder.field(QUERY.getPreferredName(), query.getQuery());
         builder.endObject();
         return builder;

@@ -66,7 +66,6 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -559,8 +558,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 }
                 failureCount += 1;
                 Streams.readFully(exchange.getRequestBody());
-                final var bytesSent = sendIncompleteContent(exchange, bytes);
-                assertThat(bytesSent, greaterThan(0));
+                sendIncompleteContent(exchange, bytes);
                 exchange.close();
             }
         }

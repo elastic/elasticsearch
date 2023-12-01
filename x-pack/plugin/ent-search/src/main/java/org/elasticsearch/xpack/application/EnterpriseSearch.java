@@ -51,14 +51,17 @@ import org.elasticsearch.xpack.application.connector.action.RestGetConnectorActi
 import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.TransportDeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportGetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
@@ -190,6 +193,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
                     new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
                     new ActionHandler<>(UpdateConnectorFilteringAction.INSTANCE, TransportUpdateConnectorFilteringAction.class),
+                    new ActionHandler<>(UpdateConnectorPipelineAction.INSTANCE, TransportUpdateConnectorPipelineAction.class),
                     new ActionHandler<>(UpdateConnectorSchedulingAction.INSTANCE, TransportUpdateConnectorSchedulingAction.class),
 
                     // SyncJob API
@@ -252,6 +256,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestListConnectorAction(),
                     new RestPutConnectorAction(),
                     new RestUpdateConnectorFilteringAction(),
+                    new RestUpdateConnectorPipelineAction(),
                     new RestUpdateConnectorSchedulingAction(),
 
                     // SyncJob API

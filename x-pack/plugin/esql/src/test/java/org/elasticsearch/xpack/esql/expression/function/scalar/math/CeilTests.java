@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -59,7 +61,7 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(arg, DataTypes.UNSIGNED_LONG, "arg")),
                 "Attribute[channel=0]",
                 DataTypes.UNSIGNED_LONG,
-                equalTo(arg)
+                equalTo(NumericUtils.unsignedLongAsBigInteger(arg))
             );
         })));
     }

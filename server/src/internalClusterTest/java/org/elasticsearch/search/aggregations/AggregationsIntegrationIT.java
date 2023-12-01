@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -18,7 +19,7 @@ import java.util.List;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponses;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class AggregationsIntegrationIT extends ESIntegTestCase {
@@ -38,20 +39,21 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
 
     public void testScroll() {
         final int size = randomIntBetween(1, 4);
-        assertScrollResponses(60, prepareSearch("index").setSize(size).addAggregation(terms("f").field("f")), scrollResponses -> {
-            assertNoFailures(scrollResponses.initialSearchResponse());
-            Aggregations aggregations = scrollResponses.initialSearchResponse().getAggregations();
-            assertNotNull(aggregations);
-            Terms terms = aggregations.get("f");
-            assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());
+        assertScrollResponsesAndHitCount(
+            TimeValue.timeValueSeconds(60),
+            prepareSearch("index").setSize(size).addAggregation(terms("f").field("f")),
+            numDocs,
+            (respNum, response) -> {
+                assertNoFailures(response);
 
-            scrollResponses.scrollResponses().forEach(scrollResponse -> {
-                assertNoFailures(scrollResponse);
-                assertNull(scrollResponse.getAggregations());
+                if (respNum == 1) { // initial response.
+                    Aggregations aggregations = response.getAggregations();
+                    assertNotNull(aggregations);
+                    Terms terms = aggregations.get("f");
+                    assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());
+                } else {
+                    assertNull(response.getAggregations());
+                }
             });
-
-            int observedHits = scrollResponses.allResponses().stream().map(resp -> resp.getHits().getHits().length).reduce(0, Integer::sum);
-            assertEquals(numDocs, observedHits);
-        });
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
@@ -41,7 +42,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -62,6 +62,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
@@ -380,33 +381,45 @@ public class ElasticsearchAssertions {
         List<SearchResponse> allResponses
     ) {}
 
-    public static void assertScrollResponses(
-        int timoutSeconds,
+
+    /**
+     *
+     * @param keepAlive
+     * @param searchRequestBuilder
+     * @param expectedTotalHitCount
+     * @param responseConsumer (respNum, response) -> {your assertions here}, respNum starts at 1.
+     */
+    public static void assertScrollResponsesAndHitCount(
+        TimeValue keepAlive,
         SearchRequestBuilder searchRequestBuilder,
-        Consumer<ScrollResponses> consumer
+        int expectedTotalHitCount,
+        BiConsumer<Integer, SearchResponse> responseConsumer
     ) {
-        searchRequestBuilder.setScroll(TimeValue.timeValueSeconds(timoutSeconds));
+        searchRequestBuilder.setScroll(keepAlive);
         List<SearchResponse> responses = new ArrayList<>();
         var scrollResponse = searchRequestBuilder.get();
         responses.add(scrollResponse);
+        int retrievedDocsCount = 0;
         try {
+            assertThat(scrollResponse.getHits().getTotalHits().value, equalTo((long) expectedTotalHitCount));
+            retrievedDocsCount += scrollResponse.getHits().getHits().length;
+            responseConsumer.accept(responses.size(), scrollResponse);
             while (scrollResponse.getHits().getHits().length > 0) {
-                scrollResponse = client().prepareSearchScroll(scrollResponse.getScrollId())
-                    .setScroll(TimeValue.timeValueSeconds(timoutSeconds))
-                    .get();
+                scrollResponse = prepareScrollSearch(scrollResponse.getScrollId(), keepAlive).get();
                 responses.add(scrollResponse);
+                assertThat(scrollResponse.getHits().getTotalHits().value, equalTo((long) expectedTotalHitCount));
+                retrievedDocsCount += scrollResponse.getHits().getHits().length;
+                responseConsumer.accept(responses.size(), scrollResponse);
             }
-            consumer.accept(
-                new ScrollResponses(
-                    responses.isEmpty() ? null : responses.get(0),
-                    responses.size() <= 1 ? List.of() : responses.subList(1, responses.size() - 1),
-                    responses
-                )
-            );
-            clearScroll(scrollResponse.getScrollId());
         } finally {
-            responses.forEach(TransportMessage::decRef);
+            clearScroll(scrollResponse.getScrollId());
+            responses.forEach(SearchResponse::decRef);
         }
+        assertThat(retrievedDocsCount, equalTo(expectedTotalHitCount));
+    }
+
+    public static SearchScrollRequestBuilder prepareScrollSearch(String scrollId, TimeValue timeout) {
+        return client().prepareSearchScroll(scrollId).setScroll(timeout);
     }
 
     public static <R extends ActionResponse> void assertResponse(ActionFuture<R> responseFuture, Consumer<R> consumer)

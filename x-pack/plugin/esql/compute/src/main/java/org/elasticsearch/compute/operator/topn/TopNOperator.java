@@ -121,6 +121,7 @@ public class TopNOperator implements Operator, Accountable {
         }
 
         private long memoryUsed(int numKeys) {
+            // sortOrders is global and its memory is accounted at the top level TopNOperator
             return BASE_RAM_USAGE + RamUsageEstimator.alignObjectSize(
                 (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * numKeys
             );

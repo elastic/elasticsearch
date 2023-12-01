@@ -1,0 +1,5 @@
+pr: 102862
+summary: Add optional weighted terms scoring to text expansion query
+area: "Machine Learning, Application"
+type: enhancement
+issues: []

@@ -26,46 +26,45 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
-import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
+import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class UpdateConnectorFilteringAction extends ActionType<UpdateConnectorFilteringAction.Response> {
+public class UpdateConnectorPipelineAction extends ActionType<UpdateConnectorPipelineAction.Response> {
 
-    public static final UpdateConnectorFilteringAction INSTANCE = new UpdateConnectorFilteringAction();
-    public static final String NAME = "cluster:admin/xpack/connector/update_filtering";
+    public static final UpdateConnectorPipelineAction INSTANCE = new UpdateConnectorPipelineAction();
+    public static final String NAME = "cluster:admin/xpack/connector/update_pipeline";
 
-    public UpdateConnectorFilteringAction() {
-        super(NAME, UpdateConnectorFilteringAction.Response::new);
+    public UpdateConnectorPipelineAction() {
+        super(NAME, UpdateConnectorPipelineAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
         private final String connectorId;
-        private final List<ConnectorFiltering> filtering;
+        private final ConnectorIngestPipeline pipeline;
 
-        public Request(String connectorId, List<ConnectorFiltering> filtering) {
+        public Request(String connectorId, ConnectorIngestPipeline pipeline) {
             this.connectorId = connectorId;
-            this.filtering = filtering;
+            this.pipeline = pipeline;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.connectorId = in.readString();
-            this.filtering = in.readOptionalCollectionAsList(ConnectorFiltering::new);
+            this.pipeline = in.readOptionalWriteable(ConnectorIngestPipeline::new);
         }
 
         public String getConnectorId() {
             return connectorId;
         }
 
-        public List<ConnectorFiltering> getFiltering() {
-            return filtering;
+        public ConnectorIngestPipeline getPipeline() {
+            return pipeline;
         }
 
         @Override
@@ -76,38 +75,37 @@ public class UpdateConnectorFilteringAction extends ActionType<UpdateConnectorFi
                 validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
             }
 
-            if (filtering == null) {
-                validationException = addValidationError("[filtering] cannot be null.", validationException);
+            if (Objects.isNull(pipeline)) {
+                validationException = addValidationError("[pipeline] cannot be null.", validationException);
             }
 
             return validationException;
         }
 
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<UpdateConnectorFilteringAction.Request, String> PARSER =
+        private static final ConstructingObjectParser<UpdateConnectorPipelineAction.Request, String> PARSER =
             new ConstructingObjectParser<>(
-                "connector_update_filtering_request",
+                "connector_update_pipeline_request",
                 false,
-                ((args, connectorId) -> new UpdateConnectorFilteringAction.Request(connectorId, (List<ConnectorFiltering>) args[0]))
+                ((args, connectorId) -> new UpdateConnectorPipelineAction.Request(connectorId, (ConnectorIngestPipeline) args[0]))
             );
 
         static {
-            PARSER.declareObjectArray(constructorArg(), (p, c) -> ConnectorFiltering.fromXContent(p), Connector.FILTERING_FIELD);
+            PARSER.declareObject(constructorArg(), (p, c) -> ConnectorIngestPipeline.fromXContent(p), Connector.PIPELINE_FIELD);
         }
 
-        public static UpdateConnectorFilteringAction.Request fromXContentBytes(
+        public static UpdateConnectorPipelineAction.Request fromXContentBytes(
             String connectorId,
             BytesReference source,
             XContentType xContentType
         ) {
             try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-                return UpdateConnectorFilteringAction.Request.fromXContent(parser, connectorId);
+                return UpdateConnectorPipelineAction.Request.fromXContent(parser, connectorId);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
             }
         }
 
-        public static UpdateConnectorFilteringAction.Request fromXContent(XContentParser parser, String connectorId) throws IOException {
+        public static UpdateConnectorPipelineAction.Request fromXContent(XContentParser parser, String connectorId) throws IOException {
             return PARSER.parse(parser, connectorId);
         }
 
@@ -115,7 +113,7 @@ public class UpdateConnectorFilteringAction extends ActionType<UpdateConnectorFi
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(Connector.FILTERING_FIELD.getPreferredName(), filtering);
+                builder.field(Connector.PIPELINE_FIELD.getPreferredName(), pipeline);
             }
             builder.endObject();
             return builder;
@@ -125,7 +123,7 @@ public class UpdateConnectorFilteringAction extends ActionType<UpdateConnectorFi
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(connectorId);
-            out.writeOptionalCollection(filtering);
+            out.writeOptionalWriteable(pipeline);
         }
 
         @Override
@@ -133,12 +131,12 @@ public class UpdateConnectorFilteringAction extends ActionType<UpdateConnectorFi
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(connectorId, request.connectorId) && Objects.equals(filtering, request.filtering);
+            return Objects.equals(connectorId, request.connectorId) && Objects.equals(pipeline, request.pipeline);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectorId, filtering);
+            return Objects.hash(connectorId, pipeline);
         }
     }
 
@@ -187,5 +185,6 @@ public class UpdateConnectorFilteringAction extends ActionType<UpdateConnectorFi
         public int hashCode() {
             return Objects.hash(result);
         }
+
     }
 }

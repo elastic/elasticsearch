@@ -123,8 +123,9 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
     }
 
     protected SearchResponse ensureSearchWasCancelled(ActionFuture<SearchResponse> searchResponse) {
+        SearchResponse response = null;
         try {
-            SearchResponse response = searchResponse.actionGet();
+            response = searchResponse.actionGet();
             logger.info("Search response {}", response);
             assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
             for (ShardSearchFailure failure : response.getShardFailures()) {
@@ -137,6 +138,8 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
             logger.info("All shards failed with", ex);
             return null;
+        } finally {
+            if (response != null) response.decRef();
         }
     }
 

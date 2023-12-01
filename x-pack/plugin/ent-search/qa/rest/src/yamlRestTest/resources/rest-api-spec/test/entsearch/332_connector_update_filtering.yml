@@ -107,7 +107,7 @@ setup:
   - match: { filtering.1.draft.rules.0.id: "RULE-DRAFT-1" }
 
 ---
-"Update Connector Filtering - 404 status code returned when connector doesn't exist":
+"Update Connector Filtering - Connector doesn't exist":
   - do:
       catch: "missing"
       connector.update_filtering:
@@ -186,7 +186,7 @@ setup:
                   state: valid
 
 ---
-"Update Connector Filtering - 400 status code returned when required fields are missing":
+"Update Connector Filtering - Required fields are missing":
   - do:
       catch: "bad_request"
       connector.update_filtering:
@@ -199,7 +199,7 @@ setup:
       status: 400
 
 ---
-"Update Connector Filtering - 400 status code returned with wrong datetime expression":
+"Update Connector Filtering - Wrong datetime expression":
   - do:
       catch: "bad_request"
       connector.update_filtering:

@@ -27,6 +27,7 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
 
     record TestTypeFunctions(Supplier<SpatialPoint> randomPoint, Function<Double, Double> error) {}
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102863")
     public void testEncoding() {
         for (var type : types.entrySet()) {
             for (int i = 0; i < 10; i++) {

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -41,12 +42,17 @@ public class DriverTests extends ESTestCase {
 
     public void testThreadContext() throws Exception {
         DriverContext driverContext = driverContext();
+        int asyncActions = randomIntBetween(0, 5);
+        for (int i = 0; i < asyncActions; i++) {
+            driverContext.addAsyncAction();
+        }
         ThreadPool threadPool = threadPool();
         try {
             List<Page> inPages = randomList(1, 100, DriverTests::randomPage);
             List<Page> outPages = new ArrayList<>();
             WarningsOperator warning1 = new WarningsOperator(threadPool);
             WarningsOperator warning2 = new WarningsOperator(threadPool);
+            CyclicBarrier allPagesProcessed = new CyclicBarrier(2);
             Driver driver = new Driver(driverContext, new CannedSourceOperator(inPages.iterator()) {
                 @Override
                 public Page getOutput() {
@@ -56,9 +62,16 @@ public class DriverTests extends ESTestCase {
             }, List.of(warning1, new SwitchContextOperator(driverContext, threadPool), warning2), new PageConsumerOperator(page -> {
                 assertRunningWithRegularUser(threadPool);
                 outPages.add(page);
+                if (outPages.size() == inPages.size()) {
+                    try {
+                        allPagesProcessed.await(30, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
             }), () -> {});
             ThreadContext threadContext = threadPool.getThreadContext();
-            CountDownLatch latch = new CountDownLatch(1);
+            CountDownLatch driverCompleted = new CountDownLatch(1);
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 threadContext.putHeader("user", "user1");
                 Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), ActionListener.running(() -> {
@@ -75,11 +88,19 @@ public class DriverTests extends ESTestCase {
                         }
                         assertThat(actualResponseHeaders, equalTo(expectedResponseHeaders));
                     } finally {
-                        latch.countDown();
+                        driverCompleted.countDown();
                     }
                 }));
             }
-            assertTrue(latch.await(30, TimeUnit.SECONDS));
+            allPagesProcessed.await(30, TimeUnit.SECONDS);
+            // race with the Driver to notify the listener
+            for (int i = 0; i < asyncActions; i++) {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    threadContext.putHeader("user", "system");
+                    driverContext.removeAsyncAction();
+                }
+            }
+            assertTrue(driverCompleted.await(30, TimeUnit.SECONDS));
         } finally {
             terminate(threadPool);
         }
@@ -123,7 +144,7 @@ public class DriverTests extends ESTestCase {
                     threadPool.getThreadContext().putHeader("user", "system");
                     innerListener.onResponse(page);
                 }
-            }), TimeValue.timeValueNanos(100), threadPool.executor("esql"));
+            }), TimeValue.timeValueNanos(between(1, 1_000_000)), threadPool.executor("esql"));
         }
 
         @Override

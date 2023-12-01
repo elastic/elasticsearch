@@ -1,0 +1,5 @@
+pr: 102680
+summary: Make `api_key.delete.interval` a dynamic setting
+area: Security
+type: enhancement
+issues: []

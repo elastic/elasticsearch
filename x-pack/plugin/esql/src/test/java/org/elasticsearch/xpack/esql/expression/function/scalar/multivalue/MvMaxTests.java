@@ -54,6 +54,6 @@ public class MvMaxTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected DataType[] supportedTypes() {
-        return representable();
+        return representableNonSpatialTypes();
     }
 }

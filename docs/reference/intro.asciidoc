@@ -24,6 +24,7 @@ to handle data in a wide variety of use cases:
 * Store and analyze logs, metrics, and security event data
 * Use machine learning to automatically model the behavior of your data in real
   time
+* Use {es} as a vector database to create, store, and search vector embeddings
 * Automate business workflows using {es} as a storage engine
 * Manage, integrate, and analyze spatial information using {es} as a geographic
   information system (GIS)

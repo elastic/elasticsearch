@@ -86,6 +86,9 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -117,6 +120,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
+            case "geo_point" -> GEO.pointAsLong(randomGeoPoint());
+            case "cartesian_point" -> CARTESIAN.pointAsLong(randomCartesianPoint());
             case "null" -> null;
             case "_source" -> {
                 try {
@@ -233,8 +238,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
-            try (Block.Ref ref = evaluator.eval(row(testCase.getDataValues()))) {
-                result = toJavaObject(ref.block(), 0);
+            try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
+                result = toJavaObject(block, 0);
             }
         }
         assertThat(result, not(equalTo(Double.NaN)));
@@ -385,18 +390,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
             Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block.Ref ref = eval.eval(new Page(manyPositionsBlocks))) {
-                assertThat(ref.block().getPositionCount(), equalTo(ref.block().getPositionCount()));
+            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(new Page(manyPositionsBlocks))) {
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
-                        assertThat(toJavaObject(ref.block(), p), allNullsMatcher());
+                        assertThat(toJavaObject(block, p), allNullsMatcher());
                         continue;
                     }
-                    assertThat(toJavaObject(ref.block(), p), testCase.getMatcher());
+                    assertThat(toJavaObject(block, p), testCase.getMatcher());
                 }
                 assertThat(
                     "evaluates to tracked block",
-                    ref.block().blockFactory(),
+                    block.blockFactory(),
                     either(sameInstance(context.blockFactory())).or(sameInstance(inputBlockFactory))
                 );
             }
@@ -428,8 +432,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         data.add(simpleData.get(b));
                     }
                 }
-                try (Block.Ref ref = eval.eval(new Page(blocks))) {
-                    assertSimpleWithNulls(data, ref.block(), i);
+                try (Block block = eval.eval(new Page(blocks))) {
+                    assertSimpleWithNulls(data, block, i);
                 }
             }
         }
@@ -456,8 +460,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 futures.add(exec.submit(() -> {
                     try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
-                            try (Block.Ref ref = eval.eval(page)) {
-                                assertThat(toJavaObject(ref.block(), 0), testCase.getMatcher());
+                            try (Block block = eval.eval(page)) {
+                                assertThat(toJavaObject(block, 0), testCase.getMatcher());
                             }
                         }
                     }
@@ -796,7 +800,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword")
+        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword"),
+        Map.entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
+        Map.entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial")
     );
 
     private static String expectedType(Set<DataType> validTypes) {
@@ -814,8 +820,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return named;
     }
 
-    private static Stream<DataType> representable() {
+    protected static Stream<DataType> representable() {
         return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
+    }
+
+    protected static DataType[] representableTypes() {
+        return representable().toArray(DataType[]::new);
+    }
+
+    protected static Stream<DataType> representableNonSpatial() {
+        return representable().filter(t -> isSpatial(t) == false);
+    }
+
+    protected static DataType[] representableNonSpatialTypes() {
+        return representableNonSpatial().toArray(DataType[]::new);
     }
 
     @AfterClass

@@ -10,11 +10,10 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
-import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -52,6 +52,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -341,6 +343,14 @@ public class ComputeService {
         String[] originalIndices,
         ActionListener<List<TargetNode>> listener
     ) {
+        var remoteIndices = transportService.getRemoteClusterService().groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, originalIndices);
+        remoteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        if (remoteIndices.isEmpty() == false) {
+            listener.onFailure(
+                new IllegalArgumentException("ES|QL does not yet support querying remote indices " + Arrays.toString(originalIndices))
+            );
+            return;
+        }
         // Ideally, the search_shards API should be called before the field-caps API; however, this can lead
         // to a situation where the column structure (i.e., matched data types) differs depending on the query.
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -393,7 +403,7 @@ public class ComputeService {
             );
             transportService.sendChildRequest(
                 transportService.getLocalNode(),
-                SearchShardsAction.NAME,
+                TransportSearchShardsAction.TYPE.name(),
                 searchShardsRequest,
                 parentTask,
                 TransportRequestOptions.EMPTY,
@@ -426,7 +436,7 @@ public class ComputeService {
             final var sessionId = request.sessionId();
             final var exchangeSink = exchangeService.getSinkHandler(sessionId);
             parentTask.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException("task cancelled")));
-            final ActionListener<Void> listener = new ChannelActionListener<>(channel).map(nullValue -> new DataNodeResponse());
+            final ActionListener<Void> listener = new OwningChannelActionListener<>(channel).map(nullValue -> new DataNodeResponse());
             acquireSearchContexts(request.shardIds(), request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 var computeContext = new ComputeContext(sessionId, searchContexts, request.configuration(), null, exchangeSink);
                 runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(unused -> {

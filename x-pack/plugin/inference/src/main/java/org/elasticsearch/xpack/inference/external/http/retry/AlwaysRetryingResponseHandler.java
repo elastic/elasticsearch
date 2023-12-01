@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
@@ -26,11 +25,11 @@ import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkFor
  */
 public class AlwaysRetryingResponseHandler implements ResponseHandler {
     protected final String requestType;
-    private final CheckedFunction<HttpResult, List<? extends InferenceResults>, IOException> parseFunction;
+    private final CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction;
 
     public AlwaysRetryingResponseHandler(
         String requestType,
-        CheckedFunction<HttpResult, List<? extends InferenceResults>, IOException> parseFunction
+        CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction
     ) {
         this.requestType = Objects.requireNonNull(requestType);
         this.parseFunction = Objects.requireNonNull(parseFunction);
@@ -51,7 +50,7 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
     }
 
     @Override
-    public List<? extends InferenceResults> parseResult(HttpResult result) throws RetryException {
+    public InferenceServiceResults parseResult(HttpResult result) throws RetryException {
         try {
             return parseFunction.apply(result);
         } catch (Exception e) {

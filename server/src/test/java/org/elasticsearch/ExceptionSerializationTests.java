@@ -353,6 +353,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("[name?][" + transportAddress + "][ACTION BABY!] message?", ex.getMessage());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102868")
     public void testSearchContextMissingException() throws IOException {
         ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
         TransportVersion version = TransportVersionUtils.randomVersion(random());

@@ -54,14 +54,15 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
             new ElementType[] { ElementType.BYTES_REF },
             dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                 @Override
-                public Block.Ref eval(Page page) {
+                public Block eval(Page page) {
                     BytesRefBlock input = page.getBlock(0);
                     for (int i = 0; i < input.getPositionCount(); i++) {
                         if (input.getBytesRef(i, new BytesRef()).utf8ToString().startsWith("no_")) {
-                            return Block.Ref.floating(Block.constantNullBlock(input.getPositionCount(), input.blockFactory()));
+                            return Block.constantNullBlock(input.getPositionCount(), input.blockFactory());
                         }
                     }
-                    return new Block.Ref(input, page);
+                    input.incRef();
+                    return input;
                 }
 
                 @Override

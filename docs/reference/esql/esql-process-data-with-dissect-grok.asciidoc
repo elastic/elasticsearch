@@ -62,8 +62,9 @@ clientip:keyword | @timestamp:keyword | status:keyword
 
 include::../ingest/processors/dissect.asciidoc[tag=intro-example-explanation]
 
-An empty key `%{}` or a <<esql-named-skip-key,named skip key>> can be used to
-match values, but exclude the value from the output.
+A <<esql-named-skip-key,named skip key>> can be used to match values, but
+exclude the value from the output.
+// TODO: Change back to original text when https://github.com/elastic/elasticsearch/pull/102580 is merged
 
 All matched values are output as keyword string data types. Use the
 <<esql-type-conversion-functions>> to convert to another data type.
@@ -126,24 +127,79 @@ include::../ingest/processors/dissect.asciidoc[tag=dissect-key-modifiers]
 ====== Right padding modifier (`->`)
 include::../ingest/processors/dissect.asciidoc[tag=dissect-modifier-skip-right-padding]
 
+For example:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectRightPaddingModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectRightPaddingModifier-result]
+|===
+
+////
+// TODO: Re-enable when https://github.com/elastic/elasticsearch/pull/102580 is merged
+include::../ingest/processors/dissect.asciidoc[tag=dissect-modifier-empty-right-padding]
+
+For example:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectEmptyRightPaddingModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectEmptyRightPaddingModifier-result]
+|===
+////
+
 [[esql-append-modifier]]
 ====== Append modifier (`+`)
 include::../ingest/processors/dissect.asciidoc[tag=append-modifier]
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendModifier-result]
+|===
 
 [[esql-append-order-modifier]]
 ====== Append with order modifier (`+` and `/n`)
 include::../ingest/processors/dissect.asciidoc[tag=append-order-modifier]
 
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendWithOrderModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendWithOrderModifier-result]
+|===
+
 [[esql-named-skip-key]]
 ====== Named skip key (`?`)
-include::../ingest/processors/dissect.asciidoc[tag=named-skip-key]
+// include::../ingest/processors/dissect.asciidoc[tag=named-skip-key]
+// TODO: Re-enable when https://github.com/elastic/elasticsearch/pull/102580 is merged
+
+Dissect supports ignoring matches in the final result. This can be done with a
+named skip key using the `{?name}` syntax:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectNamedSkipKey]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectNamedSkipKey-result]
+|===
 
 [[esql-dissect-limitations]]
 ===== Limitations
 
 // tag::dissect-limitations[]
-The `DISSECT` command does not support
-<<dissect-modifier-reference-keys,reference keys>>.
+The `DISSECT` command does not support reference keys and empty keys.
 // end::dissect-limitations[]
 
 [[esql-process-data-with-grok]]

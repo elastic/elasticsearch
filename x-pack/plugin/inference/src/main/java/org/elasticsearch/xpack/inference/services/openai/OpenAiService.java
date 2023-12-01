@@ -13,8 +13,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -95,7 +95,12 @@ public class OpenAiService implements InferenceService {
     }
 
     @Override
-    public OpenAiModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets) {
+    public OpenAiModel parsePersistedConfigWithSecrets(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Map<String, Object> secrets
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
@@ -119,12 +124,28 @@ public class OpenAiService implements InferenceService {
     }
 
     @Override
-    public void infer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        ActionListener<List<? extends InferenceResults>> listener
-    ) {
+    public OpenAiModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+
+        OpenAiModel model = createModel(
+            modelId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            format("Failed to parse stored model [%s] for [%s] service, please delete and add the service again", modelId, NAME)
+        );
+
+        throwIfNotEmptyMap(config, NAME);
+        throwIfNotEmptyMap(serviceSettingsMap, NAME);
+        throwIfNotEmptyMap(taskSettingsMap, NAME);
+
+        return model;
+    }
+
+    @Override
+    public void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener) {
         init();
 
         if (model instanceof OpenAiModel == false) {

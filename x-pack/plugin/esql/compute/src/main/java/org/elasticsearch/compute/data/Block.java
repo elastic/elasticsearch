@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -144,10 +143,9 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     }
 
     /**
-     * Expand multivalued fields into one row per value. Returns the
-     * block if there aren't any multivalued fields to expand.
+     * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued
+     * fields to expand. The returned block needs to be closed by the caller to release the block's resources.
      */
-    // TODO: We should use refcounting instead of either deep copies or returning the same identical block.
     Block expand();
 
     /**
@@ -237,49 +235,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
                 }
             }
             return blocks;
-        }
-    }
-
-    /**
-     * A reference to a {@link Block}. This is {@link Releasable} and
-     * {@link Ref#close closing} it will {@link Block#close() release}
-     * the underlying {@link Block} if it wasn't borrowed from a {@link Page}.
-     *
-     * The usual way to use this is:
-     * <pre>{@code
-     *   try (Block.Ref ref = eval.eval(page)) {
-     *     return ref.block().doStuff;
-     *   }
-     * }</pre>
-     *
-     * The {@code try} block will return the memory used by the block to the
-     * breaker if it was "free floating", but if it was attached to a {@link Page}
-     * then it'll do nothing.
-     *
-     * @param block the block referenced
-     * @param containedIn the page containing it or null, if it is "free floating".
-     */
-    // We probably want to remove this; instead, we could incRef and decRef consistently in the EvalOperator.
-    record Ref(Block block, @Nullable Page containedIn) implements Releasable {
-        /**
-         * Create a "free floating" {@link Ref}.
-         */
-        public static Ref floating(Block block) {
-            return new Ref(block, null);
-        }
-
-        /**
-         * Is this block "free floating" or attached to a page?
-         */
-        public boolean floating() {
-            return containedIn == null;
-        }
-
-        @Override
-        public void close() {
-            if (floating()) {
-                block.close();
-            }
         }
     }
 

@@ -532,10 +532,14 @@ c:l
 10
 ;
 
+countStar
+from employees | stats count=count(*) | sort count desc | limit 0;
 
+count:l
+;
 
 countAllGrouped
-from employees | stats c = count(*) by languages | rename languages as l | sort l DESC ; 
+from employees | stats c = count(*) by languages | rename languages as l | sort l DESC;
 
 c:l | l:i
 10  |null

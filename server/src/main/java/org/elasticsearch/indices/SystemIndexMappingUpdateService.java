@@ -92,11 +92,20 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         }
 
         // if we're in a mixed-version cluster, exit
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
+        if (state.hasMixedSystemIndexVersions()) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             logger.trace(() -> "Min versions: " + state.getMinSystemIndexMappingVersions());
             return;
         }
+
+        assert state.nodes().getMaxNodeVersion().equals(state.nodes().getSmallestNonClientNodeVersion())
+            : "Shouldn't be upgrading system index mappings with max node version ["
+                + state.nodes().getMaxNodeVersion()
+                + "], min node version ["
+                + state.nodes().getSmallestNonClientNodeVersion()
+                + "], system index mapping versions ["
+                + state.getMinSystemIndexMappingVersions()
+                + "]";
 
         if (isUpgradeInProgress.compareAndSet(false, true)) {
             // Use a RefCountingRunnable so that we only release the lock once all upgrade attempts have succeeded or failed.

@@ -76,6 +76,6 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_8_1;
+        return TransportVersions.INFERENCE_USAGE_ADDED;
     }
 }

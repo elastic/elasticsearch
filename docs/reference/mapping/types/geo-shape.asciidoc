@@ -32,9 +32,10 @@ type.
 
 [NOTE]
 =============================================
-In GeoJSON and WKT, and therefore Elasticsearch, the correct *coordinate
-order is longitude, latitude (X, Y)* within coordinate arrays. This
-differs from many Geospatial APIs (e.g., Google Maps) that generally
+In https://datatracker.ietf.org/doc/html/rfc7946[GeoJSON]
+and https://www.ogc.org/standard/sfa/[WKT], and therefore Elasticsearch,
+the correct *coordinate order is longitude, latitude (X, Y)* within coordinate
+arrays. This differs from many Geospatial APIs (e.g., Google Maps) that generally
 use the colloquial latitude, longitude (Y, X).
 =============================================
 

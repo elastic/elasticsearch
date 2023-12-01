@@ -100,12 +100,17 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public ElserMlNodeModel parsePersistedConfig(
+    public ElserMlNodeModel parsePersistedConfigWithSecrets(
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
+        return parsePersistedConfig(modelId, taskType, config);
+    }
+
+    @Override
+    public ElserMlNodeModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
 

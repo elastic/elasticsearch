@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.search.SearchRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeResponse;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -86,6 +88,8 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * Computes the result of a {@link PhysicalPlan}.
  */
 public class ComputeService {
+    public record Result(List<Page> pages, List<DriverProfile> profiles) {}
+
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
     private final BigArrays bigArrays;
@@ -122,7 +126,7 @@ public class ComputeService {
         CancellableTask rootTask,
         PhysicalPlan physicalPlan,
         EsqlConfiguration configuration,
-        ActionListener<List<Page>> listener
+        ActionListener<Result> listener
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
@@ -142,7 +146,12 @@ public class ComputeService {
 
         if (concreteIndices.isEmpty()) {
             var computeContext = new ComputeContext(sessionId, List.of(), configuration, null, null);
-            runCompute(rootTask, computeContext, coordinatorPlan, listener.map(unused -> collectedPages));
+            runCompute(
+                rootTask,
+                computeContext,
+                coordinatorPlan,
+                listener.map(driverProfiles -> new Result(collectedPages, driverProfiles))
+            );
             return;
         }
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);
@@ -161,18 +170,32 @@ public class ComputeService {
                     queryPragmas.exchangeBufferSize(),
                     ESQL_THREAD_POOL_NAME
                 );
+                final List<DriverProfile> collectedProfiles = configuration.profile()
+                    ? Collections.synchronizedList(new ArrayList<>())
+                    : null;
                 try (
                     Releasable ignored = exchangeSource::decRef;
-                    RefCountingListener requestRefs = new RefCountingListener(delegate.map(unused -> collectedPages))
+                    RefCountingListener requestRefs = new RefCountingListener(
+                        delegate.map(unused -> new Result(collectedPages, collectedProfiles))
+                    )
                 ) {
                     final AtomicBoolean cancelled = new AtomicBoolean();
                     // wait until the source handler is completed
                     exchangeSource.addCompletionListener(requestRefs.acquire());
                     // run compute on the coordinator
                     var computeContext = new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null);
-                    runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, requestRefs.acquire()));
+                    runCompute(
+                        rootTask,
+                        computeContext,
+                        coordinatorPlan,
+                        cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(driverProfiles -> {
+                            if (configuration.profile()) {
+                                collectedProfiles.addAll(driverProfiles);
+                            }
+                            return null;
+                        })
+                    );
                     // run compute on remote nodes
-                    // TODO: This is wrong, we need to be able to cancel
                     runComputeOnRemoteNodes(
                         sessionId,
                         rootTask,
@@ -180,7 +203,12 @@ public class ComputeService {
                         dataNodePlan,
                         exchangeSource,
                         targetNodes,
-                        () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(unused -> null)
+                        () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(response -> {
+                            if (configuration.profile()) {
+                                collectedProfiles.addAll(response.profiles);
+                            }
+                            return null;
+                        })
                     );
                 }
             })
@@ -241,7 +269,7 @@ public class ComputeService {
         });
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<Void> listener) {
+    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<List<DriverProfile>> listener) {
         listener = ActionListener.runAfter(listener, () -> Releasables.close(context.searchContexts));
         final List<Driver> drivers;
         try {
@@ -273,11 +301,18 @@ public class ComputeService {
             listener.onFailure(e);
             return;
         }
+        ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
+            if (context.configuration.profile()) {
+                return drivers.stream().map(d -> new DriverProfile(d.status().completedOperators())).toList();
+            }
+            return null;
+        });
+        listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));
         driverRunner.executeDrivers(
             task,
             drivers,
             transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-            ActionListener.releaseAfter(listener, () -> Releasables.close(drivers))
+            listenerCollectingStatus
         );
     }
 
@@ -412,17 +447,36 @@ public class ComputeService {
         }
     }
 
-    // TODO: To include stats/profiles
     private static class DataNodeResponse extends TransportResponse {
-        DataNodeResponse() {}
+        private final List<DriverProfile> profiles;
+
+        DataNodeResponse(List<DriverProfile> profiles) {
+            this.profiles = profiles;
+        }
 
         DataNodeResponse(StreamInput in) throws IOException {
             super(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+                if (in.readBoolean()) {
+                    profiles = in.readCollectionAsImmutableList(DriverProfile::new);
+                } else {
+                    profiles = null;
+                }
+            } else {
+                profiles = null;
+            }
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+                if (profiles == null) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    out.writeCollection(profiles);
+                }
+            }
         }
     }
 
@@ -436,13 +490,16 @@ public class ComputeService {
             final var sessionId = request.sessionId();
             final var exchangeSink = exchangeService.getSinkHandler(sessionId);
             parentTask.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException("task cancelled")));
-            final ActionListener<Void> listener = new OwningChannelActionListener<>(channel).map(nullValue -> new DataNodeResponse());
+            final ActionListener<DataNodeResponse> listener = new OwningChannelActionListener<>(channel);
             acquireSearchContexts(request.shardIds(), request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 var computeContext = new ComputeContext(sessionId, searchContexts, request.configuration(), null, exchangeSink);
-                runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(unused -> {
+                runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(driverProfiles -> {
                     // don't return until all pages are fetched
                     exchangeSink.addCompletionListener(
-                        ActionListener.releaseAfter(listener, () -> exchangeService.finishSinkHandler(sessionId, null))
+                        ActionListener.releaseAfter(
+                            listener.map(nullValue -> new DataNodeResponse(driverProfiles)),
+                            () -> exchangeService.finishSinkHandler(sessionId, null)
+                        )
                     );
                 }, e -> {
                     exchangeService.finishSinkHandler(sessionId, e);

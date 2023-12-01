@@ -361,9 +361,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testFieldLimitRuntimeAndDynamic() throws Exception {
         assertAcked(
             indicesAdmin().prepareCreate("test")
-                .setSettings(Settings.builder()
-                    .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 5)
-                    .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+                .setSettings(
+                    Settings.builder()
+                        .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 5)
+                        .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
                 )
                 .setMapping("""
                     {

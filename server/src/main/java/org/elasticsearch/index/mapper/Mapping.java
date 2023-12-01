@@ -141,11 +141,7 @@ public final class Mapping implements ToXContentFragment {
      * @return the resulting merged mapping.
      */
     Mapping merge(Mapping mergeWith, MergeReason reason, long remainingFieldsUntilLimit) {
-        MapperMergeContext mergeContext = MapperMergeContext.root(
-            isSourceSynthetic(),
-            false,
-            remainingFieldsUntilLimit,
-            reason);
+        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, remainingFieldsUntilLimit, reason);
         RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, mergeContext);
 
         // When merging metadata fields as part of applying an index template, new field definitions

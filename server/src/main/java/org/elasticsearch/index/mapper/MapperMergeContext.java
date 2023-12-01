@@ -23,7 +23,8 @@ public class MapperMergeContext {
         boolean isSourceSynthetic,
         boolean isDataStream,
         long remainingFieldsUntilLimit,
-        MapperService.MergeReason mergeReason) {
+        MapperService.MergeReason mergeReason
+    ) {
         return new MapperMergeContext(
             MapperBuilderContext.root(isSourceSynthetic, isDataStream),
             new AtomicLong(mergeReason.isAutoUpdate() ? remainingFieldsUntilLimit : Long.MAX_VALUE)
@@ -48,10 +49,7 @@ public class MapperMergeContext {
         return new MapperMergeContext(mapperBuilderContext, new AtomicLong(Long.MAX_VALUE));
     }
 
-    private MapperMergeContext(
-        MapperBuilderContext mapperBuilderContext,
-        AtomicLong remainingFieldsUntilLimit
-    ) {
+    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, AtomicLong remainingFieldsUntilLimit) {
         this.mapperBuilderContext = mapperBuilderContext;
         this.remainingFieldsUntilLimit = remainingFieldsUntilLimit;
     }

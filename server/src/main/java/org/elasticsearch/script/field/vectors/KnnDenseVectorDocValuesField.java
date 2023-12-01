@@ -10,9 +10,9 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenormalizedCosineFloatVectorValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
-import org.elasticsearch.index.mapper.vectors.DenormalizedCosineFloatVectorValues;
 
 import java.io.IOException;
 

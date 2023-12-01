@@ -85,7 +85,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
             NamedDomainObjectContainer<ElasticsearchCluster> clusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
-            clusters.all(c -> {
+            clusters.configureEach(c -> {
                 if (BuildParams.isInFipsJvm()) {
                     c.setting("xpack.security.transport.ssl.key", "test-node.key");
                     c.keystore("xpack.security.transport.ssl.secure_key_passphrase", "test-node-key-password");

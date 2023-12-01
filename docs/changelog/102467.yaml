@@ -1,0 +1,6 @@
+pr: 102467
+summary: Fix dense_vector cluster stats indexed_vector_dim_min/max values
+area: Mapping
+type: bug
+issues:
+ - 102416

@@ -43,8 +43,7 @@ public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
             true,
             IntStream.range(0, randomIntBetween(10, 1000))
                 .mapToObj(
-                    i -> client().prepareIndex("test")
-                        .setId("id_" + i)
+                    i -> prepareIndex("test").setId("id_" + i)
                         .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
                 )
                 .toArray(IndexRequestBuilder[]::new)

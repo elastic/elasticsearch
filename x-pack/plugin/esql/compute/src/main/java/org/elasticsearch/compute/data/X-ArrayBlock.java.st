@@ -101,6 +101,7 @@ $endif$
     @Override
     public $Type$Block expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values

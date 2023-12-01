@@ -130,7 +130,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
 
         for (int i = 1; i <= numDocs; i++) {
-            IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId(String.valueOf(i));
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId(String.valueOf(i));
             if (missingDocs.contains(i)) {
                 indexRequestBuilder.setSource("x", "y");
             } else {
@@ -205,7 +205,7 @@ public class DuelScrollIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", random().nextBoolean());
+            builders[i] = prepareIndex("test").setId(Integer.toString(i)).setSource("foo", random().nextBoolean());
         }
         indexRandom(true, builders);
         return numDocs;

@@ -316,7 +316,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
 
         String token = basicAuthHeaderValue(username, new SecureString("s3krit-password"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
@@ -339,7 +339,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
@@ -373,7 +373,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
@@ -684,7 +684,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testUsersAndRolesDoNotInterfereWithIndicesStats() throws Exception {
-        client().prepareIndex("foo").setSource("ignore", "me").get();
+        prepareIndex("foo").setSource("ignore", "me").get();
 
         if (randomBoolean()) {
             preparePutUser("joe", "s3krit-password", hasher, SecuritySettingsSource.TEST_ROLE).get();

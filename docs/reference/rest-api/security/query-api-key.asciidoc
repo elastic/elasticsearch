@@ -77,6 +77,9 @@ Expiration time of the API key in milliseconds.
 Indicates whether the API key is invalidated. If `true`, the key is invalidated.
 Defaults to `false`.
 
+`invalidation`::
+Invalidation time of the API key in milliseconds. This field is only set for invalidated API keys.
+
 `username`::
 Username of the API key owner.
 

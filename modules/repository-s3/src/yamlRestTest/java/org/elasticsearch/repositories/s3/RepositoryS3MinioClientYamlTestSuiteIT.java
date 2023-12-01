@@ -16,7 +16,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -24,7 +23,7 @@ import org.junit.rules.TestRule;
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3MinioClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
 
-    public static MinioTestContainer minio = new MinioTestContainer(USE_FIXTURE);
+    public static MinioTestContainer minio = new MinioTestContainer();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
@@ -35,11 +34,6 @@ public class RepositoryS3MinioClientYamlTestSuiteIT extends AbstractRepositoryS3
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(minio).around(cluster);
-
-    @BeforeClass
-    public static void onlyWhenRunWithTestFixture() {
-        assumeTrue("Only run with fixture enabled", USE_FIXTURE);
-    }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {

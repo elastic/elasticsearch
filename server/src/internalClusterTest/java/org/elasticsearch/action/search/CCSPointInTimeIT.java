@@ -202,11 +202,11 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
 
     private String openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
-        final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
     }
 
     private void closePointInTime(String readerId) {
-        client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(readerId)).actionGet();
+        client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 }

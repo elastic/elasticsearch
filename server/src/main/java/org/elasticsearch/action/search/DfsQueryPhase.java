@@ -83,60 +83,66 @@ final class DfsQueryPhase extends SearchPhase {
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-            ShardSearchRequest shardRequest = rewriteShardSearchRequest(dfsResult.getShardSearchRequest());
-            QuerySearchRequest querySearchRequest = new QuerySearchRequest(
-                context.getOriginalIndices(dfsResult.getShardIndex()),
-                dfsResult.getContextId(),
-                shardRequest,
-                dfs
+            List<SearchSourceBuilder> sources = rewriteSourceBuilder(
+                dfsResult.getShardSearchRequest().source(),
+                dfsResult.getShardSearchRequest().shardRequestIndex()
             );
-            final int shardIndex = dfsResult.getShardIndex();
-            searchTransportService.sendExecuteQuery(
-                connection,
-                querySearchRequest,
-                context.getTask(),
-                new SearchActionListener<>(shardTarget, shardIndex) {
+            for (SearchSourceBuilder source : sources) {
+                ShardSearchRequest shardRequest = dfsResult.getShardSearchRequest();
+                shardRequest.source(source);
+                QuerySearchRequest querySearchRequest = new QuerySearchRequest(
+                    context.getOriginalIndices(dfsResult.getShardIndex()),
+                    dfsResult.getContextId(),
+                    shardRequest,
+                    dfs
+                );
+                final int shardIndex = dfsResult.getShardIndex();
+                searchTransportService.sendExecuteQuery(
+                    connection,
+                    querySearchRequest,
+                    context.getTask(),
+                    new SearchActionListener<>(shardTarget, shardIndex) {
 
-                    @Override
-                    protected void innerOnResponse(QuerySearchResult response) {
-                        try {
-                            response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
-                            counter.onResult(response);
-                        } catch (Exception e) {
-                            context.onPhaseFailure(DfsQueryPhase.this, "", e);
+                        @Override
+                        protected void innerOnResponse(QuerySearchResult response) {
+                            try {
+                                response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
+                                counter.onResult(response);
+                            } catch (Exception e) {
+                                context.onPhaseFailure(DfsQueryPhase.this, "", e);
+                            }
                         }
-                    }
 
-                    @Override
-                    public void onFailure(Exception exception) {
-                        try {
-                            context.getLogger()
-                                .debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
-                            progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
-                            counter.onFailure(shardIndex, shardTarget, exception);
-                        } finally {
-                            if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
-                                // the query might not have been executed at all (for example because thread pool rejected
-                                // execution) and the search context that was created in dfs phase might not be released.
-                                // release it again to be in the safe side
-                                context.sendReleaseSearchContext(
-                                    querySearchRequest.contextId(),
-                                    connection,
-                                    context.getOriginalIndices(shardIndex)
-                                );
+                        @Override
+                        public void onFailure(Exception exception) {
+                            try {
+                                context.getLogger()
+                                    .debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
+                                progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
+                                counter.onFailure(shardIndex, shardTarget, exception);
+                            } finally {
+                                if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
+                                    // the query might not have been executed at all (for example because thread pool rejected
+                                    // execution) and the search context that was created in dfs phase might not be released.
+                                    // release it again to be in the safe side
+                                    context.sendReleaseSearchContext(
+                                        querySearchRequest.contextId(),
+                                        connection,
+                                        context.getOriginalIndices(shardIndex)
+                                    );
+                                }
                             }
                         }
                     }
-                }
-            );
+                );
+            }
         }
     }
 
     // package private for testing
-    ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
-        SearchSourceBuilder source = request.source();
+    List<SearchSourceBuilder> rewriteSourceBuilder(SearchSourceBuilder source, int shardIndex) {
         if (source == null || source.knnSearch().isEmpty()) {
-            return request;
+            return List.of(source);
         }
 
         List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.subSearches());
@@ -145,7 +151,7 @@ final class DfsQueryPhase extends SearchPhase {
         for (DfsKnnResults dfsKnnResults : knnResults) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();
             for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                if (scoreDoc.shardIndex == shardIndex) {
                     scoreDocs.add(scoreDoc);
                 }
             }
@@ -160,8 +166,6 @@ final class DfsQueryPhase extends SearchPhase {
         }
 
         source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
-        request.source(source);
-
-        return request;
+        return List.of(source);
     }
 }

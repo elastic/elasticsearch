@@ -134,6 +134,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return new HighlightBuilder();
     }
 
+    private int queryId = -1;
+
     private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 
     private QueryBuilder postQueryBuilder;
@@ -205,6 +207,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Read from a stream.
      */
     public SearchSourceBuilder(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_QUERY)) {
+            queryId = in.readVInt();
+        }
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
@@ -276,6 +281,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_QUERY)) {
+            out.writeVInt(queryId);
+        }
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
@@ -354,6 +362,46 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
         }
+    }
+
+    /**
+     * A shallow copy for handling multiple queries during the dfs phase.
+     */
+    public SearchSourceBuilder shallowCopyForQueryPhase(SearchSourceBuilder original) {
+        SearchSourceBuilder copy = new SearchSourceBuilder();
+        copy.postQueryBuilder = original.postQueryBuilder;
+        copy.explain = original.explain;
+        copy.version = original.version;
+        copy.seqNoAndPrimaryTerm = original.seqNoAndPrimaryTerm;
+        copy.sliceBuilder = original.sliceBuilder;
+        copy.timeout = original.timeout;
+        copy.storedFieldsContext = original.storedFieldsContext;
+        copy.docValueFields = original.docValueFields;
+        copy.scriptFields = original.scriptFields;
+        copy.fetchSourceContext = original.fetchSourceContext;
+        copy.fetchFields = original.fetchFields;
+        copy.indexBoosts = original.indexBoosts;
+        copy.stats = original.stats;
+        copy.extBuilders = original.extBuilders;
+        copy.profile = original.profile;
+        copy.pointInTimeBuilder = original.pointInTimeBuilder;
+        copy.runtimeMappings = original.runtimeMappings;
+        return copy;
+    }
+
+    /**
+     * Sets the query id for this request.
+     */
+    public SearchSourceBuilder queryId(int queryId) {
+        this.queryId = queryId;
+        return this;
+    }
+
+    /**
+     * Gets the query id for this request.
+     */
+    public int queryId() {
+        return queryId;
     }
 
     /**

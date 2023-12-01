@@ -61,9 +61,12 @@ public class MapParsingUtils {
         return value;
     }
 
-    @SuppressWarnings("unchecked")
-    public static Map<String, Object> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
-        return (Map<String, Object>) sourceMap.remove(fieldName);
+    public static String removeStringOrThrowIfNull(Map<String, Object> sourceMap, String key) {
+        String value = removeAsType(sourceMap, key, String.class);
+        if (value == null) {
+            throw new ElasticsearchStatusException("Missing required field [{}]", RestStatus.BAD_REQUEST, key);
+        }
+        return value;
     }
 
     public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String serviceName) {

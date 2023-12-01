@@ -6,12 +6,12 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'indices', 'esql', 'xpack'
+    include '_common', 'bulk', 'indices', 'esql', 'xpack', 'enrich'
   }
 }
 
 testClusters.configureEach {
-  numberOfNodes = 2
+  numberOfNodes = 1
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.monitoring.collection.enabled', 'true'

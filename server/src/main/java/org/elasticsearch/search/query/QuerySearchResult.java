@@ -41,6 +41,7 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
+    private int queryId;
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -364,6 +365,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private void readFromWithId(ShardSearchContextId id, StreamInput in, boolean delayedAggregations) throws IOException {
         this.contextId = id;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_QUERY)) {
+            queryId = in.readVInt();
+        } else {
+            queryId = 0;
+        }
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -423,6 +429,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_QUERY)) {
+            out.writeVInt(queryId);
+        }
         out.writeVInt(from);
         out.writeVInt(size);
         if (sortValueFormats == null) {

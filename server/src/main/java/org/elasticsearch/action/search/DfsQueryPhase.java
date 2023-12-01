@@ -12,6 +12,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
@@ -28,6 +29,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
+
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * This search phase fans out to every shards to execute a distributed search with a pre-collected distributed frequencies for all
@@ -165,7 +168,32 @@ final class DfsQueryPhase extends SearchPhase {
             i++;
         }
 
-        source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
-        return List.of(source);
+        if (source.rankBuilder() != null) {
+            List<SearchSourceBuilder> sources = new ArrayList<>();
+            if (source.aggregations() != null || source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) {
+                SearchSourceBuilder compoundSource = source.shallowCopyForQueryPhase();
+                compoundSource.queryId(0);
+                compoundSource.subSearches(List.of(new SubSearchSourceBuilder(source.query())));
+                compoundSource.from(source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
+                compoundSource.size(0);
+                compoundSource.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
+                compoundSource.terminateAfter(source.terminateAfter());
+                sources.add(compoundSource);
+            }
+            for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
+                SearchSourceBuilder rankSource = source.shallowCopyForQueryPhase();
+                rankSource.queryId(sources.size());
+                rankSource.subSearches(List.of(subSearchSourceBuilder));
+                rankSource.from(source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
+                rankSource.size(source.rankBuilder().windowSize());
+                rankSource.trackTotalHits(false);
+                rankSource.terminateAfter(source.terminateAfter());
+                sources.add(rankSource);
+            }
+            return sources;
+        } else {
+            source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
+            return List.of(source);
+        }
     }
 }

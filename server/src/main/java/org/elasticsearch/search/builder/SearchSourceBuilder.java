@@ -367,25 +367,25 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * A shallow copy for handling multiple queries during the dfs phase.
      */
-    public SearchSourceBuilder shallowCopyForQueryPhase(SearchSourceBuilder original) {
+    public SearchSourceBuilder shallowCopyForQueryPhase() {
         SearchSourceBuilder copy = new SearchSourceBuilder();
-        copy.postQueryBuilder = original.postQueryBuilder;
-        copy.explain = original.explain;
-        copy.version = original.version;
-        copy.seqNoAndPrimaryTerm = original.seqNoAndPrimaryTerm;
-        copy.sliceBuilder = original.sliceBuilder;
-        copy.timeout = original.timeout;
-        copy.storedFieldsContext = original.storedFieldsContext;
-        copy.docValueFields = original.docValueFields;
-        copy.scriptFields = original.scriptFields;
-        copy.fetchSourceContext = original.fetchSourceContext;
-        copy.fetchFields = original.fetchFields;
-        copy.indexBoosts = original.indexBoosts;
-        copy.stats = original.stats;
-        copy.extBuilders = original.extBuilders;
-        copy.profile = original.profile;
-        copy.pointInTimeBuilder = original.pointInTimeBuilder;
-        copy.runtimeMappings = original.runtimeMappings;
+        copy.postQueryBuilder = this.postQueryBuilder;
+        copy.explain = this.explain;
+        copy.version = this.version;
+        copy.seqNoAndPrimaryTerm = this.seqNoAndPrimaryTerm;
+        copy.sliceBuilder = this.sliceBuilder;
+        copy.timeout = this.timeout;
+        copy.storedFieldsContext = this.storedFieldsContext;
+        copy.docValueFields = this.docValueFields;
+        copy.scriptFields = this.scriptFields;
+        copy.fetchSourceContext = this.fetchSourceContext;
+        copy.fetchFields = this.fetchFields;
+        copy.indexBoosts = this.indexBoosts;
+        copy.stats = this.stats;
+        copy.extBuilders = this.extBuilders;
+        copy.profile = this.profile;
+        copy.pointInTimeBuilder = this.pointInTimeBuilder;
+        copy.runtimeMappings = this.runtimeMappings;
         return copy;
     }
 

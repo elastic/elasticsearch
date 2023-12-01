@@ -344,7 +344,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchRequest sr = new SearchRequest().allowPartialSearchResults(true).source(ssb);
         ShardSearchRequest ssr = new ShardSearchRequest(null, sr, new ShardId("test", "testuuid", 1), 1, 1, null, 1.0f, 0, null);
 
-        dqp.rewriteShardSearchRequest(ssr);
+        ssr.source(dqp.rewriteSourceBuilder(ssr.source(), ssr.shardRequestIndex()).get(0));
 
         KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) });
         KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) });

@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Great
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -86,6 +86,9 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -117,6 +120,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
+            case "geo_point" -> GEO.pointAsLong(randomGeoPoint());
+            case "cartesian_point" -> CARTESIAN.pointAsLong(randomCartesianPoint());
             case "null" -> null;
             case "_source" -> {
                 try {
@@ -372,7 +377,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         try {
             for (int b = 0; b < data.size(); b++) {
-                ElementType elementType = LocalExecutionPlanner.toElementType(data.get(b).type());
+                ElementType elementType = PlannerUtils.toElementType(data.get(b).type());
                 try (Block.Builder builder = elementType.newBlockBuilder(positions, inputBlockFactory)) {
                     for (int p = 0; p < positions; p++) {
                         if (nullPositions.contains(p)) {
@@ -795,7 +800,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword")
+        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword"),
+        Map.entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
+        Map.entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial")
     );
 
     private static String expectedType(Set<DataType> validTypes) {
@@ -813,8 +820,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return named;
     }
 
-    private static Stream<DataType> representable() {
+    protected static Stream<DataType> representable() {
         return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
+    }
+
+    protected static DataType[] representableTypes() {
+        return representable().toArray(DataType[]::new);
+    }
+
+    protected static Stream<DataType> representableNonSpatial() {
+        return representable().filter(t -> isSpatial(t) == false);
+    }
+
+    protected static DataType[] representableNonSpatialTypes() {
+        return representableNonSpatial().toArray(DataType[]::new);
     }
 
     @AfterClass

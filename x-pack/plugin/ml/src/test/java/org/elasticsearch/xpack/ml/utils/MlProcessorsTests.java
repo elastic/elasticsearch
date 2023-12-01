@@ -162,6 +162,12 @@ public class MlProcessorsTests extends ESTestCase {
         assertThat(processor.count(), equalTo(15.0));
     }
 
+    public void testGetTotalMlNodeProcessorsWithZeroProcessors() {
+        var nodes = DiscoveryNodes.EMPTY_NODES;
+        var processor = MlProcessors.getTotalMlNodeProcessors(nodes, 1);
+        assertThat(processor.count(), equalTo(0.0));
+    }
+
     public void testGetTotalMlNodeProcessorsWithScale() {
         var nodes = DiscoveryNodes.builder()
             .add(
@@ -190,7 +196,7 @@ public class MlProcessorsTests extends ESTestCase {
             )
             .build();
         var processor = MlProcessors.getTotalMlNodeProcessors(nodes, 2);
-        assertThat(processor.count(), equalTo(7.0));
+        assertThat(processor.count(), equalTo(8.0));
     }
 
     public void testGetTotalMlNodeProcessorsWithNull() {
@@ -221,6 +227,6 @@ public class MlProcessorsTests extends ESTestCase {
             )
             .build();
         var processor = MlProcessors.getTotalMlNodeProcessors(nodes, null);
-        assertThat(processor.count(), equalTo(13.0));
+        assertThat(processor.count(), equalTo(14.0));
     }
 }

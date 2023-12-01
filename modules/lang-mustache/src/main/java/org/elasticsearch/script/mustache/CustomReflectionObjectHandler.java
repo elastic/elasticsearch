@@ -8,7 +8,15 @@
 
 package org.elasticsearch.script.mustache;
 
+import com.github.mustachejava.Binding;
+import com.github.mustachejava.Code;
+import com.github.mustachejava.ObjectHandler;
+import com.github.mustachejava.TemplateContext;
+import com.github.mustachejava.codes.ValueCode;
+import com.github.mustachejava.reflect.GuardedBinding;
+import com.github.mustachejava.reflect.MissingWrapper;
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
+import com.github.mustachejava.util.Wrapper;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
@@ -19,10 +27,16 @@ import java.lang.reflect.Array;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
+    private final boolean detectMissingParams;
+
+    CustomReflectionObjectHandler(boolean detectMissingParams) {
+        this.detectMissingParams = detectMissingParams;
+    }
 
     @Override
     public Object coerce(Object object) {
@@ -42,6 +56,11 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
     }
 
     @Override
+    public Binding createBinding(String name, TemplateContext tc, Code code) {
+        return detectMissingParams ? new DetectMissingParamsGuardedBinding(this, name, tc, code) : super.createBinding(name, tc, code);
+    }
+
+    @Override
     @SuppressWarnings("rawtypes")
     protected AccessibleObject findMember(Class sClass, String name) {
         /*
@@ -57,6 +76,23 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
          * "you will never find success going down this path, so don't bother trying"
          */
         return null;
+    }
+
+    static class DetectMissingParamsGuardedBinding extends GuardedBinding {
+        private final Code code;
+
+        DetectMissingParamsGuardedBinding(ObjectHandler oh, String name, TemplateContext tc, Code code) {
+            super(oh, name, tc, code);
+            this.code = code;
+        }
+
+        protected synchronized Wrapper getWrapper(String name, List<Object> scopes) {
+            Wrapper wrapper = super.getWrapper(name, scopes);
+            if (wrapper instanceof MissingWrapper && code instanceof ValueCode) {
+                throw new MustacheInvalidParameterException("Parameter [" + name + "] is missing");
+            }
+            return wrapper;
+        }
     }
 
     static final class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {

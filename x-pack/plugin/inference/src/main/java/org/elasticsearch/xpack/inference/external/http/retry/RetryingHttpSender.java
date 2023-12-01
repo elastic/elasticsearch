@@ -9,17 +9,19 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
-import java.util.List;
+import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
@@ -61,15 +63,11 @@ public class RetryingHttpSender implements Retrier {
         this.executor = Objects.requireNonNull(executor);
     }
 
-    private class InternalRetrier extends RetryableAction<List<? extends InferenceResults>> {
+    private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
         private final HttpRequestBase request;
         private final ResponseHandler responseHandler;
 
-        InternalRetrier(
-            HttpRequestBase request,
-            ResponseHandler responseHandler,
-            ActionListener<List<? extends InferenceResults>> listener
-        ) {
+        InternalRetrier(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
             super(
                 logger,
                 threadPool,
@@ -84,11 +82,11 @@ public class RetryingHttpSender implements Retrier {
         }
 
         @Override
-        public void tryAction(ActionListener<List<? extends InferenceResults>> listener) {
+        public void tryAction(ActionListener<InferenceServiceResults> listener) {
             ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
                 try {
                     responseHandler.validateResponse(throttlerManager, logger, request, result);
-                    List<? extends InferenceResults> inferenceResults = responseHandler.parseResult(result);
+                    InferenceServiceResults inferenceResults = responseHandler.parseResult(result);
 
                     listener.onResponse(inferenceResults);
                 } catch (Exception e) {
@@ -114,13 +112,22 @@ public class RetryingHttpSender implements Retrier {
 
         /**
          * If the connection gets closed by the server or because of the connections time to live is exceeded we'll likely get a
-         * {@link org.apache.http.ConnectionClosedException} exception which is a child of IOException. For now,
-         * we'll consider all IOExceptions retryable because something failed while we were trying to send the request
+         * {@link org.apache.http.ConnectionClosedException} exception which is a child of IOException.
+         *
          * @param e the Exception received while sending the request
          * @return a {@link RetryException} if this exception can be retried
          */
         private Exception transformIfRetryable(Exception e) {
             var exceptionToReturn = e;
+
+            if (e instanceof UnknownHostException) {
+                return new ElasticsearchStatusException(
+                    format("Invalid host [%s], please check that the URL is correct.", request.getURI()),
+                    RestStatus.BAD_REQUEST,
+                    e
+                );
+            }
+
             if (e instanceof IOException) {
                 exceptionToReturn = new RetryException(true, e);
             }
@@ -130,7 +137,7 @@ public class RetryingHttpSender implements Retrier {
     }
 
     @Override
-    public void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<List<? extends InferenceResults>> listener) {
+    public void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
         InternalRetrier retrier = new InternalRetrier(request, responseHandler, listener);
         retrier.run();
     }

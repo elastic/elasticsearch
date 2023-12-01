@@ -22,13 +22,15 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
 public class GetStackTracesRequestTests extends ESTestCase {
-    public void testSerialization() throws IOException {
+    public void testSerializationRandomized() throws IOException {
         Integer sampleSize = randomIntBetween(1, Integer.MAX_VALUE);
         Double requestedDuration = randomBoolean() ? randomDoubleBetween(0.001d, Double.MAX_VALUE, true) : null;
         Double awsCostFactor = randomBoolean() ? randomDoubleBetween(0.1d, 5.0d, true) : null;
@@ -59,6 +61,187 @@ public class GetStackTracesRequestTests extends ESTestCase {
                 assertEquals(sampleSize, deserialized.getSampleSize());
                 assertEquals(awsCostFactor, deserialized.getAwsCostFactor());
                 assertEquals(query, deserialized.getQuery());
+            }
+        }
+    }
+
+    private static class GetStackTracesRequestGenerator implements Iterable<GetStackTracesRequest> {
+        private final List<Integer> sampleSizes;
+        private int sampleSizesPos = 0;
+
+        private final List<Double> requestedDurations;
+        private int requestedDurationsPos = 0;
+        private final List<Double> awsCostFactors;
+        private int awsCostFactorsPos = 0;
+        private final List<QueryBuilder> querys;
+        private int querysPos = 0;
+        private final List<String> indices;
+        private int indicesPos = 0;
+        private final List<String> stackTraceIds;
+        private int stackTraceIdsPos = 0;
+        private final List<Double> customCO2PerKWHs;
+        private int customCO2PerKWHsPos = 0;
+        private final List<Double> datacenterPUEs;
+        private int datacenterPUEsPos = 0;
+        private final List<Double> perCoreWattX86s;
+        private int perCoreWattX86sPos = 0;
+        private final List<Double> perCoreWattARM64s;
+        private int perCoreWattARM64sPos = 0;
+        private final List<Double> customCostPerCoreHours;
+        private int customCostPerCoreHoursPos = 0;
+        private GetStackTracesRequest curRequest;
+        private boolean done = false;
+
+        GetStackTracesRequestGenerator(
+            List<Integer> sampleSizes,
+            List<Double> requestedDurations,
+            List<Double> awsCostFactors,
+            List<QueryBuilder> querys,
+            List<String> indices,
+            List<String> stackTraceIds,
+            List<Double> customCO2PerKWHs,
+            List<Double> datacenterPUEs,
+            List<Double> perCoreWattX86s,
+            List<Double> perCoreWattARM64s,
+            List<Double> customCostPerCoreHours
+        ) {
+            this.sampleSizes = sampleSizes;
+            this.requestedDurations = requestedDurations;
+            this.awsCostFactors = awsCostFactors;
+            this.querys = querys;
+            this.indices = indices;
+            this.stackTraceIds = stackTraceIds;
+            this.customCO2PerKWHs = customCO2PerKWHs;
+            this.datacenterPUEs = datacenterPUEs;
+            this.perCoreWattX86s = perCoreWattX86s;
+            this.perCoreWattARM64s = perCoreWattARM64s;
+            this.customCostPerCoreHours = customCostPerCoreHours;
+        }
+
+        public GetStackTracesRequest createRequest() {
+            return new GetStackTracesRequest(
+                sampleSizes.get(sampleSizesPos),
+                requestedDurations.get(requestedDurationsPos),
+                awsCostFactors.get(awsCostFactorsPos),
+                querys.get(querysPos),
+                indices.get(indicesPos),
+                stackTraceIds.get(stackTraceIdsPos),
+                customCO2PerKWHs.get(customCO2PerKWHsPos),
+                datacenterPUEs.get(datacenterPUEsPos),
+                perCoreWattX86s.get(perCoreWattX86sPos),
+                perCoreWattARM64s.get(perCoreWattARM64sPos),
+                customCostPerCoreHours.get(customCostPerCoreHoursPos)
+            );
+        }
+
+        public void check(GetStackTracesRequest request) {
+            assertEquals(curRequest, request);
+        }
+
+        @Override
+        public Iterator<GetStackTracesRequest> iterator() {
+            return new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return done == false;
+                }
+
+                @Override
+                public GetStackTracesRequest next() {
+                    curRequest = createRequest();
+
+                    sampleSizesPos++;
+                    if (sampleSizesPos >= sampleSizes.size()) {
+                        sampleSizesPos = 0;
+                        requestedDurationsPos++;
+                        if (requestedDurationsPos >= requestedDurations.size()) {
+                            requestedDurationsPos = 0;
+                            awsCostFactorsPos++;
+                            if (awsCostFactorsPos >= awsCostFactors.size()) {
+                                awsCostFactorsPos = 0;
+                                querysPos++;
+                                if (querysPos >= querys.size()) {
+                                    querysPos = 0;
+                                    indicesPos++;
+                                    if (indicesPos >= indices.size()) {
+                                        indicesPos = 0;
+                                        stackTraceIdsPos++;
+                                        if (stackTraceIdsPos >= stackTraceIds.size()) {
+                                            stackTraceIdsPos = 0;
+                                            customCO2PerKWHsPos++;
+                                            if (customCO2PerKWHsPos >= customCO2PerKWHs.size()) {
+                                                customCO2PerKWHsPos = 0;
+                                                datacenterPUEsPos++;
+                                                if (datacenterPUEsPos >= datacenterPUEs.size()) {
+                                                    datacenterPUEsPos = 0;
+                                                    perCoreWattX86sPos++;
+                                                    if (perCoreWattX86sPos >= perCoreWattX86s.size()) {
+                                                        perCoreWattX86sPos = 0;
+                                                        perCoreWattARM64sPos++;
+                                                        if (perCoreWattARM64sPos >= perCoreWattARM64s.size()) {
+                                                            perCoreWattARM64sPos = 0;
+                                                            customCostPerCoreHoursPos++;
+                                                            if (customCostPerCoreHoursPos >= customCostPerCoreHours.size()) {
+                                                                customCostPerCoreHoursPos = 0;
+                                                                done = true;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    return curRequest;
+                }
+            };
+        }
+    }
+
+    /**
+     * Test serialization of all combinations of edge values.
+     * Randomized testing doesn't cover these edge cases, or at least the probability is very low.
+     */
+    public void testSerializationEdgeCases() throws IOException {
+        List<Integer> samplesSizes = Arrays.asList(null, 1, Integer.MAX_VALUE);
+        List<Double> requestedDurations = Arrays.asList(null, Double.MIN_VALUE, Double.MAX_VALUE);
+        List<Double> awsCostFactors = Arrays.asList(null, Double.MIN_VALUE, Double.MAX_VALUE);
+        List<QueryBuilder> querys = Arrays.asList(null, new BoolQueryBuilder());
+        List<String> indices = Arrays.asList(null, "foo");
+        List<String> stackTraceIds = Arrays.asList(null, "foo");
+        List<Double> customCO2PerKWHs = Arrays.asList(null, Double.MIN_VALUE, Double.MAX_VALUE);
+        List<Double> datacenterPUEs = Arrays.asList(null, Double.MIN_VALUE, Double.MAX_VALUE);
+        List<Double> perCoreWattX86s = Arrays.asList(null, Double.MIN_VALUE, Double.MAX_VALUE);
+        List<Double> perCoreWattARM64s = Arrays.asList(null, Double.MIN_VALUE, Double.MAX_VALUE);
+        List<Double> customCostPerCoreHours = Arrays.asList(null, Double.MIN_VALUE, Double.MAX_VALUE);
+
+        GetStackTracesRequestGenerator generator = new GetStackTracesRequestGenerator(
+            samplesSizes,
+            requestedDurations,
+            awsCostFactors,
+            querys,
+            indices,
+            stackTraceIds,
+            customCO2PerKWHs,
+            datacenterPUEs,
+            perCoreWattX86s,
+            perCoreWattARM64s,
+            customCostPerCoreHours
+        );
+
+        for (GetStackTracesRequest request : generator) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                request.writeTo(out);
+                try (
+                    NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())
+                ) {
+                    GetStackTracesRequest deserialized = new GetStackTracesRequest(in);
+                    generator.check(deserialized);
+                }
             }
         }
     }

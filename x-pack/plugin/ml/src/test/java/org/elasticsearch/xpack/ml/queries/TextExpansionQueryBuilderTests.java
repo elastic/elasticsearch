@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextExpansionQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
-    private static int NUM_TOKENS = 10;
+    private static final int NUM_TOKENS = 10;
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
@@ -175,8 +175,9 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
                   "model_text": "bar",
                   "model_id": "baz",
                   "tokens_threshold": {
-                    "ratio_threshold": 4,
-                    "weight_threshold": 0.3
+                    "ratio_threshold": 4.0,
+                    "weight_threshold": 0.3,
+                    "only_score_pruned_tokens": false
                   }
                 }
               }

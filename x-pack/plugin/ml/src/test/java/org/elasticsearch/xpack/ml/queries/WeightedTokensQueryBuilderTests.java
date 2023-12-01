@@ -178,6 +178,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                 "foo": {
                   "model_text": "bar",
                   "model_id": "baz",
+                  "
                   "ratio_threshold": 4,
                   "weight_threshold": 0.4
                 }

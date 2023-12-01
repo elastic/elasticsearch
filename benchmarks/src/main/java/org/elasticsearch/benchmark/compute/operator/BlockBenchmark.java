@@ -58,7 +58,7 @@ public class BlockBenchmark {
     @Param({ "array", "vector" })
     public String blockKind;
 
-    @Setup(Level.Trial)
+    @Setup
     public void buildBlocks() {
         switch (dataType) {
             case "int" -> {

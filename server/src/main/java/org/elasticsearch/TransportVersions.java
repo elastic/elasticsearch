@@ -182,7 +182,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_GET_MULTIPLE_MODELS = def(8_549_00_0);
     public static final TransportVersion INFERENCE_SERVICE_RESULTS_ADDED = def(8_550_00_0);
     public static final TransportVersion CLUSTER_STATS_RESCORER_USAGE_ADDED = def(8_551_00_0);
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApi
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
-import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -276,8 +275,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             clientKey1 = client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue));
         } else {
             final CreateTokenResponse createTokenResponse = new CreateTokenRequestBuilder(
-                client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue)),
-                CreateTokenAction.INSTANCE
+                client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue))
             ).setGrantType("client_credentials").get();
             clientKey1 = client().filterWithHeader(Map.of("Authorization", "Bearer " + createTokenResponse.getTokenString()));
         }
@@ -333,8 +331,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(
             expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> new CreateTokenRequestBuilder(clientWithGrantedKey, CreateTokenAction.INSTANCE).setGrantType("client_credentials")
-                    .get()
+                () -> new CreateTokenRequestBuilder(clientWithGrantedKey).setGrantType("client_credentials").get()
             ).getMessage(),
             containsString("unauthorized")
         );

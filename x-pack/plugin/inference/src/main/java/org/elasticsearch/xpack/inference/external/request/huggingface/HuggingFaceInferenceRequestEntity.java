@@ -14,11 +14,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record HuggingFaceElserRequestEntity(List<String> inputs) implements ToXContentObject {
+public record HuggingFaceInferenceRequestEntity(List<String> inputs) implements ToXContentObject {
 
     private static final String INPUTS_FIELD = "inputs";
 
-    public HuggingFaceElserRequestEntity {
+    public HuggingFaceInferenceRequestEntity {
         Objects.requireNonNull(inputs);
     }
 

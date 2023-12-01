@@ -14,34 +14,34 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredSecureString;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class MapParsingUtilsTests extends ESTestCase {
+public class ServiceUtilsTests extends ESTestCase {
 
     public void testRemoveAsTypeWithTheCorrectType() {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 1.0));
 
-        Integer i = MapParsingUtils.removeAsType(map, "a", Integer.class);
+        Integer i = ServiceUtils.removeAsType(map, "a", Integer.class);
         assertEquals(Integer.valueOf(5), i);
         assertNull(map.get("a")); // field has been removed
 
-        String str = MapParsingUtils.removeAsType(map, "b", String.class);
+        String str = ServiceUtils.removeAsType(map, "b", String.class);
         assertEquals("a string", str);
         assertNull(map.get("b"));
 
-        Boolean b = MapParsingUtils.removeAsType(map, "c", Boolean.class);
+        Boolean b = ServiceUtils.removeAsType(map, "c", Boolean.class);
         assertEquals(Boolean.TRUE, b);
         assertNull(map.get("c"));
 
-        Double d = MapParsingUtils.removeAsType(map, "d", Double.class);
+        Double d = ServiceUtils.removeAsType(map, "d", Double.class);
         assertEquals(Double.valueOf(1.0), d);
         assertNull(map.get("d"));
 
@@ -51,20 +51,20 @@ public class MapParsingUtilsTests extends ESTestCase {
     public void testRemoveAsTypeWithInCorrectType() {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 5.0, "e", 5));
 
-        var e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "a", String.class));
+        var e = expectThrows(ElasticsearchStatusException.class, () -> ServiceUtils.removeAsType(map, "a", String.class));
         assertThat(
             e.getMessage(),
             containsString("field [a] is not of the expected type. The value [5] cannot be converted to a [String]")
         );
 
-        e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "b", Boolean.class));
+        e = expectThrows(ElasticsearchStatusException.class, () -> ServiceUtils.removeAsType(map, "b", Boolean.class));
         assertThat(
             e.getMessage(),
             containsString("field [b] is not of the expected type. The value [a string] cannot be converted to a [Boolean]")
         );
         assertNull(map.get("b"));
 
-        e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "c", Integer.class));
+        e = expectThrows(ElasticsearchStatusException.class, () -> ServiceUtils.removeAsType(map, "c", Integer.class));
         assertThat(
             e.getMessage(),
             containsString("field [c] is not of the expected type. The value [true] cannot be converted to a [Integer]")
@@ -72,7 +72,7 @@ public class MapParsingUtilsTests extends ESTestCase {
         assertNull(map.get("c"));
 
         // cannot convert double to integer
-        e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "d", Integer.class));
+        e = expectThrows(ElasticsearchStatusException.class, () -> ServiceUtils.removeAsType(map, "d", Integer.class));
         assertThat(
             e.getMessage(),
             containsString("field [d] is not of the expected type. The value [5.0] cannot be converted to a [Integer]")
@@ -80,7 +80,7 @@ public class MapParsingUtilsTests extends ESTestCase {
         assertNull(map.get("d"));
 
         // cannot convert integer to double
-        e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "e", Double.class));
+        e = expectThrows(ElasticsearchStatusException.class, () -> ServiceUtils.removeAsType(map, "e", Double.class));
         assertThat(
             e.getMessage(),
             containsString("field [e] is not of the expected type. The value [5] cannot be converted to a [Double]")
@@ -92,7 +92,7 @@ public class MapParsingUtilsTests extends ESTestCase {
 
     public void testRemoveAsTypeMissingReturnsNull() {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE));
-        assertNull(MapParsingUtils.removeAsType(new HashMap<>(), "missing", Integer.class));
+        assertNull(ServiceUtils.removeAsType(new HashMap<>(), "missing", Integer.class));
         assertThat(map.entrySet(), hasSize(3));
     }
 

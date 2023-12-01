@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -37,11 +39,14 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.common.xcontent.XContentHelper.mergeDefaults;
 import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
@@ -101,9 +106,6 @@ public class LearnToRankService {
             null,
             ActionListener.wrap(trainedModelConfig -> {
                 if (trainedModelConfig.getInferenceConfig() instanceof LearnToRankConfig retrievedInferenceConfig) {
-                    for (LearnToRankFeatureExtractorBuilder builder : retrievedInferenceConfig.getFeatureExtractorBuilders()) {
-                        builder.validate();
-                    }
                     listener.onResponse(applyParams(retrievedInferenceConfig, params));
                     return;
                 }
@@ -129,15 +131,18 @@ public class LearnToRankService {
      *
      * @throws IOException
      */
-    private LearnToRankConfig applyParams(LearnToRankConfig config, Map<String, Object> params) throws IOException {
+    private LearnToRankConfig applyParams(LearnToRankConfig config, Map<String, Object> params) throws Exception {
         if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) == false) {
             return config;
         }
 
         List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders = new ArrayList<>();
 
+        Map<String, Object> mergedParams = new HashMap<>(Objects.requireNonNullElse(params, Map.of()));
+        mergeDefaults(mergedParams, config.getParamsDefaults());
+
         for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : config.getFeatureExtractorBuilders()) {
-            featureExtractorBuilders.add(applyParams(featureExtractorBuilder, params));
+            featureExtractorBuilders.add(applyParams(featureExtractorBuilder, mergedParams));
         }
 
         return LearnToRankConfig.builder(config).setLearnToRankFeatureExtractorBuilders(featureExtractorBuilders).build();
@@ -155,10 +160,12 @@ public class LearnToRankService {
     private LearnToRankFeatureExtractorBuilder applyParams(
         LearnToRankFeatureExtractorBuilder featureExtractorBuilder,
         Map<String, Object> params
-    ) throws IOException {
+    ) throws Exception {
         if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
-            return applyParams(queryExtractorBuilder, params);
+            featureExtractorBuilder = applyParams(queryExtractorBuilder, params);
         }
+
+        featureExtractorBuilder.validate();
 
         return featureExtractorBuilder;
     }
@@ -186,14 +193,16 @@ public class LearnToRankService {
 
             return new QueryExtractorBuilder(
                 queryExtractorBuilder.featureName(),
-                QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT)
+                QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT),
+                queryExtractorBuilder.defaultScore()
             );
         } catch (GeneralScriptException e) {
             if (e.getRootCause().getClass().getName().equals(MustacheInvalidParameterException.class.getName())) {
                 // Can't use instanceof since it return unexpected result.
                 return new QueryExtractorBuilder(
                     queryExtractorBuilder.featureName(),
-                    QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder())
+                    defaultQuery(queryExtractorBuilder.defaultScore()),
+                    queryExtractorBuilder.defaultScore()
                 );
             }
             throw e;
@@ -204,5 +213,10 @@ public class LearnToRankService {
         try (XContentBuilder configSourceBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             return BytesReference.bytes(queryProvider.toXContent(configSourceBuilder, EMPTY_PARAMS)).utf8ToString();
         }
+    }
+
+    private QueryProvider defaultQuery(float score) throws IOException {
+        QueryBuilder query = score == 0 ? new MatchNoneQueryBuilder() : new MatchAllQueryBuilder().boost(score);
+        return QueryProvider.fromParsedQuery(query);
     }
 }

@@ -417,7 +417,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
-            notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
+            try {
+                notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
+            } finally {
+                request.close();
+            }
             return;
         }
         request.timeout(mainRequest.getTimeout());

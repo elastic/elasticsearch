@@ -230,6 +230,7 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
 
     public void testTsdb() throws IOException {
         assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterVersion().onOrAfter(Version.V_8_2_0));
+        assumeTrue("tsid hashing introduces in 8.12", getOldClusterVersion().before(Version.V_8_12_0));
 
         StringBuilder bulk = new StringBuilder();
         if (isOldCluster()) {

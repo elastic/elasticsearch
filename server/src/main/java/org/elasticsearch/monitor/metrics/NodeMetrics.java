@@ -275,7 +275,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() throws IOException {
-        Releasables.closeExpectNoException((Releasable) metrics);
+        metrics.forEach(metric -> Releasables.closeExpectNoException((Releasable) metric));
     }
 
     /**

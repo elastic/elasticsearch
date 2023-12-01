@@ -20,15 +20,18 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * NodeMetrics monitors various statistics of an Elasticsearch node and exposes them through as metrics
+ * NodeMetrics monitors various statistics of an Elasticsearch node and exposes them as metrics through
  * the provided MeterRegistry. It includes counters for indices operations, memory usage, transport statistics,
  * and more. The metrics are periodically updated based on a schedule.
  */
 public class NodeMetrics extends AbstractLifecycleComponent {
     private final MeterRegistry registry;
     private final NodeService nodeService;
+    private final List<AutoCloseable> metrics;
     private NodeStatsCache stats;
 
     /**
@@ -40,6 +43,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
         this.registry = meterRegistry;
         this.nodeService = nodeService;
+        this.metrics = new ArrayList<>(17);
     }
 
     /**
@@ -49,127 +53,161 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      * @param registry The MeterRegistry used to register and collect metrics.
      */
     private void registerAsyncMetrics(MeterRegistry registry) {
-        // Agent should poll stats every 4 minutes and being this cache lazy we need a
+        // Agent should poll stats every 4 minutes and being this cache is lazy we need a
         // number high enough so that the cache does not update during the same poll
         // period and that expires before a new poll period, therefore we choose 1 minute.
         this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1));
-        registry.registerLongAsyncCounter(
-            "es.node.stats.indices.get.total",
-            "Total number of get operations",
-            "operation",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getCount())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.get.total",
+                "Total number of get operations",
+                "operation",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getCount())
+            )
         );
 
-        registry.registerLongAsyncCounter(
-            "es.node.stats.indices.get.time",
-            "Time in milliseconds spent performing get operations.",
-            "milliseconds",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getTimeInMillis())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.get.time",
+                "Time in milliseconds spent performing get operations.",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getTimeInMillis())
+            )
         );
 
-        registry.registerLongAsyncCounter(
-            "es.node.stats.indices.search.fetch.total",
-            "Total number of fetch operations.",
-            "operation",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchCount())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.search.fetch.total",
+                "Total number of fetch operations.",
+                "operation",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchCount())
+            )
         );
 
-        registry.registerLongAsyncCounter(
-            "es.node.stats.indices.search.fetch.time",
-            "Time in milliseconds spent performing fetch operations.",
-            "milliseconds",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchTimeInMillis())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.search.fetch.time",
+                "Time in milliseconds spent performing fetch operations.",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchTimeInMillis())
+            )
         );
 
-        registry.registerLongAsyncCounter(
-            "es.node.stats.indices.merge.total",
-            "Total number of merge operations.",
-            "operation",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotal())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.merge.total",
+                "Total number of merge operations.",
+                "operation",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotal())
+            )
         );
 
-        registry.registerLongAsyncCounter(
-            "es.node.stats.indices.merge.time",
-            "Time in milliseconds spent performing merge operations.",
-            "milliseconds",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotalTimeInMillis())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.merge.time",
+                "Time in milliseconds spent performing merge operations.",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotalTimeInMillis())
+            )
         );
 
-        registry.registerLongGauge(
-            "es.node.stats.indices.translog.operations",
-            "Number of transaction log operations.",
-            "operation",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations())
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.translog.operations",
+                "Number of transaction log operations.",
+                "operation",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations())
+            )
         );
 
-        registry.registerLongGauge(
-            "es.node.stats.indices.translog.size",
-            "Size, in bytes, of the transaction log.",
-            "bytes",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getTranslogSizeInBytes())
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.translog.size",
+                "Size, in bytes, of the transaction log.",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getTranslogSizeInBytes())
+            )
         );
 
-        registry.registerLongGauge(
-            "es.node.stats.indices.translog.uncommitted_operations",
-            "Number of uncommitted transaction log operations.",
-            "operations",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedOperations())
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.translog.uncommitted_operations",
+                "Number of uncommitted transaction log operations.",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedOperations())
+            )
         );
 
-        registry.registerLongGauge(
-            "es.node.stats.indices.translog.uncommitted_size",
-            "Size, in bytes, of uncommitted transaction log operations.",
-            "bytes",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedSizeInBytes())
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.translog.uncommitted_size",
+                "Size, in bytes, of uncommitted transaction log operations.",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedSizeInBytes())
+            )
         );
 
-        registry.registerLongAsyncCounter(
-            "es.node.stats.indices.translog.earliest_last_modified_age",
-            "Earliest last modified age for the transaction log.",
-            "time",
-            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.translog.earliest_last_modified_age",
+                "Earliest last modified age for the transaction log.",
+                "time",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge())
+            )
         );
 
-        registry.registerLongAsyncCounter(
-            "es.node.stats.transport.rx_size",
-            "Size, in bytes, of RX packets received by the node during internal cluster communication.",
-            "bytes",
-            () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getRxSize().getBytes())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.transport.rx_size",
+                "Size, in bytes, of RX packets received by the node during internal cluster communication.",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getRxSize().getBytes())
+            )
         );
 
-        registry.registerLongAsyncCounter(
-            "es.node.stats.transport.tx_size",
-            "Size, in bytes, of TX packets sent by the node during internal cluster communication.",
-            "bytes",
-            () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getTxSize().getBytes())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.transport.tx_size",
+                "Size, in bytes, of TX packets sent by the node during internal cluster communication.",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getTxSize().getBytes())
+            )
         );
 
-        registry.registerLongGauge(
-            "es.node.stats.jvm.mem.pools.young.used",
-            "Memory, in bytes, used by the young generation heap.",
-            "bytes",
-            () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.YOUNG))
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.jvm.mem.pools.young.used",
+                "Memory, in bytes, used by the young generation heap.",
+                "bytes",
+                () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.YOUNG))
+            )
         );
 
-        registry.registerLongGauge(
-            "es.node.stats.jvm.mem.pools.survivor.used",
-            "Memory, in bytes, used by the survivor space.",
-            "bytes",
-            () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.SURVIVOR))
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.jvm.mem.pools.survivor.used",
+                "Memory, in bytes, used by the survivor space.",
+                "bytes",
+                () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.SURVIVOR))
+            )
         );
 
-        registry.registerLongGauge(
-            "es.node.stats.jvm.mem.pools.old.used",
-            "Memory, in bytes, used by the old generation heap.",
-            "bytes",
-            () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.OLD))
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.jvm.mem.pools.old.used",
+                "Memory, in bytes, used by the old generation heap.",
+                "bytes",
+                () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.OLD))
+            )
         );
 
-        registry.registerLongAsyncCounter(
-            "es.node.stats.fs.io_stats.io_time.total",
-            "The total time in millis spent performing I/O operations across all devices used by Elasticsearch.",
-            "milliseconds",
-            () -> new LongWithAttributes(stats.getOrRefresh().getFs().getIoStats().getTotalIOTimeMillis())
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.fs.io_stats.io_time.total",
+                "The total time in millis spent performing I/O operations across all devices used by Elasticsearch.",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getFs().getIoStats().getTotalIOTimeMillis())
+            )
         );
     }
 
@@ -234,7 +272,15 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() throws IOException {
+        for (AutoCloseable metric : metrics) {
+            try {
+                metric.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
 
     /**
      * A very simple NodeStats cache that allows non-blocking refresh calls

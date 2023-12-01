@@ -597,8 +597,7 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
-        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
-        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager, rerouteServiceReference::get);
+        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
@@ -618,6 +617,7 @@ class NodeConstruction {
         SystemIndices systemIndices = createSystemIndices(settings);
 
         final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
             settings,
@@ -749,6 +749,7 @@ class NodeConstruction {
         record PluginServiceInstances(
             Client client,
             ClusterService clusterService,
+            RerouteService rerouteService,
             ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService,
             ScriptService scriptService,
@@ -767,6 +768,7 @@ class NodeConstruction {
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
+            rerouteService,
             threadPool,
             createResourceWatcherService(settings, threadPool),
             scriptService,
@@ -804,6 +806,7 @@ class NodeConstruction {
             systemIndices,
             telemetryProvider.getTracer(),
             clusterService,
+            rerouteService,
             buildReservedStateHandlers(
                 settingsModule,
                 clusterService,
@@ -890,6 +893,7 @@ class NodeConstruction {
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,
             clusterService,
+            rerouteService,
             clusterModule.getIndexNameExpressionResolver(),
             repositoryService,
             transportService,
@@ -1064,18 +1068,12 @@ class NodeConstruction {
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }
 
-    private ClusterService createClusterService(
-        SettingsModule settingsModule,
-        ThreadPool threadPool,
-        TaskManager taskManager,
-        Supplier<RerouteService> rerouteService
-    ) {
+    private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
             threadPool,
-            taskManager,
-            rerouteService
+            taskManager
         );
         resourcesToClose.add(clusterService);
 

@@ -11,6 +11,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
@@ -37,7 +38,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         String modelId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> secretSettings,
+        @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
         return switch (taskType) {

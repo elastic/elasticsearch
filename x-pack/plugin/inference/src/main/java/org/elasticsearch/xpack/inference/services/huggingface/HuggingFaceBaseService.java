@@ -58,7 +58,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
     }
 
     @Override
-    public HuggingFaceModel parsePersistedConfig(
+    public HuggingFaceModel parsePersistedConfigWithSecrets(
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
@@ -66,18 +66,15 @@ public abstract class HuggingFaceBaseService extends SenderService {
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
-        // the task settings will exist but should be empty
-        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        var model = createModel(modelId, taskType, serviceSettingsMap, secretSettingsMap, parsePersistedConfigErrorMsg(modelId, name()));
+        return createModel(modelId, taskType, serviceSettingsMap, secretSettingsMap, parsePersistedConfigErrorMsg(modelId, name()));
+    }
 
-        throwIfNotEmptyMap(config, name());
-        throwIfNotEmptyMap(secrets, name());
-        throwIfNotEmptyMap(serviceSettingsMap, name());
-        throwIfNotEmptyMap(taskSettingsMap, name());
-        throwIfNotEmptyMap(secretSettingsMap, name());
+    @Override
+    public HuggingFaceModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        return model;
+        return createModel(modelId, taskType, serviceSettingsMap, null, parsePersistedConfigErrorMsg(modelId, name()));
     }
 
     protected abstract HuggingFaceModel createModel(

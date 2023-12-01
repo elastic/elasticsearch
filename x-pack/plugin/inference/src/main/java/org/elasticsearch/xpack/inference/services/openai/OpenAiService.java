@@ -86,12 +86,17 @@ public class OpenAiService extends SenderService {
     }
 
     @Override
-    public OpenAiModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets) {
+    public OpenAiModel parsePersistedConfigWithSecrets(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Map<String, Object> secrets
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        OpenAiModel model = createModel(
+        return createModel(
             modelId,
             taskType,
             serviceSettingsMap,
@@ -99,14 +104,14 @@ public class OpenAiService extends SenderService {
             secretSettingsMap,
             parsePersistedConfigErrorMsg(modelId, NAME)
         );
+    }
 
-        throwIfNotEmptyMap(config, NAME);
-        throwIfNotEmptyMap(secrets, NAME);
-        throwIfNotEmptyMap(serviceSettingsMap, NAME);
-        throwIfNotEmptyMap(taskSettingsMap, NAME);
-        throwIfNotEmptyMap(secretSettingsMap, NAME);
+    @Override
+    public OpenAiModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        return model;
+        return createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, null, parsePersistedConfigErrorMsg(modelId, NAME));
     }
 
     @Override

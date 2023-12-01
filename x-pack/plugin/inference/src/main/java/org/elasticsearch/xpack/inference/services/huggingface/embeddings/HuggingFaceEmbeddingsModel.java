@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.huggingface.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -26,9 +27,9 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets
     ) {
-        this(modelId, taskType, service, HuggingFaceServiceSettings.fromMap(serviceSettings), DefaultSecretSettings.fromMap(secrets));
+        this(modelId, taskType, service, HuggingFaceServiceSettings.fromMap(serviceSettings), parseSecrets(secrets));
     }
 
     // Should only be used directly for testing
@@ -37,9 +38,17 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         TaskType taskType,
         String service,
         HuggingFaceServiceSettings serviceSettings,
-        DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(new ModelConfigurations(modelId, taskType, service, serviceSettings), new ModelSecrets(secrets));
+    }
+
+    private static DefaultSecretSettings parseSecrets(@Nullable Map<String, Object> secrets) {
+        if (secrets == null) {
+            return null;
+        }
+
+        return DefaultSecretSettings.fromMap(secrets);
     }
 
     @Override

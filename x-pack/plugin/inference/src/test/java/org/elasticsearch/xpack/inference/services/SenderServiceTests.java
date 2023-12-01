@@ -121,7 +121,17 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets) {
+        public Model parsePersistedConfigWithSecrets(
+            String modelId,
+            TaskType taskType,
+            Map<String, Object> config,
+            Map<String, Object> secrets
+        ) {
+            return null;
+        }
+
+        @Override
+        public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
             return null;
         }
 

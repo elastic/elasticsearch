@@ -204,6 +204,7 @@ public class AutodetectResultProcessor {
                 logger.error(() -> "[" + jobId + "] error parsing autodetect output", e);
             }
         } finally {
+            bulkAnnotationsPersister.close();
             flushListener.clear();
             handleOpenForecasts();
             completionLatch.countDown();

@@ -366,33 +366,40 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             // else write fewer than the expected number of docs
             docBuilders.remove(docBuilders.size() - 1);
         }
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int i = 0; i < docBuilders.size(); ++i) {
-            TrainedModelDefinitionDoc doc = docBuilders.get(i).build();
-            try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            for (int i = 0; i < docBuilders.size(); ++i) {
+                TrainedModelDefinitionDoc doc = docBuilders.get(i).build();
+                try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
 
-                IndexRequestBuilder indexRequestBuilder = prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setSource(xContentBuilder)
-                    .setId(TrainedModelDefinitionDoc.docId(modelId, i));
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setSource(
+                        xContentBuilder
+                    ).setId(TrainedModelDefinitionDoc.docId(modelId, i));
 
-                bulkRequestBuilder.add(indexRequestBuilder);
+                    bulkRequestBuilder.add(indexRequestBuilder);
+                }
             }
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+            AtomicReference<BulkResponse> putDocsHolder = new AtomicReference<>();
+            blockingCall(bulkRequestBuilder::execute, putDocsHolder, exceptionHolder);
+            assertThat(exceptionHolder.get(), is(nullValue()));
+            assertFalse(putDocsHolder.get().hasFailures());
+
+            AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
+            blockingCall(
+                listener -> trainedModelProvider.getTrainedModel(
+                    modelId,
+                    GetTrainedModelsAction.Includes.forModelDefinition(),
+                    null,
+                    listener
+                ),
+                getConfigHolder,
+                exceptionHolder
+            );
+            assertThat(getConfigHolder.get(), is(nullValue()));
+            assertThat(exceptionHolder.get(), is(not(nullValue())));
+            assertThat(exceptionHolder.get().getMessage(), equalTo(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
         }
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
-        AtomicReference<BulkResponse> putDocsHolder = new AtomicReference<>();
-        blockingCall(bulkRequestBuilder::execute, putDocsHolder, exceptionHolder);
-        assertThat(exceptionHolder.get(), is(nullValue()));
-        assertFalse(putDocsHolder.get().hasFailures());
-
-        AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
-        blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, listener),
-            getConfigHolder,
-            exceptionHolder
-        );
-        assertThat(getConfigHolder.get(), is(nullValue()));
-        assertThat(exceptionHolder.get(), is(not(nullValue())));
-        assertThat(exceptionHolder.get().getMessage(), equalTo(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
     }
 
     public void testGetTrainedModelForInference() throws InterruptedException, IOException {
@@ -407,32 +414,34 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         List<TrainedModelDefinitionDoc.Builder> docBuilders = createModelDefinitionDocs(config.getCompressedDefinition(), modelId);
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int i = 0; i < docBuilders.size(); i++) {
-            TrainedModelDefinitionDoc doc = docBuilders.get(i).build();
-            try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-                IndexRequestBuilder indexRequestBuilder = prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setSource(xContentBuilder)
-                    .setId(TrainedModelDefinitionDoc.docId(modelId, i));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            for (int i = 0; i < docBuilders.size(); i++) {
+                TrainedModelDefinitionDoc doc = docBuilders.get(i).build();
+                try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setSource(
+                        xContentBuilder
+                    ).setId(TrainedModelDefinitionDoc.docId(modelId, i));
 
-                bulkRequestBuilder.add(indexRequestBuilder);
+                    bulkRequestBuilder.add(indexRequestBuilder);
+                }
             }
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+            AtomicReference<BulkResponse> putDocsHolder = new AtomicReference<>();
+            blockingCall(bulkRequestBuilder::execute, putDocsHolder, exceptionHolder);
+
+            assertThat(exceptionHolder.get(), is(nullValue()));
+            assertFalse(putDocsHolder.get().hasFailures());
+
+            AtomicReference<InferenceDefinition> definitionHolder = new AtomicReference<>();
+            blockingCall(
+                listener -> trainedModelProvider.getTrainedModelForInference(modelId, false, listener),
+                definitionHolder,
+                exceptionHolder
+            );
+            assertThat(exceptionHolder.get(), is(nullValue()));
+            assertThat(definitionHolder.get(), is(not(nullValue())));
         }
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
-        AtomicReference<BulkResponse> putDocsHolder = new AtomicReference<>();
-        blockingCall(bulkRequestBuilder::execute, putDocsHolder, exceptionHolder);
-
-        assertThat(exceptionHolder.get(), is(nullValue()));
-        assertFalse(putDocsHolder.get().hasFailures());
-
-        AtomicReference<InferenceDefinition> definitionHolder = new AtomicReference<>();
-        blockingCall(
-            listener -> trainedModelProvider.getTrainedModelForInference(modelId, false, listener),
-            definitionHolder,
-            exceptionHolder
-        );
-        assertThat(exceptionHolder.get(), is(nullValue()));
-        assertThat(definitionHolder.get(), is(not(nullValue())));
     }
 
     private List<TrainedModelDefinitionDoc.Builder> createModelDefinitionDocs(BytesReference compressedDefinition, String modelId) {

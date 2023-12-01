@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -36,6 +37,10 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     protected static boolean isOriginalCluster(String clusterVersion) {
         return UPGRADE_FROM_VERSION.equals(clusterVersion);
+    }
+
+    protected static boolean isOriginalClusterCurrent() {
+        return UPGRADE_FROM_VERSION.equals(Build.current().version());
     }
 
     @Deprecated(forRemoval = true)

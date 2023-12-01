@@ -130,16 +130,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * Note that if {@link org.elasticsearch.search.SearchService#executeQueryPhase(ShardSearchRequest, SearchShardTask, ActionListener)}
      * always do a can match then we don't need this code here.
      */
-    public static boolean matchNoDocs(AggregationContext context, Aggregator parent) {
+    static boolean matchNoDocs(AggregationContext context, Aggregator parent) {
         if (context.query() instanceof MatchNoDocsQuery) {
             while (parent != null) {
                 if (parent instanceof GlobalAggregator) {
                     return false;
-                }
-                if (parent instanceof TermsAggregator termsAggregator) {
-                    if (termsAggregator.bucketCountThresholds.getMinDocCount() == 0) {
-                        return false;
-                    }
                 }
                 parent = parent.parent();
             }

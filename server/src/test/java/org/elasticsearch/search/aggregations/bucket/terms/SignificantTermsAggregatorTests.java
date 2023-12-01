@@ -20,12 +20,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -39,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.InternalRandomSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory.ExecutionMode;
@@ -60,6 +64,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorTests.doc;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SignificantTermsAggregatorTests extends AggregatorTestCase {
@@ -666,6 +671,26 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 }
             }
         }
+    }
+
+    public void testMatchNoDocsQuery() throws Exception {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
+        SignificantTermsAggregationBuilder aggregationBuilder = new SignificantTermsAggregationBuilder("_name").field("string");
+        CheckedConsumer<RandomIndexWriter, IOException> createIndex = iw -> {
+            iw.addDocument(doc(fieldType, "a", "b"));
+            iw.addDocument(doc(fieldType, "", "c", "a"));
+            iw.addDocument(doc(fieldType, "b", "d"));
+            iw.addDocument(doc(fieldType, ""));
+        };
+        testCase(
+            createIndex,
+            (SignificantStringTerms result) -> { assertEquals(0, result.getBuckets().size()); },
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+        );
+
+        debugTestCase(aggregationBuilder, new MatchNoDocsQuery(), createIndex, (result, impl, debug) -> {
+            assertEquals(impl, MapStringTermsAggregator.class);
+        }, fieldType);
     }
 
     private void addMixedTextDocs(IndexWriter w) throws IOException {

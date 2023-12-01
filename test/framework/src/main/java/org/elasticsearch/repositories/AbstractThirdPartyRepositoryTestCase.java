@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -37,6 +36,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -75,9 +75,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     private void deleteAndAssertEmpty(BlobPath path) {
         final BlobStoreRepository repo = getRepository();
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        repo.threadPool()
-            .generic()
-            .execute(ActionRunnable.run(future, () -> repo.blobStore().blobContainer(path).delete(OperationPurpose.SNAPSHOT)));
+        repo.threadPool().generic().execute(ActionRunnable.run(future, () -> repo.blobStore().blobContainer(path).delete(randomPurpose())));
         future.actionGet();
         final BlobPath parent = path.parent();
         if (parent == null) {
@@ -131,28 +129,16 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             final BlobStore blobStore = repo.blobStore();
             blobStore.blobContainer(repo.basePath().add("foo"))
                 .writeBlob(
-                    OperationPurpose.SNAPSHOT,
+                    randomPurpose(),
                     "nested-blob",
                     new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)),
                     testBlobLen,
                     false
                 );
             blobStore.blobContainer(repo.basePath().add("foo").add("nested"))
-                .writeBlob(
-                    OperationPurpose.SNAPSHOT,
-                    "bar",
-                    new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)),
-                    testBlobLen,
-                    false
-                );
+                .writeBlob(randomPurpose(), "bar", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
             blobStore.blobContainer(repo.basePath().add("foo").add("nested2"))
-                .writeBlob(
-                    OperationPurpose.SNAPSHOT,
-                    "blub",
-                    new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)),
-                    testBlobLen,
-                    false
-                );
+                .writeBlob(randomPurpose(), "blub", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
         }));
         future.actionGet();
         assertChildren(repo.basePath(), Collections.singleton("foo"));
@@ -265,7 +251,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 repository.blobStore()
                     .blobContainer(repository.basePath())
                     .readBlob(
-                        OperationPurpose.SNAPSHOT,
+                        randomPurpose(),
                         // Deliberately not using BlobStoreRepository#INDEX_LATEST_BLOB here, it's important for external systems that a
                         // blob with literally this name is updated on each write:
                         "index.latest"
@@ -286,10 +272,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         genericExec.execute(ActionRunnable.run(future, () -> {
             final BlobStore blobStore = repo.blobStore();
             blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
-                .writeBlob(OperationPurpose.SNAPSHOT, "bar", new ByteArrayInputStream(new byte[3]), 3, false);
+                .writeBlob(randomPurpose(), "bar", new ByteArrayInputStream(new byte[3]), 3, false);
             for (String prefix : Arrays.asList("snap-", "meta-")) {
                 blobStore.blobContainer(repo.basePath())
-                    .writeBlob(OperationPurpose.SNAPSHOT, prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
+                    .writeBlob(randomPurpose(), prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
             }
         }));
         future.get();
@@ -297,10 +283,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final PlainActionFuture<Boolean> corruptionFuture = new PlainActionFuture<>();
         genericExec.execute(ActionRunnable.supply(corruptionFuture, () -> {
             final BlobStore blobStore = repo.blobStore();
-            return blobStore.blobContainer(repo.basePath().add("indices")).children(OperationPurpose.SNAPSHOT).containsKey("foo")
-                && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists(OperationPurpose.SNAPSHOT, "bar")
-                && blobStore.blobContainer(repo.basePath()).blobExists(OperationPurpose.SNAPSHOT, "meta-foo.dat")
-                && blobStore.blobContainer(repo.basePath()).blobExists(OperationPurpose.SNAPSHOT, "snap-foo.dat");
+            return blobStore.blobContainer(repo.basePath().add("indices")).children(randomPurpose()).containsKey("foo")
+                && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists(randomPurpose(), "bar")
+                && blobStore.blobContainer(repo.basePath()).blobExists(randomPurpose(), "meta-foo.dat")
+                && blobStore.blobContainer(repo.basePath()).blobExists(randomPurpose(), "snap-foo.dat");
         }));
         assertTrue(corruptionFuture.get());
     }
@@ -320,9 +306,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final BlobStoreRepository repository = getRepository();
         repository.threadPool()
             .generic()
-            .execute(
-                ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).children(OperationPurpose.SNAPSHOT).keySet())
-            );
+            .execute(ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).children(randomPurpose()).keySet()));
         return future.actionGet();
     }
 

@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -303,7 +304,25 @@ public class LocalExecutionPlanner {
         if (dataType == EsQueryExec.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
+        if (dataType == EsqlDataTypes.GEO_POINT) {
+            return ElementType.LONG;
+        }
+        if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
+            return ElementType.LONG;
+        }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
+    }
+
+    /**
+     * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
+     * This specifically excludes GEO_POINT and CARTESIAN_POINT, which are backed by DataType.LONG
+     * but are not themselves sortable (the long can be sorted, but the sort order is not usually useful).
+     */
+    public static ElementType toSortableElementType(DataType dataType) {
+        if (dataType == EsqlDataTypes.GEO_POINT || dataType == EsqlDataTypes.CARTESIAN_POINT) {
+            return ElementType.UNKNOWN;
+        }
+        return toElementType(dataType);
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -409,7 +428,8 @@ public class LocalExecutionPlanner {
                 case "text", "keyword" -> TopNEncoder.UTF8;
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
-                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
+                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc", "geo_point", "cartesian_point" ->
+                    TopNEncoder.DEFAULT_SORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case "unsupported" -> TopNEncoder.UNSUPPORTED;
                 default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());

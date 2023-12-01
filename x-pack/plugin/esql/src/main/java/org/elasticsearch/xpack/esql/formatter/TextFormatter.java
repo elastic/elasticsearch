@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.formatter;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
@@ -15,6 +16,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -29,7 +31,7 @@ public class TextFormatter {
 
     private final EsqlQueryResponse response;
     private final int[] width;
-    private final Function<Object, String> FORMATTER = Objects::toString;
+    private final Function<Object, String> FORMATTER = TextFormatter::formatEsqlResultObject;
 
     /**
      * Create a new {@linkplain TextFormatter} for formatting responses.
@@ -127,5 +129,13 @@ public class TextFormatter {
         if (padding > 0) {
             writer.append(PADDING_64, 0, padding);
         }
+    }
+
+    private static String formatEsqlResultObject(Object obj) {
+        // TODO: It would be nicer to override GeoPoint.toString() but that has consequences
+        if (obj instanceof SpatialPoint point) {
+            return String.format(Locale.ROOT, "POINT (%.7f %.7f)", point.getX(), point.getY());
+        }
+        return Objects.toString(obj);
     }
 }

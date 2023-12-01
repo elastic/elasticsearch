@@ -44,6 +44,10 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     // Ref: https://github.com/elastic/elasticsearch/pull/86416
     public static final NodeFeature ML_MEMORY_OVERHEAD_FIXED = new NodeFeature("ml.memory_overhead_fixed");
 
+    // QA - rolling upgrade tests
+    public static final NodeFeature SECURITY_UPDATE_API_KEY = new NodeFeature("security.api_key_update");
+    public static final NodeFeature SECURITY_BULK_UPDATE_API_KEY = new NodeFeature("security.api_key_bulk_update");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.ofEntries(
@@ -53,6 +57,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(COMPONENT_TEMPLATE_SUPPORTED, Version.V_7_8_0),
             entry(DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED, Version.V_7_13_0),
             entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0),
+            entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
+            entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0),
             entry(ML_NEW_MEMORY_FORMAT, Version.V_8_11_0),
             entry(TRANSPORT_VERSION_SUPPORTED, Version.V_8_8_0),
             entry(STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION, Version.V_8_11_0),

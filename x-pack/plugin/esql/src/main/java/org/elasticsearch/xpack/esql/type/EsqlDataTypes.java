@@ -44,6 +44,8 @@ public final class EsqlDataTypes {
 
     public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
     public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
+    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, false);
+    public static final DataType CARTESIAN_POINT = new DataType("cartesian_point", Double.BYTES * 2, false, false, false);
 
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,
@@ -67,7 +69,9 @@ public final class EsqlDataTypes {
         SCALED_FLOAT,
         SOURCE,
         VERSION,
-        UNSIGNED_LONG
+        UNSIGNED_LONG,
+        GEO_POINT,
+        CARTESIAN_POINT
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
@@ -76,6 +80,8 @@ public final class EsqlDataTypes {
 
     static {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
+        // ES calls this 'point', but ESQL calls it 'cartesian_point'
+        map.put("point", CARTESIAN_POINT);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
@@ -145,6 +151,10 @@ public final class EsqlDataTypes {
 
     public static boolean isTemporalAmount(DataType t) {
         return t == DATE_PERIOD || t == TIME_DURATION;
+    }
+
+    public static boolean isSpatial(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT;
     }
 
     /**

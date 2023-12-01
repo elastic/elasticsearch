@@ -111,11 +111,12 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
         mapping.endObject();
         client().admin().indices().prepareCreate("test").setMapping(mapping.endObject()).get();
 
-        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < SIZE; i++) {
-            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+        try (BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < SIZE; i++) {
+                bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+            }
+            bulk.get();
         }
-        bulk.get();
     }
 
     public static class TestRuntimeFieldPlugin extends Plugin implements ScriptPlugin {

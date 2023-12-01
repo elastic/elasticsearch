@@ -40,14 +40,15 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 )
                 .setMapping("user", "type=keyword", "tags", "type=keyword")
                 .get();
-            BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            int numDocs = between(5, 10);
-            for (int d = 0; d < numDocs; d++) {
-                String user = randomFrom("u1", "u2", "u3");
-                String tag = randomFrom("java", "elasticsearch", "lucene");
-                bulk.add(new IndexRequest().source(Map.of("user", user, "tags", tag)));
+            try (BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+                int numDocs = between(5, 10);
+                for (int d = 0; d < numDocs; d++) {
+                    String user = randomFrom("u1", "u2", "u3");
+                    String tag = randomFrom("java", "elasticsearch", "lucene");
+                    bulk.add(new IndexRequest().source(Map.of("user", user, "tags", tag)));
+                }
+                bulk.get();
             }
-            bulk.get();
         }
         int numQueries = between(10, 20);
         Thread[] threads = new Thread[numQueries];

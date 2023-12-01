@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -50,22 +51,24 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .prepareCreate("events_2022")
                 .setMapping("@timestamp", "type=date,format=yyyy-MM-dd", "uid", "type=keyword")
         );
-        client().prepareBulk("events_2022")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest().source("@timestamp", "2022-02-15", "uid", "u1"))
-            .add(new IndexRequest().source("@timestamp", "2022-05-02", "uid", "u1"))
-            .add(new IndexRequest().source("@timestamp", "2022-12-15", "uid", "u1"))
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("events_2022")) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source("@timestamp", "2022-02-15", "uid", "u1"))
+                .add(new IndexRequest().source("@timestamp", "2022-05-02", "uid", "u1"))
+                .add(new IndexRequest().source("@timestamp", "2022-12-15", "uid", "u1"))
+                .get();
+        }
         ElasticsearchAssertions.assertAcked(
             client().admin().indices().prepareCreate("events_2023").setMapping("@timestamp", "type=date", "uid", "type=keyword")
         );
-        client().prepareBulk("events_2023")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest().source("@timestamp", "2023-01-15", "uid", "u2"))
-            .add(new IndexRequest().source("@timestamp", "2023-02-01", "uid", "u2"))
-            .add(new IndexRequest().source("@timestamp", "2023-02-11", "uid", "u1"))
-            .add(new IndexRequest().source("@timestamp", "2023-03-25", "uid", "u1"))
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("events_2023")) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source("@timestamp", "2023-01-15", "uid", "u2"))
+                .add(new IndexRequest().source("@timestamp", "2023-02-01", "uid", "u2"))
+                .add(new IndexRequest().source("@timestamp", "2023-02-11", "uid", "u1"))
+                .add(new IndexRequest().source("@timestamp", "2023-03-25", "uid", "u1"))
+                .get();
+        }
         try {
             Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
             for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
@@ -127,15 +130,16 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .prepareCreate("employees")
                 .setMapping("emp_no", "type=long", "dept", "type=keyword", "hired", "type=date,format=yyyy-MM-dd", "salary", "type=double")
         );
-        client().prepareBulk("employees")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest().source("emp_no", 101, "dept", "engineering", "hired", "2012-02-05", "salary", 20))
-            .add(new IndexRequest().source("emp_no", 102, "dept", "sales", "hired", "2012-03-15", "salary", 25))
-            .add(new IndexRequest().source("emp_no", 103, "dept", "engineering", "hired", "2012-03-27", "salary", 22))
-            .add(new IndexRequest().source("emp_no", 104, "dept", "engineering", "hired", "2012-04-20", "salary", 39.6))
-            .add(new IndexRequest().source("emp_no", 105, "dept", "engineering", "hired", "2012-06-30", "salary", 25))
-            .add(new IndexRequest().source("emp_no", 106, "dept", "sales", "hired", "2012-08-09", "salary", 30.1))
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("employees")) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source("emp_no", 101, "dept", "engineering", "hired", "2012-02-05", "salary", 20))
+                .add(new IndexRequest().source("emp_no", 102, "dept", "sales", "hired", "2012-03-15", "salary", 25))
+                .add(new IndexRequest().source("emp_no", 103, "dept", "engineering", "hired", "2012-03-27", "salary", 22))
+                .add(new IndexRequest().source("emp_no", 104, "dept", "engineering", "hired", "2012-04-20", "salary", 39.6))
+                .add(new IndexRequest().source("emp_no", 105, "dept", "engineering", "hired", "2012-06-30", "salary", 25))
+                .add(new IndexRequest().source("emp_no", 106, "dept", "sales", "hired", "2012-08-09", "salary", 30.1))
+                .get();
+        }
 
         ElasticsearchAssertions.assertAcked(
             client().admin()
@@ -219,12 +223,13 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 )
                 .setMapping("timestamp", "type=long", "message", "type=keyword")
         );
-        client().prepareBulk("events")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest().source("timestamp", 1, "message", "a"))
-            .add(new IndexRequest().source("timestamp", 2, "message", "b"))
-            .add(new IndexRequest().source("timestamp", 3, "message", "c"))
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("events")) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source("timestamp", 1, "message", "a"))
+                .add(new IndexRequest().source("timestamp", 2, "message", "b"))
+                .add(new IndexRequest().source("timestamp", 3, "message", "c"))
+                .get();
+        }
         ElasticsearchAssertions.assertAcked(
             client().admin()
                 .indices()
@@ -236,11 +241,12 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 )
                 .setMapping("timestamp", "type=long", "message", "type=keyword")
         );
-        client().prepareBulk("logs")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest().source("timestamp", 10, "message", "aa"))
-            .add(new IndexRequest().source("timestamp", 11, "message", "bb"))
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("logs")) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source("timestamp", 10, "message", "aa"))
+                .add(new IndexRequest().source("timestamp", 11, "message", "bb"))
+                .get();
+        }
         try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message")) {
             assertThat(getValuesList(resp), hasSize(5));
             internalCluster().stopNode(logsOnlyNode);

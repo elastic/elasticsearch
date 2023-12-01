@@ -176,15 +176,16 @@ public class RetryTests extends ESIntegTestCase {
         // Not all test cases use the dest index but those that do require that it be on the node will small thread pools
         indicesAdmin().prepareCreate("dest").setSettings(indexSettings).get();
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
-        BulkRequestBuilder bulk = client().prepareBulk();
-        for (int i = 0; i < DOC_COUNT; i++) {
-            bulk.add(prepareIndex("source").setSource("foo", "bar " + i));
-        }
+        try (BulkRequestBuilder bulk = client().prepareBulk()) {
+            for (int i = 0; i < DOC_COUNT; i++) {
+                bulk.add(prepareIndex("source").setSource("foo", "bar " + i));
+            }
 
-        Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
-        BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request()).actionGet();
-        assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
-        indicesAdmin().prepareRefresh("source").get();
+            Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
+            BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request()).actionGet();
+            assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
+            indicesAdmin().prepareRefresh("source").get();
+        }
 
         AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
         // Make sure we use more than one batch so we have to scroll

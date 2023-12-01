@@ -215,11 +215,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testFromGroupingByNumericFieldWithNulls() {
         for (int i = 0; i < 5; i++) {
-            client().prepareBulk()
-                .add(new IndexRequest("test").id("no_count_old_" + i).source("data", between(1, 2), "data_d", 1d))
-                .add(new IndexRequest("test").id("no_count_new_" + i).source("data", 99, "data_d", 1d))
-                .add(new IndexRequest("test").id("no_data_" + i).source("count", 12, "count_d", 12d))
-                .get();
+            try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+                bulkRequestBuilder.add(new IndexRequest("test").id("no_count_old_" + i).source("data", between(1, 2), "data_d", 1d))
+                    .add(new IndexRequest("test").id("no_count_new_" + i).source("data", 99, "data_d", 1d))
+                    .add(new IndexRequest("test").id("no_data_" + i).source("count", 12, "count_d", 12d))
+                    .get();
+            }
             if (randomBoolean()) {
                 client().admin().indices().prepareRefresh("test").get();
             }
@@ -266,11 +267,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testFromStatsGroupingByKeywordWithNulls() {
         for (int i = 0; i < 5; i++) {
-            client().prepareBulk()
-                .add(new IndexRequest("test").id("no_color_" + i).source("data", 12, "count", 120, "data_d", 2d, "count_d", 120d))
-                .add(new IndexRequest("test").id("no_count_red_" + i).source("data", 2, "data_d", 2d, "color", "red"))
-                .add(new IndexRequest("test").id("no_count_yellow_" + i).source("data", 2, "data_d", 2d, "color", "yellow"))
-                .get();
+            try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+                bulkRequestBuilder.add(
+                    new IndexRequest("test").id("no_color_" + i).source("data", 12, "count", 120, "data_d", 2d, "count_d", 120d)
+                )
+                    .add(new IndexRequest("test").id("no_count_red_" + i).source("data", 2, "data_d", 2d, "color", "red"))
+                    .add(new IndexRequest("test").id("no_count_yellow_" + i).source("data", 2, "data_d", 2d, "color", "yellow"))
+                    .get();
+            }
             if (randomBoolean()) {
                 client().admin().indices().prepareRefresh("test").get();
             }
@@ -584,7 +588,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testFilterWithNullAndEvalFromIndex() {
         // append entry, with an absent count, to the index
-        client().prepareBulk().add(new IndexRequest("test").id("no_count").source("data", 12, "data_d", 2d, "color", "red")).get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(new IndexRequest("test").id("no_count").source("data", 12, "data_d", 2d, "color", "red")).get();
+        }
 
         client().admin().indices().prepareRefresh("test").get();
         // sanity
@@ -731,7 +737,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 long sum = 0;
                 for (int i = 0; i < numDocs; i++) {
                     long value = randomLongBetween(1, 1000);
-                    client().prepareBulk().add(new IndexRequest(indexName).id("doc-" + i).source("data", 1, "value", value)).get();
+                    try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+                        bulkRequestBuilder.add(new IndexRequest(indexName).id("doc-" + i).source("data", 1, "value", value)).get();
+                    }
                     sum += value;
                 }
                 totalValues.set(sum);
@@ -898,14 +906,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     .setMapping("data", "type=long", "count", "type=long")
             );
             ensureYellow(indexName);
-            client().prepareBulk()
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(new IndexRequest(indexName).id("1").source("data", ++i, "count", i * 1000))
-                .add(new IndexRequest(indexName).id("2").source("data", ++i, "count", i * 1000))
-                .add(new IndexRequest(indexName).id("3").source("data", ++i, "count", i * 1000))
-                .add(new IndexRequest(indexName).id("4").source("data", ++i, "count", i * 1000))
-                .add(new IndexRequest(indexName).id("5").source("data", ++i, "count", i * 1000))
-                .get();
+            try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+                bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .add(new IndexRequest(indexName).id("1").source("data", ++i, "count", i * 1000))
+                    .add(new IndexRequest(indexName).id("2").source("data", ++i, "count", i * 1000))
+                    .add(new IndexRequest(indexName).id("3").source("data", ++i, "count", i * 1000))
+                    .add(new IndexRequest(indexName).id("4").source("data", ++i, "count", i * 1000))
+                    .add(new IndexRequest(indexName).id("5").source("data", ++i, "count", i * 1000))
+                    .get();
+            }
         }
 
         try (var results = run("from test_index_patterns* | stats count(data), sum(count)")) {
@@ -958,24 +967,25 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setMapping("field", "type=long")
         );
         ensureYellow("test_overlapping_index_patterns_1");
-        client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest("test_overlapping_index_patterns_1").id("1").source("field", 10))
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest("test_overlapping_index_patterns_1").id("1").source("field", 10))
+                .get();
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test_overlapping_index_patterns_2")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
-                .setMapping("field", "type=keyword")
-        );
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate("test_overlapping_index_patterns_2")
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                    .setMapping("field", "type=keyword")
+            );
+        }
         ensureYellow("test_overlapping_index_patterns_2");
-        client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest("test_overlapping_index_patterns_2").id("1").source("field", "foo"))
-            .get();
-
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest("test_overlapping_index_patterns_2").id("1").source("field", "foo"))
+                .get();
+        }
         expectThrows(VerificationException.class, () -> run("from test_overlapping_index_patterns_* | sort field"));
     }
 
@@ -1035,11 +1045,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             var yellowNullCountDocId = "yellow_null_count_" + i;
             var yellowNullDataDocId = "yellow_null_data_" + i;
 
-            client().prepareBulk()
-                .add(new IndexRequest("test").id(yellowDocId).source("data", i, "count", i * 10, "color", "yellow"))
-                .add(new IndexRequest("test").id(yellowNullCountDocId).source("data", i, "color", "yellow"))
-                .add(new IndexRequest("test").id(yellowNullDataDocId).source("count", i * 10, "color", "yellow"))
-                .get();
+            try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+                bulkRequestBuilder.add(new IndexRequest("test").id(yellowDocId).source("data", i, "count", i * 10, "color", "yellow"))
+                    .add(new IndexRequest("test").id(yellowNullCountDocId).source("data", i, "color", "yellow"))
+                    .add(new IndexRequest("test").id(yellowNullDataDocId).source("count", i * 10, "color", "yellow"))
+                    .get();
+            }
             if (randomBoolean()) {
                 client().admin().indices().prepareRefresh("test").get();
             }
@@ -1380,27 +1391,28 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     private int indexDocsIntoNestedMappingIndex(String indexName, int docsCount) throws IOException {
         int countValuesGreaterThanFifty = 0;
-        BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        for (int j = 0; j < docsCount; j++) {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            int randomValue = randomIntBetween(0, 100);
-            countValuesGreaterThanFifty += randomValue >= 50 ? 1 : 0;
-            builder.startObject();
-            {
-                builder.field("data", randomValue);
-                builder.startArray("nested");
+        try (BulkRequestBuilder bulkBuilder = client().prepareBulk()) {
+            for (int j = 0; j < docsCount; j++) {
+                XContentBuilder builder = JsonXContent.contentBuilder();
+                int randomValue = randomIntBetween(0, 100);
+                countValuesGreaterThanFifty += randomValue >= 50 ? 1 : 0;
+                builder.startObject();
                 {
-                    for (int k = 0, max = randomIntBetween(1, 5); k < max; k++) {
-                        // nested values are all greater than any non-nested values found in the "data" long field
-                        builder.startObject().field("foo", randomIntBetween(1000, 10000)).endObject();
+                    builder.field("data", randomValue);
+                    builder.startArray("nested");
+                    {
+                        for (int k = 0, max = randomIntBetween(1, 5); k < max; k++) {
+                            // nested values are all greater than any non-nested values found in the "data" long field
+                            builder.startObject().field("foo", randomIntBetween(1000, 10000)).endObject();
+                        }
                     }
+                    builder.endArray();
                 }
-                builder.endArray();
+                builder.endObject();
+                bulkBuilder.add(new IndexRequest(indexName).id(Integer.toString(j)).source(builder));
             }
-            builder.endObject();
-            bulkBuilder.add(new IndexRequest(indexName).id(Integer.toString(j)).source(builder));
+            bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         }
-        bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         ensureYellow(indexName);
 
         return countValuesGreaterThanFifty;
@@ -1454,25 +1466,26 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         );
         long timestamp = epoch;
         for (int i = 0; i < 10; i++) {
-            client().prepareBulk()
-                .add(
+            try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+                bulkRequestBuilder.add(
                     new IndexRequest(indexName).id("1" + i)
                         .source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d, "time", timestamp++, "color", "red")
                 )
-                .add(
-                    new IndexRequest(indexName).id("2" + i)
-                        .source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d, "time", timestamp++, "color", "blue")
-                )
-                .add(
-                    new IndexRequest(indexName).id("3" + i)
-                        .source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d, "time", timestamp++, "color", "green")
-                )
-                .add(
-                    new IndexRequest(indexName).id("4" + i)
-                        .source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d, "time", timestamp++, "color", "red")
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+                    .add(
+                        new IndexRequest(indexName).id("2" + i)
+                            .source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d, "time", timestamp++, "color", "blue")
+                    )
+                    .add(
+                        new IndexRequest(indexName).id("3" + i)
+                            .source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d, "time", timestamp++, "color", "green")
+                    )
+                    .add(
+                        new IndexRequest(indexName).id("4" + i)
+                            .source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d, "time", timestamp++, "color", "red")
+                    )
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .get();
+            }
         }
         ensureYellow(indexName);
     }

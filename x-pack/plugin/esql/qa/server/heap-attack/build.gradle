@@ -11,7 +11,7 @@ restResources {
 }
 
 testClusters.configureEach {
-  numberOfNodes = 2
+  numberOfNodes = 1
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.monitoring.collection.enabled', 'true'

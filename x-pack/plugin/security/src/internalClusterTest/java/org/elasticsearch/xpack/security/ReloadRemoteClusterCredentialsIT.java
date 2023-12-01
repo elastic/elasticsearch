@@ -97,21 +97,11 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
     @Override
     public void tearDown() throws Exception {
         try {
-            final var builder = Settings.builder()
-                .putNull("cluster.remote." + CLUSTER_ALIAS + ".mode")
-                .putNull("cluster.remote." + CLUSTER_ALIAS + ".proxy_address");
-            client().admin().cluster().updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(builder)).get();
+            clearRemoteCluster();
             super.tearDown();
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
-    }
-
-    @Override
-    protected Settings nodeSettings() {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings());
-        builder.put("xpack.security.remote_cluster_client.ssl.enabled", false);
-        return builder.build();
     }
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -146,7 +136,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             final String updatedCredentials = randomAlphaOfLength(41);
             writeCredentialsToKeyStore(updatedCredentials);
             reloadSecureSettings();
-            // TODO make update settings call to ensure connections get re-built
+            clearRemoteCluster();
             configureRemoteCluster(remoteAddress);
 
             client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
@@ -166,6 +156,20 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         }
         capturedHeaders.clear();
         assertThat(capturedHeaders, is(empty()));
+    }
+
+    private void clearRemoteCluster() throws InterruptedException, ExecutionException {
+        final var builder = Settings.builder()
+            .putNull("cluster.remote." + CLUSTER_ALIAS + ".mode")
+            .putNull("cluster.remote." + CLUSTER_ALIAS + ".proxy_address");
+        clusterAdmin().updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(builder)).get();
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+        builder.put("xpack.security.remote_cluster_client.ssl.enabled", false);
+        return builder.build();
     }
 
     private void configureRemoteCluster(TransportAddress remoteAddress) throws InterruptedException, ExecutionException {

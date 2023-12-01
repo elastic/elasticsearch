@@ -573,7 +573,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         private final FixedBitSet results;
         private final SearchProgressListener progressListener;
 
-        public CountOnlyQueryPhaseResultConsumer(SearchProgressListener progressListener, int numShards) {
+        CountOnlyQueryPhaseResultConsumer(SearchProgressListener progressListener, int numShards) {
             super(numShards);
             this.progressListener = progressListener;
             this.results = new FixedBitSet(numShards + 1);

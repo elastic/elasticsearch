@@ -270,7 +270,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
-        assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterIndexVersion().onOrAfter(IndexVersions.V_8_2_0));
+
+        var originalClusterHasNewTimeSeriesIndexing = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_8_2_0))
+            .orElse(true);
+        assumeTrue("indexing time series indices changed in 8.2.0", originalClusterHasNewTimeSeriesIndexing);
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -312,7 +315,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
-        assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterIndexVersion().onOrAfter(IndexVersions.V_8_2_0));
+        var originalClusterHasNewTimeSeriesIndexing = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_8_2_0))
+            .orElse(true);
+        assumeTrue("indexing time series indices changed in 8.2.0", originalClusterHasNewTimeSeriesIndexing);
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {

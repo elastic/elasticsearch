@@ -189,14 +189,14 @@ public class LearnToRankService {
                 QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT)
             );
         } catch (GeneralScriptException e) {
-            if (e.getRootCause() instanceof MustacheInvalidParameterException == false) {
-                throw e;
+            if (e.getRootCause().getClass().getName().equals(MustacheInvalidParameterException.class.getName())) {
+                // Can't use instanceof since it return unexpected result.
+                return new QueryExtractorBuilder(
+                    queryExtractorBuilder.featureName(),
+                    QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder())
+                );
             }
-
-            return new QueryExtractorBuilder(
-                queryExtractorBuilder.featureName(),
-                QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder())
-            );
+            throw e;
         }
     }
 

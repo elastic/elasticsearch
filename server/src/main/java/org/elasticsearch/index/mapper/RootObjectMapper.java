@@ -307,6 +307,11 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
+    @Override
+    public int getTotalFieldsCount() {
+        return mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum() + runtimeFields.size();
+    }
+
     private static void validateDynamicTemplate(MappingParserContext parserContext, DynamicTemplate template) {
 
         if (containsSnippet(template.getMapping(), "{name}")) {

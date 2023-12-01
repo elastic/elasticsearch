@@ -187,6 +187,11 @@ public class ObjectMapper extends Mapper {
         }
     }
 
+    @Override
+    public int getTotalFieldsCount() {
+        return 1 + mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum();
+    }
+
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public boolean supportsVersion(IndexVersion indexCreatedVersion) {

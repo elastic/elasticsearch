@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -521,5 +523,16 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
         assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
         assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+    }
+
+    public void testNestedObjectWithMultiFieldsMapperSize() {
+        ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE).add(
+                new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers()).addMultiField(
+                    new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
+                ).addMultiField(new KeywordFieldMapper.Builder("multi_field_size_5", IndexVersion.current()))
+            )
+        );
+        assertThat(mapperBuilder.build(MapperBuilderContext.root(false, false)).getTotalFieldsCount(), equalTo(5));
     }
 }

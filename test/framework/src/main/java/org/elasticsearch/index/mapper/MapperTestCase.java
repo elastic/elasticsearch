@@ -425,6 +425,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
+    public void testTotalFieldsCount() throws IOException {
+        RootObjectMapper.Builder builder = getRootObjectMapperBuilder(fieldMapping(this::minimalMapping));
+        assertEquals(1, builder.build(MapperBuilderContext.root(false, false)).getTotalFieldsCount());
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {

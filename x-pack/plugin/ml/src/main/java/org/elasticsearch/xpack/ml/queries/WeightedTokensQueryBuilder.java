@@ -50,7 +50,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable WeightedTokensThreshold threshold) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
-        this.threshold = threshold;
+        this.threshold = threshold == null ? new WeightedTokensThreshold() : threshold;
     }
 
     public WeightedTokensQueryBuilder(StreamInput in) throws IOException {

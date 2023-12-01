@@ -57,8 +57,7 @@ however, that flattened objects is link:https://github.com/elastic/kibana/issues
 <<runtime-search-request,runtime fields>>.
 
 * Disable <<dynamic-mapping,dynamic mappings>>.
- This cannot effect current index mapping, but can apply
-going forward via an <<index-templates,index template>>.
+ This cannot effect current index mapping, but can apply going forward via an <<index-templates,index template>>.
 
 Modifying to the <<nested,nested>> data type would not resolve the core
 issue.

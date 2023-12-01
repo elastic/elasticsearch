@@ -544,6 +544,7 @@ public class ApiKeyService {
 
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        System.out.println("**** created builder");
         try {
             for (VersionedApiKeyDoc versionedDoc : targetVersionedDocs) {
                 final String apiKeyId = versionedDoc.id();
@@ -574,6 +575,7 @@ public class ApiKeyService {
             bulkRequestBuilder.close();
             throw e;
         }
+        System.out.println("**** sending request");
         securityIndex.prepareIndexIfNeededThenExecute(
             ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(

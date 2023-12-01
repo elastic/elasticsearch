@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.ml.inference.ltr;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.ltr.MlLTRNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.QueryProviderTests;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -98,7 +101,8 @@ public class LearnToRankServiceTests extends ESTestCase {
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig(GOOD_MODEL, Collections.emptyMap(), listener);
-        assertBusy(() -> verify(listener).onResponse(eq((LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig())));
+
+        verify(listener).onResponse(eq((LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig()));
     }
 
     @SuppressWarnings("unchecked")
@@ -111,7 +115,8 @@ public class LearnToRankServiceTests extends ESTestCase {
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig("non-existing-model", Collections.emptyMap(), listener);
-        assertBusy(() -> verify(listener).onFailure(isA(ResourceNotFoundException.class)));
+
+        verify(listener).onFailure(isA(ResourceNotFoundException.class));
     }
 
     @SuppressWarnings("unchecked")
@@ -124,7 +129,8 @@ public class LearnToRankServiceTests extends ESTestCase {
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig(BAD_MODEL, Collections.emptyMap(), listener);
-        assertBusy(() -> verify(listener).onFailure(isA(ElasticsearchStatusException.class)));
+
+        verify(listener).onFailure(isA(ElasticsearchStatusException.class));
     }
 
     @SuppressWarnings("unchecked")
@@ -136,27 +142,48 @@ public class LearnToRankServiceTests extends ESTestCase {
             xContentRegistry()
         );
 
-        // When no parameters are provided we expect the templated queries not being part of the retrieved config.
-        ActionListener<LearnToRankConfig> noParamsListener = mock(ActionListener.class);
-        learnToRankService.loadLearnToRankConfig(TEMPLATED_GOOD_MODEL, Collections.emptyMap(), noParamsListener);
-        assertBusy(() -> verify(noParamsListener).onResponse(argThat(retrievedConfig -> {
-            assertThat(retrievedConfig.getFeatureExtractorBuilders(), hasSize(2));
-            assertEquals(retrievedConfig, TEMPLATED_GOOD_MODEL_CONFIG.getInferenceConfig());
-            return true;
-        })));
+        // When no parameters are provided we expect query to be rewritten into a match_none query.
+        {
+            ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
+            SetOnce<LearnToRankConfig> retrievedConfig = new SetOnce<>();
+
+            doAnswer(i -> {
+                retrievedConfig.set(i.getArgument(0, LearnToRankConfig.class));
+                return null;
+            }).when(listener).onResponse(any());
+            learnToRankService.loadLearnToRankConfig(TEMPLATED_GOOD_MODEL, null, listener);
+
+            assertNotNull(retrievedConfig.get());
+            assertThat(retrievedConfig.get().getFeatureExtractorBuilders(), hasSize(2));
+
+            assertEquals(
+                retrievedConfig.get(),
+                LearnToRankConfig.builder((LearnToRankConfig) TEMPLATED_GOOD_MODEL_CONFIG.getInferenceConfig())
+                    .setLearnToRankFeatureExtractorBuilders(
+                        List.of(
+                            new QueryExtractorBuilder("feature_1", QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder())),
+                            new QueryExtractorBuilder("feature_2", QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder()))
+                        )
+                    )
+                    .build()
+            );
+        }
 
         // Now testing when providing all the params of the template.
-        ActionListener<LearnToRankConfig> allParamsListener = mock(ActionListener.class);
-        learnToRankService.loadLearnToRankConfig(
-            TEMPLATED_GOOD_MODEL,
-            Map.ofEntries(Map.entry("foo_param", "foo"), Map.entry("bar_param", "bar")),
-            allParamsListener
-        );
-        assertBusy(() -> verify(allParamsListener).onResponse(argThat(retrievedConfig -> {
-            assertThat(retrievedConfig.getFeatureExtractorBuilders(), hasSize(2));
-            assertEquals(retrievedConfig, GOOD_MODEL_CONFIG.getInferenceConfig());
-            return true;
-        })));
+        {
+            ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
+            learnToRankService.loadLearnToRankConfig(
+                TEMPLATED_GOOD_MODEL,
+                Map.ofEntries(Map.entry("foo_param", "foo"), Map.entry("bar_param", "bar")),
+                listener
+            );
+
+            verify(listener).onResponse(argThat(retrievedConfig -> {
+                assertThat(retrievedConfig.getFeatureExtractorBuilders(), hasSize(2));
+                assertEquals(retrievedConfig, GOOD_MODEL_CONFIG.getInferenceConfig());
+                return true;
+            }));
+        }
     }
 
     @Override

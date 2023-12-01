@@ -417,7 +417,7 @@ public abstract class DocumentParserContext {
     final boolean addDynamicRuntimeField(RuntimeField runtimeField) {
         if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
-                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), dynamicRuntimeFields.size() + 1)) {
+                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), getNewDynamicMappersSize() + 1)) {
                     addIgnoredField(runtimeField.name());
                     return false;
                 }

@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.contains;
+
 public class DocumentParserContextTests extends ESTestCase {
 
     private final TestDocumentParserContext context = new TestDocumentParserContext();
@@ -54,6 +56,22 @@ public class DocumentParserContextTests extends ESTestCase {
             ).addMultiField(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
         );
         assertEquals(3, context.getNewDynamicMappersSize());
+    }
+
+    public void testAddRuntimeFieldWhenLimitIsReachedViaMapper() {
+        context.indexSettings().setMappingTotalFieldsLimit(1);
+        context.indexSettings().setIgnoreDynamicFieldsBeyondLimit(true);
+        assertTrue(context.addDynamicMapper("keyword_field", new KeywordFieldMapper.Builder("keyword_field", IndexVersion.current())));
+        assertFalse(context.addDynamicRuntimeField(new TestRuntimeField("runtime_field", "keyword")));
+        assertThat(context.getIgnoredFields(), contains("runtime_field"));
+    }
+
+    public void testAddFieldWhenLimitIsReachedViaRuntimeField() {
+        context.indexSettings().setMappingTotalFieldsLimit(1);
+        context.indexSettings().setIgnoreDynamicFieldsBeyondLimit(true);
+        assertTrue(context.addDynamicRuntimeField(new TestRuntimeField("runtime_field", "keyword")));
+        assertFalse(context.addDynamicMapper("keyword_field", new KeywordFieldMapper.Builder("keyword_field", IndexVersion.current())));
+        assertThat(context.getIgnoredFields(), contains("keyword_field"));
     }
 
 }

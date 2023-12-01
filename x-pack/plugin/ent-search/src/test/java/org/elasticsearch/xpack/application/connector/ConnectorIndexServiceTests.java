@@ -208,11 +208,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private UpdateResponse awaitUpdateConnectorLastSeen(UpdateConnectorLastSeenAction.Request updateFiltering) throws Exception {
+    private UpdateResponse awaitUpdateConnectorLastSeen(UpdateConnectorLastSeenAction.Request checkIn) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.updateConnectorLastSeen(updateFiltering, new ActionListener<>() {
+        connectorIndexService.updateConnectorLastSeen(checkIn, new ActionListener<>() {
             @Override
             public void onResponse(UpdateResponse indexResponse) {
                 resp.set(indexResponse);

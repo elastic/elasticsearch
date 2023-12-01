@@ -16,8 +16,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  */
 public class CancelTasksRequestBuilder extends TasksRequestBuilder<CancelTasksRequest, CancelTasksResponse, CancelTasksRequestBuilder> {
 
-    public CancelTasksRequestBuilder(ElasticsearchClient client, CancelTasksAction action) {
-        super(client, action, new CancelTasksRequest());
+    public CancelTasksRequestBuilder(ElasticsearchClient client) {
+        super(client, CancelTasksAction.INSTANCE, new CancelTasksRequest());
     }
 
     public CancelTasksRequestBuilder waitForCompletion(boolean waitForCompletion) {

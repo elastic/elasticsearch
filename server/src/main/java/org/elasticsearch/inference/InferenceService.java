@@ -10,6 +10,7 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 
 import java.io.Closeable;
 import java.util.List;
@@ -17,6 +18,8 @@ import java.util.Map;
 import java.util.Set;
 
 public interface InferenceService extends Closeable {
+
+    default void init(Client client) {}
 
     String name();
 
@@ -62,12 +65,7 @@ public interface InferenceService extends Closeable {
      * @param taskSettings Settings in the request to override the model's defaults
      * @param listener Inference result listener
      */
-    void infer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        ActionListener<List<? extends InferenceResults>> listener
-    );
+    void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener);
 
     /**
      * Start or prepare the model for use.

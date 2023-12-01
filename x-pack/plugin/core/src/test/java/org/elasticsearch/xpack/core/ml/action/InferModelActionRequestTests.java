@@ -130,7 +130,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         return r;
     }
 
-    private static InferenceConfigUpdate randomInferenceConfigUpdate() {
+    public static InferenceConfigUpdate randomInferenceConfigUpdate() {
         return randomFrom(
             RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
             ClassificationConfigUpdateTests.randomClassificationConfigUpdate(),

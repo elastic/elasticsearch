@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -279,7 +278,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         private SearchRequestBuilder rangeSearchRequest() {
-            return new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(context.indices)
+            return new SearchRequestBuilder(client).setIndices(context.indices)
                 .setIndicesOptions(context.indicesOptions)
                 .setSource(rangeSearchBuilder())
                 .setAllowPartialSearchResults(false)

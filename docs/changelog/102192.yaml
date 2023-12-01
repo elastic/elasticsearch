@@ -1,0 +1,5 @@
+pr: 102192
+summary: "ESQL: Load more than one field at once"
+area: ES|QL
+type: enhancement
+issues: []

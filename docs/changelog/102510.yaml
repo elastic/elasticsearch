@@ -1,0 +1,7 @@
+pr: 102510
+summary: "ESQL: Make fieldcaps calls lighter"
+area: ES|QL
+type: enhancement
+issues:
+ - 101763
+ - 102393

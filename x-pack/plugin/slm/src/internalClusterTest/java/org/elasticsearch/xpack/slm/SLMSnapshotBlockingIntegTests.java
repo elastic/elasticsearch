@@ -424,8 +424,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 try {
                     GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
                         .setSnapshots(successfulSnapshotName.get())
-                        .execute()
-                        .actionGet();
+                        .get();
                     snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
                 } catch (SnapshotMissingException sme) {
                     throw new AssertionError(sme);

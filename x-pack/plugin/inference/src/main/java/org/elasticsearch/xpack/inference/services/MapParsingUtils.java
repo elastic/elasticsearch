@@ -8,10 +8,17 @@
 package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class MapParsingUtils {
     /**
@@ -54,8 +61,16 @@ public class MapParsingUtils {
         return value;
     }
 
+    public static String removeStringOrThrowIfNull(Map<String, Object> sourceMap, String key) {
+        String value = removeAsType(sourceMap, key, String.class);
+        if (value == null) {
+            throw new ElasticsearchStatusException("Missing required field [{}]", RestStatus.BAD_REQUEST, key);
+        }
+        return value;
+    }
+
     public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String serviceName) {
-        if (settingsMap.isEmpty() == false) {
+        if (settingsMap != null && settingsMap.isEmpty() == false) {
             throw MapParsingUtils.unknownSettingsError(settingsMap, serviceName);
         }
     }
@@ -74,11 +89,86 @@ public class MapParsingUtils {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
     }
 
-    public static String invalidUrlErrorMsg(String url, String settingName) {
-        return Strings.format("Invalid url [%s] received in setting [%s]", url, settingName);
+    public static String invalidUrlErrorMsg(String url, String settingName, String settingScope) {
+        return Strings.format("[%s] Invalid url [%s] received for field [%s]", settingScope, url, settingName);
     }
 
     public static String mustBeNonEmptyString(String settingName, String scope) {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
+    }
+
+    // TODO improve URI validation logic
+    public static URI convertToUri(String url, String settingName, String settingScope, ValidationException validationException) {
+        try {
+            return createUri(url);
+        } catch (IllegalArgumentException ignored) {
+            validationException.addValidationError(MapParsingUtils.invalidUrlErrorMsg(url, settingName, settingScope));
+            return null;
+        }
+    }
+
+    public static URI createUri(String url) throws IllegalArgumentException {
+        Objects.requireNonNull(url);
+
+        try {
+            return new URI(url);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(format("unable to parse url [%s]", url), e);
+        }
+    }
+
+    public static SecureString extractRequiredSecureString(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        String requiredField = extractRequiredString(map, settingName, scope, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        return new SecureString(Objects.requireNonNull(requiredField).toCharArray());
+    }
+
+    public static String extractRequiredString(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        String requiredField = MapParsingUtils.removeAsType(map, settingName, String.class);
+
+        if (requiredField == null) {
+            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(settingName, scope));
+        } else if (requiredField.isEmpty()) {
+            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(settingName, scope));
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        return requiredField;
+    }
+
+    public static String extractOptionalString(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        String optionalField = MapParsingUtils.removeAsType(map, settingName, String.class);
+
+        if (optionalField != null && optionalField.isEmpty()) {
+            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(settingName, scope));
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        return optionalField;
     }
 }

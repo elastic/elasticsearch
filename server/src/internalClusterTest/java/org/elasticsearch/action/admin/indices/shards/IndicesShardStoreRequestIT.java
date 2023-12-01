@@ -31,7 +31,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -197,14 +196,14 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         enableAllocation(index);
     }
 
-    private void indexRandomData(String index) throws ExecutionException, InterruptedException {
+    private void indexRandomData(String index) throws InterruptedException {
         int numDocs = scaledRandomIntBetween(10, 20);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index).setSource("field", "value");
+            builders[i] = prepareIndex(index).setSource("field", "value");
         }
         indexRandom(true, builders);
-        indicesAdmin().prepareFlush().setForce(true).execute().actionGet();
+        indicesAdmin().prepareFlush().setForce(true).get();
     }
 
     private static final class IndexNodePredicate implements Predicate<Settings> {

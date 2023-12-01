@@ -139,9 +139,9 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                     length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
                 )
             ).get(driverContext());
-            Block.Ref ref = eval.eval(row(List.of(new BytesRef(str))))
+            Block block = eval.eval(row(List.of(new BytesRef(str))))
         ) {
-            return ref.block().isNull(0) ? null : ((BytesRef) toJavaObject(ref.block(), 0)).utf8ToString();
+            return block.isNull(0) ? null : ((BytesRef) toJavaObject(block, 0)).utf8ToString();
         }
     }
 

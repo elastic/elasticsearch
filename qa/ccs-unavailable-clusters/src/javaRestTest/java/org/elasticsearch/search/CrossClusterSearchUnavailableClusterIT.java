@@ -16,13 +16,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -81,7 +81,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         MockTransportService newService = MockTransportService.createNewService(s, version, transportVersion, threadPool, null);
         try {
             newService.registerRequestHandler(
-                SearchShardsAction.NAME,
+                TransportSearchShardsAction.TYPE.name(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
@@ -89,7 +89,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 }
             );
             newService.registerRequestHandler(
-                SearchAction.NAME,
+                TransportSearchAction.TYPE.name(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchRequest::new,
                 (request, channel, task) -> {

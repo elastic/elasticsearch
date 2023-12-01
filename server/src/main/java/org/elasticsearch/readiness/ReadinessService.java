@@ -242,8 +242,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         this.shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
 
         if (shuttingDown) {
-            setReady(false);
-            logger.info("marking node as not ready because it's shutting down");
+            // only disable the probe and log if the probe is running
+            if (ready()) {
+                setReady(false);
+                logger.info("marking node as not ready because it's shutting down");
+            }
         } else {
             if (clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId())) {
                 setReady(fileSettingsApplied);

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -21,14 +22,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilderTests;
+import org.elasticsearch.xpack.core.ml.ltr.MlLTRNamedXContentProvider;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -45,7 +45,8 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
             randomBoolean() ? null : randomIntBetween(0, 10),
             randomBoolean()
                 ? null
-                : Stream.generate(QueryExtractorBuilderTests::randomInstance).limit(randomInt(5)).collect(Collectors.toList())
+                : Stream.generate(QueryExtractorBuilderTests::randomInstance).limit(randomInt(5)).collect(Collectors.toList()),
+            randomBoolean() ? null : randomMap(0, 10, () -> Tuple.tuple(randomIdentifier(), randomIdentifier()))
         );
     }
 
@@ -61,7 +62,45 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
 
     @Override
     protected LearnToRankConfig mutateInstance(LearnToRankConfig instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        int i = randomInt(2);
+
+        LearnToRankConfig.Builder builder = LearnToRankConfig.builder(instance);
+
+        switch (i) {
+            case 0 -> {
+                builder.setNumTopFeatureImportanceValues(
+                    randomValueOtherThan(
+                        instance.getNumTopFeatureImportanceValues(),
+                        () -> randomBoolean() && instance.getNumTopFeatureImportanceValues() != 0 ? null : randomIntBetween(0, 10)
+                    )
+                );
+            }
+            case 1 -> {
+                builder.setLearnToRankFeatureExtractorBuilders(
+                    randomValueOtherThan(
+                        instance.getFeatureExtractorBuilders(),
+                        () -> randomBoolean() || instance.getFeatureExtractorBuilders().isEmpty()
+                            ? Stream.generate(QueryExtractorBuilderTests::randomInstance)
+                                .limit(randomIntBetween(1, 5))
+                                .collect(Collectors.toList())
+                            : null
+                    )
+                );
+            }
+            case 2 -> {
+                builder.setParamsDefaults(
+                    randomValueOtherThan(
+                        instance.getParamsDefaults(),
+                        () -> randomBoolean() || instance.getParamsDefaults().isEmpty()
+                            ? randomMap(1, 10, () -> Tuple.tuple(randomIdentifier(), randomIdentifier()))
+                            : null
+                    )
+                );
+            }
+            default -> throw new AssertionError("Unexpected random test case");
+        }
+
+        return builder.build();
     }
 
     @Override
@@ -94,10 +133,11 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
             new TestValueExtractor("foo"),
             new TestValueExtractor("foo")
         );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new LearnToRankConfig(randomBoolean() ? null : randomIntBetween(0, 10), featureExtractorBuilderList)
-        );
+
+        LearnToRankConfig.Builder builder = LearnToRankConfig.builder(randomLearnToRankConfig())
+            .setLearnToRankFeatureExtractorBuilders(featureExtractorBuilderList);
+
+        expectThrows(IllegalArgumentException.class, () -> builder.build());
     }
 
     @Override
@@ -105,7 +145,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 LearnToRankFeatureExtractorBuilder.class,
@@ -119,7 +159,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
         namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(

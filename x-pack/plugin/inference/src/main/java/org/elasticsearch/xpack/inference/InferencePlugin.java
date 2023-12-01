@@ -21,8 +21,10 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.inference.InferenceServiceExtension;
+import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.InferenceServicePlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
@@ -30,10 +32,10 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.inference.action.DeleteInferenceModelAction;
-import org.elasticsearch.xpack.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.inference.action.InferenceAction;
-import org.elasticsearch.xpack.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
@@ -51,14 +53,16 @@ import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
@@ -67,6 +71,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     private final SetOnce<HttpClientManager> httpManager = new SetOnce<>();
     private final SetOnce<HttpRequestSenderFactory> httpFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
+
+    private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
+    private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -116,7 +123,39 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         httpFactory.set(httpRequestSenderFactory);
 
         ModelRegistry modelRegistry = new ModelRegistry(services.client());
-        return List.of(modelRegistry);
+
+        if (inferenceServiceExtensions == null) {
+            inferenceServiceExtensions = new ArrayList<>();
+        }
+        var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
+        inferenceServices.add(this::getInferenceServiceFactories);
+
+        var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
+        var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
+        registry.init(services.client());
+        inferenceServiceRegistry.set(registry);
+
+        return List.of(modelRegistry, registry);
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        inferenceServiceExtensions = loader.loadExtensions(InferenceServiceExtension.class);
+    }
+
+    public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
+        return List.of(
+            ElserMlNodeService::new,
+            context -> new HuggingFaceElserService(httpFactory, serviceComponents),
+            context -> new OpenAiService(httpFactory, serviceComponents)
+        );
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        var entries = new ArrayList<NamedWriteableRegistry.Entry>();
+        entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
+        return entries;
     }
 
     @Override
@@ -179,16 +218,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     @Override
     public String getFeatureDescription() {
         return "Inference plugin for managing inference services and inference";
-    }
-
-    @Override
-    public List<Factory> getInferenceServiceFactories() {
-        return List.of(ElserMlNodeService::new, context -> new HuggingFaceElserService(httpFactory, serviceComponents));
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getInferenceServiceNamedWriteables() {
-        return InferenceNamedWriteablesProvider.getNamedWriteables();
     }
 
     @Override

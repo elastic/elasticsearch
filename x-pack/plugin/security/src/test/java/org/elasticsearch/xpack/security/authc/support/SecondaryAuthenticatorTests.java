@@ -123,7 +123,9 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = ClusterState.EMPTY_STATE;
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD)));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(settings, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL))
+        );
 
         securityContext = new SecurityContext(settings, threadContext);
 

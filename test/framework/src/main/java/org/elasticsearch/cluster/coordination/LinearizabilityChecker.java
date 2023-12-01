@@ -17,6 +17,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,7 +38,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -308,25 +310,38 @@ public class LinearizabilityChecker {
      * Return a visual representation of the history
      */
     public static String visualize(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
+        final var writer = new StringWriter();
+        writeVisualisation(spec, history, missingResponseGenerator, writer);
+        return writer.toString();
+    }
+
+    /**
+     * Write a visual representation of the history to the given writer
+     */
+    public static void writeVisualisation(
+        SequentialSpec spec,
+        History history,
+        Function<Object, Object> missingResponseGenerator,
+        Writer writer
+    ) {
         history = history.clone();
         history.complete(missingResponseGenerator);
         final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
-        StringBuilder builder = new StringBuilder();
-        partitions.forEach(new Consumer<List<Event>>() {
+        try {
             int index = 0;
-
-            @Override
-            public void accept(List<Event> events) {
-                builder.append("Partition ").append(index++).append("\n");
-                builder.append(visualizePartition(events));
+            for (List<Event> partition : partitions) {
+                writer.write("Partition ");
+                writer.write(Integer.toString(index++));
+                writer.append('\n');
+                visualizePartition(partition, writer);
             }
-        });
-
-        return builder.toString();
+        } catch (IOException e) {
+            logger.error("unexpected writeVisualisation failure", e);
+            assert false : e; // not really doing any IO
+        }
     }
 
-    private static String visualizePartition(List<Event> events) {
-        StringBuilder builder = new StringBuilder();
+    private static void visualizePartition(List<Event> events, Writer writer) throws IOException {
         Entry entry = createLinkedEntries(events).next;
         Map<Tuple<EventType, Integer>, Integer> eventToPosition = new HashMap<>();
         for (Event event : events) {
@@ -334,28 +349,30 @@ public class LinearizabilityChecker {
         }
         while (entry != null) {
             if (entry.match != null) {
-                builder.append(visualizeEntry(entry, eventToPosition)).append("\n");
+                visualizeEntry(entry, eventToPosition, writer);
+                writer.append('\n');
             }
             entry = entry.next;
         }
-        return builder.toString();
     }
 
-    private static String visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition) {
+    private static void visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition, Writer writer)
+        throws IOException {
+
         String input = String.valueOf(entry.event.value);
         String output = String.valueOf(entry.match.event.value);
         int id = entry.event.id;
         int beginIndex = eventToPosition.get(Tuple.tuple(EventType.INVOCATION, id));
         int endIndex = eventToPosition.get(Tuple.tuple(EventType.RESPONSE, id));
         input = input.substring(0, Math.min(beginIndex + 25, input.length()));
-        return Strings.padStart(input, beginIndex + 25, ' ')
-            + "   "
-            + Strings.padStart("", endIndex - beginIndex, 'X')
-            + "   "
-            + output
-            + "  ("
-            + entry.event.id
-            + ")";
+        writer.write(Strings.padStart(input, beginIndex + 25, ' '));
+        writer.write("   ");
+        writer.write(Strings.padStart("", endIndex - beginIndex, 'X'));
+        writer.write("   ");
+        writer.write(output);
+        writer.write("  (");
+        writer.write(Integer.toString(entry.event.id));
+        writer.write(")");
     }
 
     /**

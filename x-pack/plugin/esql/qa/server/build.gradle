@@ -19,7 +19,7 @@ subprojects {
   }
 
 
-  if (project.name != 'security') {
+  if (project.name != 'security' && project.name != 'mixed-cluster' ) {
     // The security project just configures its subprojects
     apply plugin: 'elasticsearch.legacy-java-rest-test'
 

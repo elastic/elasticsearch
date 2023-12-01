@@ -61,7 +61,16 @@ public class IndexShardSnapshotStatus {
      * where an abort could have occurred.
      */
     public enum AbortStatus {
+        /**
+         * The shard snapshot got past the stage where an abort or pause could have occurred, and is either complete or on its way to
+         * completion.
+         */
         NO_ABORT,
+
+        /**
+         * The shard snapshot stopped before completion, either because the whole snapshot was aborted or because this node is to be
+         * removed.
+         */
         ABORTED
     }
 

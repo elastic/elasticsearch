@@ -11,6 +11,7 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
 import com.amazonaws.services.s3.model.MultipartUpload;
+import com.amazonaws.services.s3.model.StorageClass;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
@@ -42,6 +43,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -110,13 +112,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         } else {
             // only test different storage classes when running against the default endpoint, i.e. a genuine S3 service
             if (randomBoolean()) {
-                final String storageClass = randomFrom(
-                    "standard",
-                    "reduced_redundancy",
-                    "standard_ia",
-                    "onezone_ia",
-                    "intelligent_tiering"
-                );
+                final String storageClass = randomValueOtherThan(
+                    // Amazon S3 on Outposts is a private-cloud thing so does not work against the real S3, but the docs indicate it behaves
+                    // similarly to the other supported storage classes. We assume the docs are correct and skip it in these tests.
+                    StorageClass.Outposts,
+                    () -> randomFrom(S3BlobStore.SUPPORTED_STORAGE_CLASSES)
+                ).toString().toLowerCase(Locale.ROOT);
                 logger.info("--> using storage_class [{}]", storageClass);
                 settings.put("storage_class", storageClass);
             }

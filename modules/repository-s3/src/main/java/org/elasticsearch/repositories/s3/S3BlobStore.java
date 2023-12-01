@@ -42,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -381,21 +380,28 @@ class S3BlobStore implements BlobStore {
         return storageClass;
     }
 
-    public static StorageClass initStorageClass(String storageClass) {
-        if ((storageClass == null) || storageClass.equals("")) {
+    static final StorageClass[] SUPPORTED_STORAGE_CLASSES = new StorageClass[] {
+        StorageClass.Standard,
+        StorageClass.ReducedRedundancy,
+        StorageClass.StandardInfrequentAccess,
+        StorageClass.OneZoneInfrequentAccess,
+        StorageClass.IntelligentTiering,
+        StorageClass.GlacierInstantRetrieval,
+        StorageClass.Outposts
+        // NB not all storage classes are supported, we list the ones that work in the reference manual and mirror that list here
+    };
+
+    public static StorageClass initStorageClass(String storageClassName) {
+        if (Strings.isNullOrEmpty(storageClassName)) {
             return StorageClass.Standard;
         }
 
-        try {
-            final StorageClass _storageClass = StorageClass.fromValue(storageClass.toUpperCase(Locale.ENGLISH));
-            if (_storageClass.equals(StorageClass.Glacier)) {
-                throw new BlobStoreException("Glacier storage class is not supported");
+        for (final var storageClass : SUPPORTED_STORAGE_CLASSES) {
+            if (storageClass.toString().equalsIgnoreCase(storageClassName)) {
+                return storageClass;
             }
-
-            return _storageClass;
-        } catch (final IllegalArgumentException illegalArgumentException) {
-            throw new BlobStoreException("`" + storageClass + "` is not a valid S3 Storage Class.");
         }
+        throw new BlobStoreException("`" + storageClassName + "` is not a supported S3 Storage Class.");
     }
 
     /**

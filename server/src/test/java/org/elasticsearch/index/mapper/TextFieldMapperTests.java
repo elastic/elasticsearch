@@ -1328,7 +1328,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+    protected boolean shouldUseColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
         String parentName = mapper.mappingLookup().parentField(ft.name());
         if (parentName == null) {
             TextFieldMapper.TextFieldType text = (TextFieldType) ft;

@@ -508,6 +508,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         public BlockLoader.BytesRefBuilder bytesRefs(int expectedCount) {
             return factory.newBytesRefBlockBuilder(expectedCount);
         }
+        @Override
+        public BlockLoader.PointBuilder points(int expectedCount) {
+            return factory.newPointBlockBuilder(expectedCount);
+        }
 
         @Override
         public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {

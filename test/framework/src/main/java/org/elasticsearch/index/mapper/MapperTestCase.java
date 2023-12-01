@@ -1247,7 +1247,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         testBlockLoader(false);
     }
 
-    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+    /**
+     *  Should teh doc-values reader be used instead of reading from source.
+     *  For most ESQL types the preference is to read from doc-values if they exist, so that is the default behaviour here.
+     *  However, for spatial types, the doc-values involve precision loss, and therefor they prefer to read from source.
+     *  And for text fields, doc values are not easily convertable to original values either.
+     */
+    protected boolean shouldUseColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
         return ft.hasDocValues();
     }
 
@@ -1302,7 +1308,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 LeafReaderContext ctx = reader.leaves().get(0);
                 TestBlock block;
                 if (columnReader) {
-                    if (supportsColumnAtATimeReader(mapper, mapper.fieldType(loaderFieldName))) {
+                    if (shouldUseColumnAtATimeReader(mapper, mapper.fieldType(loaderFieldName))) {
                         block = (TestBlock) loader.columnAtATimeReader(ctx)
                             .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(0));
                     } else {

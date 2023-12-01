@@ -365,6 +365,10 @@ public class BlockFactory {
         return new BytesRefBlockBuilder(estimatedSize, bigArrays, this);
     }
 
+    public PointBlock.Builder newPointBlockBuilder(int estimatedSize) {
+        return new PointBlockBuilder(estimatedSize, bigArrays, this);
+    }
+
     public BytesRefBlock newBytesRefArrayBlock(BytesRefArray values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         var b = new BytesRefArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, this);
         adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), true);

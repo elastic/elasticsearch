@@ -25,7 +25,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 //  }
 
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
-    useCluster(baseCluster)
+//    useCluster(baseCluster)
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
   }

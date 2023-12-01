@@ -204,7 +204,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
     public void testCancelMultiSearch() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
-        ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch()
+        ActionFuture<MultiSearchResponse> multiSearchResponse = client().prepareMultiSearch()
             .add(
                 prepareSearch("test").addScriptField(
                     "test_field",
@@ -212,18 +212,24 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                 )
             )
             .execute();
-        awaitForBlock(plugins);
-        cancelSearch(TransportMultiSearchAction.TYPE.name());
-        disableBlocks(plugins);
-        for (MultiSearchResponse.Item item : msearchResponse.actionGet()) {
-            if (item.getFailure() != null) {
-                assertThat(ExceptionsHelper.unwrap(item.getFailure(), TaskCancelledException.class), notNullValue());
-            } else {
-                assertFailures(item.getResponse());
-                for (ShardSearchFailure shardFailure : item.getResponse().getShardFailures()) {
-                    assertThat(ExceptionsHelper.unwrap(shardFailure.getCause(), TaskCancelledException.class), notNullValue());
+        MultiSearchResponse response = null;
+        try {
+            awaitForBlock(plugins);
+            cancelSearch(TransportMultiSearchAction.TYPE.name());
+            disableBlocks(plugins);
+            response = multiSearchResponse.actionGet();
+            for (MultiSearchResponse.Item item : response) {
+                if (item.getFailure() != null) {
+                    assertThat(ExceptionsHelper.unwrap(item.getFailure(), TaskCancelledException.class), notNullValue());
+                } else {
+                    assertFailures(item.getResponse());
+                    for (ShardSearchFailure shardFailure : item.getResponse().getShardFailures()) {
+                        assertThat(ExceptionsHelper.unwrap(shardFailure.getCause(), TaskCancelledException.class), notNullValue());
+                    }
                 }
             }
+        } finally {
+            if (response != null) response.decRef();
         }
     }
 

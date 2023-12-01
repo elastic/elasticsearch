@@ -121,24 +121,23 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             allMultiVal[2 * i] = multiValues[i % numUniqueGeoPoints];
             allMultiVal[2 * i + 1] = multiValues[(i + 1) % numUniqueGeoPoints];
             builders.add(
-                client().prepareIndex(IDX_NAME)
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .array(SINGLE_VALUED_FIELD_NAME, allSingleVal[i].getX(), allSingleVal[i].getY())
-                            .startArray(MULTI_VALUED_FIELD_NAME)
-                            .startArray()
-                            .value(allMultiVal[2 * i].getX())
-                            .value(allMultiVal[2 * i].getY())
-                            .endArray()
-                            .startArray()
-                            .value(allMultiVal[2 * i + 1].getX())
-                            .value(allMultiVal[2 * i + 1].getY())
-                            .endArray()
-                            .endArray()
-                            .field(NUMBER_FIELD_NAME, i)
-                            .field("tag", "tag" + i)
-                            .endObject()
-                    )
+                prepareIndex(IDX_NAME).setSource(
+                    jsonBuilder().startObject()
+                        .array(SINGLE_VALUED_FIELD_NAME, allSingleVal[i].getX(), allSingleVal[i].getY())
+                        .startArray(MULTI_VALUED_FIELD_NAME)
+                        .startArray()
+                        .value(allMultiVal[2 * i].getX())
+                        .value(allMultiVal[2 * i].getY())
+                        .endArray()
+                        .startArray()
+                        .value(allMultiVal[2 * i + 1].getX())
+                        .value(allMultiVal[2 * i + 1].getY())
+                        .endArray()
+                        .endArray()
+                        .field(NUMBER_FIELD_NAME, i)
+                        .field("tag", "tag" + i)
+                        .endObject()
+                )
             );
         }
         singleCentroid = computeCentroid(allSingleVal);
@@ -167,14 +166,13 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             builders.add(
-                client().prepareIndex(DATELINE_IDX_NAME)
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .array(SINGLE_VALUED_FIELD_NAME, geoValues[i].getX(), geoValues[i].getY())
-                            .field(NUMBER_FIELD_NAME, i)
-                            .field("tag", "tag" + i)
-                            .endObject()
-                    )
+                prepareIndex(DATELINE_IDX_NAME).setSource(
+                    jsonBuilder().startObject()
+                        .array(SINGLE_VALUED_FIELD_NAME, geoValues[i].getX(), geoValues[i].getY())
+                        .field(NUMBER_FIELD_NAME, i)
+                        .field("tag", "tag" + i)
+                        .endObject()
+                )
             );
         }
         assertAcked(
@@ -194,31 +192,29 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         for (int i = 0; i < 2000; i++) {
             SpatialPoint singleVal = singleValues[i % numUniqueGeoPoints];
             builders.add(
-                client().prepareIndex(HIGH_CARD_IDX_NAME)
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .array(SINGLE_VALUED_FIELD_NAME, singleVal.getX(), singleVal.getY())
-                            .startArray(MULTI_VALUED_FIELD_NAME)
-                            .startArray()
-                            .value(multiValues[i % numUniqueGeoPoints].getX())
-                            .value(multiValues[i % numUniqueGeoPoints].getY())
-                            .endArray()
-                            .startArray()
-                            .value(multiValues[(i + 1) % numUniqueGeoPoints].getX())
-                            .value(multiValues[(i + 1) % numUniqueGeoPoints].getY())
-                            .endArray()
-                            .endArray()
-                            .field(NUMBER_FIELD_NAME, i)
-                            .field("tag", "tag" + i)
-                            .endObject()
-                    )
+                prepareIndex(HIGH_CARD_IDX_NAME).setSource(
+                    jsonBuilder().startObject()
+                        .array(SINGLE_VALUED_FIELD_NAME, singleVal.getX(), singleVal.getY())
+                        .startArray(MULTI_VALUED_FIELD_NAME)
+                        .startArray()
+                        .value(multiValues[i % numUniqueGeoPoints].getX())
+                        .value(multiValues[i % numUniqueGeoPoints].getY())
+                        .endArray()
+                        .startArray()
+                        .value(multiValues[(i + 1) % numUniqueGeoPoints].getX())
+                        .value(multiValues[(i + 1) % numUniqueGeoPoints].getY())
+                        .endArray()
+                        .endArray()
+                        .field(NUMBER_FIELD_NAME, i)
+                        .field("tag", "tag" + i)
+                        .endObject()
+                )
             );
             updateGeohashBucketsCentroid(singleVal);
         }
 
         builders.add(
-            client().prepareIndex(IDX_ZERO_NAME)
-                .setSource(jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject())
+            prepareIndex(IDX_ZERO_NAME).setSource(jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject())
         );
         assertAcked(prepareCreate(IDX_ZERO_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=" + fieldTypeName()));
 

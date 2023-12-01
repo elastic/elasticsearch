@@ -6,9 +6,6 @@
           "name": "logs"
         },
         "codec": "best_compression",
-        "query": {
-          "default_field": ["message"]
-        },
         "mapping": {
           "ignore_malformed": true
         },
@@ -20,5 +17,6 @@
     "description": "default settings for the logs index template installed by x-pack",
     "managed": true
   },
-  "version": ${xpack.stack.template.version}
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
 }

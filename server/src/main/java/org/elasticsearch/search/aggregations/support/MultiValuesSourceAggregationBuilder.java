@@ -96,7 +96,6 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     /**
      * Read from a stream.
      */
-    @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
         fields = in.readMap(MultiValuesSourceFieldConfig::new);
         userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);

@@ -41,14 +41,13 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref datetimeRef = datetime.eval(page)) {
-      LongBlock datetimeBlock = (LongBlock) datetimeRef.block();
+  public Block eval(Page page) {
+    try (LongBlock datetimeBlock = (LongBlock) datetime.eval(page)) {
       LongVector datetimeVector = datetimeBlock.asVector();
       if (datetimeVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), datetimeBlock));
+        return eval(page.getPositionCount(), datetimeBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), datetimeVector));
+      return eval(page.getPositionCount(), datetimeVector);
     }
   }
 

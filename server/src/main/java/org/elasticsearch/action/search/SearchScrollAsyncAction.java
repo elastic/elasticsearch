@@ -240,12 +240,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
-            final InternalSearchResponse internalResponse = SearchPhaseController.merge(
-                true,
-                queryPhase,
-                fetchResults.asList(),
-                fetchResults::get
-            );
+            final InternalSearchResponse internalResponse = SearchPhaseController.merge(true, queryPhase, fetchResults);
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;

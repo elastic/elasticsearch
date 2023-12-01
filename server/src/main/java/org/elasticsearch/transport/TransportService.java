@@ -38,6 +38,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -358,6 +359,10 @@ public class TransportService extends AbstractLifecycleComponent
                 try {
                     final TransportResponseHandler<?> handler = holderToNotify.handler();
                     final var targetNode = holderToNotify.connection().getNode();
+                    final long requestId = holderToNotify.requestId();
+                    if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
+                        tracerLog.trace("[{}][{}] pruning request for node [{}]", requestId, holderToNotify.action(), targetNode);
+                    }
 
                     assert transport instanceof TcpTransport == false
                         /* other transports (used in tests) may not implement the proper close-connection behaviour. TODO fix this. */
@@ -921,7 +926,7 @@ public class TransportService extends AbstractLifecycleComponent
         Supplier<ThreadContext.StoredContext> storedContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         ContextRestoreResponseHandler<T> responseHandler = new ContextRestoreResponseHandler<>(storedContextSupplier, handler);
         // TODO we can probably fold this entire request ID dance into connection.sendRequest but it will be a bigger refactoring
-        final long requestId = responseHandlers.add(new Transport.ResponseContext<>(responseHandler, connection, action));
+        final long requestId = responseHandlers.add(responseHandler, connection, action).requestId();
         request.setRequestId(requestId);
         final TimeoutHandler timeoutHandler;
         if (options.timeout() != null) {
@@ -950,7 +955,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
-    private void handleInternalSendException(
+    protected void handleInternalSendException(
         String action,
         DiscoveryNode node,
         long requestId,
@@ -985,6 +990,9 @@ public class TransportService extends AbstractLifecycleComponent
 
             @Override
             protected void doRun() {
+                if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+                    tracerLog.trace("[{}][{}] failed to send request to node [{}]", requestId, action, node);
+                }
                 contextToNotify.handler().handleException(sendRequestException);
             }
         });
@@ -1012,7 +1020,7 @@ public class TransportService extends AbstractLifecycleComponent
                 }
             } else {
                 boolean success = false;
-                request.incRef();
+                request.mustIncRef();
                 try {
                     executor.execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                         @Override
@@ -1293,15 +1301,21 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
 
-        // Callback that an exception happened, but on a different thread since we don't
-        // want handlers to worry about stack overflows.
-        // Execute on the current thread in the special case of a node shut down to notify the listener even when the threadpool has
-        // already been shut down.
-        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        // Callback that an exception happened, but on a different thread since we don't want handlers to worry about stack overflows.
+        final var executor = threadPool.generic();
+        assert executor.isShutdown() == false : "connections should all be closed before threadpool shuts down";
+        executor.execute(new AbstractRunnable() {
             @Override
             public void doRun() {
                 for (Transport.ResponseContext<?> holderToNotify : pruned) {
+                    if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
+                        tracerLog.trace(
+                            "[{}][{}] pruning request because connection to node [{}] closed",
+                            holderToNotify.requestId(),
+                            holderToNotify.action(),
+                            connection.getNode()
+                        );
+                    }
                     holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
                 }
             }
@@ -1480,7 +1494,7 @@ public class TransportService extends AbstractLifecycleComponent
                     if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         processResponse(handler, response);
                     } else {
-                        response.incRef();
+                        response.mustIncRef();
                         executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
                             @Override
                             protected void doRun() {
@@ -1673,11 +1687,11 @@ public class TransportService extends AbstractLifecycleComponent
 
     static {
         // Ensure that this property, introduced and immediately deprecated in 7.11, is not used in 8.x
+        @UpdateForV9 // we can remove this whole block in v9
         final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
         if (System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
             throw new IllegalArgumentException("system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] must not be set");
         }
-        assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // we can remove this whole block in v9
     }
 
     private record UnregisterChildTransportResponseHandler<T extends TransportResponse>(

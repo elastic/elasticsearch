@@ -49,7 +49,6 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -542,8 +541,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         verifyResolvability(
             dataStreamName,
-            client().prepareIndex(dataStreamName)
-                .setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            prepareIndex(dataStreamName).setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                 .setOpType(DocWriteRequest.OpType.CREATE),
             false
         );
@@ -586,8 +584,7 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, request).actionGet();
         verifyResolvability(
             "logs-barbaz",
-            client().prepareIndex("logs-barbaz")
-                .setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            prepareIndex("logs-barbaz").setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                 .setOpType(DocWriteRequest.OpType.CREATE),
             false
         );
@@ -703,13 +700,11 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testDataSteamAliasWithFilter() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         String dataStreamName = "logs-foobar";
-        client().prepareIndex(dataStreamName)
-            .setId("1")
+        prepareIndex(dataStreamName).setId("1")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
-        client().prepareIndex(dataStreamName)
-            .setId("2")
+        prepareIndex(dataStreamName).setId("2")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
@@ -778,13 +773,11 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testSearchFilteredAndUnfilteredAlias() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         String dataStreamName = "logs-foobar";
-        client().prepareIndex(dataStreamName)
-            .setId("1")
+        prepareIndex(dataStreamName).setId("1")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
-        client().prepareIndex(dataStreamName)
-            .setId("2")
+        prepareIndex(dataStreamName).setId("2")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
@@ -1795,7 +1788,9 @@ public class DataStreamIT extends ESIntegTestCase {
                         original.isSystem(),
                         original.isAllowCustomRouting(),
                         original.getIndexMode(),
-                        original.getLifecycle()
+                        original.getLifecycle(),
+                        original.isFailureStore(),
+                        original.getFailureIndices()
                     );
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
@@ -1849,11 +1844,12 @@ public class DataStreamIT extends ESIntegTestCase {
         if (fail) {
             String expectedErrorMessage = "no such index [" + dataStream + "]";
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+                assertResponse((MultiSearchRequestBuilder) requestBuilder, multiSearchResponse -> {
+                    assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                    assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
+                    assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+                });
             } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
                 Exception e = expectThrows(IndexNotFoundException.class, requestBuilder::get);
                 assertThat(e.getMessage(), equalTo(expectedErrorMessage));
@@ -1865,8 +1861,10 @@ public class DataStreamIT extends ESIntegTestCase {
             if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
                 assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
+                assertResponse(
+                    (MultiSearchRequestBuilder) requestBuilder,
+                    multiSearchResponse -> assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false))
+                );
             } else {
                 requestBuilder.get();
             }

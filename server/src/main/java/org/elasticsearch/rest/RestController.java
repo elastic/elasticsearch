@@ -24,6 +24,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -820,12 +821,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static class EncodedLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
 
         private final ChunkedRestResponseBody delegate;
-        private final MethodHandlers methodHandlers;
+        private final RunOnce onCompletion;
         private long encodedLength = 0;
 
         private EncodedLengthTrackingChunkedRestResponseBody(ChunkedRestResponseBody delegate, MethodHandlers methodHandlers) {
             this.delegate = delegate;
-            this.methodHandlers = methodHandlers;
+            this.onCompletion = new RunOnce(() -> methodHandlers.addResponseStats(encodedLength));
         }
 
         @Override
@@ -837,6 +838,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
             encodedLength += bytesReference.length();
+            if (isDone()) {
+                onCompletion.run();
+            }
             return bytesReference;
         }
 
@@ -848,7 +852,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public void close() {
             delegate.close();
-            methodHandlers.addResponseStats(encodedLength);
+            // the client might close the connection before we send the last chunk, in which case we won't have recorded the response in the
+            // stats yet, so we do it now:
+            onCompletion.run();
         }
     }
 

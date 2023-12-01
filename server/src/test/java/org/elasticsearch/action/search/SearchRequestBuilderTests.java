@@ -20,7 +20,7 @@ public class SearchRequestBuilderTests extends ESTestCase {
 
     private SearchRequestBuilder makeBuilder() {
         ElasticsearchClient client = Mockito.mock(ElasticsearchClient.class);
-        return new SearchRequestBuilder(client, TransportSearchAction.TYPE);
+        return new SearchRequestBuilder(client);
     }
 
     public void testEmptySourceToString() {

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -134,6 +135,13 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
             return bools.apply(leftEval, rightEval);
         }
         if (leftType == DataTypes.DATETIME) {
+            return longs.apply(leftEval, rightEval);
+        }
+        if (leftType == EsqlDataTypes.GEO_POINT) {
+            return longs.apply(leftEval, rightEval);
+        }
+        // TODO: Perhaps neithger geo_point, not cartesian_point should support comparisons?
+        if (leftType == EsqlDataTypes.CARTESIAN_POINT) {
             return longs.apply(leftEval, rightEval);
         }
         throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");

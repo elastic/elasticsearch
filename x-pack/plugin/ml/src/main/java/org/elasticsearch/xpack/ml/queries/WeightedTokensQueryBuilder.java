@@ -29,9 +29,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.TOKENS_THRESHOLD_FIELD;
 
@@ -40,14 +40,14 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
 
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");
     private final String fieldName;
-    private final List<WeightedToken> tokens;
+    private final Set<WeightedToken> tokens;
     private final WeightedTokensThreshold threshold;
 
-    public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
+    public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens) {
         this(fieldName, tokens, null);
     }
 
-    public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable WeightedTokensThreshold threshold) {
+    public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens, @Nullable WeightedTokensThreshold threshold) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
         if (tokens.isEmpty()) {
@@ -59,7 +59,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     public WeightedTokensQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.tokens = in.readCollectionAsList(WeightedToken::new);
+        this.tokens = in.readCollectionAsSet(WeightedToken::new);
         this.threshold = in.readOptionalWriteable(WeightedTokensThreshold::new);
     }
 
@@ -83,7 +83,11 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(TOKENS_FIELD.getPreferredName(), tokens);
+        builder.startObject(TOKENS_FIELD.getPreferredName());
+        for (var token : tokens) {
+            token.toXContent(builder, params);
+        }
+        builder.endObject();
         if (threshold != null) {
             threshold.toXContent(builder, params);
         }
@@ -190,7 +194,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     public static WeightedTokensQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         String fieldName = null;
-        List<WeightedToken> tokens = new ArrayList<>();
+        Set<WeightedToken> tokens = new HashSet<>();
         WeightedTokensThreshold threshold = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;

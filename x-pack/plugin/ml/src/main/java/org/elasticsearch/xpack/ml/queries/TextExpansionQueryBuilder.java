@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -202,7 +203,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         QueryRewriteContext queryRewriteContext
     ) throws IOException {
         if (threshold != null) {
-            return new WeightedTokensQueryBuilder(fieldName, textExpansionResults.getWeightedTokens(), threshold);
+            return new WeightedTokensQueryBuilder(fieldName, new HashSet<>(textExpansionResults.getWeightedTokens()), threshold);
         }
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {

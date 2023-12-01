@@ -38,8 +38,10 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -50,7 +52,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     private static final int NUM_TOKENS = 10;
 
-    private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(
+    private static final Set<WeightedToken> WEIGHTED_TOKENS = Set.of(
         new TextExpansionResults.WeightedToken("foo", .42f),
         new TextExpansionResults.WeightedToken("bar", .05f),
         new TextExpansionResults.WeightedToken("baz", .74f)
@@ -93,7 +95,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         // asserts that 2 rewritten queries are the same
         var response = InferModelAction.Response.builder()
             .setId(request.getId())
-            .addInferenceResults(List.of(new TextExpansionResults("foo", WEIGHTED_TOKENS, randomBoolean())))
+            .addInferenceResults(List.of(new TextExpansionResults("foo", WEIGHTED_TOKENS.stream().toList(), randomBoolean())))
             .build();
         @SuppressWarnings("unchecked")  // We matched the method above.
         ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) args[2];
@@ -147,11 +149,11 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testIllegalValues() {
-        List<WeightedToken> weightedTokenList = List.of(new WeightedToken("foo", 1.0f));
+        Set<WeightedToken> weightedTokens = Set.of(new WeightedToken("foo", 1.0f));
         {
             NullPointerException e = expectThrows(
                 NullPointerException.class,
-                () -> new WeightedTokensQueryBuilder(null, weightedTokenList, null)
+                () -> new WeightedTokensQueryBuilder(null, weightedTokens, null)
             );
             assertEquals("[weighted_tokens] requires a fieldName", e.getMessage());
         }
@@ -165,21 +167,21 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", List.of(), null)
+                () -> new WeightedTokensQueryBuilder("field name", Set.of(), null)
             );
             assertEquals("[weighted_tokens] requires at least one token", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", weightedTokenList, new WeightedTokensThreshold(-1f, 0.0f, false))
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new WeightedTokensThreshold(-1f, 0.0f, false))
             );
             assertEquals("[ratio_threshold] must be greater or equal to 1, got -1.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", weightedTokenList, new WeightedTokensThreshold(5f, 5f, false))
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new WeightedTokensThreshold(5f, 5f, false))
             );
             assertEquals("[weight_threshold] must be between 0 and 1", e.getMessage());
         }
@@ -213,5 +215,10 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                  }
               }
             }""", query);
+    }
+
+    @Override
+    protected String[] shuffleProtectedFields() {
+        return new String[] { TOKENS_FIELD.getPreferredName() };
     }
 }

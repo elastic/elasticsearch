@@ -59,6 +59,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
+    @SuppressWarnings("this-escape")
     protected HandledTransportAction(
         String actionName,
         boolean canTripCircuitBreaker,

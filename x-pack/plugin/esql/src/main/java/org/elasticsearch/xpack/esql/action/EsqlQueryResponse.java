@@ -40,7 +40,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -287,7 +287,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
      */
     private static Page valuesToPage(List<String> dataTypes, List<List<Object>> values) {
         List<Block.Builder> results = dataTypes.stream()
-            .map(c -> LocalExecutionPlanner.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
+            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
             .toList();
 
         for (List<Object> row : values) {

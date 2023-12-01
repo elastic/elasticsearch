@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,7 +33,11 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     static final String API_KEY = "api_key";
 
-    public static DefaultSecretSettings fromMap(Map<String, Object> map) {
+    public static DefaultSecretSettings fromMap(@Nullable Map<String, Object> map) {
+        if (map == null) {
+            return null;
+        }
+
         ValidationException validationException = new ValidationException();
         SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
 

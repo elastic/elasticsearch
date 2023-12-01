@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parseSecretsOrNull;
-
 public class OpenAiEmbeddingsModel extends OpenAiModel {
     public OpenAiEmbeddingsModel(
         String modelId,
@@ -36,7 +34,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             service,
             OpenAiServiceSettings.fromMap(serviceSettings),
             OpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
-            parseSecretsOrNull(secrets, DefaultSecretSettings::fromMap)
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 

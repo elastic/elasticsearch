@@ -10,17 +10,14 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.rest.RestStatus;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -189,16 +186,5 @@ public class ServiceUtils {
             ),
             RestStatus.INTERNAL_SERVER_ERROR
         );
-    }
-
-    public static <T extends SecretSettings> T parseSecretsOrNull(
-        @Nullable Map<String, Object> secrets,
-        Function<Map<String, Object>, T> parseFunction
-    ) {
-        if (secrets == null) {
-            return null;
-        }
-
-        return parseFunction.apply(secrets);
     }
 }

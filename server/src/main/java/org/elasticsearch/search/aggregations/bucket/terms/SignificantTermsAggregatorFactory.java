@@ -9,9 +9,13 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
@@ -23,6 +27,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -32,6 +37,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
@@ -81,7 +88,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if (executionHint != null) {
                 execution = ExecutionMode.fromString(executionHint, deprecationLogger);
             }
-            if (valuesSourceConfig.hasOrdinals() == false) {
+            if (valuesSourceConfig.hasOrdinals() == false || matchNoDocs(context, parent)) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
@@ -113,6 +120,35 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 metadata
             );
         };
+    }
+
+    /**
+     * Whether the aggregation will execute. If the main query matches no documents and parent aggregation isn't a global or terms
+     * aggregation with min_doc_count = 0, the the aggregator will not really execute. In those cases it doesn't make sense to load
+     * global ordinals.
+     * <p>
+     * Some searches that will never match can still fall through and we endup running query that will produce no results.
+     * However even in that case we sometimes do expensive things like loading global ordinals. This method should prevent this.
+     * Note that if {@link org.elasticsearch.search.SearchService#executeQueryPhase(ShardSearchRequest, SearchShardTask, ActionListener)}
+     * always do a can match then we don't need this code here.
+     */
+    public static boolean matchNoDocs(AggregationContext context, Aggregator parent) {
+        if (context.query() instanceof MatchNoDocsQuery) {
+            while (parent != null) {
+                if (parent instanceof GlobalAggregator) {
+                    return false;
+                }
+                if (parent instanceof TermsAggregator termsAggregator) {
+                    if (termsAggregator.bucketCountThresholds.getMinDocCount() == 0) {
+                        return false;
+                    }
+                }
+                parent = parent.parent();
+            }
+            return true;
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -296,7 +332,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {
-
             @Override
             Aggregator create(
                 String name,
@@ -335,7 +370,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
-
             @Override
             Aggregator create(
                 String name,

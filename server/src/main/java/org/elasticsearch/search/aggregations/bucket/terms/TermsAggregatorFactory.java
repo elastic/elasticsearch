@@ -45,6 +45,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongPredicate;
 
+import static org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory.matchNoDocs;
+
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
@@ -107,7 +109,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 execution = ExecutionMode.fromString(executionHint);
             }
             // In some cases, using ordinals is just not supported: override it
-            if (valuesSource.hasOrdinals() == false) {
+            if (valuesSource.hasOrdinals() == false && matchNoDocs(context, parent)) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {

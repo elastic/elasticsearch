@@ -140,10 +140,18 @@ public class BlockBenchmark {
                     IntBlock block = (IntBlock) blocks[blockIndex];
                     long sum = 0;
 
-                    for (int i = 0; i < totalPositions; i++) {
-                        sum += block.getInt(i);
+                    int positionCount = block.getPositionCount();
+                    for (int position = 0; position < positionCount; position++) {
+                        int start = block.getFirstValueIndex(position);
+                        int end = start + block.getValueCount(position);
+                        for (int i = start; i < end; i++) {
+                            sum += block.getInt(i);
+                        }
                     }
-                    assert sum == checkSums[blockIndex];
+
+                    if (sum != checkSums[blockIndex]) {
+                        throw new AssertionError("wrong checksum");
+                    }
                 }
             }
             case "long" -> {
@@ -151,10 +159,18 @@ public class BlockBenchmark {
                     LongBlock block = (LongBlock) blocks[blockIndex];
                     long sum = 0;
 
-                    for (int i = 0; i < totalPositions; i++) {
-                        sum += block.getLong(i);
+                    int positionCount = block.getPositionCount();
+                    for (int position = 0; position < positionCount; position++) {
+                        int start = block.getFirstValueIndex(position);
+                        int end = start + block.getValueCount(position);
+                        for (int i = start; i < end; i++) {
+                            sum += block.getLong(i);
+                        }
                     }
-                    assert sum == checkSums[blockIndex];
+
+                    if (sum != checkSums[blockIndex]) {
+                        throw new AssertionError("wrong checksum");
+                    }
                 }
             }
             default -> {

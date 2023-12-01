@@ -34,7 +34,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterInfoTuple;
+import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterAliasWithCredentials;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
@@ -73,6 +73,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -658,10 +659,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
-    private Function<Connection, RemoteClusterInfoTuple> mockRemoteClusterCredentialsResolver(String remoteClusterAlias) {
-        return connection -> new RemoteClusterInfoTuple(
-            remoteClusterAlias,
-            new SecureString(randomAlphaOfLengthBetween(10, 42).toCharArray())
+    private Function<Connection, Optional<RemoteClusterAliasWithCredentials>> mockRemoteClusterCredentialsResolver(
+        String remoteClusterAlias
+    ) {
+        return connection -> Optional.of(
+            new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(randomAlphaOfLengthBetween(10, 42).toCharArray()))
         );
     }
 
@@ -748,7 +750,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             ),
             mock(CrossClusterAccessAuthenticationService.class),
             mockLicenseState,
-            ignored -> new RemoteClusterInfoTuple(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+            ignored -> Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -885,10 +887,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             mock(CrossClusterAccessAuthenticationService.class),
             mockLicenseState,
             ignored -> notRemoteConnection
-                ? new RemoteClusterInfoTuple(null, null)
+                ? Optional.empty()
                 : (finalNoCredential
-                    ? new RemoteClusterInfoTuple(remoteClusterAlias, null)
-                    : new RemoteClusterInfoTuple(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
+                    ? Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, null))
+                    : Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))))
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -943,7 +945,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             ),
             mock(CrossClusterAccessAuthenticationService.class),
             mockLicenseState,
-            ignored -> new RemoteClusterInfoTuple(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+            ignored -> Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
         );
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
@@ -1042,7 +1044,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             ),
             mock(CrossClusterAccessAuthenticationService.class),
             mockLicenseState,
-            ignored -> new RemoteClusterInfoTuple(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+            ignored -> Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
         );
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {

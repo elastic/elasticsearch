@@ -184,14 +184,10 @@ public class RemoteConnectionManager implements ConnectionManager {
      * @return a cluster alias if the connection target a node in the remote cluster, otherwise an empty result
      */
     public static Optional<String> resolveRemoteClusterAlias(Transport.Connection connection) {
-        Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
-        if (unwrapped instanceof InternalRemoteConnection remoteConnection) {
-            return Optional.of(remoteConnection.getClusterAlias());
-        }
-        return Optional.empty();
+        return resolveRemoteClusterAliasWithCredentials(connection).map(RemoteClusterAliasWithCredentials::clusterAlias);
     }
 
-    public record RemoteClusterInfoTuple(String clusterAlias, SecureString credentials) {
+    public record RemoteClusterAliasWithCredentials(String clusterAlias, @Nullable SecureString credentials) {
         @Override
         public String toString() {
             return "RemoteClusterInfoTuple{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
@@ -204,12 +200,14 @@ public class RemoteConnectionManager implements ConnectionManager {
      *
      * @param connection the transport connection for which to resolve a remote cluster alias
      */
-    public static RemoteClusterInfoTuple resolveRemoteClusterInfoTuple(Transport.Connection connection) {
+    public static Optional<RemoteClusterAliasWithCredentials> resolveRemoteClusterAliasWithCredentials(Transport.Connection connection) {
         Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
         if (unwrapped instanceof InternalRemoteConnection remoteConnection) {
-            return new RemoteClusterInfoTuple(remoteConnection.getClusterAlias(), remoteConnection.getClusterCredentials());
+            return Optional.of(
+                new RemoteClusterAliasWithCredentials(remoteConnection.getClusterAlias(), remoteConnection.getClusterCredentials())
+            );
         }
-        return new RemoteClusterInfoTuple(null, null);
+        return Optional.empty();
     }
 
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
@@ -327,8 +325,8 @@ public class RemoteConnectionManager implements ConnectionManager {
             assert false == connection instanceof InternalRemoteConnection : "should not double wrap";
             assert false == connection instanceof ProxyConnection
                 : "proxy connection should wrap internal remote connection, not the other way around";
-            this.clusterAlias = Objects.requireNonNull(clusterAlias);
             this.connection = Objects.requireNonNull(connection);
+            this.clusterAlias = Objects.requireNonNull(clusterAlias);
             this.clusterCredentials = clusterCredentials;
         }
 

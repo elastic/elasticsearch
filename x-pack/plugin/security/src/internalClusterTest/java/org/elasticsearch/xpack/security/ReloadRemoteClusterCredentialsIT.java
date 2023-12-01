@@ -116,7 +116,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    public void testReloadRemoteClusterCredentialsInFirstTimeSetup() throws Exception {
+    public void testReloadRemoteClusterCredentials() throws Exception {
         final String credentials = randomAlphaOfLength(42);
         writeCredentialsToKeyStore(credentials);
         final RemoteClusterCredentialsManager clusterCredentialsManager = getInstanceFromNode(TransportService.class)
@@ -140,12 +140,31 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             // Run search to trigger header capturing on the receiving side
             client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
 
-            assertThat(capturedHeaders, is(not(empty())));
-            for (CapturedHeaders actualHeaders : capturedHeaders) {
-                assertContainsCrossClusterAccessCredentialsHeader(credentials, actualHeaders);
-            }
-        }
+            assertHeadersContainCredentialsAndClear(credentials, capturedHeaders);
 
+            // Update credentials and ensure they are used
+            final String updatedCredentials = randomAlphaOfLength(41);
+            writeCredentialsToKeyStore(updatedCredentials);
+            reloadSecureSettings();
+            configureRemoteCluster(remoteAddress);
+
+            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
+
+            assertHeadersContainCredentialsAndClear(updatedCredentials, capturedHeaders);
+        }
+    }
+
+    private void assertHeadersContainCredentialsAndClear(String credentials, BlockingQueue<CapturedHeaders> capturedHeaders) {
+        assertThat(capturedHeaders, is(not(empty())));
+        for (CapturedHeaders actualHeaders : capturedHeaders) {
+            assertThat(actualHeaders.headers(), hasKey(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
+            assertThat(
+                actualHeaders.headers().get(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY),
+                equalTo(ApiKeyService.withApiKeyPrefix(credentials))
+            );
+        }
+        capturedHeaders.clear();
+        assertThat(capturedHeaders, is(empty()));
     }
 
     private void configureRemoteCluster(TransportAddress remoteAddress) throws InterruptedException, ExecutionException {
@@ -160,14 +179,6 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
         keyStoreWrapper.setString("cluster.remote." + CLUSTER_ALIAS + ".credentials", credentials.toCharArray());
         keyStoreWrapper.save(environment.configFile(), new char[0], false);
-    }
-
-    private void assertContainsCrossClusterAccessCredentialsHeader(String encodedCredential, CapturedHeaders actual) {
-        assertThat(actual.headers(), hasKey(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
-        assertThat(
-            actual.headers().get(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY),
-            equalTo(ApiKeyService.withApiKeyPrefix(encodedCredential))
-        );
     }
 
     public static MockTransportService startTransport(

@@ -12,10 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -57,6 +57,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -161,6 +162,7 @@ import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -571,6 +573,41 @@ class NodeConstruction {
         return registry;
     }
 
+    private static class RepositoryServiceReference implements Supplier<RepositoriesService>, Function<String, Repository> {
+        private RepositoriesService service;
+
+        private void set(RepositoriesService service) {
+            if (this.service != null) throw new IllegalStateException("RepositoriesService has already been set");
+            this.service = Objects.requireNonNull(service);
+        }
+
+        @Override
+        public RepositoriesService get() {
+            if (service == null) throw new IllegalStateException("RepositoriesService hasn't been set yet");
+            return service;
+        }
+
+        @Override
+        public Repository apply(String s) {
+            return get().repository(s);
+        }
+    }
+
+    private static class RerouteServiceReference implements RerouteService {
+        private RerouteService service;
+
+        private void set(RerouteService service) {
+            if (this.service != null) throw new IllegalStateException("RerouteService has already been set");
+            this.service = Objects.requireNonNull(service);
+        }
+
+        @Override
+        public void reroute(String reason, Priority priority, ActionListener<Void> listener) {
+            if (service == null) throw new IllegalStateException("RerouteService hasn't been set yet");
+            service.reroute(reason, priority, listener);
+        }
+    }
+
     private void construct(
         ThreadPool threadPool,
         SettingsModule settingsModule,
@@ -616,8 +653,8 @@ class NodeConstruction {
 
         SystemIndices systemIndices = createSystemIndices(settings);
 
-        final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
-        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
+        RepositoryServiceReference repositoriesServiceReference = new RepositoryServiceReference();
+        RerouteServiceReference rerouteServiceReference = new RerouteServiceReference();
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
             settings,
@@ -628,8 +665,8 @@ class NodeConstruction {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             settings,
             clusterService,
-            repositoriesServiceReference::get,
-            rerouteServiceReference::get
+            repositoriesServiceReference,
+            rerouteServiceReference
         );
         final ClusterModule clusterModule = new ClusterModule(
             settings,
@@ -777,7 +814,7 @@ class NodeConstruction {
             nodeEnvironment,
             namedWriteableRegistry,
             clusterModule.getIndexNameExpressionResolver(),
-            repositoriesServiceReference::get,
+            repositoriesServiceReference,
             telemetryProvider,
             clusterModule.getAllocationService(),
             indicesService,

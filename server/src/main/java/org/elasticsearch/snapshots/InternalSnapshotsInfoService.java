@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -37,7 +36,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Queue;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -59,8 +58,8 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
     );
 
     private final ThreadPool threadPool;
-    private final Supplier<RepositoriesService> repositoriesService;
-    private final Supplier<RerouteService> rerouteService;
+    private final Function<String, Repository> resolveRepository;
+    private final RerouteService rerouteService;
 
     /** contains the snapshot shards for which the size is known **/
     // volatile for the unlocked access in numberOfKnownSnapshotShardSizes()
@@ -87,12 +86,12 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
     public InternalSnapshotsInfoService(
         final Settings settings,
         final ClusterService clusterService,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier,
-        final Supplier<RerouteService> rerouteServiceSupplier
+        final Function<String, Repository> resolveRepository,
+        final RerouteService rerouteService
     ) {
         this.threadPool = clusterService.getClusterApplierService().threadPool();
-        this.repositoriesService = repositoriesServiceSupplier;
-        this.rerouteService = rerouteServiceSupplier;
+        this.resolveRepository = resolveRepository;
+        this.rerouteService = rerouteService;
         this.knownSnapshotShards = ImmutableOpenMap.of();
         this.unknownSnapshotShards = new LinkedHashSet<>();
         this.failedSnapshotShards = new LinkedHashSet<>();
@@ -210,9 +209,7 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
 
         @Override
         protected void doRun() throws Exception {
-            final RepositoriesService repositories = repositoriesService.get();
-            assert repositories != null;
-            final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
+            final Repository repository = resolveRepository.apply(snapshotShard.snapshot.getRepository());
 
             logger.debug("fetching snapshot shard size for {}", snapshotShard);
             final long snapshotShardSize = repository.getShardSnapshotStatus(
@@ -239,7 +236,7 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
                 assert invariant();
             }
             if (updated) {
-                rerouteService.get().reroute("snapshot shard size updated", Priority.HIGH, REROUTE_LISTENER);
+                rerouteService.reroute("snapshot shard size updated", Priority.HIGH, REROUTE_LISTENER);
             }
         }
 
@@ -259,7 +256,7 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
                 assert invariant();
             }
             if (failed) {
-                rerouteService.get().reroute("snapshot shard size failed", Priority.HIGH, REROUTE_LISTENER);
+                rerouteService.reroute("snapshot shard size failed", Priority.HIGH, REROUTE_LISTENER);
             }
         }
 

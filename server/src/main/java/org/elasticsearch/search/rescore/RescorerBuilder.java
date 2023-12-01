@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * The abstract base builder for instances of {@link RescorerBuilder}.
@@ -67,7 +68,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         return windowSize;
     }
 
-    public static RescorerBuilder<?> parseFromXContent(XContentParser parser) throws IOException {
+    public static RescorerBuilder<?> parseFromXContent(XContentParser parser, Consumer<String> rescorerNameConsumer) throws IOException {
         String fieldName = null;
         RescorerBuilder<?> rescorer = null;
         Integer windowSize = null;
@@ -83,6 +84,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
+                rescorerNameConsumer.accept(fieldName);
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
             }

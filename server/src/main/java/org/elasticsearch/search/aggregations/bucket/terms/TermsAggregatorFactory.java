@@ -109,7 +109,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 execution = ExecutionMode.fromString(executionHint);
             }
             // In some cases, using ordinals is just not supported: override it
-            if (valuesSource.hasOrdinals() == false && matchNoDocs(context, parent)) {
+            if (valuesSource.hasOrdinals() == false || matchNoDocs(context, parent)) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {

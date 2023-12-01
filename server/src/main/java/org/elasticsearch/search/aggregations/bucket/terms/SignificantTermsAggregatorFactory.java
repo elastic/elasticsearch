@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
@@ -37,7 +36,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xcontent.ParseField;
 

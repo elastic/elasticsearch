@@ -31,6 +31,7 @@ import org.elasticsearch.core.UpdateForV9;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
 
 /**
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
@@ -128,28 +129,16 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
         for (ShardRouting routing : node.initializing()) {
-            if (routing.relocatingNodeId() == null && metadata.getIndexSafe(routing.index()).isSearchableSnapshot() == false) {
-                // in practice the only initializing-but-not-relocating non-searchable-snapshot shards with a nonzero expected shard size
-                // will be ones created
-                // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
-                // any additional space and can be ignored here
-                continue;
-            }
-            if (reservedSpace.containsShardId(routing.shardId())) {
-                continue;
-            }
-            final String actualPath = clusterInfo.getDataPath(routing);
-            // if we don't yet know the actual path of the incoming shard then conservatively assume it's going to the path with the least
-            // free space
-            if (actualPath == null || actualPath.equals(dataPath)) {
-                totalSize += getExpectedShardSize(
-                    routing,
-                    Math.max(routing.getExpectedShardSize(), 0L),
-                    clusterInfo,
-                    null,
-                    metadata,
-                    routingTable
-                );
+            if (shouldReserveSpaceForInitializingShard(routing, metadata) && reservedSpace.containsShardId(routing.shardId()) == false) {
+                final String actualPath = clusterInfo.getDataPath(routing);
+                // if we don't yet know the actual path of the incoming shard then conservatively assume
+                // it's going to the path with the least free space
+                if (actualPath == null || actualPath.equals(dataPath)) {
+                    totalSize += Math.max(
+                        routing.getExpectedShardSize(),
+                        getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable)
+                    );
+                }
             }
         }
 

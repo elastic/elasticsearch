@@ -20,15 +20,26 @@ import java.util.Set;
 
 public class ExpectedShardSizeEstimator {
 
-    public static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
+    public static boolean shouldReserveSpaceForInitializingShard(ShardRouting shard, RoutingAllocation allocation) {
+        return shouldReserveSpaceForInitializingShard(shard, allocation.metadata());
+    }
+
+    public static long getExpectedShardSize(ShardRouting shard, long defaultSize, RoutingAllocation allocation) {
         return getExpectedShardSize(
-            shardRouting,
+            shard,
             defaultSize,
             allocation.clusterInfo(),
             allocation.snapshotShardSizeInfo(),
             allocation.metadata(),
             allocation.routingTable()
         );
+    }
+
+    public static boolean shouldReserveSpaceForInitializingShard(ShardRouting shard, Metadata metadata) {
+        assert shard.initializing() : "Expected initializing shard, got: " + shard;
+        return shard.recoverySource().getType() == RecoverySource.Type.PEER
+            || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            || metadata.getIndexSafe(shard.index()).isSearchableSnapshot();
     }
 
     /**
@@ -48,7 +59,7 @@ public class ExpectedShardSizeEstimator {
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
-        } else if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+        } else if (shard.primary() && shard.active() == false && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else {
             return clusterInfo.getShardSize(shard, defaultValue);

@@ -30,6 +30,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -37,10 +38,10 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
     private final long defaultValue = randomLongBetween(-1, 0);
 
-    public void testShouldFallbackToDefaultValue() {
+    public void testShouldFallbackToDefaultExpectedShardSize() {
 
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
-        var shard = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.INITIALIZING);
+        var shard = newShardRouting("my-index", 0, randomIdentifier(), randomIdentifier(), true, ShardRoutingState.INITIALIZING);
 
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY);
 
@@ -51,12 +52,19 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
         var shardSize = randomLongBetween(100, 1000);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
-        var shard = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.INITIALIZING);
+        var shard = newShardRouting(
+            new ShardId(state.metadata().index("my-index").getIndex(), 0),
+            randomIdentifier(),
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.PeerRecoverySource.INSTANCE
+        );
 
         var clusterInfo = createClusterInfo(shard, shardSize);
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(shardSize));
+        assertTrue("Should reserve space for relocating shard", shouldReserveSpaceForInitializingShard(shard, allocation));
     }
 
     public void testShouldReadExpectedSizeWhenInitializingFromSnapshot() {
@@ -69,9 +77,9 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
         var shard = newShardRouting(
             new ShardId("my-index", "_na_", 0),
-            null,
+            randomIdentifier(),
             true,
-            ShardRoutingState.UNASSIGNED,
+            ShardRoutingState.INITIALIZING,
             new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)
         );
 
@@ -81,6 +89,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, snapshotShardSizeInfo);
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(snapshotShardSize));
+        assertTrue("Should reserve space for snapshot restore", shouldReserveSpaceForInitializingShard(shard, allocation));
     }
 
     public void testShouldReadSizeFromClonedShard() {
@@ -114,6 +123,10 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
 
         assertThat(getExpectedShardSize(target, defaultValue, allocation), equalTo(sourceShardSize));
+        assertFalse(
+            "Should NOT reserve space when using fs hardlink for clone/shrink/split",
+            shouldReserveSpaceForInitializingShard(target, state.metadata())
+        );
     }
 
     private static RoutingAllocation createRoutingAllocation(

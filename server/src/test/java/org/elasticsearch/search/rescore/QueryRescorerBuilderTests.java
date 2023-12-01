@@ -119,11 +119,11 @@ public class QueryRescorerBuilderTests extends ESTestCase {
 
             try (XContentParser parser = createParser(shuffled)) {
                 parser.nextToken();
-                RescorerBuilder<?> secondRescoreBuilder = RescorerBuilder.parseFromXContent(parser, searchUsage::trackQueryUsage);
+                RescorerBuilder<?> secondRescoreBuilder = RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage);
                 assertNotSame(rescoreBuilder, secondRescoreBuilder);
                 assertEquals(rescoreBuilder, secondRescoreBuilder);
                 assertEquals(rescoreBuilder.hashCode(), secondRescoreBuilder.hashCode());
-                assertEquals(searchUsage.getQueryUsage(), Set.of("rescore_query"));
+                assertEquals(searchUsage.getRescorerUsage(), Set.of("query"));
             }
         }
     }
@@ -257,9 +257,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(NamedObjectNotFoundException.class, () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackQueryUsage));
+            Exception e = expectThrows(
+                NamedObjectNotFoundException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("[3:27] unknown field [bad_rescorer_name]", e.getMessage());
-            assertThat(searchUsage.getQueryUsage(), empty());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
         rescoreElement = """
             {
@@ -267,9 +270,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackQueryUsage));
+            Exception e = expectThrows(
+                ParsingException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("rescore doesn't support [bad_fieldName]", e.getMessage());
-            assertThat(searchUsage.getQueryUsage(), empty());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = """
@@ -279,16 +285,22 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackQueryUsage));
+            Exception e = expectThrows(
+                ParsingException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("unexpected token [START_ARRAY] after [query]", e.getMessage());
-            assertThat(searchUsage.getQueryUsage(), empty());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = "{ }";
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackQueryUsage));
+            Exception e = expectThrows(
+                ParsingException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("missing rescore type", e.getMessage());
-            assertThat(searchUsage.getQueryUsage(), empty());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = """
@@ -298,9 +310,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            XContentParseException e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackQueryUsage));
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertEquals("[3:17] [query] unknown field [bad_fieldname]", e.getMessage());
-            assertThat(searchUsage.getQueryUsage(), empty());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = """
@@ -310,9 +325,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            Exception e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackQueryUsage));
+            Exception e = expectThrows(
+                XContentParseException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
             assertThat(e.getMessage(), containsString("[query] failed to parse field [rescore_query]"));
-            assertThat(searchUsage.getQueryUsage(), empty());
+            assertThat(searchUsage.getRescorerUsage(), empty());
         }
 
         rescoreElement = """
@@ -322,7 +340,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {
-            RescorerBuilder.parseFromXContent(parser, searchUsage::trackQueryUsage);
+            RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage);
         }
     }
 

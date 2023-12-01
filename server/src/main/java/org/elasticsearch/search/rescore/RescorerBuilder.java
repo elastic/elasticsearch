@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.search.builder.SearchSourceBuilder.RESCORE_FIELD;
-
 /**
  * The abstract base builder for instances of {@link RescorerBuilder}.
  */
@@ -86,7 +84,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
-                rescorerNameConsumer.accept(RESCORE_FIELD.getPreferredName() + "_" + rescorer.getWriteableName());
+                rescorerNameConsumer.accept(fieldName);
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
             }

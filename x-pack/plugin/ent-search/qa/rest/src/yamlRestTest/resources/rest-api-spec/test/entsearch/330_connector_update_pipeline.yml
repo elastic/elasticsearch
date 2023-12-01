@@ -14,7 +14,7 @@ setup:
           service_type: super-connector
 
 ---
-"Update Connector Pipeline - 404 status code returned when connector doesn't exist":
+"Update Connector Pipeline - Connector doesn't exist":
   - do:
       catch: "missing"
       connector.update_pipeline:
@@ -50,7 +50,7 @@ setup:
   - match: { pipeline.run_ml_inference: false }
 
 ---
-"Update Connector Pipeline - 400 status code returned when required fields are missing":
+"Update Connector Pipeline - Required fields are missing":
   - do:
       catch: "bad_request"
       connector.update_pipeline:

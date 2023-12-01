@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.application.connector.syncjob;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
+import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 
 import java.time.Instant;
@@ -74,6 +76,10 @@ public class ConnectorSyncJobTestUtils {
         );
     }
 
+    public static DeleteConnectorSyncJobAction.Request getRandomDeleteConnectorSyncJobActionRequest() {
+        return new DeleteConnectorSyncJobAction.Request(randomAlphaOfLengthBetween(5, 15));
+    }
+
     public static PostConnectorSyncJobAction.Request getRandomPostConnectorSyncJobActionRequest(String connectorId) {
         return new PostConnectorSyncJobAction.Request(
             connectorId,
@@ -84,5 +90,9 @@ public class ConnectorSyncJobTestUtils {
 
     public static PostConnectorSyncJobAction.Response getRandomPostConnectorSyncJobActionResponse() {
         return new PostConnectorSyncJobAction.Response(randomAlphaOfLength(10));
+    }
+
+    public static CheckInConnectorSyncJobAction.Request getRandomCheckInConnectorSyncJobActionRequest() {
+        return new CheckInConnectorSyncJobAction.Request(randomAlphaOfLength(10));
     }
 }

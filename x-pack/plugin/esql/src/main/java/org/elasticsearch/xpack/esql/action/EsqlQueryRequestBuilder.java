@@ -14,12 +14,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 public class EsqlQueryRequestBuilder extends ActionRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> {
 
-    public EsqlQueryRequestBuilder(ElasticsearchClient client, EsqlQueryAction action, EsqlQueryRequest request) {
-        super(client, action, request);
-    }
-
-    public EsqlQueryRequestBuilder(ElasticsearchClient client, EsqlQueryAction action) {
-        this(client, action, new EsqlQueryRequest());
+    public EsqlQueryRequestBuilder(ElasticsearchClient client) {
+        super(client, EsqlQueryAction.INSTANCE, new EsqlQueryRequest());
     }
 
     public EsqlQueryRequestBuilder query(String query) {

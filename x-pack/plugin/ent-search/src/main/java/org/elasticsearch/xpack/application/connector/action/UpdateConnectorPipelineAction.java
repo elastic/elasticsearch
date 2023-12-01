@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class UpdateConnectorPipelineAction extends ActionType<UpdateConnectorPipelineAction.Response> {
@@ -67,7 +69,17 @@ public class UpdateConnectorPipelineAction extends ActionType<UpdateConnectorPip
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+
+            if (Strings.isNullOrEmpty(connectorId)) {
+                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+            }
+
+            if (Objects.isNull(pipeline)) {
+                validationException = addValidationError("[pipeline] cannot be null.", validationException);
+            }
+
+            return validationException;
         }
 
         private static final ConstructingObjectParser<UpdateConnectorPipelineAction.Request, String> PARSER =

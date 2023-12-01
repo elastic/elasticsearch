@@ -29,10 +29,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -67,6 +67,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         int totalFieldsLimit = randomIntBetween(1, 10);
         Settings settings = Settings.builder()
             .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldsLimit)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
             .build();
         MapperService mapperService = createMapperService(
             settings,
@@ -174,6 +175,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         Settings settings = Settings.builder()
             .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsIncludingAlias)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
             .build();
         createMapperService(settings, mapping(b -> {
             b.startObject("alias").field("type", "alias").field("path", "field").endObject();
@@ -185,6 +187,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         int numberOfNonAliasFields = 1;
         Settings errorSettings = Settings.builder()
             .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfNonAliasFields)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
             .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(errorSettings, mapping(b -> {
             b.startObject("alias").field("type", "alias").field("path", "field").endObject();
@@ -1246,7 +1249,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
     public void testMergeUntilLimit() throws IOException {
         CompressedXContent mapping1 = new CompressedXContent("""
             {
-              "dynamic": "true_until_limit",
               "properties": {
                 "parent.child1": {
                   "type": "keyword"
@@ -1263,7 +1265,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build();
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+            .build();
 
         final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         DocumentMapper mapper = mapperService.merge("_doc", mapping1, MergeReason.MAPPING_AUTO_UPDATE);
@@ -1277,7 +1282,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
             {
               "properties": {
                 "parent": {
-                  "dynamic": "true_until_limit",
                   "properties": {
                     "child1": {
                       "type": "keyword"
@@ -1290,7 +1294,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build();
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+            .build();
 
         final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         DocumentMapper mapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_AUTO_UPDATE);
@@ -1301,7 +1308,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
     public void testUpdateMappingWhenAtLimit() throws IOException {
         CompressedXContent mapping1 = new CompressedXContent("""
             {
-              "dynamic": "true_until_limit",
               "properties": {
                 "parent.child1": {
                   "type": "boolean"
@@ -1319,7 +1325,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build();
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+            .build();
 
         final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         DocumentMapper mapper = mapperService.merge("_doc", mapping1, MergeReason.MAPPING_AUTO_UPDATE);
@@ -1331,7 +1340,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
     public void testMultiFieldsUpdate() throws IOException {
         CompressedXContent mapping1 = new CompressedXContent("""
             {
-              "dynamic": "true_until_limit",
               "properties": {
                 "text_field": {
                   "type": "text",
@@ -1363,7 +1371,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build();
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+            .build();
 
         final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         DocumentMapper mapper = mapperService.merge("_doc", mapping1, MergeReason.MAPPING_AUTO_UPDATE);
@@ -1379,7 +1390,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
     public void testMultiFieldExceedsLimit() throws IOException {
         CompressedXContent mapping = new CompressedXContent("""
             {
-              "dynamic": "true_until_limit",
               "properties": {
                 "multi_field": {
                   "type": "text",
@@ -1395,7 +1405,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build();
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+            .build();
 
         final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         DocumentMapper mapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_AUTO_UPDATE);
@@ -1406,7 +1419,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
     public void testMergeUntilLimitInitialMappingExceedsLimit() throws IOException {
         CompressedXContent mapping = new CompressedXContent("""
             {
-              "dynamic": "true_until_limit",
               "properties": {
                 "field1": {
                   "type": "keyword"
@@ -1417,7 +1429,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build();
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+            .build();
 
         final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         DocumentMapper mapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_AUTO_UPDATE);
@@ -1428,7 +1443,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
     public void testMergeUntilLimitCapacityOnlyForParent() throws IOException {
         CompressedXContent mapping = new CompressedXContent("""
             {
-              "dynamic": "true_until_limit",
               "properties": {
                 "parent.child": {
                   "type": "keyword"
@@ -1436,7 +1450,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build();
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+            .build();
 
         final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         DocumentMapper mapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_AUTO_UPDATE);
@@ -1444,47 +1461,4 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertNull(mapper.mappers().getMapper("parent.child"));
     }
 
-    public void testMergeWithMixedDynamicSetting() throws IOException {
-        int fieldLimit = 2;
-        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), fieldLimit).build();
-
-        final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
-
-        Mapping mapping = mapperService.parseMapping("_doc", MappingParser.convertToMap(new CompressedXContent("""
-            {
-              "properties": {
-                "dynamic_true_until_limit": {
-                  "dynamic": "true_until_limit",
-                  "properties": {
-                    "field1": {
-                      "type": "keyword"
-                    },
-                    "field2": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "field3": {
-                  "type": "keyword"
-                }
-              }
-            }""")));
-
-        Mapping mergedMapping = MapperService.mergeMappings(
-            mapperService.documentMapper(),
-            mapping,
-            MergeReason.MAPPING_AUTO_UPDATE,
-            fieldLimit
-        );
-
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mergedMapping);
-
-        assertNotNull(mappingLookup.getMapper("dynamic_true_until_limit.field1"));
-        assertNull(mappingLookup.getMapper("dynamic_true_until_limit.field2"));
-        // as true_until_limit is not active for field3, the mapping merge process will merge this field even though it'll exceed the limit
-        // as a result, the index request would fail
-        assertNotNull(mappingLookup.getMapper("field3"));
-
-        assertThat(mappingLookup.remainingFieldsUntilLimit(mapperService.getIndexSettings().getMappingTotalFieldsLimit()), equalTo(-1L));
-    }
 }

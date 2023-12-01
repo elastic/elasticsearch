@@ -357,7 +357,8 @@ public abstract class DocumentParserContext {
      * However, in order for users to get to the field limit, we should try to be as close as possible to the actual field count.
      * If we under-count fields here (for example by not counting multi-fields),
      * we may only know that we exceed the field limit during the mapping update.
-     * This leads to document rejection instead of ignoring fields above the limit if Dynamic.TRUE_UNTIL_LIMIT is configured for the index.
+     * This leads to document rejection instead of ignoring fields above the limit
+     * if ignore_dynamic_beyond_limit is configured for the index.
      * If we over-count the fields (for example by counting all mappers with the same name),
      * we may reject fields earlier than necessary and before actually hitting the field limit.
      */

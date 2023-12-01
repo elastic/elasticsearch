@@ -53,7 +53,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 TestCaseSupplier.intCases((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1),
                 TestCaseSupplier.intCases((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1),
                 List.of(),
-                false)
+                false
+            )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNumericNotCasting(
@@ -65,7 +66,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 TestCaseSupplier.longCases((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1),
                 TestCaseSupplier.longCases((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1),
                 List.of(),
-                false)
+                false
+            )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNumericNotCasting(
@@ -77,24 +79,20 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
                 TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
                 List.of(),
-                false)
+                false
+            )
         );
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNumericNotCasting(
-                "AddUnsignedLongsEvaluator",
-                "lhs",
-                "rhs",
-                (l, r) -> {
-                    assert l instanceof BigInteger;
-                    assert r instanceof BigInteger;
-                    return ((BigInteger)l).add((BigInteger) r);
-                },
-                DataTypes.UNSIGNED_LONG,
-                TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
-                TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
-                List.of(),
-                false)
-        );
+        suppliers.addAll(TestCaseSupplier.forBinaryNumericNotCasting("AddUnsignedLongsEvaluator", "lhs", "rhs", (l, r) -> {
+            assert l instanceof BigInteger;
+            assert r instanceof BigInteger;
+            return ((BigInteger) l).add((BigInteger) r);
+        },
+            DataTypes.UNSIGNED_LONG,
+            TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
+            TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
+            List.of(),
+            false
+        ));
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
@@ -118,7 +116,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.datePeriodCases(),
                 List.of(),
-                true)
+                true
+            )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
@@ -130,7 +129,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 TestCaseSupplier.datePeriodCases(),
                 TestCaseSupplier.datePeriodCases(),
                 List.of(),
-                false)
+                false
+            )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
@@ -155,7 +155,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.timeDurationCases(),
                 List.of(),
-                true)
+                true
+            )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
@@ -167,7 +168,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 TestCaseSupplier.timeDurationCases(),
                 TestCaseSupplier.timeDurationCases(),
                 List.of(),
-                false)
+                false
+            )
         );
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {
             // Ensure we don't have an overflow

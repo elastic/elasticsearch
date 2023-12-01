@@ -277,7 +277,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             try {
                 metric.close();
             } catch (Exception ignore) {
-                // metrics close() method are not throwing Exception
+                // metrics close() method does not throw Exception
             }
         });
     }

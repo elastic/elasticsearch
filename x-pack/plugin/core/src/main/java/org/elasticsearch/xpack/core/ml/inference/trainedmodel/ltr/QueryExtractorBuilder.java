@@ -70,6 +70,9 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query, flo
     public QueryExtractorBuilder(String featureName, QueryProvider query, float defaultScore) {
         this.featureName = requireNonNull(featureName, FEATURE_NAME);
         this.query = requireNonNull(query, QUERY);
+        if (defaultScore < 0f) {
+            throw new IllegalArgumentException("[" + NAME + "] requires defaultScore to be positive.");
+        }
         this.defaultScore = defaultScore;
     }
 

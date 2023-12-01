@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -127,7 +127,12 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
                     );
                 } else {
-                    var parsed = service.parsePersistedConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Collections.emptyMap());
+                    var parsed = service.parsePersistedConfigWithSecrets(
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
 
@@ -158,7 +163,12 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
                     );
                 } else {
-                    var parsed = service.parsePersistedConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Collections.emptyMap());
+                    var parsed = service.parsePersistedConfigWithSecrets(
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
 
@@ -190,7 +200,12 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
                     );
                 } else {
-                    var parsed = service.parsePersistedConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Collections.emptyMap());
+                    var parsed = service.parsePersistedConfigWithSecrets(
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
         }
@@ -223,7 +238,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
     }
 
     private ElserMlNodeService createService(Client client) {
-        var context = new InferenceServicePlugin.InferenceServiceFactoryContext(client);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client);
         return new ElserMlNodeService(context);
     }
 }

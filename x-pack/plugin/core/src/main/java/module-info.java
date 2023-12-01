@@ -73,6 +73,8 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ilm.step.info;
     exports org.elasticsearch.xpack.core.ilm;
     exports org.elasticsearch.xpack.core.indexing;
+    exports org.elasticsearch.xpack.core.inference.action;
+    exports org.elasticsearch.xpack.core.inference.results;
     exports org.elasticsearch.xpack.core.logstash;
     exports org.elasticsearch.xpack.core.ml.action;
     exports org.elasticsearch.xpack.core.ml.annotations;

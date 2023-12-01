@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Great
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -377,7 +377,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         try {
             for (int b = 0; b < data.size(); b++) {
-                ElementType elementType = LocalExecutionPlanner.toElementType(data.get(b).type());
+                ElementType elementType = PlannerUtils.toElementType(data.get(b).type());
                 try (Block.Builder builder = elementType.newBlockBuilder(positions, inputBlockFactory)) {
                     for (int p = 0; p < positions; p++) {
                         if (nullPositions.contains(p)) {

@@ -210,8 +210,10 @@ setup:
 ---
 "Create data stream with failure store":
   - skip:
-      version: " - 8.10.99"
-      reason: "data stream failure stores only creatable in 8.11+"
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/102873"
+#      version: " - 8.10.99"
+#      reason: "data stream failure stores only creatable in 8.11+"
 
   - do:
       allowed_warnings:

@@ -14,6 +14,9 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.junit.Before;
 
@@ -22,6 +25,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -59,6 +64,71 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
 
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete));
+    }
+
+    public void testUpdateConnectorPipeline() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        DocWriteResponse resp = awaitPutConnector(connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        ConnectorIngestPipeline updatedPipeline = new ConnectorIngestPipeline.Builder().setName("test-pipeline")
+            .setExtractBinaryContent(false)
+            .setReduceWhitespace(true)
+            .setRunMlInference(false)
+            .build();
+
+        UpdateConnectorPipelineAction.Request updatePipelineRequest = new UpdateConnectorPipelineAction.Request(
+            connector.getConnectorId(),
+            updatedPipeline
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorPipeline(updatePipelineRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        assertThat(updatedPipeline, equalTo(indexedConnector.getPipeline()));
+    }
+
+    public void testUpdateConnectorFiltering() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+
+        DocWriteResponse resp = awaitPutConnector(connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        List<ConnectorFiltering> filteringList = IntStream.range(0, 10)
+            .mapToObj((i) -> ConnectorTestUtils.getRandomConnectorFiltering())
+            .collect(Collectors.toList());
+
+        UpdateConnectorFilteringAction.Request updateFilteringRequest = new UpdateConnectorFilteringAction.Request(
+            connector.getConnectorId(),
+            filteringList
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFiltering(updateFilteringRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        assertThat(filteringList, equalTo(indexedConnector.getFiltering()));
+    }
+
+    public void testUpdateConnectorLastSeen() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        DocWriteResponse resp = awaitPutConnector(connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        UpdateConnectorLastSeenAction.Request checkInRequest = new UpdateConnectorLastSeenAction.Request(connector.getConnectorId());
+        DocWriteResponse updateResponse = awaitUpdateConnectorLastSeen(checkInRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnectorTime1 = awaitGetConnector(connector.getConnectorId());
+        assertNotNull(indexedConnectorTime1.getLastSeen());
+
+        checkInRequest = new UpdateConnectorLastSeenAction.Request(connector.getConnectorId());
+        updateResponse = awaitUpdateConnectorLastSeen(checkInRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnectorTime2 = awaitGetConnector(connector.getConnectorId());
+        assertNotNull(indexedConnectorTime2.getLastSeen());
+        assertTrue(indexedConnectorTime2.getLastSeen().isAfter(indexedConnectorTime1.getLastSeen()));
+
     }
 
     public void testUpdateConnectorScheduling() throws Exception {
@@ -177,6 +247,83 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from list request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorFiltering(UpdateConnectorFilteringAction.Request updateFiltering) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorFiltering(updateFiltering, new ActionListener<>() {
+
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for update filtering request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update filtering request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorLastSeen(UpdateConnectorLastSeenAction.Request checkIn) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorLastSeen(checkIn, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for check-in request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from check-in request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorPipeline(UpdateConnectorPipelineAction.Request updatePipeline) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorPipeline(updatePipeline, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update pipeline request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update pipeline request", resp.get());
         return resp.get();
     }
 

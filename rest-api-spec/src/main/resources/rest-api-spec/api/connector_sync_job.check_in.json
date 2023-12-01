@@ -10,9 +10,6 @@
     "headers": {
       "accept": [
         "application/json"
-      ],
-      "content_type": [
-        "application/json"
       ]
     },
     "url": {

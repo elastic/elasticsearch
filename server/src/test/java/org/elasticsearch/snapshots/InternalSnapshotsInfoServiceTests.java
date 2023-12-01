@@ -114,8 +114,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.builder().put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), maxConcurrentFetches).build(),
             clusterService,
-            () -> repositoriesService,
-            () -> rerouteService
+            repositoriesService,
+            rerouteService
         );
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -185,8 +185,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.builder().put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10)).build(),
             clusterService,
-            () -> repositoriesService,
-            () -> rerouteService
+            repositoriesService,
+            rerouteService
         );
 
         final Map<InternalSnapshotsInfoService.SnapshotShard, Long> results = new ConcurrentHashMap<>();
@@ -274,8 +274,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
             clusterService,
-            () -> repositoriesService,
-            () -> rerouteService
+            repositoriesService,
+            rerouteService
         );
 
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
@@ -329,8 +329,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
             clusterService,
-            () -> repositoriesService,
-            () -> rerouteService
+            repositoriesService,
+            rerouteService
         );
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

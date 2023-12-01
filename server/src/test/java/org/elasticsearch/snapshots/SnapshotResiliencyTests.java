@@ -1736,8 +1736,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
                     settings,
                     clusterService,
-                    () -> repositoriesService,
-                    rerouteServiceSetOnce::get
+                    repositoriesService,
+                    (r, p, l) -> rerouteServiceSetOnce.get().reroute(r, p, l)
                 );
                 allocationService = ESAllocationTestCase.createAllocationService(
                     Settings.builder()

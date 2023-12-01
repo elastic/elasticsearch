@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.profiling;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
@@ -106,8 +107,10 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     protected final void bulkIndex(String file) throws Exception {
         byte[] bulkData = read(file);
-        BulkResponse response = client().prepareBulk().add(bulkData, 0, bulkData.length, XContentType.JSON).get();
-        assertFalse(response.hasFailures());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse response = bulkRequestBuilder.add(bulkData, 0, bulkData.length, XContentType.JSON).get();
+            assertFalse(response.hasFailures());
+        }
     }
 
     @Before

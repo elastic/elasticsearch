@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -161,18 +162,24 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 containsString("Can't execute an update request if field or document level " + "security")
             );
 
-            BulkResponse bulkResponse = client().filterWithHeader(
-                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).prepareBulk().add(client().prepareUpdate(indexName, "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")).get();
-            assertThat(bulkResponse.getItems().length, is(1));
-            assertThat(
-                bulkResponse.getItems()[0].getFailureMessage(),
-                containsString(
-                    "Can't execute a bulk item request with update "
-                        + "requests"
-                        + " embedded if field or document level security is enabled"
-                )
-            );
+            try (
+                BulkRequestBuilder bulkRequestBuilder = client().filterWithHeader(
+                    Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                ).prepareBulk()
+            ) {
+                BulkResponse bulkResponse = bulkRequestBuilder.add(
+                    client().prepareUpdate(indexName, "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
+                ).get();
+                assertThat(bulkResponse.getItems().length, is(1));
+                assertThat(
+                    bulkResponse.getItems()[0].getFailureMessage(),
+                    containsString(
+                        "Can't execute a bulk item request with update "
+                            + "requests"
+                            + " embedded if field or document level security is enabled"
+                    )
+                );
+            }
         }
     }
 

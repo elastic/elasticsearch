@@ -135,12 +135,13 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             logger.debug("--> indexing [{}] documents in {}", nbDocs, indexName);
 
             if (nbDocs > 0) {
-                final BulkRequestBuilder bulkRequest = client().prepareBulk();
-                for (int i = 0; i < nbDocs; i++) {
-                    bulkRequest.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+                try (BulkRequestBuilder bulkRequest = client().prepareBulk()) {
+                    for (int i = 0; i < nbDocs; i++) {
+                        bulkRequest.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+                    }
+                    final BulkResponse bulkResponse = bulkRequest.get();
+                    assertThat(bulkResponse.hasFailures(), is(false));
                 }
-                final BulkResponse bulkResponse = bulkRequest.get();
-                assertThat(bulkResponse.hasFailures(), is(false));
             }
             docsPerIndex.put(indexName, nbDocs);
         }

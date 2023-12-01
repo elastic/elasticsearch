@@ -417,13 +417,31 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
     }
 
+    public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
+        prepareIndexIfNeededThenExecute(consumer, andThen, () -> {});
+    }
+
     /**
      * Prepares the index by creating it if it doesn't exist, then executes the runnable.
      * @param consumer a handler for any exceptions that are raised either during preparation or execution
      * @param andThen executed if the index exists or after preparation is performed successfully
      */
-    public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
+    public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen, Runnable onCompletion) {
         final State state = this.state; // use a local copy so all checks execute against the same state!
+        Consumer<Exception> errorConsumerWithCompletionHandler = exception -> {
+            try {
+                consumer.accept(exception);
+            } finally {
+                onCompletion.run();
+            }
+        };
+        Runnable andThenWithCompletionHandler = () -> {
+            try {
+                andThen.run();
+            } finally {
+                onCompletion.run();
+            }
+        };
         try {
             // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
             if (state == State.UNRECOVERED_STATE) {
@@ -446,7 +464,7 @@ public class SecurityIndexManager implements ClusterStateListener {
 
                 if (descriptorForVersion == null) {
                     final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("create index");
-                    consumer.accept(new IllegalStateException(error));
+                    errorConsumerWithCompletionHandler.accept(new IllegalStateException(error));
                 } else {
                     logger.info(
                         "security index does not exist, creating [{}] with alias [{}]",
@@ -469,9 +487,11 @@ public class SecurityIndexManager implements ClusterStateListener {
                             @Override
                             public void onResponse(CreateIndexResponse createIndexResponse) {
                                 if (createIndexResponse.isAcknowledged()) {
-                                    andThen.run();
+                                    andThenWithCompletionHandler.run();
                                 } else {
-                                    consumer.accept(new ElasticsearchException("Failed to create security index"));
+                                    errorConsumerWithCompletionHandler.accept(
+                                        new ElasticsearchException("Failed to create security index")
+                                    );
                                 }
                             }
 
@@ -481,9 +501,9 @@ public class SecurityIndexManager implements ClusterStateListener {
                                 if (cause instanceof ResourceAlreadyExistsException) {
                                     // the index already exists - it was probably just created so this
                                     // node hasn't yet received the cluster state update with the index
-                                    andThen.run();
+                                    andThenWithCompletionHandler.run();
                                 } else {
-                                    consumer.accept(e);
+                                    errorConsumerWithCompletionHandler.accept(e);
                                 }
                             }
                         },
@@ -496,7 +516,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
                 if (descriptorForVersion == null) {
                     final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("updating mapping");
-                    consumer.accept(new IllegalStateException(error));
+                    errorConsumerWithCompletionHandler.accept(new IllegalStateException(error));
                 } else {
                     logger.info(
                         "Index [{}] (alias [{}]) is not up to date. Updating mapping",
@@ -513,19 +533,21 @@ public class SecurityIndexManager implements ClusterStateListener {
                         request,
                         ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
                             if (putMappingResponse.isAcknowledged()) {
-                                andThen.run();
+                                andThenWithCompletionHandler.run();
                             } else {
-                                consumer.accept(new IllegalStateException("put mapping request was not acknowledged"));
+                                errorConsumerWithCompletionHandler.accept(
+                                    new IllegalStateException("put mapping request was not acknowledged")
+                                );
                             }
-                        }, consumer),
+                        }, errorConsumerWithCompletionHandler),
                         client.admin().indices()::putMapping
                     );
                 }
             } else {
-                andThen.run();
+                andThenWithCompletionHandler.run();
             }
         } catch (Exception e) {
-            consumer.accept(e);
+            errorConsumerWithCompletionHandler.accept(e);
         }
     }
 

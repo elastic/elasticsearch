@@ -11,6 +11,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
@@ -1227,23 +1228,30 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 
         // With document level security enabled the update in bulk is not allowed:
-        BulkResponse bulkResponse = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-        ).prepareBulk().add(new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3")).get();
-        assertEquals(1, bulkResponse.getItems().length);
-        BulkItemResponse bulkItem = bulkResponse.getItems()[0];
-        assertTrue(bulkItem.isFailed());
-        assertThat(bulkItem.getFailure().getCause(), instanceOf(ElasticsearchSecurityException.class));
-        ElasticsearchSecurityException securityException = (ElasticsearchSecurityException) bulkItem.getFailure().getCause();
-        assertThat(securityException.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(
-            securityException.getMessage(),
-            equalTo("Can't execute a bulk item request with update requests embedded if field or document level security is enabled")
-        );
+        try (
+            BulkRequestBuilder bulkRequestBuilder = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+            ).prepareBulk()
+        ) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(
+                new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3")
+            ).get();
+            assertEquals(1, bulkResponse.getItems().length);
+            BulkItemResponse bulkItem = bulkResponse.getItems()[0];
+            assertTrue(bulkItem.isFailed());
+            assertThat(bulkItem.getFailure().getCause(), instanceOf(ElasticsearchSecurityException.class));
+            ElasticsearchSecurityException securityException = (ElasticsearchSecurityException) bulkItem.getFailure().getCause();
+            assertThat(securityException.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(
+                securityException.getMessage(),
+                equalTo("Can't execute a bulk item request with update requests embedded if field or document level security is enabled")
+            );
+        }
 
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value2"));
-
-        client().prepareBulk().add(new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3")).get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3")).get();
+        }
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value3"));
     }
 

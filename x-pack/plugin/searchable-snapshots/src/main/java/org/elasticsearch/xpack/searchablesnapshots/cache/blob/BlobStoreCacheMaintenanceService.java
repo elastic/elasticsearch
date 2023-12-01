@@ -513,66 +513,74 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             .collect(Collectors.toSet());
                     }
 
-                    final BulkRequest bulkRequest = new BulkRequest();
-                    final Map<String, Set<String>> knownSnapshots = existingSnapshots;
-                    assert knownSnapshots != null;
-                    final Set<String> knownRepositories = existingRepositories;
-                    assert knownRepositories != null;
-                    final Instant expirationTimeCopy = this.expirationTime;
-                    assert expirationTimeCopy != null;
-
                     Object[] lastSortValues = null;
-                    for (SearchHit searchHit : searchHits) {
-                        lastSortValues = searchHit.getSortValues();
-                        assert searchHit.getId() != null;
-                        try {
-                            boolean delete = false;
+                    final BulkRequest bulkRequest = new BulkRequest();
+                    try {
+                        final Map<String, Set<String>> knownSnapshots = existingSnapshots;
+                        assert knownSnapshots != null;
+                        final Set<String> knownRepositories = existingRepositories;
+                        assert knownRepositories != null;
+                        final Instant expirationTimeCopy = this.expirationTime;
+                        assert expirationTimeCopy != null;
 
-                            // See {@link BlobStoreCacheService#generateId}
-                            // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
-                            final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
-                            assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
+                        for (SearchHit searchHit : searchHits) {
+                            lastSortValues = searchHit.getSortValues();
+                            assert searchHit.getId() != null;
+                            try {
+                                boolean delete = false;
 
-                            final String repositoryName = parts[0];
-                            if (knownRepositories.contains(repositoryName) == false) {
-                                logger.trace("deleting blob store cache entry with id [{}]: repository does not exist", searchHit.getId());
-                                delete = true;
-                            } else {
-                                final Set<String> knownIndexIds = knownSnapshots.get(parts[1]);
-                                if (knownIndexIds == null || knownIndexIds.contains(parts[2]) == false) {
-                                    logger.trace("deleting blob store cache entry with id [{}]: not used", searchHit.getId());
-                                    delete = true;
-                                }
-                            }
-                            if (delete) {
-                                final Instant creationTime = getCreationTime(searchHit);
-                                if (creationTime.isAfter(expirationTimeCopy)) {
+                                // See {@link BlobStoreCacheService#generateId}
+                                // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
+                                final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
+                                assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
+
+                                final String repositoryName = parts[0];
+                                if (knownRepositories.contains(repositoryName) == false) {
                                     logger.trace(
-                                        "blob store cache entry with id [{}] was created recently, skipping deletion",
+                                        "deleting blob store cache entry with id [{}]: repository does not exist",
                                         searchHit.getId()
                                     );
-                                    continue;
+                                    delete = true;
+                                } else {
+                                    final Set<String> knownIndexIds = knownSnapshots.get(parts[1]);
+                                    if (knownIndexIds == null || knownIndexIds.contains(parts[2]) == false) {
+                                        logger.trace("deleting blob store cache entry with id [{}]: not used", searchHit.getId());
+                                        delete = true;
+                                    }
                                 }
-                                bulkRequest.add(new DeleteRequest().index(searchHit.getIndex()).id(searchHit.getId()));
+                                if (delete) {
+                                    final Instant creationTime = getCreationTime(searchHit);
+                                    if (creationTime.isAfter(expirationTimeCopy)) {
+                                        logger.trace(
+                                            "blob store cache entry with id [{}] was created recently, skipping deletion",
+                                            searchHit.getId()
+                                        );
+                                        continue;
+                                    }
+                                    bulkRequest.add(new DeleteRequest().index(searchHit.getIndex()).id(searchHit.getId()));
+                                }
+                            } catch (Exception e) {
+                                logger.warn(
+                                    () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
+                                    e
+                                );
                             }
-                        } catch (Exception e) {
-                            logger.warn(
-                                () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
-                                e
-                            );
                         }
-                    }
 
-                    assert lastSortValues != null;
-                    if (bulkRequest.numberOfActions() == 0) {
-                        this.searchResponse = null;
-                        this.searchAfter = lastSortValues;
-                        executeNext(this);
-                        return;
+                        assert lastSortValues != null;
+                        if (bulkRequest.numberOfActions() == 0) {
+                            this.searchResponse = null;
+                            this.searchAfter = lastSortValues;
+                            executeNext(this);
+                            return;
+                        }
+                    } catch (Exception e) {
+                        bulkRequest.close();
+                        throw e;
                     }
 
                     final Object[] finalSearchAfter = lastSortValues;
-                    clientWithOrigin.execute(BulkAction.INSTANCE, bulkRequest, new ActionListener<>() {
+                    clientWithOrigin.execute(BulkAction.INSTANCE, bulkRequest, ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
                         public void onResponse(BulkResponse response) {
                             for (BulkItemResponse itemResponse : response.getItems()) {
@@ -590,7 +598,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         public void onFailure(Exception e) {
                             complete(e);
                         }
-                    });
+                    }, bulkRequest));
                     return;
                 }
                 // we're done, complete the task

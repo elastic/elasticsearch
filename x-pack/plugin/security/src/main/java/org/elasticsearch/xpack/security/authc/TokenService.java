@@ -945,17 +945,14 @@ public final class TokenService {
             );
             bulkRequestBuilder.setRefreshPolicy(refreshPolicy);
             tokensIndexManager.prepareIndexIfNeededThenExecute(ex -> {
-                try {
-                    listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex));
-                } finally {
-                    bulkRequestBuilder.close();
-                }
+                listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex));
+
             },
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
                     bulkRequestBuilder.request(),
-                    ActionListener.releaseAfter(ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                    ActionListener.<BulkResponse>wrap(bulkResponse -> {
                         ArrayList<String> retryTokenDocIds = new ArrayList<>();
                         ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
                         ArrayList<String> previouslyInvalidated = new ArrayList<>();
@@ -1060,9 +1057,10 @@ public final class TokenService {
                         } else {
                             listener.onFailure(e);
                         }
-                    }), bulkRequestBuilder),
+                    }),
                     client::bulk
-                )
+                ),
+                bulkRequestBuilder::close
             );
         }
     }

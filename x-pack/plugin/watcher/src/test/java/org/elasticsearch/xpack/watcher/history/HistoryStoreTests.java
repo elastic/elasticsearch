@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -62,6 +63,7 @@ public class HistoryStoreTests extends ESTestCase {
 
     private HistoryStore historyStore;
     private Client client;
+    private BulkProcessor2 bulkProcessor;
 
     @Before
     public void init() {
@@ -72,8 +74,15 @@ public class HistoryStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         BulkProcessor2.Listener listener = mock(BulkProcessor2.Listener.class);
-        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, threadPool).setBulkActions(1).build();
+        bulkProcessor = BulkProcessor2.builder(client::bulk, listener, threadPool).setBulkActions(1).build();
         historyStore = new HistoryStore(bulkProcessor);
+    }
+
+    @After
+    public void cleanup() {
+        if (bulkProcessor != null) {
+            bulkProcessor.close();
+        }
     }
 
     public void testPut() throws Exception {

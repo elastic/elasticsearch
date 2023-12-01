@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.internal.Client;
@@ -130,15 +131,16 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
 
         // A hacky way to test cache is populated and used by deleting the backing documents.
         // The test will fail if the cache is not in place
-        assertFalse(
-            client.prepareBulk()
-                .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:read"))
-                .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:write"))
-                .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:admin"))
-                .setRefreshPolicy(IMMEDIATE)
-                .get()
-                .hasFailures()
-        );
+        try (BulkRequestBuilder bulkRequestBuilder = client.prepareBulk()) {
+            assertFalse(
+                bulkRequestBuilder.add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:read"))
+                    .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:write"))
+                    .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:admin"))
+                    .setRefreshPolicy(IMMEDIATE)
+                    .get()
+                    .hasFailures()
+            );
+        }
 
         // We can still get the privileges because it is cached
         privileges = new GetPrivilegesRequestBuilder(client).application("app-2").privileges("read").get().privileges();
@@ -188,14 +190,15 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
 
         // The descriptors cache is keyed by application name hence removal of a app-2 privilege only affects
         // app-2, but not app-1. The cache hit/miss is tested by removing the backing documents
-        assertFalse(
-            client.prepareBulk()
-                .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-1:write"))
-                .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:write"))
-                .setRefreshPolicy(IMMEDIATE)
-                .get()
-                .hasFailures()
-        );
+        try (BulkRequestBuilder bulkRequestBuilder = client.prepareBulk()) {
+            assertFalse(
+                bulkRequestBuilder.add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-1:write"))
+                    .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:write"))
+                    .setRefreshPolicy(IMMEDIATE)
+                    .get()
+                    .hasFailures()
+            );
+        }
 
         // app-2 write privilege will not be found since cache is invalidated and backing document is gone
         assertEquals(0, new GetPrivilegesRequestBuilder(client).application("app-2").privileges("write").get().privileges().length);

@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
@@ -179,14 +180,14 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         return TransportVersions.WEIGHTED_TOKENS_QUERY_ADDED;
     }
 
-    private static float parseWeight(String token, Object weight) {
+    private static float parseWeight(String token, Object weight) throws IOException {
         if (weight instanceof Number asNumber) {
             return asNumber.floatValue();
         }
         if (weight instanceof String asString) {
             return Float.parseFloat(asString);
         }
-        throw new IllegalArgumentException(
+        throw new ElasticsearchParseException(
             "Illegal weight for token: [" + token + "], expected floating point got " + weight.getClass().getSimpleName()
         );
     }
@@ -226,10 +227,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
                     } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "[" + NAME + "] query does not support [" + currentFieldName + "]"
-                        );
+                        throw new ParsingException(parser.getTokenLocation(), "unknown field [" + currentFieldName + "]");
                     }
                 }
             } else {

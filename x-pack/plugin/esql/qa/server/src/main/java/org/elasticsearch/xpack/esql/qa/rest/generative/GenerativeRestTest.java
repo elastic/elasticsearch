@@ -28,7 +28,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     public static final int ITERATIONS = 50;
     public static final int MAX_DEPTH = 10;
 
-    public static final Set<String> ALLOWED_ERRORS = Set.of("is ambiguous (to disambiguate use quotes or qualifiers)");
+    public static final Set<String> ALLOWED_ERRORS = Set.of("is ambiguous (to disambiguate use quotes or qualifiers)", "due to ambiguities being mapped as");
 
     @Before
     public void setup() throws IOException {

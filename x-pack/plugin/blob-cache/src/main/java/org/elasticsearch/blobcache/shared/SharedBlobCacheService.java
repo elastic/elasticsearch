@@ -594,6 +594,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
+    private static final AlreadyClosedException ALREADY_CLOSED_EXCEPTION = new AlreadyClosedException(
+        "Cache file channel has been released and closed. This instance of exception is created once and used to control the execution "
+            + "flow, so its stacktrace is not reliable and cannot be trusted."
+    );
+
     class CacheFileRegion extends EvictableRefCounted {
 
         final RegionKey<KeyType> regionKey;
@@ -681,7 +686,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToRead,
-                    ActionListener.runBefore(listener, resource::close).delegateFailureAndWrap((l, success) -> {
+                    ActionListener.runAfter(listener, resource::close).delegateFailureAndWrap((l, success) -> {
                         var ioRef = io;
                         assert regionOwners.get(ioRef) == this;
                         final int start = Math.toIntExact(rangeToRead.start());
@@ -709,24 +714,33 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         private void fillGaps(Executor executor, RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
             for (SparseFileTracker.Gap gap : gaps) {
+                final var cacheFileRegion = CacheFileRegion.this;
                 executor.execute(new AbstractRunnable() {
 
                     @Override
                     protected void doRun() throws Exception {
-                        assert CacheFileRegion.this.hasReferences();
                         ensureOpen();
-                        final int start = Math.toIntExact(gap.start());
-                        var ioRef = io;
-                        assert regionOwners.get(ioRef) == CacheFileRegion.this;
-                        writer.fillCacheRange(
-                            ioRef,
-                            start,
-                            start,
-                            Math.toIntExact(gap.end() - start),
-                            progress -> gap.onProgress(start + progress)
-                        );
-                        writeCount.increment();
-
+                        if (cacheFileRegion.tryIncRef() == false) {
+                            // This exception is used to control the execution flow, it is always caught and ignored (not even logged) and
+                            // bytes are read directly from the blob store. Since capturing the stack trace is costly and not useful here,
+                            // we rethrow the same instance of AlreadyClosedException
+                            throw ALREADY_CLOSED_EXCEPTION;
+                        }
+                        try {
+                            final int start = Math.toIntExact(gap.start());
+                            var ioRef = io;
+                            assert regionOwners.get(ioRef) == cacheFileRegion;
+                            writer.fillCacheRange(
+                                ioRef,
+                                start,
+                                start,
+                                Math.toIntExact(gap.end() - start),
+                                progress -> gap.onProgress(start + progress)
+                            );
+                            writeCount.increment();
+                        } finally {
+                            cacheFileRegion.decRef();
+                        }
                         gap.onCompletion();
                     }
 

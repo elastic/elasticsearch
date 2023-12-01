@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102257")
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
@@ -288,12 +288,11 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                     assertTrue("All SearchShardTasks should then be cancelled", shardQueryTask.isCancelled());
                 }
             }, 30, TimeUnit.SECONDS);
-            shardTaskLatch.countDown(); // unblock the shardTasks, allowing the test to conclude.
         } finally {
+            shardTaskLatch.countDown(); // unblock the shardTasks, allowing the test to conclude.
             searchThread.join();
-            for (ScriptedBlockPlugin plugin : plugins) {
-                plugin.setBeforeExecution(() -> {});
-            }
+            plugins.forEach(plugin -> plugin.setBeforeExecution(() -> {}));
+            searchShardBlockingPlugins.forEach(plugin -> plugin.setRunOnNewReaderContext((ReaderContext c) -> {}));
         }
     }
 

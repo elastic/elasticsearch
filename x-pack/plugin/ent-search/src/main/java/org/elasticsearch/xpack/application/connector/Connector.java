@@ -273,51 +273,51 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareBoolean(optionalConstructorArg(), IS_NATIVE_FIELD);
         PARSER.declareString(optionalConstructorArg(), LANGUAGE_FIELD);
 
-        PARSER.declareString(optionalConstructorArg(), ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_ERROR);
+        PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_ERROR);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> Instant.parse(p.text()),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
             ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> ConnectorSyncStatus.connectorSyncStatus(p.text()),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : ConnectorSyncStatus.connectorSyncStatus(p.text()),
             ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> Instant.parse(p.text()),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
             ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_INDEXED_DOCUMENT_COUNT_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> Instant.parse(p.text()),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
             ConnectorSyncInfo.LAST_SEEN_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareString(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> Instant.parse(p.text()),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
             ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> ConnectorSyncStatus.connectorSyncStatus(p.text()),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : ConnectorSyncStatus.connectorSyncStatus(p.text()),
             ConnectorSyncInfo.LAST_SYNC_STATUS_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> Instant.parse(p.text()),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
             ConnectorSyncInfo.LAST_SYNCED_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
 
         PARSER.declareString(optionalConstructorArg(), NAME_FIELD);
@@ -473,6 +473,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     public Map<String, Object> getConfiguration() {
         return configuration;
+    }
+
+    public ConnectorSyncInfo getSyncInfo() {
+        return syncInfo;
     }
 
     @Override

@@ -50,12 +50,15 @@ import org.elasticsearch.xpack.application.connector.action.RestDeleteConnectorA
 import org.elasticsearch.xpack.application.connector.action.RestGetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.TransportDeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportGetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
@@ -178,11 +181,12 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (ConnectorAPIFeature.isEnabled()) {
             actionHandlers.addAll(
                 List.of(
-                    // Connector API
+                    // Connectors API
                     new ActionHandler<>(DeleteConnectorAction.INSTANCE, TransportDeleteConnectorAction.class),
                     new ActionHandler<>(GetConnectorAction.INSTANCE, TransportGetConnectorAction.class),
                     new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
                     new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
+                    new ActionHandler<>(UpdateConnectorLastSyncStatsAction.INSTANCE, TransportUpdateConnectorLastSyncStatsAction.class),
                     new ActionHandler<>(UpdateConnectorSchedulingAction.INSTANCE, TransportUpdateConnectorSchedulingAction.class),
 
                     // SyncJob API
@@ -238,11 +242,12 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (ConnectorAPIFeature.isEnabled()) {
             restHandlers.addAll(
                 List.of(
-                    // Connector API
+                    // Connectors API
                     new RestDeleteConnectorAction(),
                     new RestGetConnectorAction(),
                     new RestListConnectorAction(),
                     new RestPutConnectorAction(),
+                    new RestUpdateConnectorLastSyncStatsAction(),
                     new RestUpdateConnectorSchedulingAction(),
 
                     // SyncJob API

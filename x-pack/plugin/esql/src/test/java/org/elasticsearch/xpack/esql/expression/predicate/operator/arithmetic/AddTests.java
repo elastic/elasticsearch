@@ -32,7 +32,6 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -91,99 +90,86 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                     return ((BigInteger)l).add((BigInteger) r);
                 },
                 DataTypes.UNSIGNED_LONG,
-                // TODO: we should be able to test values over Long.MAX_VALUE too...
                 TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
                 TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
                 List.of(),
                 false)
         );
-        suppliers.addAll(List.of(/*, new TestCaseSupplier("ULong + ULong", () -> {
-            // Ensure we don't have an overflow
-            // TODO: we should be able to test values over Long.MAX_VALUE too...
-            long rhs = randomLongBetween(0, (Long.MAX_VALUE >> 1) - 1);
-            long lhs = randomLongBetween(0, (Long.MAX_VALUE >> 1) - 1);
-            BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
-            BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
-            return new TestCase(
-                Source.EMPTY,
-                List.of(new TypedData(lhs, DataTypes.UNSIGNED_LONG, "lhs"), new TypedData(rhs, DataTypes.UNSIGNED_LONG, "rhs")),
-                "AddUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                equalTo(asLongUnsigned(lhsBI.add(rhsBI).longValue()))
-            );
-          }) */ new TestCaseSupplier("Datetime + Period", () -> {
-            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
-            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
-                ),
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
                 // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
                 "No evaluator, the tests only trigger the folding code since Period is not representable",
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> {
+                    // this weird casting dance makes the expected value lambda symmetric
+                    Long date;
+                    Period period;
+                    if (lhs instanceof Long) {
+                        date = (Long) lhs;
+                        period = (Period) rhs;
+                    } else {
+                        date = (Long) rhs;
+                        period = (Period) lhs;
+                    }
+                    return asMillis(asDateTime(date).plus(period));
+                },
                 DataTypes.DATETIME,
-                equalTo(asMillis(asDateTime(lhs).plus(rhs)))
-            );
-        }), new TestCaseSupplier("Period + Datetime", () -> {
-            Period lhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            long rhs = (Long) randomLiteral(DataTypes.DATETIME).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.DATETIME, "rhs")
-                ),
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.datePeriodCases(),
+                List.of(),
+                true)
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
                 "No evaluator, the tests only trigger the folding code since Period is not representable",
-                DataTypes.DATETIME,
-                equalTo(asMillis(asDateTime(rhs).plus(lhs)))
-            );
-        }), new TestCaseSupplier("Period + Period", () -> {
-            Period lhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
-                ),
-                "Only folding possible, so there's no evaluator",
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> ((Period) lhs).plus((Period) rhs),
                 EsqlDataTypes.DATE_PERIOD,
-                equalTo(lhs.plus(rhs))
-            );
-        }), new TestCaseSupplier("Datetime + Duration", () -> {
-            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
-            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
-                ),
+                TestCaseSupplier.datePeriodCases(),
+                TestCaseSupplier.datePeriodCases(),
+                List.of(),
+                false)
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                // TODO: There is an evaluator for Datetime + Duration, so it should be tested. Similarly below.
                 "No evaluator, the tests only trigger the folding code since Duration is not representable",
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> {
+                    // this weird casting dance makes the expected value lambda symmetric
+                    Long date;
+                    Duration duration;
+                    if (lhs instanceof Long) {
+                        date = (Long) lhs;
+                        duration = (Duration) rhs;
+                    } else {
+                        date = (Long) rhs;
+                        duration = (Duration) lhs;
+                    }
+                    return asMillis(asDateTime(date).plus(duration));
+                },
                 DataTypes.DATETIME,
-                equalTo(asMillis(asDateTime(lhs).plus(rhs)))
-            );
-        }), new TestCaseSupplier("Duration + Datetime", () -> {
-            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
-            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
-                ),
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.timeDurationCases(),
+                List.of(),
+                true)
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
                 "No evaluator, the tests only trigger the folding code since Duration is not representable",
-                DataTypes.DATETIME,
-                equalTo(asMillis(asDateTime(lhs).plus(rhs)))
-            );
-        }), new TestCaseSupplier("Duration + Duration", () -> {
-            Duration lhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.TIME_DURATION, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
-                ),
-                "Only folding possible, so there's no evaluator",
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> ((Duration) lhs).plus((Duration) rhs),
                 EsqlDataTypes.TIME_DURATION,
-                equalTo(lhs.plus(rhs))
-            );
-        }), new TestCaseSupplier("MV", () -> {
+                TestCaseSupplier.timeDurationCases(),
+                TestCaseSupplier.timeDurationCases(),
+                List.of(),
+                false)
+        );
+        suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {
             // Ensure we don't have an overflow
             int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
             int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);

@@ -22,7 +22,9 @@ import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -162,7 +164,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         casesCrossProduct(
-            (l, r) -> expected.apply(l.doubleValue(), r.doubleValue()),
+            (l, r) -> expected.apply(((Number) l).doubleValue(), ((Number) r).doubleValue()),
             lhsSuppliers,
             rhsSuppliers,
             (lhsType, rhsType) -> name
@@ -183,7 +185,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     private static void casesCrossProduct(
-        BinaryOperator<Number> expected,
+        BinaryOperator<Object> expected,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
         BiFunction<DataType, DataType, String> evaluatorToString,
@@ -195,8 +197,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
                 String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
                 suppliers.add(new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
-                    Number lhs = (Number) lhsSupplier.supplier().get();
-                    Number rhs = (Number) rhsSupplier.supplier().get();
+                    Object lhs = lhsSupplier.supplier().get();
+                    Object rhs = rhsSupplier.supplier().get();
                     TypedData lhsTyped = new TypedData(
                         // TODO there has to be a better way to handle unsigned long
                         lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
@@ -237,6 +239,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String lhsName,
         String rhsName,
         BinaryOperator<Number> expected,
+        DataType expectedType,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        List<String> warnings,
+        boolean symetric
+    ) {
+        return forBinaryNotCasting(
+            name,
+            lhsName,
+            rhsName,
+            (lhs, rhs) -> expected.apply((Number) lhs, (Number) rhs),
+            expectedType,
+            lhsSuppliers,
+            rhsSuppliers,
+            warnings,
+            symetric
+        );
+    }
+
+    public static List<TestCaseSupplier> forBinaryNotCasting(
+        String name,
+        String lhsName,
+        String rhsName,
+        BinaryOperator<Object> expected,
         DataType expectedType,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
@@ -679,7 +705,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> dateCases() {
+    public static List<TypedDataSupplier> dateCases() {
         return List.of(
             new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataTypes.DATETIME),
             new TypedDataSupplier(
@@ -692,6 +718,32 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
                 () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
                 DataTypes.DATETIME
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> datePeriodCases() {
+        return List.of(
+            new TypedDataSupplier("<zero date period>", () -> Period.ZERO, EsqlDataTypes.DATE_PERIOD),
+            new TypedDataSupplier(
+                "<random date period>",
+                () -> Period.of(
+                    ESTestCase.randomIntBetween(-1000, 1000),
+                    ESTestCase.randomIntBetween(-13, 13),
+                    ESTestCase.randomIntBetween(-32, 32)
+                ),
+                EsqlDataTypes.DATE_PERIOD
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> timeDurationCases() {
+        return List.of(
+            new TypedDataSupplier("<zero time duration>", () -> Duration.ZERO, EsqlDataTypes.TIME_DURATION),
+            new TypedDataSupplier(
+                "<up to 7 days duration>",
+                () -> Duration.ofMillis(ESTestCase.randomLongBetween(-604800000L, 604800000L)), // plus/minus 7 days
+                EsqlDataTypes.TIME_DURATION
             )
         );
     }

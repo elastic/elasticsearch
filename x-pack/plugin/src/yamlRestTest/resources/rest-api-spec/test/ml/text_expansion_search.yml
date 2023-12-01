@@ -125,7 +125,23 @@ setup:
                   weight_threshold: 0.4
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
-  - match: { hits: "foo" }
+
+---
+"Test text expansion search with weighted tokens rescoring only pruned tokens":
+  - do:
+      search:
+        index: index-with-rank-features
+        body:
+          query:
+            text_expansion:
+              ml.tokens:
+                model_id: text_expansion_model
+                model_text: "octopus comforter smells"
+                tokens_threshold:
+                  ratio_threshold: 4
+                  weight_threshold: 0.4
+                  only_score_pruned_tokens: true
+  - match: { hits.total.value: 0 }
 
 ---
 "Test text expansion search with weighted tokens":
@@ -143,7 +159,6 @@ setup:
                   weight_threshold: 0.1
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
-  - match: { hits: "foo" }
 
 ---
 "Test weighted tokens search":
@@ -155,5 +170,38 @@ setup:
             weighted_tokens:
               ml.tokens:
                 tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}]
+                tokens_threshold:
+                  ratio_threshold: 4
+                  weight_threshold: 0.4
+                  only_score_pruned_tokens: false
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+
+---
+"Test weighted tokens searc with nonspecifeid tokens threshold":
+  - do:
+      search:
+        index: index-with-rank-features
+        body:
+          query:
+            weighted_tokens:
+              ml.tokens:
+                tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}]
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+
+---
+"Test weighted tokens search only scoring pruned tokens":
+  - do:
+      search:
+        index: index-with-rank-features
+        body:
+          query:
+            weighted_tokens:
+              ml.tokens:
+                tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}]
+                tokens_threshold:
+                  ratio_threshold: 4
+                  weight_threshold: 0.4
+                  only_score_pruned_tokens: true
+  - match: { hits.total.value: 0 }

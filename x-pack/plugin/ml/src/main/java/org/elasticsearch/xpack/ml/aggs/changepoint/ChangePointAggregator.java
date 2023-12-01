@@ -22,9 +22,10 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Set;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -164,7 +165,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         logger.trace("trend vs stationary: [{}]", trendVsStationary);
 
         TestStats best = stationary;
-        HashSet<Integer> discoveredChangePoints = new HashSet<>(4, 1.0f);
+        Set<Integer> discoveredChangePoints = Sets.newHashSetWithExpectedSize(4);
         if (trendVsStationary.accept(pValueThreshold)) {
             // Check if there is a change in the trend.
             TestStats trendChangeVsTrend = testTrendChangeVs(trendVsStationary, timeWindow, timeWindowWeights, candidateChangePoints);
@@ -387,7 +388,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         return Math.min(2 * sf, 1.0);
     }
 
-    static SampleData sample(double[] values, double[] weights, HashSet<Integer> changePoints) {
+    static SampleData sample(double[] values, double[] weights, Set<Integer> changePoints) {
         Integer[] adjChangePoints = changePoints.toArray(new Integer[changePoints.size()]);
         if (values.length <= MAXIMUM_SAMPLE_SIZE_FOR_KS_TEST) {
             return new SampleData(values, weights, adjChangePoints);
@@ -425,7 +426,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         double[] values,
         double[] weights,
         int[] candidateChangePoints,
-        HashSet<Integer> discoveredChangePoints
+        Set<Integer> discoveredChangePoints
     ) {
 
         double maxDiff = 0.0;

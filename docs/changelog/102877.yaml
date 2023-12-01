@@ -1,5 +1,5 @@
 pr: 102877
-summary: Inference telemetry
+summary: Add basic telelemetry for the inference feature
 area: Machine Learning
 type: enhancement
 issues: []

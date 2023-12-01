@@ -37,7 +37,7 @@ public final class SearchUsage {
     /**
      * Track the usage of the provided rescorer
      */
-    public void trackRescorerUsage(String section) {
+    public void trackRescorerUsage(String name) {
         rescorers.add(section);
     }
 

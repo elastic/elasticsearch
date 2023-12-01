@@ -95,7 +95,12 @@ public class OpenAiService implements InferenceService {
     }
 
     @Override
-    public OpenAiModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets) {
+    public OpenAiModel parsePersistedConfigWithSecrets(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Map<String, Object> secrets
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
@@ -114,6 +119,27 @@ public class OpenAiService implements InferenceService {
         throwIfNotEmptyMap(serviceSettingsMap, NAME);
         throwIfNotEmptyMap(taskSettingsMap, NAME);
         throwIfNotEmptyMap(secretSettingsMap, NAME);
+
+        return model;
+    }
+
+    @Override
+    public OpenAiModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+
+        OpenAiModel model = createModel(
+            modelId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            format("Failed to parse stored model [%s] for [%s] service, please delete and add the service again", modelId, NAME)
+        );
+
+        throwIfNotEmptyMap(config, NAME);
+        throwIfNotEmptyMap(serviceSettingsMap, NAME);
+        throwIfNotEmptyMap(taskSettingsMap, NAME);
 
         return model;
     }

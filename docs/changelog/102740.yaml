@@ -1,0 +1,5 @@
+pr: 102740
+summary: "[Profiling] Notify early about task cancellation"
+area: Application
+type: enhancement
+issues: []

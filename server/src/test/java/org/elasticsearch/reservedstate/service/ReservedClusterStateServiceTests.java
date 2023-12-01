@@ -85,6 +85,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
+            mock(RerouteService.class),
             List.of(new ReservedClusterSettingsAction(clusterSettings))
         );
 
@@ -147,10 +148,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         RerouteService rerouteService = mock(RerouteService.class);
 
-        when(clusterService.getRerouteService()).thenReturn(rerouteService);
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
 
-        ReservedStateUpdateTaskExecutor taskExecutor = new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService());
+        ReservedStateUpdateTaskExecutor taskExecutor = new ReservedStateUpdateTaskExecutor(rerouteService);
 
         AtomicBoolean successCalled = new AtomicBoolean(false);
 
@@ -362,7 +362,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         );
 
         ClusterService clusterService = mock(ClusterService.class);
-        final var controller = spy(new ReservedClusterStateService(clusterService, List.of(newStateMaker, exceptionThrower)));
+        final var controller = spy(
+            new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(newStateMaker, exceptionThrower))
+        );
 
         var trialRunResult = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
         assertEquals(0, trialRunResult.nonStateTransforms().size());
@@ -440,7 +442,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ReservedClusterStateHandler<Map<String, Object>> oh3 = makeHandlerHelper("three", List.of("two"));
 
         ClusterService clusterService = mock(ClusterService.class);
-        final var controller = new ReservedClusterStateService(clusterService, List.of(oh1, oh2, oh3));
+        final var controller = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(oh1, oh2, oh3));
         Collection<String> ordered = controller.orderedStateHandlers(Set.of("one", "two", "three"));
         assertThat(ordered, contains("two", "three", "one"));
 
@@ -460,7 +462,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         // Change the second handler so that we create cycle
         oh2 = makeHandlerHelper("two", List.of("one"));
 
-        final var controller1 = new ReservedClusterStateService(clusterService, List.of(oh1, oh2));
+        final var controller1 = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(oh1, oh2));
 
         assertThat(
             expectThrows(IllegalStateException.class, () -> controller1.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
@@ -484,6 +486,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 IllegalStateException.class,
                 () -> new ReservedClusterStateService(
                     clusterService,
+                    mock(RerouteService.class),
                     List.of(new ReservedClusterSettingsAction(clusterSettings), new TestHandler())
                 )
             ).getMessage().startsWith("Duplicate key cluster_settings")
@@ -496,7 +499,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
 
-        final var controller = spy(new ReservedClusterStateService(clusterService, List.of()));
+        final var controller = spy(new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of()));
 
         assertNull(controller.checkAndReportError("test", List.of(), null));
         verify(controller, times(0)).updateErrorState(any());
@@ -568,7 +571,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
 
         ClusterService clusterService = mock(ClusterService.class);
-        final var controller = spy(new ReservedClusterStateService(clusterService, List.of(newStateMaker, exceptionThrower)));
+        final var controller = spy(
+            new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(newStateMaker, exceptionThrower))
+        );
 
         var trialRunResult = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
 
@@ -631,7 +636,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         var chunk = new ReservedStateChunk(chunkMap, new ReservedStateVersion(2L, Version.CURRENT));
 
         ClusterService clusterService = mock(ClusterService.class);
-        final var controller = spy(new ReservedClusterStateService(clusterService, handlers));
+        final var controller = spy(new ReservedClusterStateService(clusterService, mock(RerouteService.class), handlers));
 
         var trialRunResult = controller.trialRun(
             "namespace_one",

@@ -66,6 +66,14 @@ public class QueryPhase {
             // However even in that case we sometimes do expensive things like loading global ordinals. This rewrite should prevent this.
             // Note that if SearchService#executeQueryPhase(...) always do a can match then we don't need this code here.
             if (queryStillMatchesAfterRewrite(searchContext.request(), searchContext.getSearchExecutionContext()) == false) {
+                searchContext.queryResult()
+                    .topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
+                            Float.NaN
+                        ),
+                        new DocValueFormat[0]
+                    );
                 return;
             }
         } catch (IOException e) {

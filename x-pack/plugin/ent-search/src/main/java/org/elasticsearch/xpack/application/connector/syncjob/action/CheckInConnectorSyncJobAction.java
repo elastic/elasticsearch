@@ -27,18 +27,17 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class DeleteConnectorSyncJobAction extends ActionType<AcknowledgedResponse> {
+public class CheckInConnectorSyncJobAction extends ActionType<AcknowledgedResponse> {
 
-    public static final DeleteConnectorSyncJobAction INSTANCE = new DeleteConnectorSyncJobAction();
-    public static final String NAME = "cluster:admin/xpack/connector/sync_job/delete";
+    public static final CheckInConnectorSyncJobAction INSTANCE = new CheckInConnectorSyncJobAction();
+    public static final String NAME = "cluster:admin/xpack/connector/sync_job/check_in";
 
-    private DeleteConnectorSyncJobAction() {
+    private CheckInConnectorSyncJobAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
         public static final ParseField CONNECTOR_SYNC_JOB_ID_FIELD = new ParseField("connector_sync_job_id");
-
         private final String connectorSyncJobId;
 
         public Request(StreamInput in) throws IOException {
@@ -95,20 +94,18 @@ public class DeleteConnectorSyncJobAction extends ActionType<AcknowledgedRespons
             return builder;
         }
 
-        private static final ConstructingObjectParser<DeleteConnectorSyncJobAction.Request, Void> PARSER = new ConstructingObjectParser<>(
-            "delete_connector_sync_job_request",
+        private static final ConstructingObjectParser<CheckInConnectorSyncJobAction.Request, Void> PARSER = new ConstructingObjectParser<>(
+            "check_in_connector_sync_job_request",
             false,
             (args) -> new Request((String) args[0])
         );
 
         static {
             PARSER.declareString(constructorArg(), CONNECTOR_SYNC_JOB_ID_FIELD);
-
         }
 
-        public static DeleteConnectorSyncJobAction.Request parse(XContentParser parser) {
+        public static CheckInConnectorSyncJobAction.Request parse(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
     }
-
 }

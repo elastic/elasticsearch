@@ -16,17 +16,18 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DeleteConnectorSyncJobActionTests extends ESTestCase {
+public class CheckInConnectorSyncJobActionTests extends ESTestCase {
+
     public void testValidate_WhenConnectorSyncJobIdIsPresent_ExpectNoValidationError() {
-        DeleteConnectorSyncJobAction.Request request = ConnectorSyncJobTestUtils.getRandomDeleteConnectorSyncJobActionRequest();
+        CheckInConnectorSyncJobAction.Request request = ConnectorSyncJobTestUtils.getRandomCheckInConnectorSyncJobActionRequest();
         ActionRequestValidationException exception = request.validate();
 
         assertThat(exception, nullValue());
     }
 
     public void testValidate_WhenConnectorSyncJobIdIsEmpty_ExpectValidationError() {
-        DeleteConnectorSyncJobAction.Request requestWithMissingConnectorId = new DeleteConnectorSyncJobAction.Request("");
-        ActionRequestValidationException exception = requestWithMissingConnectorId.validate();
+        CheckInConnectorSyncJobAction.Request requestWithMissingConnectorSyncJobId = new CheckInConnectorSyncJobAction.Request("");
+        ActionRequestValidationException exception = requestWithMissingConnectorSyncJobId.validate();
 
         assertThat(exception, notNullValue());
         assertThat(exception.getMessage(), containsString(ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));

@@ -214,7 +214,14 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                 IllegalArgumentException.class,
                 () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new WeightedTokensThreshold(-1f, 0.0f, false))
             );
-            assertEquals("[ratio_threshold] must be greater or equal to 1, got -1.0", e.getMessage());
+            assertEquals("[ratio_threshold] must be between [1.0] and [100.0], got -1.0", e.getMessage());
+        }
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new WeightedTokensThreshold(101f, 0.0f, false))
+            );
+            assertEquals("[ratio_threshold] must be between [1.0] and [100.0], got 101.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(

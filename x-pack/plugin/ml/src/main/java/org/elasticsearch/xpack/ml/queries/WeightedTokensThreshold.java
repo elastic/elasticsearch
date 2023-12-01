@@ -26,6 +26,7 @@ public class WeightedTokensThreshold implements Writeable, ToXContentObject {
     public static final ParseField ONLY_SCORE_PRUNED_TOKENS_FIELD = new ParseField("only_score_pruned_tokens");
 
     public static final float DEFAULT_RATIO_THRESHOLD = 5;
+    public static final float MAX_RATIO_THRESHOLD = 100;
     public static final float DEFAULT_WEIGHT_THRESHOLD = 0.4f;
 
     private final float ratioThreshold;
@@ -37,9 +38,14 @@ public class WeightedTokensThreshold implements Writeable, ToXContentObject {
     }
 
     public WeightedTokensThreshold(float ratioThreshold, float weightThreshold, boolean onlyScorePrunedTokens) {
-        if (ratioThreshold < 1) {
+        if (ratioThreshold < 1 || ratioThreshold > MAX_RATIO_THRESHOLD) {
             throw new IllegalArgumentException(
-                "[" + RATIO_THRESHOLD_FIELD.getPreferredName() + "] must be greater or equal to 1, got " + ratioThreshold
+                "["
+                    + RATIO_THRESHOLD_FIELD.getPreferredName()
+                    + "] must be between [1.0] and ["
+                    + MAX_RATIO_THRESHOLD
+                    + "], got "
+                    + ratioThreshold
             );
         }
         if (weightThreshold < 0 || weightThreshold > 1) {

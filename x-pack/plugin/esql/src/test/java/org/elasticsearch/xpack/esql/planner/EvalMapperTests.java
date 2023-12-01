@@ -74,7 +74,8 @@ public class EvalMapperTests extends ESTestCase {
         null,
         10000000,
         10000,
-        StringUtils.EMPTY
+        StringUtils.EMPTY,
+        false
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")

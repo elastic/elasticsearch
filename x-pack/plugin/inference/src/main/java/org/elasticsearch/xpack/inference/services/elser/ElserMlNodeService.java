@@ -14,17 +14,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,7 +52,7 @@ public class ElserMlNodeService implements InferenceService {
 
     private final OriginSettingClient client;
 
-    public ElserMlNodeService(InferenceServicePlugin.InferenceServiceFactoryContext context) {
+    public ElserMlNodeService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
     }
 
@@ -100,12 +100,17 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public ElserMlNodeModel parsePersistedConfig(
+    public ElserMlNodeModel parsePersistedConfigWithSecrets(
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
+        return parsePersistedConfig(modelId, taskType, config);
+    }
+
+    @Override
+    public ElserMlNodeModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
 
@@ -160,7 +165,7 @@ public class ElserMlNodeService implements InferenceService {
     public void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener) {
         // No task settings to override with requestTaskSettings
 
-        if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
+        if (TaskType.SPARSE_EMBEDDING.isAnyOrSame(model.getConfigurations().getTaskType()) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME),

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -263,6 +264,12 @@ public class AbstractAuditorTests extends ESTestCase {
 
             return null;
         }).when(client).execute(eq(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        ArgumentCaptor<ActionListener<BulkResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doAnswer(invovation -> {
+            // We do this so that the listener is triggered in some way so that the AbstractAuditor releases the BulkRequest
+            listenerCaptor.getValue().onFailure(new RuntimeException());
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(), listenerCaptor.capture());
 
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         AdminClient adminClient = mock(AdminClient.class);

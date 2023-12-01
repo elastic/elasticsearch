@@ -58,17 +58,12 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     protected Exception buildError(String message, HttpRequestBase request, HttpResult result) {
         var errorEntityMsg = errorParseFunction.apply(result);
+        var responseStatusCode = result.response().getStatusLine().getStatusCode();
 
         if (errorEntityMsg == null) {
             return new ElasticsearchStatusException(
-                format(
-                    "%s for request [%s] status [%s]",
-                    message,
-                    request.getRequestLine(),
-                    result.response().getStatusLine().getStatusCode()
-                ),
-                // TODO: should we always return a 502 to the client since we're technically a gateway?
-                RestStatus.BAD_GATEWAY
+                format("%s for request [%s] status [%s]", message, request.getRequestLine(), responseStatusCode),
+                toRestStatus(responseStatusCode)
             );
         }
 
@@ -77,10 +72,19 @@ public abstract class BaseResponseHandler implements ResponseHandler {
                 "%s for request [%s] status [%s]. Error message: [%s]",
                 message,
                 request.getRequestLine(),
-                result.response().getStatusLine().getStatusCode(),
+                responseStatusCode,
                 errorEntityMsg.getErrorMessage()
             ),
-            RestStatus.BAD_GATEWAY
+            toRestStatus(responseStatusCode)
         );
+    }
+
+    static RestStatus toRestStatus(int statusCode) {
+        RestStatus code = null;
+        if (statusCode < 500) {
+            code = RestStatus.fromCode(statusCode);
+        }
+
+        return code == null ? RestStatus.BAD_REQUEST : code;
     }
 }

@@ -52,7 +52,7 @@ public class HuggingFaceEmbeddingsResponseEntity {
     }
 
     /**
-     * The response from hugging face could be formatted as <code>[[0.1, ...], [0.1, ...]}</code>.
+     * The response from hugging face could be formatted as <code>[[0.1, ...], [0.1, ...]]</code>.
      * Each entry in the array will correspond to the entry within the inputs array within the request sent to hugging face. For example
      * for a request like:
      *

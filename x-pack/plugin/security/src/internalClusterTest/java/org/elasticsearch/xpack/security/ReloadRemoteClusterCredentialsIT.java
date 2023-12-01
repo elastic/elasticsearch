@@ -146,6 +146,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             final String updatedCredentials = randomAlphaOfLength(41);
             writeCredentialsToKeyStore(updatedCredentials);
             reloadSecureSettings();
+            // TODO make update settings call to ensure connections get re-built
             configureRemoteCluster(remoteAddress);
 
             client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();

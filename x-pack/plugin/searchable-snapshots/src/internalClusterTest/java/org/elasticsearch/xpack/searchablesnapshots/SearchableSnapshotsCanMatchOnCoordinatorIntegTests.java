@@ -627,7 +627,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         // All shards failed, since all shards are unassigned and the IndexMetadata min/max timestamp
         // is not available yet
-        try {
+        expectThrows(SearchPhaseExecutionException.class, () -> {
             SearchResponse response = client().search(request).actionGet();
             logger.info(
                 "[TEST DEBUG INFO] Search hits: {} Successful shards: {}, failed shards: {}, skipped shards: {}, total shards: {}",
@@ -637,12 +637,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 response.getSkippedShards(),
                 response.getTotalShards()
             );
-            fail("This search call is expected to throw exception but it did not");
-        } catch (SearchPhaseExecutionException e) {
-            // expected to happen
-            // TODO: when test is cleared revert back and replace this try-catch with
-            // `expectThrows(SearchPhaseExecutionException.class, () -> client().search(request).actionGet());`
-        }
+            fail("This search call is expected to throw an exception but it did not");
+        });
 
         // test with SearchShards API
         boolean allowPartialSearchResults = false;

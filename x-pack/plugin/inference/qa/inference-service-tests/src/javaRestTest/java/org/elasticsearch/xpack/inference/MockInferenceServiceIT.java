@@ -7,63 +7,13 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-
-public class MockInferenceServiceIT extends ESRestTestCase {
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.security.enabled", "true")
-        .plugin("org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin")
-        .user("x_pack_rest_user", "x-pack-test-password")
-        .build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    static String mockServiceModelConfig() {
-        return Strings.format("""
-            {
-              "service": "test_service",
-              "service_settings": {
-                "model": "my_model",
-                "api_key": "abc64"
-              },
-              "task_settings": {
-                "temperature": 3
-              }
-            }
-            """);
-    }
+public class MockInferenceServiceIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testMockService() throws IOException {
@@ -112,60 +62,5 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         var putServiceSettings = (Map<String, Object>) putModel.get("service_settings");
         assertNull(putServiceSettings.get("api_key"));
         assertNotNull(putServiceSettings.get("model"));
-    }
-
-    private Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
-        String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        var request = new Request("PUT", endpoint);
-        request.setJsonEntity(modelConfig);
-        var reponse = client().performRequest(request);
-        assertOkWithErrorMessage(reponse);
-        return entityAsMap(reponse);
-    }
-
-    public Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
-        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        var request = new Request("GET", endpoint);
-        var reponse = client().performRequest(request);
-        assertOkWithErrorMessage(reponse);
-        return entityAsMap(reponse);
-    }
-
-    private Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
-        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        var request = new Request("POST", endpoint);
-
-        var bodyBuilder = new StringBuilder("{\"input\": [");
-        for (var in : input) {
-            bodyBuilder.append('"').append(in).append('"').append(',');
-        }
-        // remove last comma
-        bodyBuilder.deleteCharAt(bodyBuilder.length() - 1);
-        bodyBuilder.append("]}");
-
-        request.setJsonEntity(bodyBuilder.toString());
-        var response = client().performRequest(request);
-        assertOkWithErrorMessage(response);
-        return entityAsMap(response);
-    }
-
-    @SuppressWarnings("unchecked")
-    protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
-        if (taskType == TaskType.SPARSE_EMBEDDING) {
-            var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
-            assertThat(results, hasSize(expectedNumberOfResults));
-        } else {
-            fail("test with task type [" + taskType + "] are not supported yet");
-        }
-    }
-
-    protected static void assertOkWithErrorMessage(Response response) throws IOException {
-        int statusCode = response.getStatusLine().getStatusCode();
-        if (statusCode == 200 || statusCode == 201) {
-            return;
-        }
-
-        String responseStr = EntityUtils.toString(response.getEntity());
-        assertThat(responseStr, response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 }

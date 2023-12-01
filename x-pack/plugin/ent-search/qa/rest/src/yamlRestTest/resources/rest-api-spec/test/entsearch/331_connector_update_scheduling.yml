@@ -45,7 +45,7 @@ setup:
   - match: { scheduling.incremental.interval: "3 0 0 * * ?" }
 
 ---
-"Update Connector Scheduling - 404 status code returned when connector doesn't exist":
+"Update Connector Scheduling - Connector doesn't exist":
   - do:
       catch: "missing"
       connector.update_scheduling:

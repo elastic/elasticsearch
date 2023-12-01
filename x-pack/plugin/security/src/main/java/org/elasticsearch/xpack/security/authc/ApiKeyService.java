@@ -565,6 +565,7 @@ public class ApiKeyService {
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 logger.trace("No bulk request execution necessary for API key update");
                 listener.onResponse(responseBuilder.build());
+                bulkRequestBuilder.close();
                 return;
             }
 

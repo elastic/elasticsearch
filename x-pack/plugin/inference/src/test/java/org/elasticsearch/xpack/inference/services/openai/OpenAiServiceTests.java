@@ -260,7 +260,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModel() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -291,7 +291,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
+    public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -321,7 +321,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -352,7 +352,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -384,7 +384,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -418,7 +418,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
+    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -450,7 +450,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -484,7 +484,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -515,6 +515,144 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
+        try (
+            var service = new OpenAiService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"));
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
+            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
+        try (
+            var service = new OpenAiService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"));
+
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
+            );
+
+            assertThat(
+                thrownException.getMessage(),
+                is("Failed to parse stored model [id] for [openai] service, please delete and add the service again")
+            );
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
+        try (
+            var service = new OpenAiService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(null, null), getTaskSettingsMap("model", null));
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+        try (
+            var service = new OpenAiService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"));
+            persistedConfig.config().put("extra_key", "value");
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
+            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+        try (
+            var service = new OpenAiService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var serviceSettingsMap = getServiceSettingsMap("url", "org");
+            serviceSettingsMap.put("extra_key", "value");
+
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("model", "user"));
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
+            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+        try (
+            var service = new OpenAiService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var taskSettingsMap = getTaskSettingsMap("model", "user");
+            taskSettingsMap.put("extra_key", "value");
+
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), taskSettingsMap);
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
+            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
@@ -644,6 +782,14 @@ public class OpenAiServiceTests extends ESTestCase {
         return new PeristedConfig(
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
+        );
+    }
+
+    private PeristedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
+
+        return new PeristedConfig(
+            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
+            null
         );
     }
 

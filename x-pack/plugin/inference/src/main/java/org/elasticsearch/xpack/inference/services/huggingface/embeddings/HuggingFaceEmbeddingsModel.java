@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.parseSecretsOrNull;
+
 public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
     public HuggingFaceEmbeddingsModel(
         String modelId,
@@ -29,7 +31,13 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secrets
     ) {
-        this(modelId, taskType, service, HuggingFaceServiceSettings.fromMap(serviceSettings), parseSecrets(secrets));
+        this(
+            modelId,
+            taskType,
+            service,
+            HuggingFaceServiceSettings.fromMap(serviceSettings),
+            parseSecretsOrNull(secrets, DefaultSecretSettings::fromMap)
+        );
     }
 
     // Should only be used directly for testing
@@ -41,14 +49,6 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         @Nullable DefaultSecretSettings secrets
     ) {
         super(new ModelConfigurations(modelId, taskType, service, serviceSettings), new ModelSecrets(secrets));
-    }
-
-    private static DefaultSecretSettings parseSecrets(@Nullable Map<String, Object> secrets) {
-        if (secrets == null) {
-            return null;
-        }
-
-        return DefaultSecretSettings.fromMap(secrets);
     }
 
     @Override

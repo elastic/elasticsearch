@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 import java.net.URI;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.parseSecretsOrNull;
+
 public class HuggingFaceElserModel extends HuggingFaceModel {
     public HuggingFaceElserModel(
         String modelId,
@@ -27,7 +29,13 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secrets
     ) {
-        this(modelId, taskType, service, HuggingFaceElserServiceSettings.fromMap(serviceSettings), parseSecrets(secrets));
+        this(
+            modelId,
+            taskType,
+            service,
+            HuggingFaceElserServiceSettings.fromMap(serviceSettings),
+            parseSecretsOrNull(secrets, HuggingFaceElserSecretSettings::fromMap)
+        );
     }
 
     HuggingFaceElserModel(
@@ -38,14 +46,6 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         @Nullable HuggingFaceElserSecretSettings secretSettings
     ) {
         super(new ModelConfigurations(modelId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
-    }
-
-    private static HuggingFaceElserSecretSettings parseSecrets(@Nullable Map<String, Object> secrets) {
-        if (secrets == null) {
-            return null;
-        }
-
-        return HuggingFaceElserSecretSettings.fromMap(secrets);
     }
 
     @Override

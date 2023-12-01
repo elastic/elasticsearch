@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -76,7 +77,7 @@ public class OpenAiService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings,
+        @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
         return switch (taskType) {

@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -190,7 +191,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModel() throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModel() throws IOException {
         try (
             var service = new HuggingFaceService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -214,7 +215,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnElserModel() throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesAnElserModel() throws IOException {
         try (
             var service = new HuggingFaceService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -238,7 +239,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new HuggingFaceService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -263,7 +264,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -290,7 +291,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (
             var service = new HuggingFaceService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -315,7 +316,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -342,7 +343,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -366,6 +367,108 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModel() throws IOException {
+        try (
+            var service = new HuggingFaceService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"));
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnElserModel() throws IOException {
+        try (
+            var service = new HuggingFaceService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"));
+
+            var model = service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(HuggingFaceElserModel.class));
+
+            var embeddingsModel = (HuggingFaceElserModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+        try (
+            var service = new HuggingFaceService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"));
+            persistedConfig.config().put("extra_key", "value");
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+        try (
+            var service = new HuggingFaceService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var serviceSettingsMap = getServiceSettingsMap("url");
+            serviceSettingsMap.put("extra_key", "value");
+
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap);
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+        try (
+            var service = new HuggingFaceService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var taskSettingsMap = new HashMap<String, Object>();
+            taskSettingsMap.put("extra_key", "value");
+
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), taskSettingsMap, null);
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
@@ -457,9 +560,13 @@ public class HuggingFaceServiceTests extends ESTestCase {
         return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
     }
 
+    private HuggingFaceServiceTests.PeristedConfig getPersistedConfigMap(Map<String, Object> serviceSettings) {
+        return getPersistedConfigMap(serviceSettings, Map.of(), null);
+    }
+
     private HuggingFaceServiceTests.PeristedConfig getPersistedConfigMap(
         Map<String, Object> serviceSettings,
-        Map<String, Object> secretSettings
+        @Nullable Map<String, Object> secretSettings
     ) {
         return getPersistedConfigMap(serviceSettings, Map.of(), secretSettings);
     }
@@ -470,9 +577,11 @@ public class HuggingFaceServiceTests extends ESTestCase {
         Map<String, Object> secretSettings
     ) {
 
+        var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
+
         return new HuggingFaceServiceTests.PeristedConfig(
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
+            secrets
         );
     }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -265,7 +266,6 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                 Build build = clusterInfo.getBuild();
                 if (build != null) {
                     // TODO Lucene version is not part of build - do we want that as well?
-                    // TODO should we create a new ClusterVersionInfo object that has Build, Lucene version and Features list?
                     builder.startObject(ES_VERSION_FIELD.getPreferredName())
                         .field("number", build.qualifiedVersion())
                         .field("build_flavor", build.flavor())
@@ -374,7 +374,10 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
                         } else {
                             Throwable cause = ExceptionsHelper.unwrapCause(failure);
-                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, cause.toString()));
+                            // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
+                            // determine based on the error, so we default to false in the face of any error and report it
+                            // back to the user for consideration
+                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
                             logger.warn(
                                 () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
                                 failure
@@ -393,13 +396,23 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
         }
 
         private boolean notConnectedError(Exception e) {
-            return e instanceof ConnectTransportException || e instanceof NoSuchRemoteClusterException;
+            if (e instanceof ConnectTransportException || e instanceof NoSuchRemoteClusterException) {
+                return true;
+            }
+            Throwable ill = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+            if (ill != null && ill.getMessage().contains("unknown host")) {
+                return true;
+            }
+            if (ExceptionsHelper.unwrap(e, NoSeedNodeLeftException.class) != null) {
+                return true;
+            }
+            return false;
         }
 
         private boolean hasMatchingIndices(OriginalIndices localIndices, ClusterState clusterState) {
             List<ResolveIndexAction.ResolvedIndex> indices = new ArrayList<>();
-            List<ResolveIndexAction.ResolvedAlias> aliases = new ArrayList<>();           /// MP TODO: need this?
-            List<ResolveIndexAction.ResolvedDataStream> dataStreams = new ArrayList<>();  /// MP TODO: need this?
+            List<ResolveIndexAction.ResolvedAlias> aliases = new ArrayList<>();
+            List<ResolveIndexAction.ResolvedDataStream> dataStreams = new ArrayList<>();
             try {
                 ResolveIndexAction.TransportAction.resolveIndices(
                     localIndices,
@@ -414,7 +427,6 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                 return false;
             }
 
-            // TODO: not sure that this is right - does aliases.size > 0 imply that there are indices in scope for the search?
             return indices.size() > 0 || aliases.size() > 0 || dataStreams.size() > 0;
         }
     }

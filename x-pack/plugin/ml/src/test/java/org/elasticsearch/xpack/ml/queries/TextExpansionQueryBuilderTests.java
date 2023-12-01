@@ -176,8 +176,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
                   "model_id": "baz",
                   "tokens_threshold": {
                     "ratio_threshold": 4.0,
-                    "weight_threshold": 0.3,
-                    "only_score_pruned_tokens": false
+                    "weight_threshold": 0.3
                   }
                 }
               }

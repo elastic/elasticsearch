@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.ml.queries;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.document.FloatDocValuesField;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -31,10 +36,10 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -45,17 +50,19 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     private static final int NUM_TOKENS = 10;
 
+    private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(
+        new TextExpansionResults.WeightedToken("foo", .42f),
+        new TextExpansionResults.WeightedToken("bar", .05f),
+        new TextExpansionResults.WeightedToken("baz", .74f)
+    );
+
     @Override
     protected WeightedTokensQueryBuilder doCreateTestQueryBuilder() {
-        WeightedTokensThreshold threshold = rarely()
+        WeightedTokensThreshold threshold = randomBoolean()
             ? new WeightedTokensThreshold(randomIntBetween(1, 100), randomFloat(), randomBoolean())
             : null;
-        List<TextExpansionResults.WeightedToken> weightedTokens = List.of(
-            new TextExpansionResults.WeightedToken("foo", .42f),
-            new TextExpansionResults.WeightedToken("bar", .05f),
-            new TextExpansionResults.WeightedToken("baz", .74f)
-        );
-        var builder = new WeightedTokensQueryBuilder(RANK_FEATURES_FIELD, weightedTokens, threshold);
+
+        var builder = new WeightedTokensQueryBuilder(RANK_FEATURES_FIELD, WEIGHTED_TOKENS, threshold);
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -71,14 +78,6 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     @Override
-    public void testMustRewrite() {
-        SearchExecutionContext context = createSearchExecutionContext();
-        TextExpansionQueryBuilder builder = new TextExpansionQueryBuilder("foo", "bar", "baz");
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.toQuery(context));
-        assertEquals("text_expansion should have been rewritten to another query type", e.getMessage());
-    }
-
-    @Override
     protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {
         return method.equals(Client.class.getMethod("execute", ActionType.class, ActionRequest.class, ActionListener.class))
             && (args[0] instanceof InferModelAction);
@@ -90,16 +89,11 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, request.getInferenceTimeout());
         assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
 
-        // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
+        // Randomisation of tokens cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same
-        var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
-        for (int i = 0; i < NUM_TOKENS; i++) {
-            tokens.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (i + 1) * 1.0f));
-        }
-
         var response = InferModelAction.Response.builder()
             .setId(request.getId())
-            .addInferenceResults(List.of(new TextExpansionResults("foo", tokens, randomBoolean())))
+            .addInferenceResults(List.of(new TextExpansionResults("foo", WEIGHTED_TOKENS, randomBoolean())))
             .build();
         @SuppressWarnings("unchecked")  // We matched the method above.
         ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) args[2];
@@ -114,6 +108,25 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
             new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(RANK_FEATURES_FIELD, "type=rank_features"))),
             MapperService.MergeReason.MAPPING_UPDATE
         );
+    }
+
+    /**
+     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
+     */
+    @Override
+    public void testToQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            Document document = new Document();
+            document.add(new FloatDocValuesField(RANK_FEATURES_FIELD, 1.0f));
+            iw.addDocument(document);
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+                WeightedTokensQueryBuilder queryBuilder = createTestQueryBuilder();
+                Query query = queryBuilder.doToQuery(context);
+
+                assertEquals(RANK_FEATURES_FIELD, queryBuilder.getFieldName());
+            }
+        }
     }
 
     @Override
@@ -134,26 +147,41 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testIllegalValues() {
+        List<WeightedToken> weightedTokenList = List.of(new WeightedToken("foo", 1.0f));
         {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new TextExpansionQueryBuilder(null, "model text", "model id")
+            NullPointerException e = expectThrows(
+                NullPointerException.class,
+                () -> new WeightedTokensQueryBuilder(null, weightedTokenList, null)
             );
-            assertEquals("[text_expansion] requires a fieldName", e.getMessage());
+            assertEquals("[weighted_tokens] requires a fieldName", e.getMessage());
+        }
+        {
+            NullPointerException e = expectThrows(
+                NullPointerException.class,
+                () -> new WeightedTokensQueryBuilder("field name", null, null)
+            );
+            assertEquals("[weighted_tokens] requires tokens", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new TextExpansionQueryBuilder("field name", null, "model id")
+                () -> new WeightedTokensQueryBuilder("field name", List.of(), null)
             );
-            assertEquals("[text_expansion] requires a model_text value", e.getMessage());
+            assertEquals("[weighted_tokens] requires at least one token", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new TextExpansionQueryBuilder("field name", "model text", null)
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokenList, new WeightedTokensThreshold(-1f, 0.0f, false))
             );
-            assertEquals("[text_expansion] requires a model_id value", e.getMessage());
+            assertEquals("[ratio_threshold] must be greater or equal to 1, got -1.0", e.getMessage());
+        }
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokenList, new WeightedTokensThreshold(5f, 5f, false))
+            );
+            assertEquals("[weight_threshold] must be between 0 and 1", e.getMessage());
         }
     }
 
@@ -178,10 +206,11 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                 "foo": {
                   "model_text": "bar",
                   "model_id": "baz",
-                  "
-                  "ratio_threshold": 4,
-                  "weight_threshold": 0.4
-                }
+                  "tokens_threshold": {
+                    "ratio_threshold": 4.0,
+                    "weight_threshold": 0.4
+                    }
+                 }
               }
             }""", query);
     }

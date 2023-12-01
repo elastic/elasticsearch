@@ -50,7 +50,10 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable WeightedTokensThreshold threshold) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
-        this.threshold = threshold == null ? new WeightedTokensThreshold() : threshold;
+        if (tokens.isEmpty()) {
+            throw new IllegalArgumentException("[" + NAME + "] requires at least one token");
+        }
+        this.threshold = Objects.requireNonNullElse(threshold, new WeightedTokensThreshold());
     }
 
     public WeightedTokensQueryBuilder(StreamInput in) throws IOException {
@@ -177,7 +180,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             return asNumber.floatValue();
         }
         if (weight instanceof String asString) {
-            return Float.valueOf(asString);
+            return Float.parseFloat(asString);
         }
         throw new IllegalArgumentException(
             "Illegal weight for token: [" + token + "], expected floating point got " + weight.getClass().getSimpleName()

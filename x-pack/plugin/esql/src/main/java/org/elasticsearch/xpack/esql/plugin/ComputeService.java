@@ -474,7 +474,7 @@ public class ComputeService {
                     out.writeBoolean(false);
                 } else {
                     out.writeBoolean(true);
-                    out.writeOptionalCollection(profiles);
+                    out.writeCollection(profiles);
                 }
             }
         }

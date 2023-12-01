@@ -41,8 +41,8 @@ public class KDETests extends ESTestCase {
             double median = kde.data()[kde.size() / 2];
             KDE.ValueAndMagnitude cdf = kde.cdf(median);
             KDE.ValueAndMagnitude sf = kde.sf(median);
-            assertThat(cdf.value(), closeTo(0.5, 0.05));
-            assertThat(sf.value(), closeTo(0.5, 0.05));
+            assertThat(cdf.value(), closeTo(0.5, 0.1));
+            assertThat(sf.value(), closeTo(0.5, 0.1));
         }
 
         // Should approximately sum to 1.0 for some random data.

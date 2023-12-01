@@ -45,27 +45,37 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        super(XPackUsageFeatureAction.INFERENCE.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
+        super(
+            XPackUsageFeatureAction.INFERENCE.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
     }
 
     @Override
     protected void masterOperation(
-        Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
     ) throws Exception {
         GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY);
-        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, ActionListener.wrap(
-            response -> {
-                Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
-                for (ModelConfigurations model : response.getModels()) {
-                    String statKey = model.getService() + ":" + model.getTaskType().name();
-                    InferenceFeatureSetUsage.ModelStats stat = stats.computeIfAbsent(statKey,
-                        key -> new InferenceFeatureSetUsage.ModelStats(model.getService(), model.getTaskType()));
-                    stat.add();
-                }
-                InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());
-                listener.onResponse(new XPackUsageFeatureResponse(usage));
-            },
-            listener::onFailure));
+        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, ActionListener.wrap(response -> {
+            Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
+            for (ModelConfigurations model : response.getModels()) {
+                String statKey = model.getService() + ":" + model.getTaskType().name();
+                InferenceFeatureSetUsage.ModelStats stat = stats.computeIfAbsent(
+                    statKey,
+                    key -> new InferenceFeatureSetUsage.ModelStats(model.getService(), model.getTaskType())
+                );
+                stat.add();
+            }
+            InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());
+            listener.onResponse(new XPackUsageFeatureResponse(usage));
+        }, listener::onFailure));
     }
 }

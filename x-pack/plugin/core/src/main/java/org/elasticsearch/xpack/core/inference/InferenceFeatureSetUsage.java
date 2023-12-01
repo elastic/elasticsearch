@@ -40,11 +40,7 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
         }
 
         Map<String, Object> asMap() {
-            return Map.of(
-                "service", service,
-                "task_type", taskType.name(),
-                "count", count
-            );
+            return Map.of("service", service, "task_type", taskType.name(), "count", count);
         }
     }
 

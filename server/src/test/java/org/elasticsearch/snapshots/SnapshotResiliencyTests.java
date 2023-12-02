@@ -762,16 +762,22 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(
                 new SearchRequest("restored_" + index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
-                searchResponseListener
+                searchResponseListener.delegateFailure((l, r) -> {
+                    r.incRef();
+                    l.onResponse(r);
+                })
             );
         });
 
         deterministicTaskQueue.runAllRunnableTasks();
 
-        assertEquals(
-            documentsFirstSnapshot + documentsSecondSnapshot,
-            Objects.requireNonNull(safeResult(searchResponseListener).getHits().getTotalHits()).value
-        );
+        var response = safeResult(searchResponseListener);
+        try {
+            assertEquals(documentsFirstSnapshot + documentsSecondSnapshot, Objects.requireNonNull(response.getHits().getTotalHits()).value);
+        } finally {
+            response.decRef();
+        }
+
         assertThat(safeResult(deleteSnapshotStepListener).isAcknowledged(), is(true));
         assertThat(safeResult(restoreSnapshotResponseListener).getRestoreInfo().failedShards(), is(0));
 

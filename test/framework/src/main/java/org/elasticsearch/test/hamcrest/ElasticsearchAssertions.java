@@ -375,18 +375,14 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public record ScrollResponses(
-        SearchResponse initialSearchResponse,
-        List<SearchResponse> scrollResponses,
-        List<SearchResponse> allResponses
-    ) {}
-
     /**
+     * A helper to enable the testing of scroll requests with ref-counting.
      *
-     * @param keepAlive
-     * @param searchRequestBuilder
-     * @param expectedTotalHitCount
-     * @param responseConsumer (respNum, response) -> {your assertions here}, respNum starts at 1.
+     * @param keepAlive             The TTL for the scroll context.
+     * @param searchRequestBuilder  The initial search request.
+     * @param expectedTotalHitCount The number of hits that are expected to be retrieved.
+     * @param responseConsumer      (respNum, response) -> {your assertions here}.
+     *                              respNum starts at 1, which contains the resp from the initial request.
      */
     public static void assertScrollResponsesAndHitCount(
         TimeValue keepAlive,

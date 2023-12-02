@@ -72,7 +72,7 @@ public final class ConnectorTestUtils {
             .setLastAccessControlSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))
             .setLastDeletedDocumentCount(randomLong())
             .setLastIncrementalSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
-            .setLastIndexedDocumentCount( randomLong())
+            .setLastIndexedDocumentCount(randomLong())
             .setLastSyncError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setLastSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
             .setLastSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))

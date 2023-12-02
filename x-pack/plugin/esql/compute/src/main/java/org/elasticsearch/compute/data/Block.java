@@ -102,8 +102,14 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * The new block may hold a reference to this block, increasing this block's reference count.
      * @param positions the positions to retain
      * @return a filtered block
+     * TODO: pass BlockFactory
      */
     Block filter(int... positions);
+
+    /**
+     * This method must be called before passing this Block to another Driver.
+     */
+    void allowPassingToDifferentDriver();
 
     /**
      * How are multivalued fields ordered?
@@ -145,6 +151,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     /**
      * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued
      * fields to expand. The returned block needs to be closed by the caller to release the block's resources.
+     * TODO: pass BlockFactory
      */
     Block expand();
 

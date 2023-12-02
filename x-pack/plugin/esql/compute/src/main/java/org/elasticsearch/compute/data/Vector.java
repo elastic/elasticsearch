@@ -51,6 +51,11 @@ public interface Vector extends Accountable, Releasable {
     BlockFactory blockFactory();
 
     /**
+     * This method must be called before passing this Vector to another Driver.
+     */
+    void allowPassingToDifferentDriver();
+
+    /**
      * Builds {@link Vector}s. Typically, you use one of it's direct supinterfaces like {@link IntVector.Builder}.
      * This is {@link Releasable} and should be released after building the vector or if building the vector fails.
      */

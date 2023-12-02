@@ -236,7 +236,13 @@ public final class Page implements Writeable {
         Releasables.closeExpectNoException(blocks);
     }
 
-    static int mapSize(int expectedSize) {
-        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
+    /**
+     * Must call this method before passing this Page to another Driver.
+     * @see org.elasticsearch.compute.operator.SinkOperator#addInput(Page)
+     */
+    public void allowPassingPagesToDifferentContext() {
+        for (Block block : blocks) {
+            block.allowPassingToDifferentDriver();
+        }
     }
 }

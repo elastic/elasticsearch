@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
@@ -117,6 +119,7 @@ public class LocalExecutionPlanner {
     private final CancellableTask parentTask;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    private final Settings settings;
     private final EsqlConfiguration configuration;
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
@@ -128,6 +131,7 @@ public class LocalExecutionPlanner {
         CancellableTask parentTask,
         BigArrays bigArrays,
         BlockFactory blockFactory,
+        Settings settings,
         EsqlConfiguration configuration,
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
@@ -138,6 +142,7 @@ public class LocalExecutionPlanner {
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.settings = settings;
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
@@ -154,7 +159,8 @@ public class LocalExecutionPlanner {
             new Holder<>(DriverParallelism.SINGLE),
             configuration.pragmas(),
             bigArrays,
-            blockFactory
+            blockFactory,
+            settings
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -165,9 +171,10 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation physicalOperation = plan(node, context);
 
+        final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, configuration.pragmas().statusInterval()),
+                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
                 context.driverParallelism().get()
             )
         );
@@ -702,7 +709,8 @@ public class LocalExecutionPlanner {
         Holder<DriverParallelism> driverParallelism,
         QueryPragmas queryPragmas,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        Settings settings
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -726,26 +734,39 @@ public class LocalExecutionPlanner {
         }
     }
 
-    record DriverSupplier(BigArrays bigArrays, BlockFactory blockFactory, PhysicalOperation physicalOperation, TimeValue statusInterval)
-        implements
-            Function<String, Driver>,
-            Describable {
+    record DriverSupplier(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        PhysicalOperation physicalOperation,
+        TimeValue statusInterval,
+        Settings settings
+    ) implements Function<String, Driver>, Describable {
         @Override
         public Driver apply(String sessionId) {
             SourceOperator source = null;
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
-            var driverContext = new DriverContext(bigArrays, blockFactory);
+            final var localBreaker = new LocalCircuitBreaker(blockFactory.breaker(), settings);
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);
                 sink = physicalOperation.sink(driverContext);
                 success = true;
-                return new Driver(sessionId, driverContext, physicalOperation::describe, source, operators, sink, statusInterval, () -> {});
+                return new Driver(
+                    sessionId,
+                    driverContext,
+                    physicalOperation::describe,
+                    source,
+                    operators,
+                    sink,
+                    statusInterval,
+                    localBreaker
+                );
             } finally {
                 if (false == success) {
-                    Releasables.close(source, () -> Releasables.close(operators), sink);
+                    Releasables.close(source, () -> Releasables.close(operators), sink, localBreaker);
                 }
             }
         }

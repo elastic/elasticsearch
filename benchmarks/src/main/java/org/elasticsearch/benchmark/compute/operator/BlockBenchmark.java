@@ -8,6 +8,7 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
@@ -49,8 +50,8 @@ public class BlockBenchmark {
         // TODO
     }
 
-    @Param({ "1", "8" })
-    public String blockLengthInKilos;
+    @Param({ "1K", "8K" })
+    public String blockLength;
 
     // TODO other types
 //    @Param({ "int", "long" })
@@ -194,6 +195,6 @@ public class BlockBenchmark {
     private final long[] actualCheckSums = new long[NUM_BLOCKS_PER_ITERATION];
 
     private int totalPositions() {
-        return Integer.parseInt(blockLengthInKilos);
+        return (int) ByteSizeValue.parseBytesSizeValue(blockLength, "block length").getBytes();
     }
 }

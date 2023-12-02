@@ -84,8 +84,11 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     }
 
     public OpenAiEmbeddingsModel overrideWith(Map<String, Object> taskSettings) {
-        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        if (taskSettings == null || taskSettings.isEmpty()) {
+            return this;
+        }
 
+        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
         return new OpenAiEmbeddingsModel(this, getTaskSettings().overrideWith(requestTaskSettings));
     }
 }

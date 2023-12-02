@@ -42,8 +42,6 @@ public final class RepositoriesModule {
     public static final String METRIC_UNSUCCESSFUL_OPERATIONS_COUNT = "es.repositories.operations.unsuccessful.count";
     public static final String METRIC_EXCEPTIONS_HISTOGRAM = "es.repositories.exceptions.histogram";
     public static final String METRIC_THROTTLES_HISTOGRAM = "es.repositories.throttles.histogram";
-
-    public static final String METRIC_REQUESTS_COUNT = "repositories.requests.count";
     public static final String HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM = "es.repositories.requests.http_request_time.histogram";
     private final RepositoriesService repositoriesService;
 

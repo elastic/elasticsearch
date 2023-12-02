@@ -54,10 +54,10 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.RepositoriesModule.HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_COUNT;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_OPERATIONS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_THROTTLES_COUNT;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_THROTTLES_HISTOGRAM;
@@ -205,7 +205,6 @@ class S3BlobStore implements BlobStore {
             // TODO Is this BWC really necessary?
             if (response != null) {
                 counter.add(requestCount);
-                httpRequestTimeInMicroHistogram.record(getHttpRequestTimeInMicros(request), attributes); // TODO john
             }
 
             // We collect all metrics regardless whether response is null
@@ -229,6 +228,7 @@ class S3BlobStore implements BlobStore {
                 throttleCounter.incrementBy(throttleCount, attributes);
                 throttleHistogram.record(throttleCount, attributes);
             }
+            httpRequestTimeInMicroHistogram.record(getHttpRequestTimeInMicros(request), attributes);
         }
 
         private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {

@@ -540,6 +540,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
             }
+            // TODO: i think it makes sense to always do a canMatch here and
+            // return an empty response (not null response) in case canMatch is false?
             ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
         }));
     }

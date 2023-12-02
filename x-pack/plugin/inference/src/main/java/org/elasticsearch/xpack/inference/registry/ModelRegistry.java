@@ -42,7 +42,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
-import org.elasticsearch.xpack.inference.services.MapParsingUtils;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,9 +73,9 @@ public class ModelRegistry {
             if (modelConfigMap.config() == null) {
                 throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
             }
-            String modelId = MapParsingUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
-            String service = MapParsingUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
-            String taskTypeStr = MapParsingUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
+            String modelId = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
+            String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
+            String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
             TaskType taskType = TaskType.fromString(taskTypeStr);
 
             return new UnparsedModel(modelId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());

@@ -16,9 +16,16 @@ import java.util.List;
 public class KnnDenseVector implements DenseVector {
 
     protected final float[] docVector;
+    private float magnitude;
 
     public KnnDenseVector(float[] docVector) {
         this.docVector = docVector;
+        this.magnitude = Float.NaN;
+    }
+
+    public KnnDenseVector(float[] docVector, float magnitude) {
+        this.docVector = docVector;
+        this.magnitude = magnitude;
     }
 
     @Override
@@ -30,7 +37,10 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public float getMagnitude() {
-        return DenseVector.getMagnitude(docVector);
+        if (Float.isNaN(magnitude)) {
+            magnitude = DenseVector.getMagnitude(docVector);
+        }
+        return magnitude;
     }
 
     @Override

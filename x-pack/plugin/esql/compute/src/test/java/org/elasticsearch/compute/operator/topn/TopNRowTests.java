@@ -12,30 +12,39 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class TopNRowTests extends ESTestCase {
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
 
     public void testRamBytesUsedEmpty() {
-        TopNOperator.Row row = new TopNOperator.Row(breaker);
+        TopNOperator.Row row = new TopNOperator.Row(breaker, sortOrders());
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedSmall() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders());
         row.keys.append(randomByte());
         row.values.append(randomByte());
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedBig() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders());
         for (int i = 0; i < 10000; i++) {
             row.keys.append(randomByte());
             row.values.append(randomByte());
         }
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
+    }
+
+    private static List<TopNOperator.SortOrder> sortOrders() {
+        return List.of(
+            new TopNOperator.SortOrder(randomNonNegativeInt(), randomBoolean(), randomBoolean()),
+            new TopNOperator.SortOrder(randomNonNegativeInt(), randomBoolean(), randomBoolean())
+        );
     }
 
     private long expectedRamBytesUsed(TopNOperator.Row row) {
@@ -47,6 +56,8 @@ public class TopNRowTests extends ESTestCase {
         // The breaker is shared infrastructure so we don't count it but RamUsageTester does
         expected -= RamUsageTester.ramUsed(breaker);
         expected -= RamUsageTester.ramUsed("topn");
+        // the sort orders are shared
+        expected -= RamUsageTester.ramUsed(sortOrders());
         return expected;
     }
 }

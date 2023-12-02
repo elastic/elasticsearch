@@ -32,8 +32,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class ElserMlNodeService implements InferenceService {
 

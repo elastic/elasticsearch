@@ -54,12 +54,10 @@ public class BlockBenchmark {
     public String blockLength;
 
     // TODO other types
-//    @Param({ "int", "long" })
-    @Param({"int"})
+    @Param({ "int", "long" })
     public String dataType;
 
-//    @Param({ "array", "vector" })
-    @Param({"array"})
+    @Param({ "array", "vector" })
     public String blockKind;
 
     @Setup

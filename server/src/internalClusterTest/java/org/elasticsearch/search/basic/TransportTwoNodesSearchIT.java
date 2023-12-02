@@ -147,9 +147,11 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 );
             }
             total += hits.length;
+            searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
         }
         clearScroll(searchResponse.getScrollId());
+        searchResponse.decRef();
         assertEquals(100, total);
     }
 
@@ -184,9 +186,11 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 assertThat("id[" + hit.getId() + "]", hit.getId(), equalTo(Integer.toString(total + i)));
             }
             total += hits.length;
+            searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
         }
         clearScroll(searchResponse.getScrollId());
+        searchResponse.decRef();
         assertEquals(100, total);
     }
 
@@ -214,9 +218,11 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 assertThat("id[" + hit.getId() + "]", hit.getId(), equalTo(Integer.toString(100 - total - i - 1)));
             }
             total += hits.length;
+            searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
         }
         clearScroll(searchResponse.getScrollId());
+        searchResponse.decRef();
         assertEquals(100, total);
     }
 
@@ -227,26 +233,29 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         Set<String> collectedIds = new TreeSet<>();
 
-        SearchResponse searchResponse = client().search(
-            new SearchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)
-        ).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(60));
-        for (int i = 0; i < 60; i++) {
-            SearchHit hit = searchResponse.getHits().getHits()[i];
-            collectedIds.add(hit.getId());
-        }
-        searchResponse = client().search(new SearchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH))
-            .actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(40));
-        for (int i = 0; i < 40; i++) {
-            SearchHit hit = searchResponse.getHits().getHits()[i];
-            collectedIds.add(hit.getId());
-        }
-        assertThat(collectedIds, equalTo(fullExpectedIds));
+        assertNoFailuresAndResponse(
+            client().search(new SearchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+                assertThat(searchResponse.getHits().getHits().length, equalTo(60));
+                for (int i = 0; i < 60; i++) {
+                    SearchHit hit = searchResponse.getHits().getHits()[i];
+                    collectedIds.add(hit.getId());
+                }
+            }
+        );
+        assertNoFailuresAndResponse(
+            client().search(new SearchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH)),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+                assertThat(searchResponse.getHits().getHits().length, equalTo(40));
+                for (int i = 0; i < 40; i++) {
+                    SearchHit hit = searchResponse.getHits().getHits()[i];
+                    collectedIds.add(hit.getId());
+                }
+                assertThat(collectedIds, equalTo(fullExpectedIds));
+            }
+        );
     }
 
     public void testQueryThenFetchWithSort() throws Exception {
@@ -272,9 +281,11 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 assertThat("id[" + hit.getId() + "]", hit.getId(), equalTo(Integer.toString(total + i)));
             }
             total += hits.length;
+            searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
         }
         clearScroll(searchResponse.getScrollId());
+        searchResponse.decRef();
         assertEquals(100, total);
     }
 

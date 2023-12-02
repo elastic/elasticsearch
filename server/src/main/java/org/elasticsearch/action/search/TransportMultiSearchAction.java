@@ -154,9 +154,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
          * when we handle the response rather than going recursive, we fork to another thread, otherwise we recurse.
          */
         final Thread thread = Thread.currentThread();
-        client.search(request.request, new ActionListener<SearchResponse>() {
+        client.search(request.request, new ActionListener<>() {
             @Override
             public void onResponse(final SearchResponse searchResponse) {
+                searchResponse.incRef();
                 handleResponse(request.responseSlot, new MultiSearchResponse.Item(searchResponse, null));
             }
 

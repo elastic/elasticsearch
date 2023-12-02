@@ -86,7 +86,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
         String searchContextId = getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-        searchResponse.set(
+        var existing = searchResponse.getAndSet(
             new SearchResponse(
                 internalSearchResponse,
                 scrollId,
@@ -99,6 +99,9 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
                 searchContextId
             )
         );
+        if (existing != null) {
+            existing.decRef();
+        }
     }
 
     @Override

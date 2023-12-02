@@ -162,7 +162,7 @@ gradlePlugin {
     stringTemplate {
        id = 'elasticsearch.string-templates'
        implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
-     }
+    }
     testFixtures {
       id = 'elasticsearch.test.fixtures'
       implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'

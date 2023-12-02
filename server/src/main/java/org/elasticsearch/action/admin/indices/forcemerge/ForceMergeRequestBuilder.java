@@ -23,8 +23,8 @@ public class ForceMergeRequestBuilder extends BroadcastOperationRequestBuilder<
     ForceMergeResponse,
     ForceMergeRequestBuilder> {
 
-    public ForceMergeRequestBuilder(ElasticsearchClient client, ForceMergeAction action) {
-        super(client, action, new ForceMergeRequest());
+    public ForceMergeRequestBuilder(ElasticsearchClient client) {
+        super(client, ForceMergeAction.INSTANCE, new ForceMergeRequest());
     }
 
     /**

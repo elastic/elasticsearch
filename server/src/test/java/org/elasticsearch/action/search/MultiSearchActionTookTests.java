@@ -93,7 +93,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         TransportMultiSearchAction action = createTransportMultiSearchAction(controlledClock, expected);
 
-        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<MultiSearchResponse>() {
+        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
                 if (controlledClock) {
@@ -147,18 +147,21 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 requests.add(request);
                 commonExecutor.execute(() -> {
                     counter.decrementAndGet();
-                    listener.onResponse(
-                        new SearchResponse(
-                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                            null,
-                            0,
-                            0,
-                            0,
-                            0L,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
+                    var resp = new SearchResponse(
+                        InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0L,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
                     );
+                    try {
+                        listener.onResponse(resp);
+                    } finally {
+                        resp.decRef();
+                    }
                 });
             }
 

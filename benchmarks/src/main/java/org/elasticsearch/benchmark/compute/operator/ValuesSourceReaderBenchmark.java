@@ -176,6 +176,11 @@ public class ValuesSourceReaderBenchmark {
                 public Set<String> sourcePaths(String name) {
                     return Set.of(name);
                 }
+
+                @Override
+                public String parentField(String field) {
+                    throw new UnsupportedOperationException();
+                }
             });
         }
         throw new IllegalArgumentException("can't read [" + name + "]");
@@ -238,7 +243,9 @@ public class ValuesSourceReaderBenchmark {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
             BlockFactory.getNonBreakingInstance(),
             fields(name),
-            List.of(reader),
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                throw new UnsupportedOperationException("can't load _source here");
+            })),
             0
         );
         long sum = 0;

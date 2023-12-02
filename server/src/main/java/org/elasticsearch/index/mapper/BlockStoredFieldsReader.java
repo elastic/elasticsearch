@@ -42,7 +42,7 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
 
         @Override
-        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
             return null;
         }
 

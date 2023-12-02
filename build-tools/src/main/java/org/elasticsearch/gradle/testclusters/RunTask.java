@@ -40,6 +40,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
     private static final String transportCertificate = "private-cert2.p12";
 
     private Boolean debug = false;
+    private Boolean cliDebug = false;
     private Boolean apmServerEnabled = false;
 
     private Boolean preserveData = false;
@@ -62,9 +63,19 @@ public abstract class RunTask extends DefaultTestClustersTask {
         this.debug = enabled;
     }
 
+    @Option(option = "debug-cli-jvm", description = "Enable debugging configuration, to allow attaching a debugger to the cli launcher.")
+    public void setCliDebug(boolean enabled) {
+        this.cliDebug = enabled;
+    }
+
     @Input
     public Boolean getDebug() {
         return debug;
+    }
+
+    @Input
+    public Boolean getCliDebug() {
+        return cliDebug;
     }
 
     @Input
@@ -194,8 +205,9 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     } catch (IOException e) {
                         logger.warn("Unable to start APM server", e);
                     }
-                } else {
-                    // metrics are enabled by default, if the --with-apm-server was not used we should disable it
+                } else if (node.getSettingKeys().contains("telemetry.metrics.enabled") == false) {
+                    // in serverless metrics are enabled by default
+                    // if metrics were not enabled explicitly for gradlew run we should disable them
                     node.setting("telemetry.metrics.enabled", "false");
                 }
 
@@ -203,6 +215,9 @@ public abstract class RunTask extends DefaultTestClustersTask {
         }
         if (debug) {
             enableDebug();
+        }
+        if (cliDebug) {
+            enableCliDebug();
         }
     }
 

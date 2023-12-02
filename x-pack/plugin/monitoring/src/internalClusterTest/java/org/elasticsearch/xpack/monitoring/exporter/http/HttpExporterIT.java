@@ -16,7 +16,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,12 +36,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
@@ -519,41 +513,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         }
     }
 
-    private void assertMonitorVersionResource(
-        final MockWebServer webServer,
-        final boolean alreadyExists,
-        final String resourcePrefix,
-        final List<Tuple<String, String>> resources,
-        @Nullable final Map<String, String[]> customHeaders,
-        @Nullable final String basePath
-    ) throws Exception {
-        final String pathPrefix = basePathToAssertablePrefix(basePath);
-
-        for (Tuple<String, String> resource : resources) {
-            final MockRequest getRequest = webServer.takeRequest();
-
-            assertThat(getRequest.getMethod(), equalTo("GET"));
-            assertThat(getRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-            assertMonitorVersionQueryString(getRequest.getUri().getQuery(), Collections.emptyMap());
-            assertHeaders(getRequest, customHeaders);
-
-            if (alreadyExists == false) {
-                final MockRequest putRequest = webServer.takeRequest();
-
-                assertThat(putRequest.getMethod(), equalTo("PUT"));
-                assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                Map<String, String> parameters = Collections.emptyMap();
-                assertMonitorVersionQueryString(putRequest.getUri().getQuery(), parameters);
-                if (resourcePrefix.startsWith("/_template")) {
-                    assertThat(putRequest.getBody(), equalTo(getExternalTemplateRepresentation(resource.v2())));
-                } else {
-                    assertThat(putRequest.getBody(), equalTo(resource.v2()));
-                }
-                assertHeaders(putRequest, customHeaders);
-            }
-        }
-    }
-
     private void assertMonitorVersionQueryString(String query, final Map<String, String> parameters) {
         Map<String, String> expectedQueryStringMap = new HashMap<>();
         RestUtils.decodeQueryString(query, 0, expectedQueryStringMap);
@@ -941,14 +900,4 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         return server;
     }
 
-    private String getExternalTemplateRepresentation(String internalRepresentation) throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(XContentParserConfiguration.EMPTY, internalRepresentation)
-        ) {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            IndexTemplateMetadata.Builder.removeType(IndexTemplateMetadata.Builder.fromXContent(parser, ""), builder);
-            return BytesReference.bytes(builder).utf8ToString();
-        }
-    }
 }

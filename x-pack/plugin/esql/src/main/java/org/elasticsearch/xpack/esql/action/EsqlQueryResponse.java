@@ -8,13 +8,19 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -25,6 +31,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
@@ -32,17 +40,22 @@ import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -50,14 +63,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
-public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContent, Releasable {
-
-    private final List<ColumnInfo> columns;
-    private final List<Page> pages;
-    private final boolean columnar;
-
+public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContentObject, Releasable {
     private static final InstantiatingObjectParser<EsqlQueryResponse, Void> PARSER;
     static {
         InstantiatingObjectParser.Builder<EsqlQueryResponse, Void> parser = InstantiatingObjectParser.builder(
@@ -70,15 +80,22 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         PARSER = parser.build();
     }
 
-    public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, boolean columnar) {
+    private final List<ColumnInfo> columns;
+    private final List<Page> pages;
+    private final Profile profile;
+    private final boolean columnar;
+
+    public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, @Nullable Profile profile, boolean columnar) {
         this.columns = columns;
         this.pages = pages;
+        this.profile = profile;
         this.columnar = columnar;
     }
 
     public EsqlQueryResponse(List<ColumnInfo> columns, List<List<Object>> values) {
         this.columns = columns;
         this.pages = List.of(valuesToPage(columns.stream().map(ColumnInfo::type).toList(), values));
+        this.profile = null;
         this.columnar = false;
     }
 
@@ -89,10 +106,15 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         return in -> new EsqlQueryResponse(new BlockStreamInput(in, blockFactory));
     }
 
-    public EsqlQueryResponse(BlockStreamInput in) throws IOException {
+    private EsqlQueryResponse(BlockStreamInput in) throws IOException {
         super(in);
         this.columns = in.readCollectionAsList(ColumnInfo::new);
         this.pages = in.readCollectionAsList(Page::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+            this.profile = in.readOptionalWriteable(Profile::new);
+        } else {
+            this.profile = null;
+        }
         this.columnar = in.readBoolean();
     }
 
@@ -100,6 +122,9 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(columns);
         out.writeCollection(pages);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+            out.writeOptionalWriteable(profile);
+        }
         out.writeBoolean(columnar);
     }
 
@@ -115,12 +140,16 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         return pagesToValues(columns.stream().map(ColumnInfo::type).toList(), pages);
     }
 
+    public Profile profile() {
+        return profile;
+    }
+
     public boolean columnar() {
         return columnar;
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params unused) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         final BytesRef scratch = new BytesRef();
         final Iterator<? extends ToXContent> valuesIt;
         if (pages.isEmpty()) {
@@ -131,14 +160,14 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     0,
                     columns().size(),
                     column -> Iterators.concat(
-                        Iterators.single(((builder, params) -> builder.startArray())),
+                        Iterators.single(((builder, p) -> builder.startArray())),
                         Iterators.flatMap(pages.iterator(), page -> {
                             ColumnInfo.PositionToXContent toXContent = columns.get(column)
                                 .positionToXContent(page.getBlock(column), scratch);
                             return Iterators.forRange(
                                 0,
                                 page.getPositionCount(),
-                                position -> (builder, params) -> toXContent.positionToXContent(builder, params, position)
+                                position -> (builder, p) -> toXContent.positionToXContent(builder, p, position)
                             );
                         }),
                         ChunkedToXContentHelper.endArray()
@@ -154,22 +183,32 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                 for (int column = 0; column < columnCount; column++) {
                     toXContents[column] = columns.get(column).positionToXContent(page.getBlock(column), scratch);
                 }
-                return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
+                return Iterators.forRange(0, page.getPositionCount(), position -> (builder, p) -> {
                     builder.startArray();
                     for (int c = 0; c < columnCount; c++) {
-                        toXContents[c].positionToXContent(builder, params, position);
+                        toXContents[c].positionToXContent(builder, p, position);
                     }
                     return builder.endArray();
                 });
             });
         }
-        return Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.singleChunk((builder, params) -> {
+        Iterator<ToXContent> columnsRender = ChunkedToXContentHelper.singleChunk((builder, p) -> {
             builder.startArray("columns");
             for (ColumnInfo col : columns) {
-                col.toXContent(builder, params);
+                col.toXContent(builder, p);
             }
             return builder.endArray();
-        }), ChunkedToXContentHelper.array("values", valuesIt), ChunkedToXContentHelper.endObject());
+        });
+        Iterator<ToXContent> profileRender = profile == null
+            ? List.<ToXContent>of().iterator()
+            : ChunkedToXContentHelper.field("profile", profile, params);
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            columnsRender,
+            ChunkedToXContentHelper.array("values", valuesIt),
+            profileRender,
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     @Override
@@ -188,7 +227,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         EsqlQueryResponse that = (EsqlQueryResponse) o;
         return Objects.equals(columns, that.columns)
             && columnar == that.columnar
-            && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals));
+            && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
+            && Objects.equals(profile, that.profile);
     }
 
     @Override
@@ -253,7 +293,20 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
+            case "geo_point" -> GEO.longAsPoint(((LongBlock) block).getLong(offset));
+            case "cartesian_point" -> CARTESIAN.longAsPoint(((LongBlock) block).getLong(offset));
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
+            case "_source" -> {
+                BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
+                try {
+                    try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(val))) {
+                        parser.nextToken();
+                        yield parser.mapOrdered();
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
@@ -264,7 +317,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
      */
     private static Page valuesToPage(List<String> dataTypes, List<List<Object>> values) {
         List<Block.Builder> results = dataTypes.stream()
-            .map(c -> LocalExecutionPlanner.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
+            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
             .toList();
 
         for (List<Object> row : values) {
@@ -287,10 +340,77 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
                     case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
+                    case "_source" -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, ?> o = (Map<String, ?>) value;
+                        try {
+                            try (XContentBuilder sourceBuilder = JsonXContent.contentBuilder()) {
+                                sourceBuilder.map(o);
+                                ((BytesRefBlock.Builder) builder).appendBytesRef(BytesReference.bytes(sourceBuilder).toBytesRef());
+                            }
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+                    case "geo_point" -> {
+                        long longVal = GEO.pointAsLong(GEO.stringAsPoint(value.toString()));
+                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    }
+                    case "cartesian_point" -> {
+                        long longVal = CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(value.toString()));
+                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }
             }
         }
         return new Page(results.stream().map(Block.Builder::build).toArray(Block[]::new));
+    }
+
+    public static class Profile implements Writeable, ChunkedToXContentObject {
+        private final List<DriverProfile> drivers;
+
+        public Profile(List<DriverProfile> drivers) {
+            this.drivers = drivers;
+        }
+
+        public Profile(StreamInput in) throws IOException {
+            this.drivers = in.readCollectionAsImmutableList(DriverProfile::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(drivers);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Profile profile = (Profile) o;
+            return Objects.equals(drivers, profile.drivers);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(drivers);
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.array("drivers", drivers.iterator(), params),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
+
+        List<DriverProfile> drivers() {
+            return drivers;
+        }
     }
 }

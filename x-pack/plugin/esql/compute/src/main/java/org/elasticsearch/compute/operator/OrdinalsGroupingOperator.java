@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -54,7 +53,7 @@ import static java.util.stream.Collectors.joining;
 public class OrdinalsGroupingOperator implements Operator {
     public record OrdinalsGroupingOperatorFactory(
         List<BlockLoader> blockLoaders,
-        List<IndexReader> readers,
+        List<ValuesSourceReaderOperator.ShardContext> shardContexts,
         ElementType groupingElementType,
         int docChannel,
         String groupingField,
@@ -67,7 +66,7 @@ public class OrdinalsGroupingOperator implements Operator {
         public Operator get(DriverContext driverContext) {
             return new OrdinalsGroupingOperator(
                 blockLoaders,
-                readers,
+                shardContexts,
                 groupingElementType,
                 docChannel,
                 groupingField,
@@ -85,7 +84,7 @@ public class OrdinalsGroupingOperator implements Operator {
     }
 
     private final List<BlockLoader> blockLoaders;
-    private final List<IndexReader> readers;
+    private final List<ValuesSourceReaderOperator.ShardContext> shardContexts;
     private final int docChannel;
     private final String groupingField;
 
@@ -104,7 +103,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
     public OrdinalsGroupingOperator(
         List<BlockLoader> blockLoaders,
-        List<IndexReader> readers,
+        List<ValuesSourceReaderOperator.ShardContext> shardContexts,
         ElementType groupingElementType,
         int docChannel,
         String groupingField,
@@ -115,7 +114,7 @@ public class OrdinalsGroupingOperator implements Operator {
     ) {
         Objects.requireNonNull(aggregatorFactories);
         this.blockLoaders = blockLoaders;
-        this.readers = readers;
+        this.shardContexts = shardContexts;
         this.groupingElementType = groupingElementType;
         this.docChannel = docChannel;
         this.groupingField = groupingField;
@@ -150,7 +149,7 @@ public class OrdinalsGroupingOperator implements Operator {
                             return new OrdinalSegmentAggregator(
                                 driverContext.blockFactory(),
                                 this::createGroupingAggregators,
-                                () -> blockLoader.ordinals(readers.get(k.shardIndex).leaves().get(k.segmentIndex)),
+                                () -> blockLoader.ordinals(shardContexts.get(k.shardIndex).reader().leaves().get(k.segmentIndex)),
                                 bigArrays
                             );
                         } catch (IOException e) {
@@ -165,7 +164,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     int channelIndex = page.getBlockCount(); // extractor will append a new block at the end
                     valuesAggregator = new ValuesAggregator(
                         blockLoaders,
-                        readers,
+                        shardContexts,
                         groupingElementType,
                         docChannel,
                         groupingField,
@@ -466,7 +465,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
         ValuesAggregator(
             List<BlockLoader> blockLoaders,
-            List<IndexReader> readers,
+            List<ValuesSourceReaderOperator.ShardContext> shardContexts,
             ElementType groupingElementType,
             int docChannel,
             String groupingField,
@@ -478,7 +477,7 @@ public class OrdinalsGroupingOperator implements Operator {
             this.extractor = new ValuesSourceReaderOperator(
                 BlockFactory.getNonBreakingInstance(),
                 List.of(new ValuesSourceReaderOperator.FieldInfo(groupingField, blockLoaders)),
-                readers,
+                shardContexts,
                 docChannel
             );
             this.aggregator = new HashAggregationOperator(

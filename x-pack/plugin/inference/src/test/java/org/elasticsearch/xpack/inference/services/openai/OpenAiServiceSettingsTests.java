@@ -126,7 +126,6 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String org) {
-
         var map = new HashMap<String, Object>();
 
         if (url != null) {

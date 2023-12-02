@@ -92,7 +92,6 @@ public class UpdateConnectorLastSyncStatsAction extends ActionType<UpdateConnect
                         .setLastDeletedDocumentCount((Long) args[i++])
                         .setLastIncrementalSyncScheduledAt((Instant) args[i++])
                         .setLastIndexedDocumentCount((Long) args[i++])
-                        .setLastSeen((Instant) args[i++])
                         .setLastSyncError((String) args[i++])
                         .setLastSyncScheduledAt((Instant) args[i++])
                         .setLastSyncStatus((ConnectorSyncStatus) args[i++])
@@ -123,12 +122,6 @@ public class UpdateConnectorLastSyncStatsAction extends ActionType<UpdateConnect
                 ObjectParser.ValueType.STRING_OR_NULL
             );
             PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_INDEXED_DOCUMENT_COUNT_FIELD);
-            PARSER.declareField(
-                optionalConstructorArg(),
-                (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
-                ConnectorSyncInfo.LAST_SEEN_FIELD,
-                ObjectParser.ValueType.STRING_OR_NULL
-            );
             PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
             PARSER.declareField(
                 optionalConstructorArg(),

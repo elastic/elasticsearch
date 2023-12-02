@@ -29,6 +29,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.Random;
@@ -41,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class BlockBenchmark {
-    public static final int NUM_BLOCKS_PER_RUN = 1024;
+    public static final int NUM_BLOCKS_PER_ITERATION = 1024;
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
@@ -52,24 +53,26 @@ public class BlockBenchmark {
     public String blockLengthInKilos;
 
     // TODO other types
-    @Param({ "int", "long" })
+//    @Param({ "int", "long" })
+    @Param({"int"})
     public String dataType;
 
-    @Param({ "array", "vector" })
+//    @Param({ "array", "vector" })
+    @Param({"array"})
     public String blockKind;
 
     @Setup
     public void buildBlocks() {
         switch (dataType) {
             case "int" -> {
-                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_RUN; blockIndex++) {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     int[] values = new int[totalPositions()];
-                    int sum = 0;
+                    long sum = 0;
                     for (int i = 0; i < totalPositions(); i++) {
                         values[i] = random.nextInt();
                         sum += values[i];
                     }
-                    checkSums[blockIndex] = sum;
+                    expectedCheckSums[blockIndex] = sum;
 
                     switch (blockKind) {
                         case "array" -> {
@@ -94,14 +97,14 @@ public class BlockBenchmark {
                 }
             }
             case "long" -> {
-                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_RUN; blockIndex++) {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     long[] values = new long[totalPositions()];
                     long sum = 0L;
                     for (int i = 0; i < totalPositions(); i++) {
                         values[i] = random.nextLong();
                         sum += values[i];
                     }
-                    checkSums[blockIndex] = sum;
+                    expectedCheckSums[blockIndex] = sum;
 
                     switch (blockKind) {
                         case "array" -> {
@@ -130,13 +133,13 @@ public class BlockBenchmark {
     }
 
     @Benchmark
-    @OperationsPerInvocation(BlockBenchmark.NUM_BLOCKS_PER_RUN)
+    @OperationsPerInvocation(BlockBenchmark.NUM_BLOCKS_PER_ITERATION)
     public void run() {
         int totalPositions = totalPositions();
         switch (dataType) {
             case "int" -> {
                 // TODO benchmark random access in addition to sequential
-                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_RUN; blockIndex++) {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     IntBlock block = (IntBlock) blocks[blockIndex];
                     long sum = 0;
 
@@ -149,13 +152,11 @@ public class BlockBenchmark {
                         }
                     }
 
-                    if (sum != checkSums[blockIndex]) {
-                        throw new AssertionError("wrong checksum");
-                    }
+                    actualCheckSums[blockIndex] = sum;
                 }
             }
             case "long" -> {
-                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_RUN; blockIndex++) {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     LongBlock block = (LongBlock) blocks[blockIndex];
                     long sum = 0;
 
@@ -168,9 +169,7 @@ public class BlockBenchmark {
                         }
                     }
 
-                    if (sum != checkSums[blockIndex]) {
-                        throw new AssertionError("wrong checksum");
-                    }
+                    actualCheckSums[blockIndex] = sum;
                 }
             }
             default -> {
@@ -179,10 +178,20 @@ public class BlockBenchmark {
         }
     }
 
+    @TearDown(Level.Iteration)
+    public void assertCheckSums() {
+        for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+            if (actualCheckSums[blockIndex] != expectedCheckSums[blockIndex]) {
+                throw new AssertionError("checksums do not match for block [" + blockIndex + "]");
+            }
+        }
+    }
+
     private final Random random = new Random();
 
-    private final Block[] blocks = new Block[NUM_BLOCKS_PER_RUN];
-    private final long[] checkSums = new long[NUM_BLOCKS_PER_RUN];
+    private final Block[] blocks = new Block[NUM_BLOCKS_PER_ITERATION];
+    private final long[] expectedCheckSums = new long[NUM_BLOCKS_PER_ITERATION];
+    private final long[] actualCheckSums = new long[NUM_BLOCKS_PER_ITERATION];
 
     private int totalPositions() {
         return Integer.parseInt(blockLengthInKilos);

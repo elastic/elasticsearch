@@ -17,9 +17,11 @@ import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -44,6 +46,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -280,7 +283,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
-        assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
+        assertEquals(
+            similarity.vectorSimilarityFunction(IndexVersion.current(), ElementType.FLOAT),
+            vectorField.fieldType().vectorSimilarityFunction()
+        );
     }
 
     public void testNonIndexedVector() throws Exception {
@@ -333,7 +339,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             new byte[] { (byte) -1, (byte) 1, (byte) 127 },
             vectorField.vectorValue()
         );
-        assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
+        assertEquals(
+            similarity.vectorSimilarityFunction(IndexVersion.current(), ElementType.BYTE),
+            vectorField.fieldType().vectorSimilarityFunction()
+        );
     }
 
     public void testDotProductWithInvalidNorm() throws Exception {
@@ -593,7 +602,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertNull(denseVectorFieldType.getSimilarity());
     }
 
-    public void testtParamsBeforeIndexByDefault() throws Exception {
+    public void testParamsBeforeIndexByDefault() throws Exception {
         DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
             b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", "dot_product");
         }));
@@ -673,6 +682,48 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testCosineDenseVectorValues() throws IOException {
+        final int dims = randomIntBetween(64, 2048);
+        VectorSimilarity similarity = VectorSimilarity.COSINE;
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
+        );
+        float[] vector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            vector[i] = randomFloat() * randomIntBetween(1, 10);
+        }
+        ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(KnnFloatVectorField.class));
+        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
+        // Cosine vectors are now normalized
+        VectorUtil.l2normalize(vector);
+        assertArrayEquals("Parsed vector is not equal to normalized original.", vector, vectorField.vectorValue(), 0.001f);
+    }
+
+    public void testCosineDenseVectorValuesOlderIndexVersions() throws IOException {
+        final int dims = randomIntBetween(64, 2048);
+        VectorSimilarity similarity = VectorSimilarity.COSINE;
+        DocumentMapper mapper = createDocumentMapper(
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersions.NEW_SPARSE_VECTOR),
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
+        );
+        float[] vector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            vector[i] = randomFloat() * randomIntBetween(1, 10);
+        }
+        ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(KnnFloatVectorField.class));
+        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
+        // Cosine vectors are now normalized
+        assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
+    }
+
     /**
      * Test that max dimensions limit for float dense_vector field
      * is 4096 as defined by {@link DenseVectorFieldMapper#MAX_DIMS_COUNT}
@@ -696,7 +747,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
         assertEquals(dims, vectorField.fieldType().vectorDimension());
         assertEquals(VectorEncoding.FLOAT32, vectorField.fieldType().vectorEncoding());
-        assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
+        assertEquals(VectorSimilarityFunction.DOT_PRODUCT, vectorField.fieldType().vectorSimilarityFunction());
+        // Cosine vectors are now normalized
+        VectorUtil.l2normalize(vector);
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
     }
 
@@ -730,8 +783,48 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         KnnByteVectorField vectorField = (KnnByteVectorField) fields.get(0);
         assertEquals(dims, vectorField.fieldType().vectorDimension());
         assertEquals(VectorEncoding.BYTE, vectorField.fieldType().vectorEncoding());
-        assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
+        assertEquals(
+            similarity.vectorSimilarityFunction(IndexVersion.current(), ElementType.BYTE),
+            vectorField.fieldType().vectorSimilarityFunction()
+        );
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue());
+    }
+
+    public void testVectorSimilarity() {
+        assertEquals(
+            VectorSimilarityFunction.COSINE,
+            VectorSimilarity.COSINE.vectorSimilarityFunction(IndexVersion.current(), ElementType.BYTE)
+        );
+        assertEquals(
+            VectorSimilarityFunction.COSINE,
+            VectorSimilarity.COSINE.vectorSimilarityFunction(
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, DenseVectorFieldMapper.NORMALIZE_COSINE),
+                ElementType.FLOAT
+            )
+        );
+        assertEquals(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarity.COSINE.vectorSimilarityFunction(
+                IndexVersionUtils.randomVersionBetween(random(), DenseVectorFieldMapper.NORMALIZE_COSINE, IndexVersion.current()),
+                ElementType.FLOAT
+            )
+        );
+        assertEquals(
+            VectorSimilarityFunction.EUCLIDEAN,
+            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.BYTE)
+        );
+        assertEquals(
+            VectorSimilarityFunction.EUCLIDEAN,
+            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.FLOAT)
+        );
+        assertEquals(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.BYTE)
+        );
+        assertEquals(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.FLOAT)
+        );
     }
 
     @Override

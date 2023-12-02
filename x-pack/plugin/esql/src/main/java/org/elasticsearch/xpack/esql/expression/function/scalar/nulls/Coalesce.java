@@ -16,7 +16,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -127,7 +127,7 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
             public ExpressionEvaluator get(DriverContext context) {
                 return new CoalesceEvaluator(
                     context,
-                    LocalExecutionPlanner.toElementType(dataType()),
+                    PlannerUtils.toElementType(dataType()),
                     childEvaluators.stream().map(x -> x.get(context)).toList()
                 );
             }

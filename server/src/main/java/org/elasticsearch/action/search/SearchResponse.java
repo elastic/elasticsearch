@@ -105,11 +105,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            pointInTimeId = in.readOptionalString();
-        } else {
-            pointInTimeId = null;
-        }
+        pointInTimeId = in.readOptionalString();
     }
 
     public SearchResponse(
@@ -469,9 +465,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeOptionalString(pointInTimeId);
-        }
+        out.writeOptionalString(pointInTimeId);
     }
 
     @Override

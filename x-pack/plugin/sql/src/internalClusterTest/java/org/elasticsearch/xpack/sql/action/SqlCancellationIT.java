@@ -63,9 +63,7 @@ public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         indexRandom(true, builders);
         boolean cancelDuringSearch = randomBoolean();
         List<SearchBlockPlugin> plugins = initBlockFactory(cancelDuringSearch, cancelDuringSearch == false);
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
-            "SELECT event_type FROM test WHERE val=1"
-        ).request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client()).query("SELECT event_type FROM test WHERE val=1").request();
         String id = randomAlphaOfLength(10);
         logger.trace("Preparing search");
         // We might perform field caps on the same thread if it is local client, so we cannot use the standard mechanism

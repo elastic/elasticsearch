@@ -1618,7 +1618,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     settings,
                     clusterSettings,
                     masterService,
-                    () -> (reason, priority, listener) -> listener.onResponse(null),
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
@@ -1728,6 +1727,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 snapshotsService = new SnapshotsService(
                     settings,
                     clusterService,
+                    (reason, priority, listener) -> listener.onResponse(null),
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,

@@ -266,9 +266,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                 .put("status_interval", "0ms")
                 .build()
         );
-        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query("from test | stats sum(pause_me)")
-            .pragmas(pragmas)
-            .execute();
+        return new EsqlQueryRequestBuilder(client()).query("from test | stats sum(pause_me)").pragmas(pragmas).execute();
     }
 
     private void cancelTask(TaskId taskId) {

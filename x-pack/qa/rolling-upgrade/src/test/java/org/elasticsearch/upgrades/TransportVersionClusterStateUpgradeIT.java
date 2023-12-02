@@ -9,8 +9,6 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -18,6 +16,8 @@ import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.util.Map;
 
+import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -25,12 +25,7 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCase {
 
-    private static final Version VERSION_INTRODUCING_TRANSPORT_VERSIONS = Version.V_8_8_0;
-    private static final TransportVersion FIRST_TRANSPORT_VERSION = TransportVersions.V_8_8_0;
-
     public void testReadsInferredTransportVersions() throws Exception {
-        assertEquals(VERSION_INTRODUCING_TRANSPORT_VERSIONS.id(), FIRST_TRANSPORT_VERSION.id());
-
         // waitUntil because the versions fixup on upgrade happens in the background so may need a retry
         assertTrue(waitUntil(() -> {
             try {
@@ -119,7 +114,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                     assertEquals(nodeDescription, TransportVersion.current(), transportVersion);
                 } else {
                     // There's no relationship between node versions and transport versions anymore, although we can be sure of this:
-                    assertThat(nodeDescription, transportVersion, greaterThan(FIRST_TRANSPORT_VERSION));
+                    assertThat(nodeDescription, transportVersion, greaterThan(INFERRED_TRANSPORT_VERSION));
                 }
             }
         } else if (hasNodesVersions) {
@@ -148,9 +143,9 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                         transportVersion,
                         clusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED)
                             ? equalTo(TransportVersion.current())
-                            : oneOf(TransportVersion.current(), FIRST_TRANSPORT_VERSION)
+                            : oneOf(TransportVersion.current(), INFERRED_TRANSPORT_VERSION)
                     );
-                    if (CLUSTER_TYPE == ClusterType.UPGRADED && transportVersion.equals(FIRST_TRANSPORT_VERSION)) {
+                    if (CLUSTER_TYPE == ClusterType.UPGRADED && transportVersion.equals(INFERRED_TRANSPORT_VERSION)) {
                         // TransportVersionsFixupListener should run soon, retry
                         logger.info("{} - not fixed up yet, retrying", nodeDescription);
                         return false;
@@ -161,7 +156,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                     var transportVersionIntroduced = version.map(v -> v.after(VERSION_INTRODUCING_TRANSPORT_VERSIONS)).orElse(true);
                     if (transportVersionIntroduced) {
                         // There's no relationship between node versions and transport versions anymore, although we can be sure of this:
-                        assertThat(nodeDescription, transportVersion, greaterThan(FIRST_TRANSPORT_VERSION));
+                        assertThat(nodeDescription, transportVersion, greaterThan(INFERRED_TRANSPORT_VERSION));
                     } else {
                         // Responding node is not upgraded, and no later than 8.8.0, so we infer its version correctly.
                         assertEquals(nodeDescription, TransportVersion.fromId(version.get().id()), transportVersion);

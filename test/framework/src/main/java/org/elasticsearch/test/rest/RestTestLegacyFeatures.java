@@ -15,6 +15,7 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 
 /**
  * This class groups historical features that have been removed from the production codebase, but are still used by the test
@@ -60,7 +61,7 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
             entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0),
             entry(ML_NEW_MEMORY_FORMAT, Version.V_8_11_0),
-            entry(TRANSPORT_VERSION_SUPPORTED, Version.V_8_8_0),
+            entry(TRANSPORT_VERSION_SUPPORTED, VERSION_INTRODUCING_TRANSPORT_VERSIONS),
             entry(STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION, Version.V_8_11_0),
             entry(ML_MEMORY_OVERHEAD_FIXED, Version.V_8_2_1)
         );

@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -251,7 +252,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     Version clusterVersion = getOldClusterVersion();
 
                     TransportVersion transportVersion;
-                    if (clusterVersion.before(Version.V_8_8_0)) {
+                    if (clusterVersion.before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
                         transportVersion = TransportVersion.fromId(clusterVersion.id);
                     } else {
                         transportVersion = TransportVersion.readVersion(input);

@@ -596,11 +596,11 @@ public class BlockFactoryTests extends ESTestCase {
     }
 
     public void testAllowPassingBlockToDifferentContext() throws Exception {
-        long overLimit1 = between(0, 10);
-        long maxOverLimit1 = randomLongBetween(overLimit1, 1000);
+        long overLimit1 = between(0, 10 * 1024);
+        long maxOverLimit1 = randomLongBetween(overLimit1, 100 * 1024);
         LocalCircuitBreaker localBreaker1 = new LocalCircuitBreaker(blockFactory.breaker(), overLimit1, maxOverLimit1);
-        long overLimit2 = between(0, 10);
-        long maxOverLimit2 = randomLongBetween(overLimit2, 1000);
+        long overLimit2 = between(0, 10 * 1024);
+        long maxOverLimit2 = randomLongBetween(overLimit1, 100 * 1024);
         LocalCircuitBreaker localBreaker2 = new LocalCircuitBreaker(blockFactory.breaker(), overLimit2, maxOverLimit2);
         BlockFactory childFactory1 = blockFactory.newChildFactory(localBreaker1);
         BlockFactory childFactory2 = blockFactory.newChildFactory(localBreaker2);

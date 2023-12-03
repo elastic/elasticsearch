@@ -127,12 +127,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                             null
                         );
                     }
-                    var response = new MultiSearchResponse(responses, randomNonNegativeLong());
-                    try {
-                        listener.onResponse(response);
-                    } finally {
-                        response.decRef();
-                    }
+                    ActionListener.respondAndRelease(listener, new MultiSearchResponse(responses, randomNonNegativeLong()));
                 }
             };
 
@@ -221,7 +216,9 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 leftHit1.field("lookup_field_3").getValues(),
                 contains(Map.of("field_a", List.of("a2"), "field_b", List.of("b1", "b2")))
             );
-        } finally {
+        } finally
+
+        {
             var resp = searchPhaseContext.searchResponse.get();
             if (resp != null) {
                 resp.decRef();

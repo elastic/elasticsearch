@@ -550,23 +550,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.isTerminatedEarly(),
                         searchResponse.getNumReducePhases()
                     );
-
-                    var resp = new SearchResponse(
-                        internalSearchResponse,
-                        searchResponse.getScrollId(),
-                        searchResponse.getTotalShards(),
-                        searchResponse.getSuccessfulShards(),
-                        searchResponse.getSkippedShards(),
-                        timeProvider.buildTookInMillis(),
-                        searchResponse.getShardFailures(),
-                        clusters,
-                        searchResponse.pointInTimeId()
+                    ActionListener.respondAndRelease(
+                        listener,
+                        new SearchResponse(
+                            internalSearchResponse,
+                            searchResponse.getScrollId(),
+                            searchResponse.getTotalShards(),
+                            searchResponse.getSuccessfulShards(),
+                            searchResponse.getSkippedShards(),
+                            timeProvider.buildTookInMillis(),
+                            searchResponse.getShardFailures(),
+                            clusters,
+                            searchResponse.pointInTimeId()
+                        )
                     );
-                    try {
-                        listener.onResponse(resp);
-                    } finally {
-                        resp.decRef();
-                    }
                 }
 
                 @Override
@@ -575,12 +572,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     logCCSError(failure, clusterAlias, skipUnavailable);
                     ccsClusterInfoUpdate(failure, clusters, clusterAlias, skipUnavailable);
                     if (skipUnavailable) {
-                        var resp = SearchResponse.empty(timeProvider::buildTookInMillis, clusters);
-                        try {
-                            listener.onResponse(resp);
-                        } finally {
-                            resp.decRef();
-                        }
+                        ActionListener.respondAndRelease(listener, SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
                     } else {
                         listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
                     }

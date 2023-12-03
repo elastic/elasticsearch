@@ -33,6 +33,10 @@ public class HuggingFaceElserSecretSettingsTests extends AbstractWireSerializing
         assertThat(new HuggingFaceElserSecretSettings(new SecureString(apiKey.toCharArray())), is(serviceSettings));
     }
 
+    public void testFromMap_ReturnsNull_WhenMapIsNull() {
+        assertNull(HuggingFaceElserSecretSettings.fromMap(null));
+    }
+
     public void testFromMap_MissingApiKey_ThrowsError() {
         var thrownException = expectThrows(ValidationException.class, () -> HuggingFaceElserSecretSettings.fromMap(new HashMap<>()));
 

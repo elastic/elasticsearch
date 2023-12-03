@@ -700,12 +700,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     searchContextId = null;
                 }
             }
-            var resp = buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId);
-            try {
-                listener.onResponse(resp);
-            } finally {
-                resp.decRef();
-            }
+            ActionListener.respondAndRelease(listener, buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
     }
 

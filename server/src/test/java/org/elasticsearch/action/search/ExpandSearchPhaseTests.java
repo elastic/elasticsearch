@@ -107,15 +107,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                             mockSearchPhaseContext.searchResponse.set(null);
                         }
 
-                        var response = new MultiSearchResponse(
-                            mSearchResponses.toArray(new MultiSearchResponse.Item[0]),
-                            randomIntBetween(1, 10000)
+                        ActionListener.respondAndRelease(
+                            listener,
+                            new MultiSearchResponse(mSearchResponses.toArray(new MultiSearchResponse.Item[0]), randomIntBetween(1, 10000))
                         );
-                        try {
-                            listener.onResponse(response);
-                        } finally {
-                            response.decRef();
-                        }
                     }
                 };
 
@@ -178,29 +173,25 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 assertTrue(executedMultiSearch.compareAndSet(false, true));
                 InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits, null, null, null, false, null, 1);
-                var response = new MultiSearchResponse(
-                    new MultiSearchResponse.Item[] {
-                        new MultiSearchResponse.Item(null, new RuntimeException("boom")),
-                        new MultiSearchResponse.Item(
-                            new SearchResponse(
-                                internalSearchResponse,
-                                null,
-                                1,
-                                1,
-                                0,
-                                0,
-                                ShardSearchFailure.EMPTY_ARRAY,
-                                SearchResponse.Clusters.EMPTY
-                            ),
-                            null
-                        ) },
-                    randomIntBetween(1, 10000)
+                SearchResponse searchResponse = new SearchResponse(
+                    internalSearchResponse,
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
                 );
-                try {
-                    listener.onResponse(response);
-                } finally {
-                    response.decRef();
-                }
+                ActionListener.respondAndRelease(
+                    listener,
+                    new MultiSearchResponse(
+                        new MultiSearchResponse.Item[] {
+                            new MultiSearchResponse.Item(null, new RuntimeException("boom")),
+                            new MultiSearchResponse.Item(searchResponse, null) },
+                        randomIntBetween(1, 10000)
+                    )
+                );
             }
         };
 

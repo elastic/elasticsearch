@@ -187,15 +187,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
 
             private void finish() {
-                final var response = new MultiSearchResponse(
-                    responses.toArray(new MultiSearchResponse.Item[responses.length()]),
-                    buildTookInMillis()
+                ActionListener.respondAndRelease(
+                    listener,
+                    new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()]), buildTookInMillis())
                 );
-                try {
-                    listener.onResponse(response);
-                } finally {
-                    response.decRef();
-                }
             }
 
             /**

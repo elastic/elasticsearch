@@ -7,21 +7,31 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
+import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 
@@ -30,6 +40,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
@@ -107,6 +118,102 @@ public class ConnectorSyncJobIndexService {
         }
     }
 
+    /**
+     * Deletes the {@link ConnectorSyncJob} in the underlying index.
+     *
+     * @param connectorSyncJobId The id of the connector sync job object.
+     * @param listener               The action listener to invoke on response/failure.
+     */
+    public void deleteConnectorSyncJob(String connectorSyncJobId, ActionListener<DeleteResponse> listener) {
+        final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(connectorSyncJobId)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        try {
+            clientWithOrigin.delete(
+                deleteRequest,
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, deleteResponse) -> {
+                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        return;
+                    }
+                    l.onResponse(deleteResponse);
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Checks in the {@link ConnectorSyncJob} in the underlying index.
+     * In this context "checking in" means to update the "last_seen" timestamp to the time, when the method was called.
+     *
+     * @param connectorSyncJobId     The id of the connector sync job object.
+     * @param listener               The action listener to invoke on response/failure.
+     */
+    public void checkInConnectorSyncJob(String connectorSyncJobId, ActionListener<UpdateResponse> listener) {
+        Instant newLastSeen = Instant.now();
+
+        final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        ).doc(Map.of(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName(), newLastSeen));
+
+        try {
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Cancels the {@link ConnectorSyncJob} in the underlying index.
+     * Canceling means to set the {@link ConnectorSyncStatus} to "canceling" and not "canceled" as this is an async operation.
+     * It also updates 'cancelation_requested_at' to the time, when the method was called.
+     *
+     * @param connectorSyncJobId     The id of the connector sync job object.
+     * @param listener               The action listener to invoke on response/failure.
+     */
+    public void cancelConnectorSyncJob(String connectorSyncJobId, ActionListener<UpdateResponse> listener) {
+        Instant cancellationRequestedAt = Instant.now();
+
+        final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        )
+            .doc(
+                Map.of(
+                    ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                    ConnectorSyncStatus.CANCELING,
+                    ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
+                    cancellationRequestedAt
+                )
+            );
+
+        try {
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+
+    }
+
     private String generateId() {
         /* Workaround: only needed for generating an id upfront, autoGenerateId() has a side effect generating a timestamp,
          * which would raise an error on the response layer later ("autoGeneratedTimestamp should not be set externally").
@@ -154,6 +261,41 @@ public class ConnectorSyncJobIndexService {
             });
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Listeners that checks failures for IndexNotFoundException and DocumentMissingException,
+     * and transforms them in ResourceNotFoundException, invoking onFailure on the delegate listener.
+     */
+    static class DelegatingIndexNotFoundOrDocumentMissingActionListener<T, R> extends DelegatingActionListener<T, R> {
+
+        private final BiConsumer<ActionListener<R>, T> bc;
+        private final String connectorSyncJobId;
+
+        DelegatingIndexNotFoundOrDocumentMissingActionListener(
+            String connectorSyncJobId,
+            ActionListener<R> delegate,
+            BiConsumer<ActionListener<R>, T> bc
+        ) {
+            super(delegate);
+            this.bc = bc;
+            this.connectorSyncJobId = connectorSyncJobId;
+        }
+
+        @Override
+        public void onResponse(T t) {
+            bc.accept(delegate, t);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IndexNotFoundException || cause instanceof DocumentMissingException) {
+                delegate.onFailure(new ResourceNotFoundException("connector sync job [" + connectorSyncJobId + "] not found"));
+                return;
+            }
+            delegate.onFailure(e);
         }
     }
 }

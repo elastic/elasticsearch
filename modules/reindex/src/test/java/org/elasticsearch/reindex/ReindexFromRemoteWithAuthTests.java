@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -109,14 +108,14 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexFromRemoteWithAuthentication() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("Aladdin", "open sesame", emptyMap()));
         assertThat(request.get(), matcher().created(1));
     }
 
     public void testReindexSendsHeaders() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
@@ -125,7 +124,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexWithoutAuthenticationWhenRequired() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo(null, null, emptyMap()));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
@@ -135,7 +134,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     public void testReindexWithBadAuthentication() throws Exception {
-        ReindexRequestBuilder request = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+        ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());

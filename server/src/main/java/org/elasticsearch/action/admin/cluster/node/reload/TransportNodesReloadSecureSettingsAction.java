@@ -132,9 +132,10 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                     exceptions.add(e);
                 }
             });
-            // TODO feels hacky
+            // broadcast to remote cluster service, to reload remote cluster credentials; the remote cluster service is not part of a
+            // plugin, so we invoke reloading separately from plugins
             try {
-                transportService.getRemoteClusterService().updateRemoteClusterCredentials(settingsWithKeystore);
+                reloadRemoteClusterCredentials(settingsWithKeystore);
             } catch (final Exception e) {
                 logger.warn(() -> "Reload failed for remote cluster credentials", e);
                 exceptions.add(e);
@@ -148,6 +149,10 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         } finally {
             request.close();
         }
+    }
+
+    private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
+        transportService.getRemoteClusterService().updateRemoteClusterCredentials(settingsWithKeystore);
     }
 
     /**

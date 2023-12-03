@@ -190,7 +190,7 @@ public class RemoteConnectionManager implements ConnectionManager {
     public record RemoteClusterAliasWithCredentials(String clusterAlias, @Nullable SecureString credentials) {
         @Override
         public String toString() {
-            return "RemoteClusterInfoTuple{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
+            return "RemoteClusterAliasWithCredentials{clusterAlias='" + clusterAlias + "', credentials='::es_redacted::'}";
         }
     }
 

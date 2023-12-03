@@ -161,6 +161,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
     private void clearRemoteCluster() throws InterruptedException, ExecutionException {
         final var builder = Settings.builder()
             .putNull("cluster.remote." + CLUSTER_ALIAS + ".mode")
+            .putNull("cluster.remote." + CLUSTER_ALIAS + ".seeds")
             .putNull("cluster.remote." + CLUSTER_ALIAS + ".proxy_address");
         clusterAdmin().updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(builder)).get();
     }
@@ -173,9 +174,16 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
     }
 
     private void configureRemoteCluster(TransportAddress remoteAddress) throws InterruptedException, ExecutionException {
-        final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote." + CLUSTER_ALIAS + ".mode", "proxy")
-            .put("cluster.remote." + CLUSTER_ALIAS + ".proxy_address", remoteAddress.toString());
+        final Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put("cluster.remote." + CLUSTER_ALIAS + ".mode", "sniff")
+                .put("cluster.remote." + CLUSTER_ALIAS + ".seeds", remoteAddress.toString())
+                .putNull("cluster.remote." + CLUSTER_ALIAS + ".proxy_address");
+        } else {
+            builder.put("cluster.remote." + CLUSTER_ALIAS + ".mode", "proxy")
+                .put("cluster.remote." + CLUSTER_ALIAS + ".proxy_address", remoteAddress.toString())
+                .putNull("cluster.remote." + CLUSTER_ALIAS + ".seeds");
+        }
         clusterAdmin().updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(builder)).get();
     }
 

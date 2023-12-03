@@ -240,7 +240,7 @@ public final class Page implements Writeable {
      * Must call this method before passing this Page to another Driver.
      * @see org.elasticsearch.compute.operator.SinkOperator#addInput(Page)
      */
-    public void allowPassingPagesToDifferentContext() {
+    public void allowPassingToDifferentDriver() {
         for (Block block : blocks) {
             block.allowPassingToDifferentDriver();
         }

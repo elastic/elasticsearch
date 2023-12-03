@@ -28,7 +28,7 @@ public abstract class SinkOperator implements Operator {
     @Override
     public final void addInput(Page page) {
         // We need to change the ownership of the blocks of the input page before passing them to another driver.
-        page.allowPassingPagesToDifferentContext();
+        page.allowPassingToDifferentDriver();
         doAddInput(page);
     }
 

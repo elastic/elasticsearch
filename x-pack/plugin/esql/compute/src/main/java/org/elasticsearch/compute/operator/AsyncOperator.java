@@ -91,7 +91,7 @@ public abstract class AsyncOperator implements Operator {
     }
 
     private void releasePageOnAnyThread(Page page) {
-        page.allowPassingPagesToDifferentContext();
+        page.allowPassingToDifferentDriver();
         page.releaseBlocks();
     }
 

@@ -338,23 +338,27 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         logger.info("Start Testing failed search with wrong from");
         SearchSourceBuilder source = searchSource().query(termQuery("multi", "test")).from(1000).size(20).explain(true);
-        SearchResponse response = client().search(new SearchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
-        assertThat(response.getHits().getHits().length, equalTo(0));
-        assertThat(response.getTotalShards(), equalTo(test.numPrimaries));
-        assertThat(response.getSuccessfulShards(), equalTo(test.numPrimaries));
-        assertThat(response.getFailedShards(), equalTo(0));
+        assertResponse(client().search(new SearchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(0));
+            assertThat(response.getTotalShards(), equalTo(test.numPrimaries));
+            assertThat(response.getSuccessfulShards(), equalTo(test.numPrimaries));
+            assertThat(response.getFailedShards(), equalTo(0));
+        });
 
-        response = client().search(new SearchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
-        assertNoFailures(response);
-        assertThat(response.getHits().getHits().length, equalTo(0));
+        assertNoFailuresAndResponse(
+            client().search(new SearchRequest("test").searchType(QUERY_THEN_FETCH).source(source)),
+            response -> assertThat(response.getHits().getHits().length, equalTo(0))
+        );
 
-        response = client().search(new SearchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
-        assertNoFailures(response);
-        assertThat(response.getHits().getHits().length, equalTo(0));
+        assertNoFailuresAndResponse(
+            client().search(new SearchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)),
+            response -> assertThat(response.getHits().getHits().length, equalTo(0))
+        );
 
-        response = client().search(new SearchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
-        assertNoFailures(response);
-        assertThat(response.getHits().getHits().length, equalTo(0));
+        assertNoFailuresAndResponse(
+            client().search(new SearchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)),
+            response -> assertThat(response.getHits().getHits().length, equalTo(0))
+        );
 
         logger.info("Done Testing failed search");
     }

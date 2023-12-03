@@ -579,64 +579,63 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             });
         } else {
-            try (
-                SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
-                    searchRequest.source(),
-                    timeProvider,
-                    aggReduceContextBuilder
-                )
-            ) {
-                final AtomicReference<Exception> exceptions = new AtomicReference<>();
-                int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
-                final CountDown countDown = new CountDown(totalClusters);
-                for (Map.Entry<String, OriginalIndices> entry : remoteIndices.entrySet()) {
-                    String clusterAlias = entry.getKey();
-                    boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
-                    OriginalIndices indices = entry.getValue();
-                    SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
-                        parentTaskId,
-                        searchRequest,
-                        indices.indices(),
-                        clusterAlias,
-                        timeProvider.absoluteStartMillis(),
-                        false
-                    );
-                    ActionListener<SearchResponse> ccsListener = createCCSListener(
-                        clusterAlias,
-                        skipUnavailable,
-                        countDown,
-                        exceptions,
-                        searchResponseMerger,
-                        clusters,
-                        listener
-                    );
-                    Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                        threadPool,
-                        clusterAlias,
-                        remoteClientResponseExecutor
-                    );
-                    remoteClusterClient.search(ccsSearchRequest, ccsListener);
-                }
-                if (localIndices != null) {
-                    ActionListener<SearchResponse> ccsListener = createCCSListener(
-                        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                        false,
-                        countDown,
-                        exceptions,
-                        searchResponseMerger,
-                        clusters,
-                        listener
-                    );
-                    SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
-                        parentTaskId,
-                        searchRequest,
-                        localIndices.indices(),
-                        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                        timeProvider.absoluteStartMillis(),
-                        false
-                    );
-                    localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);
-                }
+
+            SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
+                searchRequest.source(),
+                timeProvider,
+                aggReduceContextBuilder
+            );
+
+            final AtomicReference<Exception> exceptions = new AtomicReference<>();
+            int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
+            final CountDown countDown = new CountDown(totalClusters);
+            for (Map.Entry<String, OriginalIndices> entry : remoteIndices.entrySet()) {
+                String clusterAlias = entry.getKey();
+                boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
+                OriginalIndices indices = entry.getValue();
+                SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
+                    parentTaskId,
+                    searchRequest,
+                    indices.indices(),
+                    clusterAlias,
+                    timeProvider.absoluteStartMillis(),
+                    false
+                );
+                ActionListener<SearchResponse> ccsListener = createCCSListener(
+                    clusterAlias,
+                    skipUnavailable,
+                    countDown,
+                    exceptions,
+                    searchResponseMerger,
+                    clusters,
+                    listener
+                );
+                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                    threadPool,
+                    clusterAlias,
+                    remoteClientResponseExecutor
+                );
+                remoteClusterClient.search(ccsSearchRequest, ccsListener);
+            }
+            if (localIndices != null) {
+                ActionListener<SearchResponse> ccsListener = createCCSListener(
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    false,
+                    countDown,
+                    exceptions,
+                    searchResponseMerger,
+                    clusters,
+                    listener
+                );
+                SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
+                    parentTaskId,
+                    searchRequest,
+                    localIndices.indices(),
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    timeProvider.absoluteStartMillis(),
+                    false
+                );
+                localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);
             }
         }
     }
@@ -768,7 +767,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         ActionListener<SearchResponse> originalListener
     ) {
-        return new CCSActionListener<>(clusterAlias, skipUnavailable, countDown, exceptions, clusters, originalListener) {
+        return new CCSActionListener<>(
+            clusterAlias,
+            skipUnavailable,
+            countDown,
+            exceptions,
+            clusters,
+            ActionListener.releaseAfter(originalListener, searchResponseMerger)
+        ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
                 // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
@@ -778,9 +784,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             @Override
             SearchResponse createFinalResponse() {
-                try (searchResponseMerger) {
-                    return searchResponseMerger.getMergedResponse(clusters);
-                }
+                return searchResponseMerger.getMergedResponse(clusters);
             }
         };
     }

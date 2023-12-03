@@ -175,7 +175,7 @@ setup:
               full_name: double_metric
               mapping:
                 double_metric:
-                  type: float
+                  type: double
                   index: false
             summary_metric:
               full_name: summary_metric

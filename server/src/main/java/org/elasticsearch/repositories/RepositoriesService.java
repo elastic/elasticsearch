@@ -133,6 +133,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.preRestoreChecks = preRestoreChecks;
     }
 
+    // TODO hack hack hack
+    public TransportService getTransportService() {
+        return verifyAction.getTransportService();
+    }
+
     /**
      * Registers new repository in the cluster
      * <p>

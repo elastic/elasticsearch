@@ -132,17 +132,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                     exceptions.add(e);
                 }
             });
-            // broadcast to remote cluster service, to reload remote cluster credentials; the remote cluster service is not part of a
-            // plugin, so we invoke reloading separately from plugins
-            try {
-                reloadRemoteClusterCredentials(settingsWithKeystore);
-            } catch (final Exception e) {
-                logger.warn(() -> "Reload failed for remote cluster credentials", e);
-                exceptions.add(e);
-            }
 
             ExceptionsHelper.rethrowAndSuppress(exceptions);
-
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
         } catch (final Exception e) {
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e);

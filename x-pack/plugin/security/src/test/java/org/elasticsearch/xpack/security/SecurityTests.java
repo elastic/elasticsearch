@@ -65,6 +65,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -214,7 +215,9 @@ public class SecurityTests extends ESTestCase {
             xContentRegistry(),
             env,
             nodeMetadata,
-            TestIndexNameExpressionResolver.newInstance(threadContext)
+            TestIndexNameExpressionResolver.newInstance(threadContext),
+            // TODO hack hack hack
+            () -> mock(TransportService.class)
         );
     }
 

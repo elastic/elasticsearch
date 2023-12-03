@@ -96,6 +96,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
@@ -556,6 +557,7 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
     private final SetOnce<Realms> realms = new SetOnce<>();
+    private volatile Supplier<TransportService> transportServiceSupplier;
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -575,23 +577,28 @@ public class Security extends Plugin
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
         } else {
-            final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
-                settings
-            ).map(Setting::getKey).sorted().toList();
-            if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
-                throw new IllegalArgumentException(
-                    format(
-                        "Found [%s] remote clusters with credentials [%s]. Security [%s] must be enabled to connect to them. "
-                            + "Please either enable security or remove these settings from the keystore.",
-                        remoteClusterCredentialsSettingKeys.size(),
-                        Strings.collectionToCommaDelimitedString(remoteClusterCredentialsSettingKeys),
-                        XPackSettings.SECURITY_ENABLED.getKey()
-                    )
-                );
-            }
+            ensureNoRemoteClusterCredentialsOnDisabledSecurity(settings);
             this.bootstrapChecks.set(Collections.emptyList());
         }
         this.securityExtensions.addAll(extensions);
+    }
+
+    private void ensureNoRemoteClusterCredentialsOnDisabledSecurity(Settings settings) {
+        assert false == enabled;
+        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
+            settings
+        ).map(Setting::getKey).sorted().toList();
+        if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
+            throw new IllegalArgumentException(
+                format(
+                    "Found [%s] remote clusters with credentials [%s]. Security [%s] must be enabled to connect to them. "
+                        + "Please either enable security or remove these settings from the keystore.",
+                    remoteClusterCredentialsSettingKeys.size(),
+                    Strings.collectionToCommaDelimitedString(remoteClusterCredentialsSettingKeys),
+                    XPackSettings.SECURITY_ENABLED.getKey()
+                )
+            );
+        }
     }
 
     private static void runStartupChecks(Settings settings) {
@@ -631,7 +638,8 @@ public class Security extends Plugin
                 services.xContentRegistry(),
                 services.environment(),
                 services.nodeEnvironment().nodeMetadata(),
-                services.indexNameExpressionResolver()
+                services.indexNameExpressionResolver(),
+                () -> services.repositoriesServiceSupplier().get().getTransportService()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -649,12 +657,15 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeMetadata nodeMetadata,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<TransportService> transportServiceSupplier
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null, null));
         }
+
+        this.transportServiceSupplier = transportServiceSupplier;
 
         // The settings in `environment` may have additional values over what was provided during construction
         // See Plugin#additionalSettings()
@@ -1886,6 +1897,9 @@ public class Security extends Plugin
     @Override
     public void reload(Settings settings) throws Exception {
         if (enabled) {
+            // TODO try-catch
+            transportServiceSupplier.get().getRemoteClusterService().updateRemoteClusterCredentials(settings);
+            // TODO try-catch
             realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
                 if (realm instanceof JwtRealm jwtRealm) {
                     jwtRealm.rotateClientSecret(
@@ -1893,6 +1907,8 @@ public class Security extends Plugin
                     );
                 }
             });
+        } else {
+            ensureNoRemoteClusterCredentialsOnDisabledSecurity(settings);
         }
     }
 

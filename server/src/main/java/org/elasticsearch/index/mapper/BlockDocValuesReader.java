@@ -555,8 +555,20 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             this.ordinals = ordinals;
         }
 
+        private BlockLoader.Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (ordinals.advanceExact(docId)) {
+                BytesRef v = ordinals.lookupOrd(ordinals.ordValue());
+                return factory.constantBytes(v);
+            } else {
+                return factory.constantNulls();
+            }
+        }
+
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
+            if (docs.count() == 1) {
+                return readSingleDoc(factory, docs.get(0));
+            }
             try (BlockLoader.SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(ordinals, docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);

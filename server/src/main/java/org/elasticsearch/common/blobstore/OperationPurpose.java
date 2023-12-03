@@ -15,7 +15,8 @@ import org.elasticsearch.common.Strings;
  * as well as other things that requires further differentiation for the same blob operation.
  */
 public enum OperationPurpose {
-    SNAPSHOT("Snapshot"),
+    SNAPSHOT_DATA("Snapshot data"),
+    SNAPSHOT_METADATA("Snapshot metadata"),
     REPOSITORY_ANALYSIS("RepositoryAnalysis"),
     CLUSTER_STATE("ClusterState"),
     INDICES("Indices"),

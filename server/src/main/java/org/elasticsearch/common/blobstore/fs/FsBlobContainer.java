@@ -210,6 +210,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final Path file = path.resolve(blobName);
         try {
             writeToPath(inputStream, file, blobSize);
@@ -225,6 +226,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final Path file = path.resolve(blobName);
         try {
             writeToPath(bytes, file);
@@ -246,6 +248,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         boolean atomic,
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
         if (atomic) {
             final String tempBlob = tempBlobName(blobName);
             try {
@@ -291,6 +294,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlobAtomic(OperationPurpose purpose, final String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
         try {

@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
@@ -461,5 +462,9 @@ public final class BlobStoreTestUtil {
 
     public static OperationPurpose randomPurpose() {
         return randomFrom(OperationPurpose.values());
+    }
+
+    public static OperationPurpose randomNonDataPurpose() {
+        return randomValueOtherThan(OperationPurpose.SNAPSHOT_DATA, BlobStoreTestUtil::randomPurpose);
     }
 }

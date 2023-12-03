@@ -21,8 +21,8 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     implements
         WriteRequestBuilder<DeleteRequestBuilder> {
 
-    public DeleteRequestBuilder(ElasticsearchClient client, DeleteAction action, @Nullable String index) {
-        super(client, action, new DeleteRequest(index));
+    public DeleteRequestBuilder(ElasticsearchClient client, @Nullable String index) {
+        super(client, DeleteAction.INSTANCE, new DeleteRequest(index));
     }
 
     /**

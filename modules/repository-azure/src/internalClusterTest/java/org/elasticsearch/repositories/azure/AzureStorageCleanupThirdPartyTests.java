@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +35,7 @@ import java.io.ByteArrayInputStream;
 import java.net.HttpURLConnection;
 import java.util.Collection;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -140,13 +140,13 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         repo.threadPool().generic().execute(ActionRunnable.run(future, () -> {
             final BlobContainer blobContainer = repo.blobStore().blobContainer(repo.basePath().add("large_write"));
             blobContainer.writeBlob(
-                OperationPurpose.SNAPSHOT,
+                randomPurpose(),
                 UUIDs.base64UUID(),
                 new ByteArrayInputStream(randomByteArrayOfLength(blobSize)),
                 blobSize,
                 false
             );
-            blobContainer.delete(OperationPurpose.SNAPSHOT);
+            blobContainer.delete(randomPurpose());
         }));
         future.get();
     }

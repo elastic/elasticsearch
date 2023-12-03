@@ -14,14 +14,15 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
@@ -41,12 +42,12 @@ public class MvMax extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
+        return isType(field(), t -> isSpatial(t) == false && isRepresentable(t), sourceText(), null, "representableNonSpatial");
     }
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
+        return switch (PlannerUtils.toSortableElementType(field().dataType())) {
             case BOOLEAN -> new MvMaxBooleanEvaluator.Factory(fieldEval);
             case BYTES_REF -> new MvMaxBytesRefEvaluator.Factory(fieldEval);
             case DOUBLE -> new MvMaxDoubleEvaluator.Factory(fieldEval);

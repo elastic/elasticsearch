@@ -139,7 +139,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
     private static void mockCancelTask(Client client) {
         var cluster = client.admin().cluster();
-        when(cluster.prepareCancelTasks()).thenReturn(new CancelTasksRequestBuilder(client, CancelTasksAction.INSTANCE));
+        when(cluster.prepareCancelTasks()).thenReturn(new CancelTasksRequestBuilder(client));
     }
 
     private static void mockCancelTasksResponse(Client client, CancelTasksResponse response) {

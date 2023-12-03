@@ -21,9 +21,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
 /**
  * Defines the base settings for interacting with OpenAI.

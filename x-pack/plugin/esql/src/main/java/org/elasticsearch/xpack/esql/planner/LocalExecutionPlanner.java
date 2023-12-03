@@ -747,7 +747,12 @@ public class LocalExecutionPlanner {
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
-            final var localBreaker = new LocalCircuitBreaker(blockFactory.breaker(), settings);
+            var localBreakerSettings = new LocalCircuitBreaker.SizeSettings(settings);
+            final var localBreaker = new LocalCircuitBreaker(
+                blockFactory.breaker(),
+                localBreakerSettings.overReservedBytes(),
+                localBreakerSettings.maxOverReservedBytes()
+            );
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
             try {
                 source = physicalOperation.source(driverContext);

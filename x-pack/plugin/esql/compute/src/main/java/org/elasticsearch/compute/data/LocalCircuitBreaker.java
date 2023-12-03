@@ -29,18 +29,19 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
     private long reservedBytes;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public LocalCircuitBreaker(CircuitBreaker breaker, Settings settings) {
-        this(
-            breaker,
-            settings.getAsBytesSize(
-                BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING,
-                BlockFactory.LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE
-            ).getBytes(),
-            settings.getAsBytesSize(
-                BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING,
-                BlockFactory.LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE
-            ).getBytes()
-        );
+    public record SizeSettings(long overReservedBytes, long maxOverReservedBytes) {
+        public SizeSettings(Settings settings) {
+            this(
+                settings.getAsBytesSize(
+                    BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING,
+                    BlockFactory.LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE
+                ).getBytes(),
+                settings.getAsBytesSize(
+                    BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING,
+                    BlockFactory.LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE
+                ).getBytes()
+            );
+        }
     }
 
     public LocalCircuitBreaker(CircuitBreaker breaker, long overReservedBytes, long maxOverReservedBytes) {

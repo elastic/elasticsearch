@@ -115,6 +115,7 @@ public class EnrichLookupService {
     private final Executor executor;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
 
     public EnrichLookupService(
         ClusterService clusterService,
@@ -129,6 +130,7 @@ public class EnrichLookupService {
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         transportService.registerRequestHandler(
             LOOKUP_ACTION_NAME,
             this.executor,
@@ -248,7 +250,11 @@ public class EnrichLookupService {
             ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
             SearchContext searchContext = searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT);
             listener = ActionListener.runBefore(listener, searchContext::close);
-            localBreaker = new LocalCircuitBreaker(blockFactory.breaker(), clusterService.getSettings());
+            localBreaker = new LocalCircuitBreaker(
+                blockFactory.breaker(),
+                localBreakerSettings.overReservedBytes(),
+                localBreakerSettings.maxOverReservedBytes()
+            );
             DriverContext driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             MappedFieldType fieldType = searchExecutionContext.getFieldType(matchField);

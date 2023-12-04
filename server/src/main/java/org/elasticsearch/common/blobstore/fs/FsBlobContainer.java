@@ -183,6 +183,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(OperationPurpose purpose, String name) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, name);
         final Path resolvedPath = path.resolve(name);
         try {
             return Files.newInputStream(resolvedPath);
@@ -193,6 +194,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
         if (position > 0L) {
             channel.position(position);

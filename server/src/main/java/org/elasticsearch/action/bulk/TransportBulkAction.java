@@ -990,24 +990,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // Get index abstraction, resolving date math if it exists
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup()
             .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
-        if (indexAbstraction == null) {
+
+        // We only store failures if the failure is being written to a data stream,
+        // not when directly writing to backing indices/failure stores
+        if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
             return Optional.empty();
         }
 
-        // Resolve whatever the write index is for the abstraction, and check if it has a data stream associated with it
+        // Locate the write index for the abstraction, and check if it has a data stream associated with it.
+        // This handles alias resolution as well as data stream resolution.
         Index writeIndex = indexAbstraction.getWriteIndex();
         assert writeIndex != null : "Could not resolve write index for resource [" + indexName + "]";
         IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
         DataStream targetDataStream = writeAbstraction.getParentDataStream();
 
-        // We will store the failure in the failure store if the write target belongs to a data stream with a failure store, and if the
-        // the write target is not itself part of the data stream's failure store. We will not be storing failures for operations done
-        // against the failure store at this time.
-        return Optional.of(
-            targetDataStream != null
-                && targetDataStream.isFailureStore()
-                && targetDataStream.getFailureIndices().contains(writeIndex) == false
-        );
+        // We will store the failure if the write target belongs to a data stream with a failure store.
+        return Optional.of(targetDataStream != null && targetDataStream.isFailureStore());
     }
 
     private static Optional<Boolean> resolveFailureStoreFromTemplate(
@@ -1135,12 +1133,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         public void markItemForFailureStore(int slot, String targetIndexName, Exception e) {
             // Modify the request in the slot to point to the failure index for its data stream
-
             logger.warn(
                 "I would store the document in slot [{}] to the failure store for [{}] but I haven't figured out how to do that yet",
                 slot,
                 targetIndexName
             );
+            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
+            // We hit an error during preprocessing a request so we:
+            // 1) Need to convert the original document into a failure document
+            // 2) Set its destination to be the targetIndexName's failure store
+            // 3) Mark the index request as being sent to the failure store for the target index for correct routing later on
+
             // For now, mark the item as failed
             markItemAsFailed(slot, e);
         }

@@ -257,9 +257,10 @@ public class OpenLdapTests extends ESTestCase {
         LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
-            assertThat(map.size(), equalTo(2));
+            assertThat(map.size(), equalTo(3));
             assertThat(map.get("cn"), equalTo("Clint Barton"));
             assertThat(map.get("sn"), equalTo("Clint Barton"));
+            assertThat(map.get("mail"), equalTo("hawkeye@oldap.test.elasticsearch.com"));
         }
     }
 
@@ -281,7 +282,7 @@ public class OpenLdapTests extends ESTestCase {
         LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
-            assertThat(map.size(), equalTo(1));
+            assertThat(map.size(), equalTo(3));
             assertThat(map.get("objectClass"), instanceOf(List.class));
             assertThat((List<?>) map.get("objectClass"), contains("top", "posixAccount", "inetOrgPerson"));
         }
@@ -302,7 +303,7 @@ public class OpenLdapTests extends ESTestCase {
         LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
-            assertThat(map.size(), equalTo(0));
+            assertThat(map.size(), equalTo(2));
         }
     }
 

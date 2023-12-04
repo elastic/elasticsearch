@@ -519,7 +519,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                 assertConnectionCanReconnect(ldap.getConnection());
                 resolver.resolve(ldap.getConnection(), BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, null, future);
                 Map<String, Object> metadataGroupSIDs = future.get();
-                assertThat(metadataGroupSIDs.size(), equalTo(1));
+                assertThat(metadataGroupSIDs.size(), equalTo(2));
                 assertNotNull(metadataGroupSIDs.get("tokenGroups"));
                 List<String> SIDs = ((List<String>) metadataGroupSIDs.get("tokenGroups"));
                 assertThat(SIDs.size(), equalTo(7));

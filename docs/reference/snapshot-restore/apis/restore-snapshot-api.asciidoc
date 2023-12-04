@@ -169,6 +169,9 @@ It completely removes all persistent settings, non-legacy index templates,
 ingest pipelines and {ilm-init} lifecycle policies that exist in your cluster
 and replaces them with the corresponding items from the snapshot.
 
+Additionally, stored scripts, which are part of the global state,
+will be included in the restoration process.
+
 Use the `feature_states` parameter to configure how feature states are restored.
 
 If `include_global_state` is `true` and a snapshot was created without a global

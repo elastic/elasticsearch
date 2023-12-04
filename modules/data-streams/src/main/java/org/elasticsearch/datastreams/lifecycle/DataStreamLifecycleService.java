@@ -308,7 +308,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.trace(
+                        logger.debug(
                             String.format(
                                 Locale.ROOT,
                                 "unable to update the health cache with DSL errors related information "

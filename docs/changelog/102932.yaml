@@ -1,0 +1,5 @@
+pr: 102932
+summary: "[Profiling] Remove unused serialization code"
+area: Application
+type: tech debt
+issues: []

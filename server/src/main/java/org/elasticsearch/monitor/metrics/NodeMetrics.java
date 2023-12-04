@@ -8,6 +8,8 @@
 
 package org.elasticsearch.monitor.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -29,6 +31,7 @@ import java.util.List;
  * and more. The metrics are periodically updated based on a schedule.
  */
 public class NodeMetrics extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(NodeMetrics.class);
     private final MeterRegistry registry;
     private final NodeService nodeService;
     private final List<AutoCloseable> metrics;
@@ -276,8 +279,8 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         metrics.forEach(metric -> {
             try {
                 metric.close();
-            } catch (Exception ignore) {
-                // metrics close() method does not throw Exception
+            } catch (Exception e) {
+                logger.warn("metrics close() method should not throw Exception", e);
             }
         });
     }

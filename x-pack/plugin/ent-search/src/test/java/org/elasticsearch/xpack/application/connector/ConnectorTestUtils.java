@@ -185,14 +185,8 @@ public final class ConnectorTestUtils {
             .build();
     }
 
-    private static Object randomConnectorConfigurationValue() {
-        return randomFrom(randomInt(), randomBoolean(), randomAlphaOfLength(10), null);
-    }
-
     private static ConfigurationDependency getRandomConfigurationDependency() {
-        return new ConfigurationDependency.Builder().setField(randomAlphaOfLength(10))
-            .setValue(randomConnectorConfigurationValue())
-            .build();
+        return new ConfigurationDependency.Builder().setField(randomAlphaOfLength(10)).setValue(randomAlphaOfLength(10)).build();
     }
 
     private static ConfigurationSelectOption getRandomConfigurationSelectOption() {
@@ -200,14 +194,14 @@ public final class ConnectorTestUtils {
     }
 
     private static ConfigurationValidation getRandomConfigurationValidation() {
-        return new ConfigurationValidation.Builder().setConstraint(randomFrom(randomAlphaOfLength(10), randomInt()))
+        return new ConfigurationValidation.Builder().setConstraint(randomAlphaOfLength(10))
             .setType(getRandomConfigurationValidationType())
             .build();
     }
 
     public static ConnectorConfiguration getRandomConnectorConfigurationField() {
         return new ConnectorConfiguration.Builder().setCategory(randomAlphaOfLength(10))
-            .setDefaultValue(randomConnectorConfigurationValue())
+            .setDefaultValue(randomAlphaOfLength(10))
             .setDependsOn(List.of(getRandomConfigurationDependency()))
             .setDisplay(getRandomConfigurationDisplayType())
             .setLabel(randomAlphaOfLength(10))
@@ -220,7 +214,7 @@ public final class ConnectorTestUtils {
             .setType(getRandomConfigurationFieldType())
             .setUiRestrictions(List.of(randomAlphaOfLength(10), randomAlphaOfLength(10)))
             .setValidations(List.of(getRandomConfigurationValidation()))
-            .setValue(randomConnectorConfigurationValue())
+            .setValue(randomAlphaOfLength(10))
             .build();
     }
 

@@ -40,7 +40,6 @@ setup:
               value: 123
 
 
-
   - match: { result: updated }
 
   - do:
@@ -51,6 +50,38 @@ setup:
   - match: { configuration.some_field.sensitive: false }
   - match: { configuration.some_field.display: numeric }
 
+
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            some_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Very important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: Wow, this tooltip is useful.
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: greater_than
+              value: 456
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration.some_field.value: 456 }
 
 ---
 "Update Connector Configuration - Connector doesn't exist":

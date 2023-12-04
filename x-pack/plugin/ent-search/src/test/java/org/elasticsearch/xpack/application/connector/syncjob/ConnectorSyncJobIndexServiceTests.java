@@ -80,46 +80,21 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connector.getConnectorId()
         );
-        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
-        Map<String, Object> connectorSyncJobSource = getConnectorSyncJobSourceById(response.getId());
-
-        String id = (String) connectorSyncJobSource.get(ConnectorSyncJob.ID_FIELD.getPreferredName());
-
         ConnectorSyncJobType requestJobType = syncJobRequest.getJobType();
-        ConnectorSyncJobType jobType = ConnectorSyncJobType.fromString(
-            (String) connectorSyncJobSource.get(ConnectorSyncJob.JOB_TYPE_FIELD.getPreferredName())
-        );
-
         ConnectorSyncJobTriggerMethod requestTriggerMethod = syncJobRequest.getTriggerMethod();
-        ConnectorSyncJobTriggerMethod triggerMethod = ConnectorSyncJobTriggerMethod.fromString(
-            (String) connectorSyncJobSource.get(ConnectorSyncJob.TRIGGER_METHOD_FIELD.getPreferredName())
-        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
 
-        ConnectorSyncStatus initialStatus = ConnectorSyncStatus.fromString(
-            (String) connectorSyncJobSource.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName())
-        );
+        ConnectorSyncJob connectorSyncJob = awaitGetConnectorSyncJob(response.getId());
 
-        Instant createdNow = Instant.parse((String) connectorSyncJobSource.get(ConnectorSyncJob.CREATED_AT_FIELD.getPreferredName()));
-        Instant lastSeen = Instant.parse((String) connectorSyncJobSource.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName()));
-
-        Integer totalDocumentCount = (Integer) connectorSyncJobSource.get(ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName());
-        Integer indexedDocumentCount = (Integer) connectorSyncJobSource.get(
-            ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName()
-        );
-        Integer indexedDocumentVolume = (Integer) connectorSyncJobSource.get(
-            ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName()
-        );
-        Integer deletedDocumentCount = (Integer) connectorSyncJobSource.get(ConnectorSyncJob.DELETED_DOCUMENT_COUNT.getPreferredName());
-
-        assertThat(id, notNullValue());
-        assertThat(jobType, equalTo(requestJobType));
-        assertThat(triggerMethod, equalTo(requestTriggerMethod));
-        assertThat(initialStatus, equalTo(ConnectorSyncJob.DEFAULT_INITIAL_STATUS));
-        assertThat(createdNow, equalTo(lastSeen));
-        assertThat(totalDocumentCount, equalTo(0));
-        assertThat(indexedDocumentCount, equalTo(0));
-        assertThat(indexedDocumentVolume, equalTo(0));
-        assertThat(deletedDocumentCount, equalTo(0));
+        assertThat(connectorSyncJob.getId(), notNullValue());
+        assertThat(connectorSyncJob.getJobType(), equalTo(requestJobType));
+        assertThat(connectorSyncJob.getTriggerMethod(), equalTo(requestTriggerMethod));
+        assertThat(connectorSyncJob.getStatus(), equalTo(ConnectorSyncJob.DEFAULT_INITIAL_STATUS));
+        assertThat(connectorSyncJob.getCreatedAt(), equalTo(connectorSyncJob.getLastSeen()));
+        assertThat(connectorSyncJob.getTotalDocumentCount(), equalTo(0L));
+        assertThat(connectorSyncJob.getIndexedDocumentCount(), equalTo(0L));
+        assertThat(connectorSyncJob.getIndexedDocumentVolume(), equalTo(0L));
+        assertThat(connectorSyncJob.getDeletedDocumentCount(), equalTo(0L));
     }
 
     public void testCreateConnectorSyncJob_WithMissingJobType_ExpectDefaultJobTypeToBeSet() throws Exception {
@@ -130,12 +105,9 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         );
         PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
 
-        Map<String, Object> connectorSyncJobSource = getConnectorSyncJobSourceById(response.getId());
-        ConnectorSyncJobType jobType = ConnectorSyncJobType.fromString(
-            (String) connectorSyncJobSource.get(ConnectorSyncJob.JOB_TYPE_FIELD.getPreferredName())
-        );
+        ConnectorSyncJob connectorSyncJob = awaitGetConnectorSyncJob(response.getId());
 
-        assertThat(jobType, equalTo(ConnectorSyncJob.DEFAULT_JOB_TYPE));
+        assertThat(connectorSyncJob.getJobType(), equalTo(ConnectorSyncJob.DEFAULT_JOB_TYPE));
     }
 
     public void testCreateConnectorSyncJob_WithMissingTriggerMethod_ExpectDefaultTriggerMethodToBeSet() throws Exception {
@@ -146,12 +118,9 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         );
         PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
 
-        Map<String, Object> connectorSyncJobSource = getConnectorSyncJobSourceById(response.getId());
-        ConnectorSyncJobTriggerMethod triggerMethod = ConnectorSyncJobTriggerMethod.fromString(
-            (String) connectorSyncJobSource.get(ConnectorSyncJob.TRIGGER_METHOD_FIELD.getPreferredName())
-        );
+        ConnectorSyncJob connectorSyncJob = awaitGetConnectorSyncJob(response.getId());
 
-        assertThat(triggerMethod, equalTo(ConnectorSyncJob.DEFAULT_TRIGGER_METHOD));
+        assertThat(connectorSyncJob.getTriggerMethod(), equalTo(ConnectorSyncJob.DEFAULT_TRIGGER_METHOD));
     }
 
     public void testCreateConnectorSyncJob_WithMissingConnectorId_ExpectException() throws Exception {
@@ -182,6 +151,28 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testDeleteConnectorSyncJob_WithMissingSyncJobId_ExpectException() {
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID));
+    }
+
+    public void testGetConnectorSyncJob() throws Exception {
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connector.getConnectorId()
+        );
+        ConnectorSyncJobType jobType = syncJobRequest.getJobType();
+        ConnectorSyncJobTriggerMethod triggerMethod = syncJobRequest.getTriggerMethod();
+
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+
+        ConnectorSyncJob syncJob = awaitGetConnectorSyncJob(syncJobId);
+
+        assertThat(syncJob.getId(), equalTo(syncJobId));
+        assertThat(syncJob.getJobType(), equalTo(jobType));
+        assertThat(syncJob.getTriggerMethod(), equalTo(triggerMethod));
+        assertThat(syncJob.getConnector().getConnectorId(), equalTo(connector.getConnectorId()));
+    }
+
+    public void testGetConnectorSyncJob_WithMissingSyncJobId_ExpectException() {
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID));
     }
 
     public void testCheckInConnectorSyncJob() throws Exception {
@@ -344,6 +335,33 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         ActionFuture<GetResponse> getResponseActionFuture = client().get(getRequest);
 
         return getResponseActionFuture.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).getSource();
+    }
+
+    private ConnectorSyncJob awaitGetConnectorSyncJob(String connectorSyncJobId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<ConnectorSyncJob> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+
+        connectorSyncJobIndexService.getConnectorSyncJob(connectorSyncJobId, new ActionListener<ConnectorSyncJob>() {
+            @Override
+            public void onResponse(ConnectorSyncJob connectorSyncJob) {
+                resp.set(connectorSyncJob);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for get request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from get request", resp.get());
+        return resp.get();
     }
 
     private UpdateResponse awaitCheckInConnectorSyncJob(String connectorSyncJobId) throws Exception {

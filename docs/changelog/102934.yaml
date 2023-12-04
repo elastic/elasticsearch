@@ -1,5 +1,5 @@
 pr: 102934
-summary: Filter persistent transform tasks that match the update request
+summary: Ensure transform updates only modify the expected transform task
 area: Transform
 type: bug
 issues:

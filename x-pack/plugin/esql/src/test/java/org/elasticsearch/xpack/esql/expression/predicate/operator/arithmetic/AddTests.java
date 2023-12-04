@@ -44,55 +44,44 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(
-            TestCaseSupplier.forBinaryNumericNotCasting(
-                "AddIntsEvaluator",
+            TestCaseSupplier.forBinaryWithWidening(
+                new TestCaseSupplier.AllTheTypeSpecificSettings(
+                    new TestCaseSupplier.StuffForNumericType(
+                        (Integer.MIN_VALUE >> 1) - 1,
+                        (Integer.MAX_VALUE >> 1) - 1,
+                        (l, r) -> l.intValue() + r.intValue(),
+                        "AddIntsEvaluator"
+                    ),
+                    new TestCaseSupplier.StuffForNumericType(
+                        (Long.MIN_VALUE >> 1) - 1,
+                        (Long.MAX_VALUE >> 1) - 1,
+                        (l, r) -> l.longValue() + r.longValue(),
+                        "AddLongsEvaluator"
+                    ),
+                    new TestCaseSupplier.StuffForNumericType(
+                        BigInteger.ONE,
+                        BigInteger.valueOf(Long.MAX_VALUE),
+                        (l, r) -> {
+                            BigInteger bigL = l instanceof BigInteger ? (BigInteger) l : BigInteger.valueOf(l.longValue());
+                            BigInteger bigR = r instanceof BigInteger ? (BigInteger) r : BigInteger.valueOf(r.longValue());
+                            return bigL.add(bigR);
+                        },
+                        "AddUnsignedLongsEvaluator"
+                    ),
+                    new TestCaseSupplier.StuffForNumericType(
+                        Double.NEGATIVE_INFINITY,
+                        Double.POSITIVE_INFINITY,
+                        (l, r) -> l.doubleValue() + r.doubleValue(),
+                        "AddDoublesEvaluator"
+                    )
+                ),
                 "lhs",
                 "rhs",
-                (l, r) -> l.intValue() + r.intValue(),
-                DataTypes.INTEGER,
-                TestCaseSupplier.intCases((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1),
-                TestCaseSupplier.intCases((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1),
-                List.of(),
-                false
+                List.of()
             )
         );
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNumericNotCasting(
-                "AddLongsEvaluator",
-                "lhs",
-                "rhs",
-                (l, r) -> l.longValue() + r.longValue(),
-                DataTypes.LONG,
-                TestCaseSupplier.longCases((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1),
-                TestCaseSupplier.longCases((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1),
-                List.of(),
-                false
-            )
-        );
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNumericNotCasting(
-                "AddDoublesEvaluator",
-                "lhs",
-                "rhs",
-                (l, r) -> l.doubleValue() + r.doubleValue(),
-                DataTypes.DOUBLE,
-                TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
-                TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
-                List.of(),
-                false
-            )
-        );
-        suppliers.addAll(TestCaseSupplier.forBinaryNumericNotCasting("AddUnsignedLongsEvaluator", "lhs", "rhs", (l, r) -> {
-            assert l instanceof BigInteger;
-            assert r instanceof BigInteger;
-            return ((BigInteger) l).add((BigInteger) r);
-        },
-            DataTypes.UNSIGNED_LONG,
-            TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
-            TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE)),
-            List.of(),
-            false
-        ));
+
+        // Datetime Cases
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
@@ -171,6 +160,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 false
             )
         );
+
+        // Cases that should generate warnings
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {
             // Ensure we don't have an overflow
             int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);

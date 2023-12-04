@@ -232,7 +232,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
-        // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
+        logger.info("Result type: " + expression.dataType());
+
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
             try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
@@ -253,7 +254,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private static Object toJavaObjectBigIntegerAware(Block block, int position, DataType expectedType) {
         Object result;
         result = toJavaObject(block, position);
-        if (expectedType == DataTypes.UNSIGNED_LONG) {
+        if (result != null && expectedType == DataTypes.UNSIGNED_LONG) {
             assertThat(result, instanceOf(Long.class));
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }

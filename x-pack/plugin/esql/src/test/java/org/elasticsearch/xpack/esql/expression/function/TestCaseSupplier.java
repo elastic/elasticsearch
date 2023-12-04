@@ -258,6 +258,111 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public record StuffForNumericType(
+        Number min,
+        Number max,
+        BinaryOperator<Number> expected,
+        String evaluatorName
+    ) {}
+
+    public record AllTheTypeSpecificSettings(
+        StuffForNumericType intStuff,
+        StuffForNumericType longStuff,
+        StuffForNumericType ulongStuff,
+        StuffForNumericType doubleStuff
+    ) {
+        public StuffForNumericType get(DataType type) {
+            if (type == DataTypes.INTEGER) {
+                return intStuff;
+            }
+            if (type == DataTypes.LONG) {
+                return longStuff;
+            }
+            if (type == DataTypes.UNSIGNED_LONG) {
+                return ulongStuff;
+            }
+            if (type == DataTypes.DOUBLE) {
+                return doubleStuff;
+            }
+            throw new IllegalArgumentException("bogus numeric type [" + type + "]");
+        }
+    }
+
+    private static DataType widen(DataType lhs, DataType rhs) {
+        if (lhs == rhs) {
+            return lhs;
+        }
+        if (lhs == DataTypes.DOUBLE || rhs == DataTypes.DOUBLE) {
+            return DataTypes.DOUBLE;
+        }
+        if (lhs == DataTypes.UNSIGNED_LONG || rhs == DataTypes.UNSIGNED_LONG) {
+            return DataTypes.UNSIGNED_LONG;
+        }
+        if (lhs == DataTypes.LONG || rhs == DataTypes.LONG) {
+            return DataTypes.LONG;
+        }
+        throw new IllegalArgumentException("Invalid numeric widening lhs: [" + lhs + "] rhs: [" + rhs + "]");
+    }
+
+    private static List<TypedDataSupplier> getSuppliersForNumericType(DataType type, Number min, Number max) {
+        if (type == DataTypes.INTEGER) {
+            return intCases(min.intValue(), max.intValue());
+        }
+        if (type == DataTypes.LONG) {
+            return longCases(min.longValue(), max.longValue());
+        }
+        if (type == DataTypes.UNSIGNED_LONG) {
+            return ulongCases(
+                min instanceof BigInteger ? (BigInteger) min : BigInteger.valueOf(Math.max(min.longValue(), 0L)),
+                max instanceof BigInteger ? (BigInteger) max : BigInteger.valueOf(Math.max(max.longValue(), 0L))
+            );
+        }
+        if (type == DataTypes.DOUBLE) {
+            return doubleCases(min.doubleValue(), max.doubleValue());
+        }
+        throw new IllegalArgumentException("bogus numeric type [" + type + "]");
+    }
+
+    public static List<TestCaseSupplier> forBinaryWithWidening(
+        AllTheTypeSpecificSettings typeStuff,
+        String lhsName,
+        String rhsName,
+        List<String> warnings
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        // TODO: Surely this list exists elsewhere already NOCOMMIT
+        List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE);
+
+        for (DataType lhsType : numericTypes) {
+            for (DataType rhsType : numericTypes) {
+                DataType expected = widen(lhsType, rhsType);
+                StuffForNumericType expectedTypeStuff = typeStuff.get(expected);
+                 String evaluator = expectedTypeStuff.evaluatorName()
+                    + "["
+                    + lhsName
+                    + "="
+                    + getCastEvaluator("Attribute[channel=0]", lhsType, expected)
+                    + ", "
+                    + rhsName
+                    + "="
+                    + getCastEvaluator("Attribute[channel=1]", rhsType, expected)
+                    + "]";
+                 casesCrossProduct(
+                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
+                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                     getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                     // TODO: This doesn't really need to be a function
+                     (lt, rt) -> evaluator,
+                     warnings,
+                     suppliers,
+                     expected
+                 );
+            }
+        }
+
+        return suppliers;
+    }
+
     public static List<TestCaseSupplier> forBinaryNotCasting(
         String name,
         String lhsName,
@@ -279,18 +384,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             expectedType
         );
-        if (symetric) {
-            // reverse lhs and rhs suppliers
-            casesCrossProduct(
-                expected,
-                rhsSuppliers,
-                lhsSuppliers,
-                (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
-                warnings,
-                suppliers,
-                expectedType
-            );
-        }
         return suppliers;
     }
 
@@ -810,6 +903,54 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    private static String getCastEvaluator(String original, DataType current, DataType target) {
+        if (current == target) {
+            return original;
+        }
+        if (target == DataTypes.LONG) {
+            return castToLongEvaluator(original, current);
+        }
+        if (target == DataTypes.UNSIGNED_LONG) {
+            return castToUnsignedLongEvaluator(original, current);
+        }
+        if (target == DataTypes.DOUBLE) {
+            return castToDoubleEvaluator(original, current);
+        }
+        throw new IllegalArgumentException("Invalid numeric cast to [" + target + "]");
+    }
+
+    private static String castToLongEvaluator(String original, DataType current) {
+        if (current == DataTypes.LONG) {
+            return original;
+        }
+        if (current == DataTypes.INTEGER) {
+            return "CastIntToLongEvaluator[v=" + original + "]";
+        }
+        if (current == DataTypes.DOUBLE) {
+            return "CastDoubleToLongEvaluator[v=" + original + "]";
+        }
+        if (current == DataTypes.UNSIGNED_LONG) {
+            return "CastUnsignedLongToLong[v=" + original + "]";
+        }
+        throw new UnsupportedOperationException();
+    }
+
+    private static String castToUnsignedLongEvaluator(String original, DataType current) {
+        if (current == DataTypes.UNSIGNED_LONG) {
+            return original;
+        }
+        if (current == DataTypes.INTEGER) {
+            return "CastIntToUnsignedLongEvaluator[v=" + original + "]";
+        }
+        if (current == DataTypes.LONG) {
+            return "CastLongToUnsignedLongEvaluator[v=" + original + "]";
+        }
+        if (current == DataTypes.DOUBLE) {
+            return "CastDoubleToUnsignedLongEvaluator[v=" + original + "]";
+        }
+        throw new UnsupportedOperationException();
+    }
+
     private static String castToDoubleEvaluator(String original, DataType current) {
         if (current == DataTypes.DOUBLE) {
             return original;
@@ -954,6 +1095,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         @Override
         public String toString() {
+            if (type == DataTypes.UNSIGNED_LONG && data != null) {
+                return type.toString() + "(" + NumericUtils.unsignedLongAsBigInteger((Long) data).toString() + ")";
+            }
             return type.toString() + "(" + (data == null ? "null" : data.toString()) + ")";
         }
     }

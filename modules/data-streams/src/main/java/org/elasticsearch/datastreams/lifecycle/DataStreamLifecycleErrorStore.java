@@ -103,6 +103,9 @@ public class DataStreamLifecycleErrorStore {
      * Returns empty list if no entries are present in the error store or none satisfy the predicate.
      */
     public List<DslErrorInfo> getErrorsInfo(Predicate<ErrorEntry> errorEntryPredicate, int limit) {
+        if (indexNameToError.isEmpty()) {
+            return List.of();
+        }
         return indexNameToError.entrySet()
             .stream()
             .filter(keyValue -> errorEntryPredicate.test(keyValue.getValue()))

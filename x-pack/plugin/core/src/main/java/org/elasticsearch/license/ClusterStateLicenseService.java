@@ -490,12 +490,14 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
      */
     private void onUpdate(final LicensesMetadata currentLicensesMetadata) {
         final License license = getLicenseFromLicensesMetadata(currentLicensesMetadata);
+        // first update the XPackLicenseState
         updateXPackLicenseState(license);
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
             final License previousLicense = currentLicenseHolder.getAndSet(license);
             if (license.equals(previousLicense) == false) {
+                // then register periodic job to update the XPackLicenseState with the latest expiration message
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
                     scheduler.add(

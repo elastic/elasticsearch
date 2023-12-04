@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.GetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 
@@ -131,5 +132,13 @@ public class ConnectorSyncJobTestUtils {
             randomNonNegativeLong(),
             randomInstantBetween(lowerBoundInstant, upperBoundInstant)
         );
+    }
+
+    public static GetConnectorSyncJobAction.Request getRandomGetConnectorSyncJobRequest() {
+        return new GetConnectorSyncJobAction.Request(randomAlphaOfLength(10));
+    }
+
+    public static GetConnectorSyncJobAction.Response getRandomGetConnectorSyncJobResponse() {
+        return new GetConnectorSyncJobAction.Response(getRandomConnectorSyncJob());
     }
 }

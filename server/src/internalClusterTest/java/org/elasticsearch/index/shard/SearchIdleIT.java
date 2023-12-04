@@ -48,7 +48,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchIdleIT extends ESSingleNodeTestCase {
 
     public void testAutomaticRefreshSearch() throws InterruptedException {
-        runTestAutomaticRefresh(numDocs -> client().prepareSearch("test").get().getHits().getTotalHits().value);
+        runTestAutomaticRefresh(numDocs -> {
+            var resp = client().prepareSearch("test").get();
+            try {
+                return resp.getHits().getTotalHits().value;
+            } finally {
+                resp.decRef();
+            }
+        });
     }
 
     public void testAutomaticRefreshGet() throws InterruptedException {

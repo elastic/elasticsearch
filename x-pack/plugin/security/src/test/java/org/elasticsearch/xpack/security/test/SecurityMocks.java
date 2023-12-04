@@ -77,8 +77,10 @@ public final class SecurityMocks {
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
+            Runnable onCompletion = (Runnable) invocationOnMock.getArguments()[2];
+            onCompletion.run();
             return null;
-        }).when(securityIndexManager).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(securityIndexManager).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class), any(Runnable.class));
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();

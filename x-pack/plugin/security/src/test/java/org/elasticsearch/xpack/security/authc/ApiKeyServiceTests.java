@@ -243,25 +243,23 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
-        try (BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client)) {
-            when(client.prepareBulk()).thenReturn(bulkRequestBuilder);
-            when(client.threadPool()).thenReturn(threadPool);
-            final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
-            doAnswer(inv -> {
-                final Object[] args = inv.getArguments();
-                BulkRequest bulkRequest = (BulkRequest) args[1];
-                assertThat(bulkRequest.numberOfActions(), is(1));
-                assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
-                IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
-                assertThat(indexRequest.id(), is(createApiKeyRequest.getId()));
-                // The index request has opType create so that it will *not* override any existing document
-                assertThat(indexRequest.opType(), is(DocWriteRequest.OpType.CREATE));
-                bulkActionInvoked.set(true);
-                return null;
-            }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
-            service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
-            assertBusy(() -> assertTrue(bulkActionInvoked.get()));
-        }
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.threadPool()).thenReturn(threadPool);
+        final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            BulkRequest bulkRequest = (BulkRequest) args[1];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+            assertThat(indexRequest.id(), is(createApiKeyRequest.getId()));
+            // The index request has opType create so that it will *not* override any existing document
+            assertThat(indexRequest.opType(), is(DocWriteRequest.OpType.CREATE));
+            bulkActionInvoked.set(true);
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
+        assertBusy(() -> assertTrue(bulkActionInvoked.get()));
     }
 
     @SuppressWarnings("unchecked")
@@ -444,7 +442,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
         // Capture the Update request so that we can verify it is configured as expected
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
         final var updateRequestBuilder = Mockito.spy(new UpdateRequestBuilder(client));
         when(client.prepareUpdate(eq(SECURITY_MAIN_ALIAS), eq(apiKeyId))).thenReturn(updateRequestBuilder);
 
@@ -502,7 +500,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();

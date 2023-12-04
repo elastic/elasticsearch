@@ -190,7 +190,7 @@ public class SimpleFeatureFactory {
             for (int i = 0; i < length; i++) {
                 output.writeVInt(commands[i]);
             }
-            return output.bytes().array();
+            return output.copyBytes().array();
         }
     }
 }

@@ -157,13 +157,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     queryResult.size(1);
                     successfulOps.incrementAndGet();
                     queryResult.incRef();
-                    new Thread(() -> {
-                        try {
-                            listener.onResponse(queryResult);
-                        } finally {
-                            queryResult.decRef();
-                        }
-                    }).start();
+                    new Thread(() -> ActionListener.respondAndRelease(listener, queryResult)).start();
                 } finally {
                     queryResult.decRef();
                 }

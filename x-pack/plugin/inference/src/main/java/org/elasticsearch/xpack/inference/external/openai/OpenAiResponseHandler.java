@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.http.Header;
+import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
@@ -36,10 +35,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     static final String REMAINING_REQUESTS = "x-ratelimit-remaining-requests";
     // The remaining number of tokens that are permitted before exhausting the rate limit.
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
-    // The time until the rate limit (based on requests) resets to its initial state.
-    static final String REQUESTS_LIMIT_RESET_TIME = "x-ratelimit-reset-requests";
-    // The time until the rate limit (based on tokens) resets to its initial state.
-    static final String TOKENS_LIMIT_RESET_TIME = "x-ratelimit-reset-tokens";
 
     public OpenAiResponseHandler(String requestType, CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
@@ -70,7 +65,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         if (statusCode >= 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildRateLimitError(RATE_LIMIT, request, result));
+            throw new RetryException(true, buildError(buildRateLimitErrorMessage(request, result), request, result));
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {
@@ -80,55 +75,30 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
     }
 
-    static ElasticsearchStatusException buildRateLimitError(String baseMessage, HttpRequestBase request, HttpResult result) {
+    static String buildRateLimitErrorMessage(HttpRequestBase request, HttpResult result) {
         var response = result.response();
         int statusCode = result.response().getStatusLine().getStatusCode();
-        var tokenLimit = getFirstHeader(response.getHeaders(TOKENS_LIMIT));
-        var remainingTokens = getFirstHeader(response.getHeaders(REMAINING_TOKENS));
-        var requestLimit = getFirstHeader(response.getHeaders(REQUESTS_LIMIT));
-        var remainingRequests = getFirstHeader(response.getHeaders(REMAINING_REQUESTS));
+        var tokenLimit = getFirstHeaderOrUnknown(response, TOKENS_LIMIT);
+        var remainingTokens = getFirstHeaderOrUnknown(response, REMAINING_TOKENS);
+        var requestLimit = getFirstHeaderOrUnknown(response, REQUESTS_LIMIT);
+        var remainingRequests = getFirstHeaderOrUnknown(response, REMAINING_REQUESTS);
 
-        StringBuilder sb = new StringBuilder();
-        if (tokenLimit != null) {
-            sb.append("Token limit [").append(tokenLimit).append("]");
-            if (remainingTokens != null) {
-                sb.append(", remaining tokens [").append(remainingTokens).append("]. ");
-            } else {
-                sb.append(". ");
-            }
-        } else if (remainingTokens != null) {
-            sb.append("Remaining tokens [").append(remainingTokens).append("]. ");
-        }
-
-        if (requestLimit != null) {
-            sb.append("Request limit [").append(requestLimit).append("]");
-            if (remainingRequests != null) {
-                sb.append(", remaining requests [").append(remainingRequests).append("].");
-            } else {
-                sb.append(".");
-            }
-        } else if (remainingRequests != null) {
-            sb.append("Remaining requests [").append(remainingRequests).append("].");
-        }
-
-        String message = null;
-        if (sb.isEmpty()) {
-            message = format(baseMessage, request.getRequestLine(), statusCode);
-        } else {
-            var base = format(baseMessage, request.getRequestLine(), statusCode);
-            message = base + sb.toString().trim();
-        }
-
-        return new ElasticsearchStatusException(
-            format("%s for request [%s] status [%s]", message, request.getRequestLine(), statusCode),
-            toRestStatus(statusCode)
+        var usageMessage = Strings.format(
+            "Token limit [%s], remaining tokens [%s]. Request limit [%s], remaining requests [%s]",
+            tokenLimit,
+            remainingTokens,
+            requestLimit,
+            remainingRequests
         );
+
+        return RATE_LIMIT + ". " + usageMessage;
     }
 
-    private static String getFirstHeader(Header[] headers) {
-        if (headers.length > 0 && headers[0].getElements().length > 0) {
-            return headers[0].getElements()[0].getName();
+    private static String getFirstHeaderOrUnknown(HttpResponse response, String name) {
+        var header = response.getFirstHeader(name);
+        if (header != null && header.getElements().length > 0) {
+            return header.getElements()[0].getName();
         }
-        return null;
+        return "unknown";
     }
 }

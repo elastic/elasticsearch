@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.openai;
 
 import org.apache.http.Header;
+import org.apache.http.HeaderElement;
 import org.apache.http.HttpResponse;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
@@ -32,7 +33,9 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getStatusLine()).thenReturn(statusLine);
-        when(httpResponse.getHeaders(anyString())).thenReturn(new Header[] {});
+        var header = mock(Header.class);
+        when(header.getElements()).thenReturn(new HeaderElement[] {});
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
         var httpRequest = mock(HttpRequestBase.class);
         var httpResult = new HttpResult(httpResponse, new byte[] {});
@@ -54,10 +57,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         when(statusLine.getStatusCode()).thenReturn(429);
         retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
         assertTrue(retryException.shouldRetry());
-        assertThat(
-            retryException.getCause().getMessage(),
-            containsString("Received a rate limit status code for request [null] status [429]")
-        );
+        assertThat(retryException.getCause().getMessage(), containsString("Received a rate limit status code. Token limit"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
         // 401
         when(statusLine.getStatusCode()).thenReturn(401);
@@ -96,66 +96,64 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(response, new byte[] {});
 
         {
-            when(response.getHeaders(OpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(
-                new Header[] { new BasicHeader(OpenAiResponseHandler.REQUESTS_LIMIT, "3000") }
+            when(response.getFirstHeader(OpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(
+                new BasicHeader(OpenAiResponseHandler.REQUESTS_LIMIT, "3000")
             );
-            when(response.getHeaders(OpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(
-                new Header[] { new BasicHeader(OpenAiResponseHandler.REMAINING_REQUESTS, "2999") }
+            when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(
+                new BasicHeader(OpenAiResponseHandler.REMAINING_REQUESTS, "2999")
             );
-            when(response.getHeaders(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(
-                new Header[] { new BasicHeader(OpenAiResponseHandler.TOKENS_LIMIT, "10000") }
+            when(response.getFirstHeader(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(
+                new BasicHeader(OpenAiResponseHandler.TOKENS_LIMIT, "10000")
             );
-            when(response.getHeaders(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(
-                new Header[] { new BasicHeader(OpenAiResponseHandler.REMAINING_TOKENS, "99800") }
+            when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(
+                new BasicHeader(OpenAiResponseHandler.REMAINING_TOKENS, "99800")
             );
 
-            var error = OpenAiResponseHandler.buildRateLimitError("Preamble: ", request, httpResult);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
             assertThat(
-                error.getMessage(),
-                containsString("Preamble: Token limit [10000], remaining tokens [99800]. Request limit [3000], remaining requests [2999].")
+                error,
+                containsString("Token limit [10000], remaining tokens [99800]. Request limit [3000], remaining requests [2999]")
             );
         }
 
         {
-            when(response.getHeaders(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(new Header[] {});
-            when(response.getHeaders(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(new Header[] {});
-            var error = OpenAiResponseHandler.buildRateLimitError("Preamble: ", request, httpResult);
-            assertThat(error.getMessage(), containsString("Preamble: Request limit [3000], remaining requests [2999]."));
+            when(response.getFirstHeader(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(null);
+            when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            assertThat(
+                error,
+                containsString("Token limit [unknown], remaining tokens [unknown]. Request limit [3000], remaining requests [2999]")
+            );
         }
 
         {
-            when(response.getHeaders(OpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(new Header[] {});
-            when(response.getHeaders(OpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(
-                new Header[] { new BasicHeader(OpenAiResponseHandler.REMAINING_REQUESTS, "2999") }
+            when(response.getFirstHeader(OpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(null);
+            when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(
+                new BasicHeader(OpenAiResponseHandler.REMAINING_REQUESTS, "2999")
             );
-            when(response.getHeaders(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(new Header[] {});
-            when(response.getHeaders(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(new Header[] {});
-            var error = OpenAiResponseHandler.buildRateLimitError("Preamble: ", request, httpResult);
-            assertThat(error.getMessage(), containsString("Preamble: Remaining requests [2999]."));
+            when(response.getFirstHeader(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(null);
+            when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            assertThat(
+                error,
+                containsString("Token limit [unknown], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")
+            );
         }
 
         {
-            when(response.getHeaders(OpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(new Header[] {});
-            when(response.getHeaders(OpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(
-                new Header[] { new BasicHeader(OpenAiResponseHandler.REMAINING_REQUESTS, "2999") }
+            when(response.getFirstHeader(OpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(null);
+            when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(
+                new BasicHeader(OpenAiResponseHandler.REMAINING_REQUESTS, "2999")
             );
-            when(response.getHeaders(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(
-                new Header[] { new BasicHeader(OpenAiResponseHandler.TOKENS_LIMIT, "10000") }
+            when(response.getFirstHeader(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(
+                new BasicHeader(OpenAiResponseHandler.TOKENS_LIMIT, "10000")
             );
-            when(response.getHeaders(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(new Header[] {});
-            var error = OpenAiResponseHandler.buildRateLimitError("Preamble: ", request, httpResult);
-            assertThat(error.getMessage(), containsString("Preamble: Token limit [10000]. Remaining requests [2999]."));
-        }
-
-        {
-            when(response.getHeaders(OpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(new Header[] {});
-            when(response.getHeaders(OpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(new Header[] {});
-            when(response.getHeaders(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(
-                new Header[] { new BasicHeader(OpenAiResponseHandler.TOKENS_LIMIT, "10000") }
+            when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            assertThat(
+                error,
+                containsString("Token limit [10000], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")
             );
-            when(response.getHeaders(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(new Header[] {});
-            var error = OpenAiResponseHandler.buildRateLimitError("Preamble: ", request, httpResult);
-            assertThat(error.getMessage(), containsString("Preamble: Token limit [10000]."));
         }
     }
 }

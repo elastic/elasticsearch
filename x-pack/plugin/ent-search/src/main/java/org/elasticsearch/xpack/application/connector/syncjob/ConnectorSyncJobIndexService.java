@@ -202,7 +202,14 @@ public class ConnectorSyncJobIndexService {
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
+    /**
      * Cancels the {@link ConnectorSyncJob} in the underlying index.
      * Canceling means to set the {@link ConnectorSyncStatus} to "canceling" and not "canceled" as this is an async operation.
      * It also updates 'cancelation_requested_at' to the time, when the method was called.

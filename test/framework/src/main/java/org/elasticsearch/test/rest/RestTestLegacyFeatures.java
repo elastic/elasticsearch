@@ -35,6 +35,9 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature SECURITY_UPDATE_API_KEY = new NodeFeature("security.api_key_update");
     public static final NodeFeature SECURITY_BULK_UPDATE_API_KEY = new NodeFeature("security.api_key_bulk_update");
 
+    // YAML
+    public static final NodeFeature REST_ELASTIC_PRODUCT_HEADER_PRESENT = new NodeFeature("action.rest.product_header_present");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.ofEntries(
@@ -45,7 +48,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED, Version.V_7_13_0),
             entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0),
             entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
-            entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0)
+            entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0),
+            entry(REST_ELASTIC_PRODUCT_HEADER_PRESENT, Version.V_7_17_2)
         );
     }
 }

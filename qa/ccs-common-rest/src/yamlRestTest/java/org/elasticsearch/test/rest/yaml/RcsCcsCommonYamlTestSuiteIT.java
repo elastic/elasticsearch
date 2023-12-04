@@ -31,6 +31,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.TestCandidateAwareClient;
 import org.junit.AfterClass;
@@ -222,7 +223,6 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminSearchClient);
             final Version esVersion = versionVersionTuple.v1();
-            final Version masterVersion = versionVersionTuple.v2();
             final String os = readOsFromNodesInfo(adminSearchClient);
 
             searchYamlTestClient = new TestCandidateAwareClient(
@@ -230,7 +230,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 searchClient,
                 hosts,
                 esVersion,
-                masterVersion,
+                ESRestTestCase::clusterHasFeature,
                 os,
                 this::getClientBuilderWithSniffedHosts
             );

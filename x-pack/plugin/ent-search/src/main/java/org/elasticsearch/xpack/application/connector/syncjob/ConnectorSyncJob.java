@@ -264,7 +264,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             optionalConstructorArg(),
             (p, c) -> Instant.parse(p.text()),
             CANCELATION_REQUESTED_AT_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareField(optionalConstructorArg(), (p, c) -> Instant.parse(p.text()), CANCELED_AT_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> Instant.parse(p.text()), COMPLETED_AT_FIELD, ObjectParser.ValueType.STRING);
@@ -276,7 +276,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         );
         PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), CREATED_AT_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareLong(constructorArg(), DELETED_DOCUMENT_COUNT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), ERROR_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), ERROR_FIELD);
         PARSER.declareString(constructorArg(), ID_FIELD);
         PARSER.declareLong(constructorArg(), INDEXED_DOCUMENT_COUNT_FIELD);
         PARSER.declareLong(constructorArg(), INDEXED_DOCUMENT_VOLUME_FIELD);

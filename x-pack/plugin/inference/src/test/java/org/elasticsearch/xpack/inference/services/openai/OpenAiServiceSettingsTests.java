@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -23,7 +24,7 @@ import static org.hamcrest.Matchers.is;
 public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<OpenAiServiceSettings> {
 
     public static OpenAiServiceSettings createRandomWithNonNullUrl() {
-        return new OpenAiServiceSettings(randomAlphaOfLength(15), randomAlphaOfLength(15));
+        return createRandom(randomAlphaOfLength(15));
     }
 
     /**
@@ -31,18 +32,42 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
      */
     public static OpenAiServiceSettings createRandom() {
         var url = randomBoolean() ? randomAlphaOfLength(15) : null;
+        return createRandom(url);
+    }
+
+    private static OpenAiServiceSettings createRandom(String url) {
         var organizationId = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return new OpenAiServiceSettings(url, organizationId);
+        SimilarityMeasure similarityMeasure = null;
+        Integer dims = null;
+        var isTextEmbeddingModel = randomBoolean();
+        if (isTextEmbeddingModel) {
+            similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
+            dims = 1536;
+        }
+        return new OpenAiServiceSettings(url, organizationId, similarityMeasure, dims);
     }
 
     public void testFromMap() {
         var url = "https://www.abc.com";
         var org = "organization";
+        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var dims = 1536;
         var serviceSettings = OpenAiServiceSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiServiceSettings.URL, url, OpenAiServiceSettings.ORGANIZATION, org))
+            new HashMap<>(
+                Map.of(
+                    OpenAiServiceSettings.URL,
+                    url,
+                    OpenAiServiceSettings.ORGANIZATION,
+                    org,
+                    OpenAiServiceSettings.SIMILARITY,
+                    similarity,
+                    OpenAiServiceSettings.DIMENSIONS,
+                    dims
+                )
+            )
         );
 
-        assertThat(serviceSettings, is(new OpenAiServiceSettings(url, org)));
+        assertThat(serviceSettings, is(new OpenAiServiceSettings(url, org, SimilarityMeasure.DOT_PRODUCT, dims)));
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
@@ -108,6 +133,16 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
                 )
             )
         );
+    }
+
+    public void testFromMap_InvalidSimilarity_ThrowsError() {
+        var similarity = "by_size";
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.SIMILARITY, similarity)))
+        );
+
+        assertThat(thrownException.getMessage(), is("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];"));
     }
 
     @Override

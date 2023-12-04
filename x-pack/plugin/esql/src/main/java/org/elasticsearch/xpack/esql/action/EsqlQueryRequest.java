@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -59,17 +58,17 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
-    private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
     private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
+    private static final ParseField PROFILE_FIELD = new ParseField("profile");
 
     private static final ObjectParser<EsqlQueryRequest, Void> PARSER = objectParser(EsqlQueryRequest::new);
 
     private String query;
     private boolean columnar;
-    private ZoneId zoneId;
+    private boolean profile;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
@@ -109,12 +108,19 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return columnar;
     }
 
-    public void zoneId(ZoneId zoneId) {
-        this.zoneId = zoneId;
+    /**
+     * Enable profiling, sacrificing performance to return information about
+     * what operations are taking the most time.
+     */
+    public void profile(boolean profile) {
+        this.profile = profile;
     }
 
-    public ZoneId zoneId() {
-        return zoneId;
+    /**
+     * Is profiling enabled?
+     */
+    public boolean profile() {
+        return profile;
     }
 
     public void locale(Locale locale) {
@@ -157,7 +163,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
-        parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
         parser.declareObject(
             EsqlQueryRequest::pragmas,
@@ -166,6 +171,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         );
         parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
 
         return parser;
     }

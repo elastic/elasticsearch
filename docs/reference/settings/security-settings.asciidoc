@@ -1243,6 +1243,14 @@ As per `attribute_patterns.principal`, but for the _mail_ property.
 As per `attribute_patterns.principal`, but for the _dn_ property.
 // end::saml-attributes-patterns-dn-tag[]
 
+// tag::saml-attributes-delimiters-groups-tag[]
+`attribute_delimiters.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A plain string that is used as a delimiter to split the value of the first
+element in the attribute specified by `attributes.groups` before it is
+applied to the user's _group_ property.
+// end::saml-attributes-delimiters-groups-tag[]
+
 // tag::saml-nameid-format-tag[]
 `nameid_format` {ess-icon}::
 (<<static-cluster-setting,Static>>)

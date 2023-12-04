@@ -228,11 +228,11 @@ public class SamlRealmSettings {
      * when all values are provided in a single string item, separated by a delimiter.
      * As in {@link AttributeSetting} there are two settings:
      * <ul>
-     *  <li>The name of the SAML attribute to use</li>
-     *  <li>A delimiter to apply to that attribute value in order to extract the substrings that should be used.</li>
+     * <li>The name of the SAML attribute to use</li>
+     * <li>A delimiter to apply to that attribute value in order to extract the substrings that should be used.</li>
      * </ul>
      * For example, the Elasticsearch Group could be configured to come from the SAML "department" attribute, where all groups are provided
-     * as a csv value in a single list item. 
+     * as a csv value in a single list item.
      */
     public static final class AttributeSettingWithDelimiter {
         public static final String ATTRIBUTE_DELIMITERS_PREFIX = "attribute_delimiters.";

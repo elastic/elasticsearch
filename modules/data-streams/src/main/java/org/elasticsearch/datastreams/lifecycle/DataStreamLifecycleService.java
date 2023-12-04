@@ -300,7 +300,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     event.getTriggeredTime()
                 );
                 run(clusterService.state());
-                dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<AcknowledgedResponse>() {
+                dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         assert acknowledgedResponse.isAcknowledged() : "updating the health info is always acknowledged";

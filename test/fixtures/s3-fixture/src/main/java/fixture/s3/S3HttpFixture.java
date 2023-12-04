@@ -55,8 +55,22 @@ public class S3HttpFixture extends ExternalResource {
                 }
                 super.handle(exchange);
             }
+
+            @Override
+            protected void validatePutObjectRequest(HttpExchange exchange) {
+                S3HttpFixture.this.validatePutObjectRequest(exchange);
+            }
+
+            @Override
+            protected void validateInitiateMultipartUploadRequest(HttpExchange exchange) {
+                S3HttpFixture.this.validateInitiateMultipartUploadRequest(exchange);
+            }
         };
     }
+
+    protected void validatePutObjectRequest(HttpExchange exchange) {}
+
+    protected void validateInitiateMultipartUploadRequest(HttpExchange exchange) {}
 
     public String getAddress() {
         return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();

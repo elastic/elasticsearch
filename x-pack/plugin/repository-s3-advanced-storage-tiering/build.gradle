@@ -14,7 +14,9 @@ base {
 
 dependencies {
   implementation project(':modules:repository-s3')
-  compileOnly project(":server")
+  testImplementation project(path: ':test:fixtures:s3-fixture')
+    testImplementation project(path: ':test:test-clusters')
+    compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
 
   testImplementation(testArtifact(project(xpackModule('core'))))

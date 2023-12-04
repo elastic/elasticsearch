@@ -43,7 +43,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
          *  clear this RAM. */
         final AtomicLong ramBytesUsed = new AtomicLong();
 
-        public static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
+        private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
         private final Map<BytesRef, VersionValue> map;
 
         // each version map has a notion of safe / unsafe which allows us to apply certain optimization in the auto-generated ID usecase

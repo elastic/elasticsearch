@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.task.JobTask;
@@ -61,7 +62,7 @@ final class ProcessContext {
                 throw ExceptionsHelper.serverError("Failed to acquire process lock for job [" + jobTask.getJobId() + "]");
             }
         } catch (InterruptedException e) {
-            throw new ElasticsearchException(e);
+            throw new ElasticsearchStatusException(e.getMessage(), RestStatus.TOO_MANY_REQUESTS, e);
         }
     }
 

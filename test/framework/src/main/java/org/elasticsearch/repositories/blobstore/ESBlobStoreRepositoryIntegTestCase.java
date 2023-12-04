@@ -333,7 +333,13 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     logger.info("--> add random documents to {}", index);
                     addRandomDocuments(index, randomIntBetween(10, 1000));
                 } else {
-                    int docCount = (int) prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
+                    var resp = prepareSearch(index).setSize(0).get();
+                    final int docCount;
+                    try {
+                        docCount = (int) resp.getHits().getTotalHits().value;
+                    } finally {
+                        resp.decRef();
+                    }
                     int deleteCount = randomIntBetween(1, docCount);
                     logger.info("--> delete {} random documents from {}", deleteCount, index);
                     for (int i = 0; i < deleteCount; i++) {
@@ -403,7 +409,12 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 addRandomDocuments(indexName, docCount);
             }
             // Check number of documents in this iteration
-            docCounts[i] = (int) prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value;
+            var resp = prepareSearch(indexName).setSize(0).get();
+            try {
+                docCounts[i] = (int) resp.getHits().getTotalHits().value;
+            } finally {
+                resp.decRef();
+            }
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(
                 clusterAdmin().prepareCreateSnapshot(repoName, snapshotName + "-" + i).setWaitForCompletion(true).setIndices(indexName)

@@ -37,7 +37,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceLoader;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.

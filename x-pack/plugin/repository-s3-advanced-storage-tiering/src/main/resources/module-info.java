@@ -6,5 +6,7 @@
  */
 
 module org.elasticsearch.repositories.s3.advancedstoragetiering {
-    provides org.elasticsearch.repositories.s3.S3StorageClassStrategyProvider with org.elasticsearch.repositories.s3.advancedstoragetiering.AdvancedS3StorageClassStrategyProvider;
+    provides org.elasticsearch.repositories.s3.S3StorageClassStrategyProvider
+        with
+            org.elasticsearch.repositories.s3.advancedstoragetiering.AdvancedS3StorageClassStrategyProvider;
 }

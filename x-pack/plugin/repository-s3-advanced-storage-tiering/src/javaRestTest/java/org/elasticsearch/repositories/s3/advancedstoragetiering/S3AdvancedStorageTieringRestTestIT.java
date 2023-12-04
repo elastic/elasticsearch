@@ -12,6 +12,7 @@ import fixture.s3.S3HttpFixture;
 import com.sun.net.httpserver.HttpExchange;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -23,9 +24,9 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 
-public class S3AdvancedStorageTieringRestTest extends ESRestTestCase {
+public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
 
-    private static final Logger logger = LogManager.getLogger(S3AdvancedStorageTieringRestTest.class);
+    private static final Logger logger = LogManager.getLogger(S3AdvancedStorageTieringRestTestIT.class);
 
     private static final String BUCKET = "test_bucket";
     private static final String BASE_PATH = "test_base_path";
@@ -34,13 +35,15 @@ public class S3AdvancedStorageTieringRestTest extends ESRestTestCase {
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, ACCESS_KEY) {
         @Override
+        @SuppressForbidden(reason = "looking at HttpExchange")
         protected void validatePutObjectRequest(HttpExchange exchange) {
-            logger.error("validatePutObjectRequest: {} {}", exchange.getRequestMethod(), exchange.getRequestURI());
+            logger.error("--> validatePutObjectRequest: {} {}", exchange.getRequestMethod(), exchange.getRequestURI());
         }
 
         @Override
+        @SuppressForbidden(reason = "looking at HttpExchange")
         protected void validateInitiateMultipartUploadRequest(HttpExchange exchange) {
-            logger.error("validateInitiateMultipartUploadRequest: {} {}", exchange.getRequestMethod(), exchange.getRequestURI());
+            logger.error("--> validateInitiateMultipartUploadRequest: {} {}", exchange.getRequestMethod(), exchange.getRequestURI());
         }
     };
 

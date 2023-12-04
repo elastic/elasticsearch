@@ -22,7 +22,6 @@ import java.util.Collection;
 import static com.amazonaws.services.s3.model.StorageClass.OneZoneInfrequentAccess;
 import static com.amazonaws.services.s3.model.StorageClass.Standard;
 import static com.amazonaws.services.s3.model.StorageClass.StandardInfrequentAccess;
-import static org.elasticsearch.repositories.s3.S3RepositoryPlugin.getStorageClassStrategyProvider;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -101,8 +100,6 @@ public class S3AdvancedStorageTieringIT extends ESIntegTestCase {
     }
 
     private static S3StorageClassStrategy getStrategy(Settings.Builder settings) {
-        return asInstanceOf(AdvancedS3StorageClassStrategyProvider.class, getStorageClassStrategyProvider()).getS3StorageClassStrategy(
-            settings.build()
-        );
+        return new AdvancedS3StorageClassStrategyProvider().getS3StorageClassStrategy(settings.build());
     }
 }

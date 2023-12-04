@@ -490,6 +490,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
      */
     private void onUpdate(final LicensesMetadata currentLicensesMetadata) {
         final License license = getLicenseFromLicensesMetadata(currentLicensesMetadata);
+        updateXPackLicenseState(license);
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
@@ -511,7 +512,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 }
                 logger.info("license [{}] mode [{}] - valid", license.uid(), license.operationMode().name().toLowerCase(Locale.ROOT));
             }
-            updateXPackLicenseState(license);
         }
     }
 

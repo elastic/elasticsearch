@@ -184,11 +184,12 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
     private static void indexTestData() {
         for (int i = 0; i < 5; i++) {
             // Make sure we have a few segments
-            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (int j = 0; j < 20; j++) {
-                bulkRequestBuilder.add(prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
+            try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+                for (int j = 0; j < 20; j++) {
+                    bulkRequestBuilder.add(prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
+                }
+                assertNoFailures(bulkRequestBuilder.get());
             }
-            assertNoFailures(bulkRequestBuilder.get());
         }
     }
 

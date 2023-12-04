@@ -1,0 +1,28 @@
+---
+"Index test data":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              shape:
+                type: geo_shape
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: locations
+              _id: "1"
+          - '{"shape": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"}'
+          - index:
+              _index: locations
+              _id: "2"
+          - '{"shape": "LINESTRING(0 0, 1 1)"}'
+          - index:
+              _index: locations
+              _id: "3"
+          - '{"shape": "POINT(0 0)"}'
+

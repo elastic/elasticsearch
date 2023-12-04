@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
+
+import java.io.IOException;
 
 /**
  * Like {@link ShapeType} but has specific
@@ -23,17 +25,17 @@ public enum DimensionalShapeType {
     LINE,
     POLYGON;
 
-    private static DimensionalShapeType[] values = values();
+    private static final DimensionalShapeType[] values = values();
 
     public static DimensionalShapeType fromOrdinalByte(byte ordinal) {
         return values[Byte.toUnsignedInt(ordinal)];
     }
 
-    public void writeTo(BytesStreamOutput out) {
+    public void writeTo(DataOutput out) throws IOException {
         out.writeByte((byte) ordinal());
     }
 
-    public static DimensionalShapeType readFrom(ByteArrayStreamInput in) {
+    public static DimensionalShapeType readFrom(DataInput in) throws IOException {
         return fromOrdinalByte(in.readByte());
     }
 }

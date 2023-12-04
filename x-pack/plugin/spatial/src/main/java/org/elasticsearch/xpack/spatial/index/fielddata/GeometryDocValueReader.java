@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 
 import java.io.IOException;
 
@@ -36,7 +36,7 @@ import java.io.IOException;
  * -----------------------------------------
  */
 public class GeometryDocValueReader {
-    private final ByteArrayStreamInput input;
+    private final ByteArrayDataInput input;
     private final Extent extent;
     private int treeOffset;
     private int docValueOffset;
@@ -44,7 +44,7 @@ public class GeometryDocValueReader {
 
     public GeometryDocValueReader() {
         this.extent = new Extent();
-        this.input = new ByteArrayStreamInput();
+        this.input = new ByteArrayDataInput();
     }
 
     /**
@@ -76,23 +76,25 @@ public class GeometryDocValueReader {
      */
     protected int getCentroidX() throws IOException {
         input.setPosition(docValueOffset + 0);
-        return input.readInt();
+        // TODO: write as BE to keep backwards compatibility. Once implemented in the reader it can be removed
+        return Integer.reverseBytes(input.readInt());
     }
 
     /**
      * returns the encoded Y coordinate of the centroid.
      */
-    protected int getCentroidY() throws IOException {
+    protected int getCentroidY() {
         input.setPosition(docValueOffset + 4);
-        return input.readInt();
+        // TODO: write as BE to keep backwards compatibility. Once implemented in the reader it can be removed
+        return Integer.reverseBytes(input.readInt());
     }
 
-    protected DimensionalShapeType getDimensionalShapeType() {
+    protected DimensionalShapeType getDimensionalShapeType() throws IOException {
         input.setPosition(docValueOffset + 8);
         return DimensionalShapeType.readFrom(input);
     }
 
-    protected double getSumCentroidWeight() throws IOException {
+    protected double getSumCentroidWeight() {
         input.setPosition(docValueOffset + 9);
         return Double.longBitsToDouble(input.readVLong());
     }

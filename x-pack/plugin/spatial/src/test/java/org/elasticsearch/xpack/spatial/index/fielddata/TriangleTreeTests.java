@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -29,11 +29,11 @@ public class TriangleTreeTests extends ESTestCase {
         // write tree
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
         List<IndexableField> fieldList = indexer.indexShape(geometry);
-        BytesStreamOutput output = new BytesStreamOutput();
+        ByteBuffersDataOutput output = new ByteBuffersDataOutput();
         TriangleTreeWriter.writeTo(output, fieldList);
         // read tree
-        ByteArrayStreamInput input = new ByteArrayStreamInput();
-        BytesRef bytesRef = output.bytes().toBytesRef();
+        ByteArrayDataInput input = new ByteArrayDataInput();
+        BytesRef bytesRef = new BytesRef(output.toArrayCopy());
         input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         Extent extent = new Extent();
         Extent.readFromCompressed(input, extent);

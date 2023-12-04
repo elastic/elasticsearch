@@ -1,0 +1,78 @@
+setup:
+  - skip:
+      features: close_to
+---
+"Test geoshape query":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 10
+        body:
+          query:
+            geo_shape:
+              shape:
+                shape: POINT(0.5 0.5)
+
+
+  - match: { hits.total:               1    }
+  - match: { hits.hits.0._id:               "1"    }
+  - match: { hits.hits.0._source.shape:  "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"    }
+
+---
+"Test centroid":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_centroid:
+                field: shape
+
+  - match: { hits.total: 3 }
+  - close_to: { aggregations.my_agg.location.lat: { value: 0.5, error: 0.000001 } }
+  - close_to: { aggregations.my_agg.location.lon: { value: 0.5, error: 0.000001 } }
+
+---
+"Test bounds":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: shape
+
+  - match: { hits.total: 3 }
+  - close_to: { aggregations.my_agg.bounds.top_left.lat: { value: 1, error: 0.000001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.lon: { value: 0, error: 0.000001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lat: { value: 0, error: 0.000001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.lon: { value: 1, error: 0.000001 } }
+
+---
+"Test geo grid":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geotile_grid:
+                field: shape
+                precision: 2
+
+  - match: { hits.total: 3 }
+  - match: { aggregations.my_agg.buckets.0.key: "2/2/2" }
+  - match: { aggregations.my_agg.buckets.0.doc_count: 3 }

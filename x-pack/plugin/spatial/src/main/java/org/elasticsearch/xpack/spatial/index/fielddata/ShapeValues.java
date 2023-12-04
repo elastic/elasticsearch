@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -174,7 +175,11 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
         }
 
         public DimensionalShapeType dimensionalShapeType() {
-            return reader.getDimensionalShapeType();
+            try {
+                return reader.getDimensionalShapeType();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         public double weight() throws IOException {

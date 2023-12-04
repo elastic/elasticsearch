@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.DataOutput;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -88,8 +88,9 @@ class Extent {
         }
     }
 
-    static void readFromCompressed(StreamInput input, Extent extent) throws IOException {
-        final int top = input.readInt();
+    static void readFromCompressed(DataInput input, Extent extent) throws IOException {
+        // TODO: write as BE to keep backwards compatibility. Once implemented in the reader it can be removed
+        final int top = Integer.reverseBytes(input.readInt());
         final int bottom = Math.toIntExact(top - input.readVLong());
         final int negLeft;
         final int negRight;
@@ -132,8 +133,9 @@ class Extent {
         extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
     }
 
-    void writeCompressed(StreamOutput output) throws IOException {
-        output.writeInt(this.top);
+    void writeCompressed(DataOutput output) throws IOException {
+        // TODO: write as BE to keep backwards compatibility. Once implemented in the reader it can be removed
+        output.writeInt(Integer.reverseBytes(this.top));
         output.writeVLong((long) this.top - this.bottom);
         byte type;
         if (this.negLeft == Integer.MAX_VALUE && this.negRight == Integer.MIN_VALUE) {

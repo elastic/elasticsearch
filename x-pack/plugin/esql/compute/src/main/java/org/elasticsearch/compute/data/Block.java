@@ -66,10 +66,10 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     BlockFactory blockFactory();
 
     /**
-     * This method must be called before passing this Block to another Driver. Internally, we change the owning block factory
-     * of this Block to its parent block factory. This ensures that when another driver releases this Block, it returns memory
-     * directly to the parent block factory instead of the local block factory of this Block. This is necessary because the local
-     * block factory doesn't support simultaneous access by more than one thread.
+     * Before passing a Block to another Driver, it is necessary to switch the owning block factory to its parent, which is associated
+     * with the global circuit breaker. This ensures that when the new driver releases this Block, it returns memory directly to the
+     * parent block factory instead of the local block factory of this Block. This is important because the local block factory is
+     * not thread safe and doesn't support simultaneous access by more than one thread.
      */
     void allowPassingToDifferentDriver();
 

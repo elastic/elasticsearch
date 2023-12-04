@@ -237,10 +237,10 @@ public final class Page implements Writeable {
     }
 
     /**
-     * This method must be called before passing this Page to another Driver. Internally, we change the owning block factory of the blocks
-     * on this Page to their parent block factory. This ensures that when another driver releases this Page, we return memory directly
-     * to the parent block factory instead of the local block factory of the blocks on this Page. This is necessary because the local
-     * block factory doesn't support simultaneous access by more than one thread.
+     * Before passing a Page to another Driver, it is necessary to switch the owning block factories of its Blocks to their parents,
+     * which are associated with the global circuit breaker. This ensures that when the new driver releases this Page, it returns
+     * memory directly to the parent block factory instead of the local block factory. This is important because the local block
+     * factory is not thread safe and doesn't support simultaneous access by more than one thread.
      */
     public void allowPassingToDifferentDriver() {
         for (Block block : blocks) {

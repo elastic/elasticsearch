@@ -9,11 +9,16 @@ package org.elasticsearch.repositories.s3.advancedstoragetiering;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensingHelper;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategy;
 import org.elasticsearch.repositories.s3.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+
+import java.util.Collection;
 
 import static com.amazonaws.services.s3.model.StorageClass.OneZoneInfrequentAccess;
 import static com.amazonaws.services.s3.model.StorageClass.Standard;
@@ -21,6 +26,11 @@ import static com.amazonaws.services.s3.model.StorageClass.StandardInfrequentAcc
 import static org.elasticsearch.repositories.s3.S3RepositoryPlugin.getStorageClassStrategyProvider;
 
 public class S3AdvancedStorageTieringIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), LocalStateCompositeXPackPlugin.class);
+    }
 
     public void testDefaultStrategy() {
         final var defaultStrategy = getStrategy(Settings.builder());

@@ -49,6 +49,20 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     public static final String HEALTH_FIELD_PREFIX = "elasticsearch.health";
     public static final String MESSAGE_FIELD = "message";
 
+    /**
+     * Valid modes of output for this logger
+     */
+    public enum OutputMode {
+        LOGS,
+        METRICS,
+        BOTH;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "health.periodic_logger.poll_interval",
         TimeValue.timeValueSeconds(60),
@@ -60,6 +74,14 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
         "health.periodic_logger.enabled",
         false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<OutputMode> OUTPUT_MODE_SETTING = Setting.enumSetting(
+        HealthPeriodicLogger.OutputMode.class,
+        "health.periodic_logger.output_mode",
+        OutputMode.BOTH,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -85,6 +107,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private volatile TimeValue pollInterval;
     private volatile boolean enabled;
+    private volatile OutputMode outputMode;
 
     private static final Logger logger = LogManager.getLogger(HealthPeriodicLogger.class);
 
@@ -132,6 +155,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         this.clock = Clock.systemUTC();
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = ENABLED_SETTING.get(settings);
+        this.outputMode = OUTPUT_MODE_SETTING.get(settings);
 
         // create APM metric reporters
         createMetrics(meterRegistry);
@@ -167,6 +191,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::updatePollInterval);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(OUTPUT_MODE_SETTING, this::updateOutputMode);
     }
 
     @Override
@@ -287,16 +312,20 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         @Override
         public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
             try {
-                Map<String, Object> resultsMap = convertToLoggedFields(healthIndicatorResults);
+                if (outputMode != OutputMode.METRICS) {
+                    Map<String, Object> resultsMap = convertToLoggedFields(healthIndicatorResults);
 
-                // if we have a valid response, log in JSON format
-                if (resultsMap.isEmpty() == false) {
-                    ESLogMessage msg = new ESLogMessage().withFields(resultsMap);
-                    logger.info(msg);
+                    // if we have a valid response, log in JSON format
+                    if (resultsMap.isEmpty() == false) {
+                        ESLogMessage msg = new ESLogMessage().withFields(resultsMap);
+                        logger.info(msg);
+                    }
                 }
 
                 // handle metrics
-                handleMetrics(healthIndicatorResults);
+                if (outputMode != OutputMode.LOGS) {
+                    handleMetrics(healthIndicatorResults);
+                }
 
             } catch (Exception e) {
                 logger.warn("Health Periodic Logger error:{}", e.toString());
@@ -309,11 +338,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
     };
 
-    /**
-     * Handle the output of any metrics
-     */
-    // default visibility for testing purposes
-    final void handleMetrics(List<HealthIndicatorResult> healthIndicatorResults) {
+    void handleMetrics(List<HealthIndicatorResult> healthIndicatorResults) {
         if (healthIndicatorResults != null) {
             for (HealthIndicatorResult result : healthIndicatorResults) {
                 if (metrics.containsKey(result.name())) {
@@ -378,6 +403,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     private void updatePollInterval(TimeValue newInterval) {
         this.pollInterval = newInterval;
         maybeScheduleJob();
+    }
+
+    private void updateOutputMode(OutputMode newMode) {
+        this.outputMode = newMode;
     }
 
     private boolean isClusterServiceStoppedOrClosed() {

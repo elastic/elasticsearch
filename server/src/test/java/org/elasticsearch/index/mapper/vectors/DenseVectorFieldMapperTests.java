@@ -790,6 +790,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102899")
     public void testVectorSimilarity() {
         assertEquals(
             VectorSimilarityFunction.COSINE,

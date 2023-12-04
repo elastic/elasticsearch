@@ -96,15 +96,14 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.translogBlobContainer = translogBlobContainer;
-        blobsToRead = translogBlobContainer.listBlobs(OperationPurpose.TRANSLOG)
+        this.blobsToRead = translogBlobContainer.listBlobs(OperationPurpose.TRANSLOG)
             .entrySet()
             .stream()
             .filter(e -> Long.parseLong(e.getKey()) >= translogRecoveryStartFile)
             .sorted(Map.Entry.comparingByKey())
             .map(Map.Entry::getValue)
             .toList();
-        Iterator<BlobMetadata> blobs = blobsToRead.iterator();
-        operations = Iterators.flatMap(blobs, this::readBlobTranslogOperations);
+        this.operations = Iterators.flatMap(blobsToRead.iterator(), this::readBlobTranslogOperations);
         this.startNanos = System.nanoTime();
     }
 
@@ -122,7 +121,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
 
     @Override
     public int totalOperations() {
-        return RecoveryState.Translog.UNKNOWN;
+        return blobsToRead.isEmpty() ? 0 : RecoveryState.Translog.UNKNOWN;
     }
 
     private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {

@@ -887,7 +887,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         shardSizeInfo.put(shardIdentifierFromRouting(shardIdFrom(indexMetadata1, 0), true), ByteSizeValue.ofGb(8).getBytes());
         shardSizeInfo.put(shardIdentifierFromRouting(shardIdFrom(indexMetadata1, 1), true), ByteSizeValue.ofGb(8).getBytes());
 
-        // index-2 is restored earlier, has desired balance computed, but not allocated accordingly
+        // index-2 & index-3 are restored as new from snapshot
         var indexMetadata2 = IndexMetadata.builder("index-2")
             .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 2))
             .build();
@@ -901,7 +901,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             ByteSizeValue.ofGb(1).getBytes()
         );
 
-        // index-3 is restored as new from snapshot
         var indexMetadata3 = IndexMetadata.builder("index-3")
             .settings(indexSettings(IndexVersion.current(), 2, 0).put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 1))
             .build();

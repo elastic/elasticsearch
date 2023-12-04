@@ -1739,7 +1739,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
         if (in.getTransportVersion().onOrAfter(SEMANTIC_TEXT_FIELD)) {
-            builder.inferenceModelsForfields(
+            builder.inferenceModelsForFields(
                 in.readImmutableMap(StreamInput::readString, i -> i.readCollectionAsImmutableSet(StreamInput::readString))
             );
         }
@@ -2105,11 +2105,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder shardSizeInBytesForecast(Long shardSizeInBytesForecast) {
             this.shardSizeInBytesForecast = shardSizeInBytesForecast;
-            return this;
-        }
-
-        public Builder inferenceModelsForfields(Map<String, Set<String>> inferenceModelsForfields) {
-            this.inferenceModelsForFields = inferenceModelsForfields;
             return this;
         }
 
@@ -2531,7 +2526,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                         e -> e.getValue().stream().map(Object::toString).collect(Collectors.toSet())
                                     )
                                 );
-                            builder.inferenceModelsForfields(inferenceModels);
+                            builder.inferenceModelsForFields(inferenceModels);
                             break;
                         default:
                             // assume it's custom index metadata

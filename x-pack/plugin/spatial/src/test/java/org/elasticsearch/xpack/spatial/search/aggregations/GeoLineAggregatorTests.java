@@ -97,6 +97,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(10);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+            .executionHint("map")
             .subAggregation(lineAggregationBuilder);
 
         long lonLat = (((long) GeoEncodingUtils.encodeLongitude(90.0)) << 32) | GeoEncodingUtils.encodeLatitude(45.0) & 0xffffffffL;
@@ -147,6 +148,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(10);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+            .executionHint("map")
             .subAggregation(lineAggregationBuilder);
 
         // input
@@ -178,6 +180,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(10);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+            .executionHint("map")
             .subAggregation(lineAggregationBuilder);
 
         testCase(aggregationBuilder, iw -> {
@@ -318,6 +321,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .sort(sortConfig)
             .size(size);
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+            .executionHint("map")
             .subAggregation(lineAggregationBuilder);
         double lon = GeoEncodingUtils.decodeLongitude(randomInt());
         double lat = GeoEncodingUtils.decodeLatitude(randomInt());
@@ -350,7 +354,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                     var testConfig = new TestConfig(100, 100, 3, 7, g, sortOrder, useTimestamp);
                     Function<GeoLineAggregationBuilder, AggregationBuilder> aggBuilderFunc = useTimestamp
                         ? gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl)
-                        : gl -> new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
+                        : gl -> new TermsAggregationBuilder("groups").field("group_id").executionHint("map").subAggregation(gl);
                     assertGeoLine_TSDB(testConfig, aggBuilderFunc, tsx -> {
                         assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
                         assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
@@ -395,7 +399,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                     var testConfig = new TestConfig(100, 10, 3, 7, g, sortOrder, useTimestamp);
                     Function<GeoLineAggregationBuilder, AggregationBuilder> aggBuilderFunc = useTimestamp
                         ? gl -> new TimeSeriesAggregationBuilder("ts").subAggregation(gl)
-                        : gl -> new TermsAggregationBuilder("groups").field("group_id").subAggregation(gl);
+                        : gl -> new TermsAggregationBuilder("groups").field("group_id").executionHint("map").subAggregation(gl);
                     assertGeoLine_TSDB(testConfig, aggBuilderFunc, tsx -> {
                         assertThat("Number of groups matches number of buckets", tsx.ts.getBuckets().size(), equalTo(tsx.groups.length));
                         assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));

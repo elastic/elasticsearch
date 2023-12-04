@@ -87,6 +87,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
         Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
         assertThat(connectorConfiguration, equalTo(indexedConnector.getConfiguration()));
+        assertThat(indexedConnector.getStatus(), equalTo(ConnectorStatus.CONFIGURED));
     }
 
     public void testUpdateConnectorPipeline() throws Exception {

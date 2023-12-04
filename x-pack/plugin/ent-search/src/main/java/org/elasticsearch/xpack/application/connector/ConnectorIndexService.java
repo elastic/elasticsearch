@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSched
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -185,7 +186,14 @@ public class ConnectorIndexService {
                 new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                     .id(connectorId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .source(request.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                    .source(
+                        Map.of(
+                            Connector.CONFIGURATION_FIELD.getPreferredName(),
+                            request.getConfiguration(),
+                            Connector.STATUS_FIELD.getPreferredName(),
+                            ConnectorStatus.CONFIGURED.toString()
+                        )
+                    )
             );
             clientWithOrigin.update(
                 updateRequest,

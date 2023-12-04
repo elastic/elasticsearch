@@ -475,6 +475,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return configuration;
     }
 
+    public ConnectorStatus getStatus() {
+        return status;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

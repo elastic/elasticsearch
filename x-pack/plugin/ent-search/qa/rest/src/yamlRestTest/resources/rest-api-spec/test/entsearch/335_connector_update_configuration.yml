@@ -49,6 +49,7 @@ setup:
   - match: { configuration.some_field.value: 123 }
   - match: { configuration.some_field.sensitive: false }
   - match: { configuration.some_field.display: numeric }
+  - match: { status: configured }
 
 
   - do:
@@ -82,6 +83,7 @@ setup:
         connector_id: test-connector
 
   - match: { configuration.some_field.value: 456 }
+  - match: { status: configured }
 
 ---
 "Update Connector Configuration - Connector doesn't exist":

@@ -142,10 +142,6 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         }
     }
 
-    private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
-        transportService.getRemoteClusterService().updateRemoteClusterCredentials(settingsWithKeystore);
-    }
-
     /**
      * Returns true if the node is configured for TLS on the transport layer
      */

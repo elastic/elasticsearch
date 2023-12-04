@@ -256,15 +256,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
         trackTotalHitsUpTo = in.readOptionalInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
-            }
-            pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
+        if (in.readBoolean()) {
+            fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            runtimeMappings = in.readMap();
-        }
+        pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
+        runtimeMappings = in.readMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
@@ -333,22 +329,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeCollection(fetchFields);
-            }
-            out.writeOptionalWriteable(pointInTimeBuilder);
+        out.writeBoolean(fetchFields != null);
+        if (fetchFields != null) {
+            out.writeCollection(fetchFields);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            out.writeGenericMap(runtimeMappings);
-        } else {
-            if (false == runtimeMappings.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Versions before 7110099 don't support [runtime_mappings] and search was sent to [" + out.getTransportVersion() + "]"
-                );
-            }
-        }
+        out.writeOptionalWriteable(pointInTimeBuilder);
+        out.writeGenericMap(runtimeMappings);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 if (knnSearch.size() > 1) {
@@ -1425,7 +1411,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                             sorts = new ArrayList<>(SortBuilder.fromXContent(parser));
                         } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             rescoreBuilders = new ArrayList<>();
-                            rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser));
+                            rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));
                             searchUsage.trackSectionUsage(RESCORE_FIELD.getPreferredName());
                         } else if (EXT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             extBuilders = new ArrayList<>();
@@ -1512,7 +1498,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     rescoreBuilders = new ArrayList<>();
                     while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser));
+                        rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));
                     }
                     searchUsage.trackSectionUsage(RESCORE_FIELD.getPreferredName());
                 } else if (STATS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

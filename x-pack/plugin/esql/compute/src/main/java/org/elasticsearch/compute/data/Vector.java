@@ -51,7 +51,10 @@ public interface Vector extends Accountable, Releasable {
     BlockFactory blockFactory();
 
     /**
-     * This method must be called before passing this Vector to another Driver.
+     * This method must be called before passing this Vector to another Driver. Internally, we change the owning block factory
+     * of this Vector to its parent block factory. This ensures that when another driver releases this Vector, it returns memory
+     * directly to the parent block factory instead of the local block factory of this Block. This is necessary because the local
+     * block factory doesn't support simultaneous access by more than one thread.
      */
     void allowPassingToDifferentDriver();
 

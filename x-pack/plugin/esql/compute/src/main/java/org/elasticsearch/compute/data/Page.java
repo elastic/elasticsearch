@@ -237,8 +237,10 @@ public final class Page implements Writeable {
     }
 
     /**
-     * Must call this method before passing this Page to another Driver.
-     * @see org.elasticsearch.compute.operator.SinkOperator#addInput(Page)
+     * This method must be called before passing this Page to another Driver. Internally, we change the owning block factory of the blocks
+     * on this Page to their parent block factory. This ensures that when another driver releases this Page, we return memory directly
+     * to the parent block factory instead of the local block factory of the blocks on this Page. This is necessary because the local
+     * block factory doesn't support simultaneous access by more than one thread.
      */
     public void allowPassingToDifferentDriver() {
         for (Block block : blocks) {

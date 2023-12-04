@@ -62,7 +62,16 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     ElementType elementType();
 
     /** The block factory associated with this block. */
+    // TODO: renaming this to owning blockFactory once we pass blockFactory for filter and expand
     BlockFactory blockFactory();
+
+    /**
+     * This method must be called before passing this Block to another Driver. Internally, we change the owning block factory
+     * of this Block to its parent block factory. This ensures that when another driver releases this Block, it returns memory
+     * directly to the parent block factory instead of the local block factory of this Block. This is necessary because the local
+     * block factory doesn't support simultaneous access by more than one thread.
+     */
+    void allowPassingToDifferentDriver();
 
     /**
      * Tells if this block has been released. A block is released by calling its {@link Block#close()} or {@link Block#decRef()} methods.
@@ -105,11 +114,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * TODO: pass BlockFactory
      */
     Block filter(int... positions);
-
-    /**
-     * This method must be called before passing this Block to another Driver.
-     */
-    void allowPassingToDifferentDriver();
 
     /**
      * How are multivalued fields ordered?

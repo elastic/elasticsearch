@@ -294,6 +294,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 countFieldMapper
             );
         }
+
+        @Override
+        public int mapperSize() {
+            return super.mapperSize() + 1; // countFieldMapper
+        }
     }
 
     public static TypeParser PARSER = new TypeParser((n, c) -> new CountedKeywordFieldMapper.Builder(n));

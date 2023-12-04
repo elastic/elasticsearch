@@ -372,7 +372,7 @@ public abstract class FieldMapper extends Mapper {
     public abstract Builder getMergeBuilder();
 
     @Override
-    public final FieldMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+    public final FieldMapper merge(Mapper mergeWith, MapperMergeContext mapperBuilderContext) {
         if (mergeWith == this) {
             return this;
         }
@@ -396,7 +396,7 @@ public abstract class FieldMapper extends Mapper {
         Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts, mapperBuilderContext);
         conflicts.check();
-        return builder.build(mapperBuilderContext);
+        return builder.build(mapperBuilderContext.getMapperBuilderContext());
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -454,11 +454,11 @@ public abstract class FieldMapper extends Mapper {
                 return this;
             }
 
-            public Builder update(FieldMapper toMerge, MapperBuilderContext context) {
+            public Builder update(FieldMapper toMerge, MapperMergeContext context) {
                 if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
-                    add(toMerge);
+                    context.addFieldIfPossible(toMerge, () -> add(toMerge));
                 } else {
-                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context);
+                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context.getMapperBuilderContext());
                     add(existing.merge(toMerge, context));
                 }
                 return this;
@@ -480,6 +480,10 @@ public abstract class FieldMapper extends Mapper {
                     }
                     return new MultiFields(mappers);
                 }
+            }
+
+            public int mapperSize() {
+                return mapperBuilders.size();
             }
         }
 
@@ -1220,11 +1224,11 @@ public abstract class FieldMapper extends Mapper {
             return this;
         }
 
-        protected void merge(FieldMapper in, Conflicts conflicts, MapperBuilderContext mapperBuilderContext) {
+        protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperBuilderContext) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            MapperBuilderContext childContext = mapperBuilderContext.createChildContext(in.simpleName());
+            MapperMergeContext childContext = mapperBuilderContext.createChildContext(in.simpleName());
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }
@@ -1406,6 +1410,11 @@ public abstract class FieldMapper extends Mapper {
                 return false;
             }
             return DEPRECATED_PARAMS.contains(propName);
+        }
+
+        @Override
+        public int mapperSize() {
+            return 1 + multiFieldsBuilder.mapperSize();
         }
     }
 

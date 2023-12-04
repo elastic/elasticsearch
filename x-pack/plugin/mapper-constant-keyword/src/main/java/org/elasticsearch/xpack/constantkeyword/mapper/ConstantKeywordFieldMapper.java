@@ -102,6 +102,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 new ConstantKeywordFieldType(context.buildFullName(name), value.getValue(), meta.getValue())
             );
         }
+
+        @Override
+        public int mapperSize() {
+            return 1;
+        }
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));

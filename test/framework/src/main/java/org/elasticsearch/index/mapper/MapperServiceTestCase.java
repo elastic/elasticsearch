@@ -225,6 +225,18 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    protected RootObjectMapper.Builder getRootObjectMapperBuilder(XContentBuilder mapping) throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        Map<String, Object> mappingAsMap = MappingParser.convertToMap(new CompressedXContent(BytesReference.bytes(mapping)));
+        RootObjectMapper.Builder builder = RootObjectMapper.parse(
+            "_doc",
+            (Map<String, Object>) mappingAsMap.get("_doc"),
+            mapperService.parserContext()
+        );
+        return builder;
+    }
+
     /**
      *  This is the injection point for tests that require mock scripts.  Test cases should override this to return the
      *  mock script factory of their choice.

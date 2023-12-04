@@ -254,6 +254,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
             return new AggregateDoubleMetricFieldMapper(name, metricFieldType, metricMappers, this);
         }
+
+        @Override
+        public int mapperSize() {
+            return 1;
+        }
     }
 
     public static final FieldMapper.TypeParser PARSER = new TypeParser(

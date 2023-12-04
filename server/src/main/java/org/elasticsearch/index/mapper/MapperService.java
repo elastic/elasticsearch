@@ -296,7 +296,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
+                assert assertRefreshIsNotNeeded(type, incomingMapping);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
             }
             String op = previousMapper != null ? "updated" : "added";
@@ -310,8 +310,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper, String type, Mapping incomingMapping) {
-        Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY);
+    private boolean assertRefreshIsNotNeeded(String type, Mapping incomingMapping) {
+        Mapping mergedMapping = mergeMappings(incomingMapping, MergeReason.MAPPING_RECOVERY);
         // skip the runtime section or removed runtime fields will make the assertion fail
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
         CompressedXContent mergedMappingSource;
@@ -515,7 +515,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private synchronized DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
         Mapping incomingMapping = parseMapping(type, mappingSourceAsMap);
-        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
+        Mapping mapping = mergeMappings(incomingMapping, reason);
         // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
         // We should identify these cases reliably and save expensive serialization here
         DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
@@ -556,12 +556,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+    public Mapping mergeMappings(Mapping incomingMapping, MergeReason reason) {
+        return mergeMappings(this.mapper, incomingMapping, reason, Long.MAX_VALUE);
+    }
+
+    static Mapping mergeMappings(
+        DocumentMapper currentMapper,
+        Mapping incomingMapping,
+        MergeReason reason,
+        long maxFieldsToAddDuringMerge
+    ) {
         Mapping newMapping;
         if (currentMapper == null) {
-            newMapping = incomingMapping;
+            if (MappingLookup.fromMapping(incomingMapping).exceedsLimit(maxFieldsToAddDuringMerge, 0)) {
+                newMapping = Mapping.EMPTY.merge(incomingMapping, reason, maxFieldsToAddDuringMerge);
+            } else {
+                newMapping = incomingMapping;
+            }
         } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason, maxFieldsToAddDuringMerge);
         }
         return newMapping;
     }

@@ -119,6 +119,11 @@ public class RootObjectMapper extends ObjectMapper {
                 numericDetection
             );
         }
+
+        @Override
+        public int mapperSize() {
+            return mappersBuilders.stream().mapToInt(Mapper.Builder::mapperSize).sum() + runtimeFields.size();
+        }
     }
 
     private final Explicit<DateFormatter[]> dynamicDateTimeFormatters;
@@ -153,6 +158,21 @@ public class RootObjectMapper extends ObjectMapper {
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
+    }
+
+    public RootObjectMapper withoutMappers() {
+        return new RootObjectMapper(
+            simpleName(),
+            enabled,
+            subobjects,
+            dynamic,
+            null,
+            null,
+            dynamicDateTimeFormatters,
+            dynamicTemplates,
+            dateDetection,
+            numericDetection
+        );
     }
 
     /**
@@ -192,13 +212,13 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
-        assert Objects.equals(mapperBuilderContext.buildFullName("foo"), "foo");
-        return mapperBuilderContext;
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
+        return mapperMergeContext;
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {
         final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
         final Explicit<Boolean> numericDetection;
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
@@ -245,9 +265,9 @@ public class RootObjectMapper extends ObjectMapper {
         assert this.runtimeFields != mergeWithObject.runtimeFields;
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
-                runtimeFields.remove(runtimeField.getKey());
+                parentBuilderContext.removeRuntimeField(runtimeFields, runtimeField.getKey());
             } else {
-                runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
+                parentBuilderContext.addRuntimeFieldIfPossible(runtimeFields, runtimeField.getValue());
             }
         }
 
@@ -501,5 +521,14 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         return false;
+    }
+
+    @Override
+    public int mapperSize() {
+        int size = 0;
+        for (Mapper mapper : this) {
+            size += mapper.mapperSize();
+        }
+        return size;
     }
 }

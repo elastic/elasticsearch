@@ -63,6 +63,12 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         });
     }
 
+    @Override
+    public void testMapperBuilderSizeMultiField() throws IOException {
+        super.testMapperBuilderSizeMultiField();
+        assertWarnings("Adding multifields to [point] mappers has no effect and will be forbidden in future");
+    }
+
     public void testAggregationsDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

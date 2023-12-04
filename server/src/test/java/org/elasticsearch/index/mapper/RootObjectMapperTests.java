@@ -162,6 +162,15 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
     }
 
+    public void testRuntimeMappingBuilderSize() throws IOException {
+        RootObjectMapper.Builder builder = getRootObjectMapperBuilder(runtimeMapping(b -> {
+            b.startObject("field1").field("type", "double").endObject();
+            b.startObject("field2").field("type", "date").endObject();
+            b.startObject("field3").field("type", "ip").endObject();
+        }));
+        assertEquals(3, builder.mapperSize());
+    }
+
     public void testRuntimeSectionRejectedUpdate() throws IOException {
         MapperService mapperService;
         {

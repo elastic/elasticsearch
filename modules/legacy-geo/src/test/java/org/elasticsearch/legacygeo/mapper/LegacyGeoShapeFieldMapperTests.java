@@ -105,6 +105,18 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    public void testMapperBuilderSize() throws IOException {
+        super.testMapperBuilderSize();
+        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
+    }
+
+    @Override
+    public void testMapperBuilderSizeMultiField() throws IOException {
+        super.testMapperBuilderSizeMultiField();
+        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
+    }
+
+    @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new TestLegacyGeoShapeFieldMapperPlugin());
     }

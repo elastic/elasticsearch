@@ -41,7 +41,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper mergeWith = createMapping(false, true, true, true);
 
         // WHEN merging mappings
-        final ObjectMapper merged = rootObjectMapper.merge(mergeWith, MapperBuilderContext.root(false, false));
+        final ObjectMapper merged = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
 
         // THEN "baz" new field is added to merged mapping
         final ObjectMapper mergedFoo = (ObjectMapper) merged.getMapper("foo");
@@ -63,7 +63,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         // THEN a MapperException is thrown with an excepted message
         MapperException e = expectThrows(
             MapperException.class,
-            () -> rootObjectMapper.merge(mergeWith, MapperBuilderContext.root(false, false))
+            () -> rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE))
         );
         assertEquals("the [enabled] parameter can't be updated for the object mapping [foo]", e.getMessage());
     }
@@ -75,7 +75,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             new ObjectMapper.Builder("disabled", Explicit.IMPLICIT_TRUE)
         ).build(MapperBuilderContext.root(false, false));
 
-        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith, MapperBuilderContext.root(false, false));
+        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(
+            mergeWith,
+            MapperMergeContext.root(false, false, Long.MAX_VALUE)
+        );
         assertFalse(((ObjectMapper) merged.getMapper("disabled")).isEnabled());
     }
 
@@ -84,14 +87,14 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> rootObjectMapper.merge(mergeWith, MapperBuilderContext.root(false, false))
+            () -> rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE))
         );
         assertEquals("the [enabled] parameter can't be updated for the object mapping [disabled]", e.getMessage());
 
         ObjectMapper result = rootObjectMapper.merge(
             mergeWith,
             MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperBuilderContext.root(false, false)
+            MapperMergeContext.root(false, false, Long.MAX_VALUE)
         );
         assertTrue(result.isEnabled());
     }
@@ -106,14 +109,14 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstMapper.merge(secondMapper, MapperBuilderContext.root(false, false))
+            () -> firstMapper.merge(secondMapper, MapperMergeContext.root(false, false, Long.MAX_VALUE))
         );
         assertEquals("the [enabled] parameter can't be updated for the object mapping [" + type + "]", e.getMessage());
 
         ObjectMapper result = firstMapper.merge(
             secondMapper,
             MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperBuilderContext.root(false, false)
+            MapperMergeContext.root(false, false, Long.MAX_VALUE)
         );
         assertFalse(result.isEnabled());
     }
@@ -128,7 +131,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             Collections.singletonMap("test", new TestRuntimeField("test", "long"))
         ).build(MapperBuilderContext.root(false, false));
 
-        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith, MapperBuilderContext.root(false, false));
+        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(
+            mergeWith,
+            MapperMergeContext.root(false, false, Long.MAX_VALUE)
+        );
         assertFalse(merged.isEnabled());
         assertEquals(1, merged.runtimeFields().size());
         assertEquals("test", merged.runtimeFields().iterator().next().name());
@@ -138,7 +144,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper mergeInto = createRootSubobjectFalseLeafWithDots();
         RootObjectMapper mergeWith = createRootSubobjectFalseLeafWithDots();
 
-        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperBuilderContext.root(false, false));
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
 
         final KeywordFieldMapper keywordFieldMapper = (KeywordFieldMapper) merged.getMapper("host.name");
         assertEquals("host.name", keywordFieldMapper.name());
@@ -153,7 +159,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             createObjectSubobjectsFalseLeafWithDots()
         ).build(MapperBuilderContext.root(false, false));
 
-        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperBuilderContext.root(false, false));
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
 
         ObjectMapper foo = (ObjectMapper) merged.getMapper("foo");
         ObjectMapper metrics = (ObjectMapper) foo.getMapper("metrics");
@@ -168,7 +174,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(createTextKeywordMultiField("text"))
             .build(MapperBuilderContext.root(false, false));
 
-        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperBuilderContext.root(false, false));
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
 
         TextFieldMapper text = (TextFieldMapper) merged.getMapper("text");
         assertEquals("text", text.name());
@@ -186,7 +192,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             createObjectSubobjectsFalseLeafWithMultiField()
         ).build(MapperBuilderContext.root(false, false));
 
-        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperBuilderContext.root(false, false));
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
 
         ObjectMapper foo = (ObjectMapper) merged.getMapper("foo");
         ObjectMapper metrics = (ObjectMapper) foo.getMapper("metrics");

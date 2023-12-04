@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -109,7 +110,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testBatchExecute() {
+    public void testBatchExecute() throws ExecutionException, InterruptedException {
         // Initialize dependencies of TransportMultiSearchAction
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
@@ -204,10 +205,14 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 multiSearchRequest.add(new SearchRequest());
             }
 
-            MultiSearchResponse response = ActionTestUtils.executeBlocking(action, multiSearchRequest);
-            assertThat(response.getResponses().length, equalTo(numSearchRequests));
-            assertThat(requests.size(), equalTo(numSearchRequests));
-            assertThat(errorHolder.get(), nullValue());
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(action, multiSearchRequest, future.delegateFailure((l, response) -> {
+                assertThat(response.getResponses().length, equalTo(numSearchRequests));
+                assertThat(requests.size(), equalTo(numSearchRequests));
+                assertThat(errorHolder.get(), nullValue());
+                l.onResponse(null);
+            }));
+            future.get();
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

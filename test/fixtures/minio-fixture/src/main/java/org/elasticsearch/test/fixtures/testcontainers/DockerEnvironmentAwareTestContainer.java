@@ -12,6 +12,7 @@ import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
 import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -27,12 +28,28 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioTestContainer> {
+    protected static final Logger LOGGER = LoggerFactory.getLogger(DockerEnvironmentAwareTestContainer.class);
+
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
     private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"));
-    private static final boolean EXCLUDED_OS = CI == false || isExcludedOs();
+    private static final boolean EXCLUDED_OS = isExcludedOs();
+    private static final boolean DOCKER_PROBING_SUCCESSFUL = isDockerAvailable();
 
-    protected static final Logger LOGGER = LoggerFactory.getLogger(DockerEnvironmentAwareTestContainer.class);
+    /**
+     * see <a href="https://github.com/elastic/elasticsearch/issues/102532">https://github.com/elastic/elasticsearch/issues/102532</a>
+     * */
+    private static boolean isDockerAvailable() {
+        try {
+            LOGGER.info("Probing docker environment...");
+            DockerClientFactory.instance().client();
+            LOGGER.info("Probing docker environment successful");
+            return true;
+        } catch (Throwable ex) {
+            LOGGER.warn("Probing docker has failed; disabling test", ex);
+            return false;
+        }
+    }
 
     public DockerEnvironmentAwareTestContainer(ImageFromDockerfile imageFromDockerfile) {
         super(imageFromDockerfile);
@@ -40,12 +57,9 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioT
 
     @Override
     public void start() {
-        Assume.assumeTrue("Docker is not available", shouldDockerBeAvailable());
+        Assume.assumeFalse("Docker support excluded on OS", EXCLUDED_OS);
+        Assume.assumeTrue("Docker probing succesful", DOCKER_PROBING_SUCCESSFUL);
         super.start();
-    }
-
-    private boolean shouldDockerBeAvailable() {
-        return CI == false || (EXCLUDED_OS == false);
     }
 
     static String deriveId(Map<String, String> values) {
@@ -53,6 +67,10 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioT
     }
 
     private static boolean isExcludedOs() {
+        if (CI) {
+            // we dont exclude OS outside of CI environment
+            return false;
+        }
         if (System.getProperty("os.name").toLowerCase().startsWith("windows")) {
             return true;
         }

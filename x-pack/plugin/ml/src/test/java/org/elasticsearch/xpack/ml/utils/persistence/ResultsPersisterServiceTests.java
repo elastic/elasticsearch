@@ -16,10 +16,10 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -131,45 +131,45 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_ImmediateSuccess() {
-        doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS)).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
         assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
         assertThat(messages, is(empty()));
 
-        verify(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
     public void testSearchWithRetries_SuccessAfterRetry() {
         doAnswerWithResponses(SEARCH_RESPONSE_FAILURE, SEARCH_RESPONSE_SUCCESS).when(client)
-            .execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+            .execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
         assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
         assertThat(messages, hasSize(1));
 
-        verify(client, times(2)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
     public void testSearchWithRetries_SuccessAfterRetryDueToException() {
         doAnswer(withFailure(new IndexPrimaryShardNotAllocatedException(new Index("my-index", "UUID")))).doAnswer(
             withResponse(SEARCH_RESPONSE_SUCCESS)
-        ).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        ).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
         assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
         assertThat(messages, hasSize(1));
 
-        verify(client, times(2)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
     private void testSearchWithRetries_FailureAfterTooManyRetries(int maxFailureRetries) {
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         ElasticsearchException e = expectThrows(
@@ -179,7 +179,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("search failed with status"));
         assertThat(messages, hasSize(maxFailureRetries));
 
-        verify(client, times(maxFailureRetries + 1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client, times(maxFailureRetries + 1)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
     public void testSearchWithRetries_FailureAfterTooManyRetries_0() {
@@ -195,7 +195,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_Failure_ShouldNotRetryFromTheBeginning() {
-        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         ElasticsearchException e = expectThrows(
@@ -205,14 +205,14 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("search failed with status SERVICE_UNAVAILABLE"));
         assertThat(messages, empty());
 
-        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
     public void testSearchWithRetries_Failure_ShouldNotRetryAfterRandomNumberOfRetries() {
         int maxFailureRetries = 10;
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         int maxRetries = randomIntBetween(1, maxFailureRetries);
         List<String> messages = new ArrayList<>();
@@ -223,14 +223,14 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("search failed with status SERVICE_UNAVAILABLE"));
         assertThat(messages, hasSize(maxRetries));
 
-        verify(client, times(maxRetries + 1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client, times(maxRetries + 1)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
     public void testSearchWithRetries_FailureOnIrrecoverableError() {
         resultsPersisterService.setMaxFailureRetries(5);
 
         doAnswer(withFailure(new ElasticsearchStatusException("bad search request", RestStatus.BAD_REQUEST))).when(client)
-            .execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+            .execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -238,7 +238,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("bad search request"));
 
-        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
     private static Supplier<Boolean> shouldRetryUntil(int maxRetries) {

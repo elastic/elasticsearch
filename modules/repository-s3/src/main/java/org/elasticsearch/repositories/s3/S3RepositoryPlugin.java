@@ -21,7 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.plugins.ExtensionLoader;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -42,7 +42,7 @@ import java.util.ServiceLoader;
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
-public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin, ExtensiblePlugin {
 
     static {
         SpecialPermission.check();
@@ -64,6 +64,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     private final SetOnce<S3Service> service = new SetOnce<>();
     private final SetOnce<MeterRegistry> meterRegistry = new SetOnce<>();
+    private S3StorageClassStrategyProvider storageClassStrategyProvider = SimpleS3StorageClassStrategyProvider.INSTANCE;
     private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
@@ -89,7 +90,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        final var storageClassStrategyProvider = getStorageClassStrategyProvider();
         logger.info("--> using storageClassStrategyProvider [{}]", storageClassStrategyProvider);
         service.set(s3Service(services.environment(), services.clusterService().getSettings(), storageClassStrategyProvider));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
@@ -97,13 +97,15 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         return List.of(service);
     }
 
-    public static S3StorageClassStrategyProvider getStorageClassStrategyProvider() {
-        return AccessController.doPrivileged(
-            (PrivilegedAction<S3StorageClassStrategyProvider>) () -> ExtensionLoader.loadSingleton(
-                ServiceLoader.load(S3StorageClassStrategyProvider.class),
-                () -> SimpleS3StorageClassStrategyProvider.INSTANCE
-            )
-        );
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        final var storageClassStrategyProviders = loader.loadExtensions(S3StorageClassStrategyProvider.class);
+        logger.info("--> storageClassStrategyProviders: {}", storageClassStrategyProviders);
+        if (storageClassStrategyProviders.size() == 1) {
+            storageClassStrategyProvider = storageClassStrategyProviders.get(0);
+        } else if (storageClassStrategyProviders.size() > 1) {
+            throw new IllegalStateException("multiple storage class providers found: " + storageClassStrategyProviders);
+        }
     }
 
     S3Service s3Service(Environment environment, Settings nodeSettings, S3StorageClassStrategyProvider storageClassStrategyProvider) {

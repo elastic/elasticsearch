@@ -78,7 +78,7 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        builder.array("models", modelStats.toArray());
+        builder.xContentList("models", modelStats);
     }
 
     @Override

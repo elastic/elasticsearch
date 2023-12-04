@@ -7,7 +7,7 @@ esplugin {
   name 'repository-s3-advanced-storage-tiering'
   description 'A plugin that implements advanced storage tiering for S3 repositories'
   classname 'org.elasticsearch.repositories.s3.advancedstoragetiering.S3AdvancedStorageTieringPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'repository-s3']
 }
 base {
   archivesName = 'x-pack-repository-s3-advanced-storage-tiering'

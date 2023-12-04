@@ -468,24 +468,15 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
             xPacklicenseState.update(LicenseUtils.getXPackLicenseStatus(license, clock));
-            return;
-        }
-        checkForExpiredLicense(license);
-    }
-
-    private boolean checkForExpiredLicense(License license) {
-        if (license != null) {
+        } else if (license != null) {
             XPackLicenseStatus xPackLicenseStatus = LicenseUtils.getXPackLicenseStatus(license, clock);
             xPacklicenseState.update(xPackLicenseStatus);
             if (xPackLicenseStatus.active()) {
                 logger.debug("license [{}] - valid", license.uid());
-                return false;
             } else {
                 logger.warn("license [{}] - expired", license.uid());
-                return true;
             }
         }
-        return false;
     }
 
     /**

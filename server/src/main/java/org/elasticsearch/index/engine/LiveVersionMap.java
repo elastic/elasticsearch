@@ -43,7 +43,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
          *  clear this RAM. */
         final AtomicLong ramBytesUsed = new AtomicLong();
 
-        private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
+        public static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
         private final Map<BytesRef, VersionValue> map;
 
         // each version map has a notion of safe / unsafe which allows us to apply certain optimization in the auto-generated ID usecase
@@ -135,11 +135,8 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
 
         // Used only for testing
-        long calculateRamBytesUsed() {
-            return map.entrySet()
-                .stream()
-                .mapToLong(entry -> LiveVersionMap.VersionLookup.mapEntryBytesUsed(entry.getKey(), entry.getValue()))
-                .sum();
+        Map<BytesRef, VersionValue> getMap() {
+            return map;
         }
     }
 

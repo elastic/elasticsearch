@@ -43,50 +43,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LiveVersionMapTests extends ESTestCase {
-
-    public void testVersionLookupRamBytesUsed() {
-        var vl = new LiveVersionMap.VersionLookup(newConcurrentMapWithAggressiveConcurrency());
-        assertEquals(0, vl.ramBytesUsed());
-        Set<BytesRef> existingKeys = new HashSet<>();
-        Supplier<Tuple<BytesRef, IndexVersionValue>> randomEntry = () -> {
-            var key = randomBoolean() || existingKeys.isEmpty() ? uid(randomIdentifier()) : randomFrom(existingKeys);
-            return tuple(key, randomIndexVersionValue());
-        };
-        IntStream.range(0, randomIntBetween(10, 100)).forEach(i -> {
-            switch (randomIntBetween(0, 2)) {
-                case 0: // put
-                    var entry = randomEntry.get();
-                    var previousValue = vl.put(entry.v1(), entry.v2());
-                    if (existingKeys.contains(entry.v1())) {
-                        assertNotNull(previousValue);
-                    } else {
-                        assertNull(previousValue);
-                        existingKeys.add(entry.v1());
-                    }
-                    break;
-                case 1: // remove
-                    if (existingKeys.isEmpty() == false) {
-                        var key = randomFrom(existingKeys);
-                        assertNotNull(vl.remove(key));
-                        existingKeys.remove(key);
-                    }
-                    break;
-                case 2: // merge
-                    Map<BytesRef, VersionValue> entries = IntStream.range(0, randomIntBetween(1, 100))
-                        .mapToObj(n -> randomEntry.get())
-                        // in case we pick the same existing key more than once, just pick a value randomly
-                        .collect(Collectors.toMap(Tuple::v1, Tuple::v2, ESTestCase::randomFrom));
-                    var toMerge = new LiveVersionMap.VersionLookup(entries);
-                    vl.merge(toMerge);
-                    existingKeys.addAll(entries.keySet());
-                    break;
-                default:
-                    throw new IllegalStateException("branch value unexpected");
-            }
-        });
-        assertEquals(vl.calculateRamBytesUsed(), vl.ramBytesUsed());
-    }
-
     public void testRamBytesUsed() throws Exception {
         LiveVersionMap map = new LiveVersionMap();
         for (int i = 0; i < 100000; ++i) {
@@ -491,5 +447,53 @@ public class LiveVersionMapTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testVersionLookupRamBytesUsed() {
+        var vl = new LiveVersionMap.VersionLookup(newConcurrentMapWithAggressiveConcurrency());
+        assertEquals(0, vl.ramBytesUsed());
+        Set<BytesRef> existingKeys = new HashSet<>();
+        Supplier<Tuple<BytesRef, IndexVersionValue>> randomEntry = () -> {
+            var key = randomBoolean() || existingKeys.isEmpty() ? uid(randomIdentifier()) : randomFrom(existingKeys);
+            return tuple(key, randomIndexVersionValue());
+        };
+        IntStream.range(0, randomIntBetween(10, 100)).forEach(i -> {
+            switch (randomIntBetween(0, 2)) {
+                case 0: // put
+                    var entry = randomEntry.get();
+                    var previousValue = vl.put(entry.v1(), entry.v2());
+                    if (existingKeys.contains(entry.v1())) {
+                        assertNotNull(previousValue);
+                    } else {
+                        assertNull(previousValue);
+                        existingKeys.add(entry.v1());
+                    }
+                    break;
+                case 1: // remove
+                    if (existingKeys.isEmpty() == false) {
+                        var key = randomFrom(existingKeys);
+                        assertNotNull(vl.remove(key));
+                        existingKeys.remove(key);
+                    }
+                    break;
+                case 2: // merge
+                    Map<BytesRef, VersionValue> entries = IntStream.range(0, randomIntBetween(1, 100))
+                        .mapToObj(n -> randomEntry.get())
+                        // in case we pick the same existing key more than once, just pick a value randomly
+                        .collect(Collectors.toMap(Tuple::v1, Tuple::v2, ESTestCase::randomFrom));
+                    var toMerge = new LiveVersionMap.VersionLookup(entries);
+                    vl.merge(toMerge);
+                    existingKeys.addAll(entries.keySet());
+                    break;
+                default:
+                    throw new IllegalStateException("branch value unexpected");
+            }
+        });
+        long actualRamBytesUsed = vl.getMap()
+            .entrySet()
+            .stream()
+            .mapToLong(entry -> LiveVersionMap.VersionLookup.mapEntryBytesUsed(entry.getKey(), entry.getValue()))
+            .sum();
+        assertEquals(actualRamBytesUsed, vl.ramBytesUsed());
     }
 }

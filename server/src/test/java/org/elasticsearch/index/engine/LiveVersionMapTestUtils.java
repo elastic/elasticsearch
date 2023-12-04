@@ -15,6 +15,8 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
+import java.util.Map;
+
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
@@ -61,11 +63,11 @@ public class LiveVersionMapTestUtils {
         map.pruneTombstones(maxTimestampToPrune, maxSeqNoToPrune);
     }
 
-    static IndexVersionValue randomIndexVersionValue() {
+    public static IndexVersionValue randomIndexVersionValue() {
         return new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    static Translog.Location randomTranslogLocation() {
+    public static Translog.Location randomTranslogLocation() {
         if (randomBoolean()) {
             return null;
         } else {
@@ -91,6 +93,14 @@ public class LiveVersionMapTestUtils {
 
     public static boolean isSafeAccessRequired(LiveVersionMap map) {
         return map.isSafeAccessRequired();
+    }
+
+    public static void enforceSafeAccess(LiveVersionMap map) {
+        map.enforceSafeAccess();
+    }
+
+    public static Map<BytesRef, VersionValue> getMap(LiveVersionMap.VersionLookup versionLookup) {
+        return versionLookup.getMap();
     }
 
     public static LiveVersionMapArchive getArchive(LiveVersionMap map) {

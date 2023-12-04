@@ -20,6 +20,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
@@ -677,6 +678,7 @@ public interface DocValueFormat extends NamedWriteable {
     class TimeSeriesIdDocValueFormat implements DocValueFormat {
 
         private static final Base64.Encoder BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
+        private static final Base64.Decoder BASE64_DECODER = Base64.getUrlDecoder();
 
         private TimeSeriesIdDocValueFormat() {}
 
@@ -705,9 +707,17 @@ public interface DocValueFormat extends NamedWriteable {
             // allocating more bytes than actually required. As a result of these additional bytes
             // the Base 64 encoding might include spurious bytes (typically 0s) which result in
             // additional unwanted TSID trailing characters.
-            byte[] bytes = new byte[value.length];
-            System.arraycopy(value.bytes, 0, bytes, 0, value.length);
-            return BASE64_ENCODER.encodeToString(bytes);
+            try {
+                // NOTE: if the tsid is a map of dimension key/value pairs (as it was before introducing
+                // tsid hashing) we just decode the map and return it.
+                return TimeSeriesIdFieldMapper.decodeTsidAsMap(value);
+            } catch (IllegalArgumentException iaex) {
+                // NOTE: if decoding fails it means the tsid is not a map of dimension key/value pairs
+                // but a result of tsid hahsing. In this case we return its Base64 encoding.
+                byte[] bytes = new byte[value.length];
+                System.arraycopy(value.bytes, 0, bytes, 0, value.length);
+                return BASE64_ENCODER.encodeToString(bytes);
+            }
         }
 
         @Override
@@ -716,7 +726,7 @@ public interface DocValueFormat extends NamedWriteable {
                 return valueAsBytesRef;
             }
             if (value instanceof String valueAsString) {
-                return new BytesRef(Base64.getUrlDecoder().decode(valueAsString));
+                return new BytesRef(BASE64_DECODER.decode(valueAsString));
             }
             return parseBytesRefMap(value);
         }

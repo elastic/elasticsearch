@@ -42,11 +42,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -78,6 +80,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
@@ -336,7 +339,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executorName, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executorName, metadata, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
@@ -907,6 +910,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Task task,
         BulkRequest original,
         String executorName,
+        Metadata metadata,
         ActionListener<BulkResponse> listener
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
@@ -915,6 +919,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,
+            (indexName) -> shouldStoreFailure(indexName, metadata, System.currentTimeMillis()),
+            bulkRequestModifier::markItemForFailureStore,
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
                 if (exception != null) {
@@ -960,6 +966,72 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             },
             executorName
         );
+    }
+
+    static boolean shouldStoreFailure(
+        String indexName,
+        Metadata metadata,
+        long epochMillis
+    ) {
+        return resolveFailureStoreFromMetadata(indexName, metadata, epochMillis)
+            .or(() -> resolveFailureStoreFromTemplate(indexName, metadata))
+            .orElse(false);
+    }
+
+    private static Optional<Boolean> resolveFailureStoreFromMetadata(
+        String indexName,
+        Metadata metadata,
+        long epochMillis
+    ) {
+        if (indexName == null) {
+            return Optional.empty();
+        }
+
+        // Get index abstraction, resolving date math if it exists
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup()
+            .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
+        if (indexAbstraction == null) {
+            return Optional.empty();
+        }
+
+        // Resolve whatever the write index is for the abstraction, and check if it has a data stream associated with it
+        Index writeIndex = indexAbstraction.getWriteIndex();
+        assert writeIndex != null : "Could not resolve write index for resource [" + indexName + "]";
+        IndexAbstraction writeAbstraction = metadata.getIndicesLookup().get(writeIndex.getName());
+        DataStream targetDataStream = writeAbstraction.getParentDataStream();
+
+        // We will store the failure in the failure store if the write target belongs to a data stream with a failure store, and if the
+        // the write target is not itself part of the data stream's failure store. We will not be storing failures for operations done
+        // against the failure store at this time.
+        return Optional.of(
+            targetDataStream != null
+                && targetDataStream.isFailureStore()
+                && targetDataStream.getFailureIndices().contains(writeIndex) == false
+        );
+    }
+
+    private static Optional<Boolean> resolveFailureStoreFromTemplate(
+        String indexName,
+        Metadata metadata
+    ) {
+        if (indexName == null) {
+            return Optional.empty();
+        }
+
+        // Check to see if the index name matches any templates such that an index would have been attributed
+        // We don't check v1 templates at all because failure stores can only exist on data streams via a v2 template
+        String template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
+        if (template != null) {
+            // Check if this is a data stream template or if it is just a normal index.
+            ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
+            if (composableIndexTemplate.getDataStreamTemplate() != null) {
+                // Check if the data stream has the failure store enabled
+                return Optional.of(composableIndexTemplate.getDataStreamTemplate().hasFailureStore());
+            }
+        }
+
+        // Could not locate a failure store via template
+        return Optional.empty();
     }
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
@@ -1059,6 +1131,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             failedSlots.set(slot);
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.id(), e);
             itemResponses.add(BulkItemResponse.failure(slot, indexRequest.opType(), failure));
+        }
+
+        public void markItemForFailureStore(int slot, String targetIndexName, Exception e) {
+            // Modify the request in the slot to point to the failure index for its data stream
+
+            logger.warn(
+                "I would store the document in slot [{}] to the failure store for [{}] but I haven't figured out how to do that yet",
+                slot,
+                targetIndexName
+            );
+            // For now, mark the item as failed
+            markItemAsFailed(slot, e);
         }
     }
 }

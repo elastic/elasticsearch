@@ -36,9 +36,11 @@ import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -247,6 +249,59 @@ public class ConnectorSyncJobIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Updates the ingestion stats of the {@link ConnectorSyncJob} in the underlying index.
+     *
+     * @param request                Request containing the updates to the ingestion stats.
+     * @param listener               The action listener to invoke on response/failure.
+     */
+    public void updateConnectorSyncJobIngestionStats(
+        UpdateConnectorSyncJobIngestionStatsAction.Request request,
+        ActionListener<UpdateResponse> listener
+    ) {
+        String syncJobId = request.getConnectorSyncJobId();
+
+        Map<String, Object> fieldsToUpdate = new HashMap<>(
+            Map.of(
+                ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(),
+                request.getDeletedDocumentCount(),
+                ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(),
+                request.getIndexedDocumentCount(),
+                ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName(),
+                request.getIndexedDocumentVolume()
+            )
+        );
+
+        if (Objects.nonNull(request.getTotalDocumentCount())) {
+            fieldsToUpdate.put(ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName(), request.getTotalDocumentCount());
+        }
+        // TODO: what to do, if no total document count is specified? Calculate it via the current count and params of the request? fetch
+        // the size of the target index?
+
+        Instant lastSeen = Objects.nonNull(request.getLastSeen()) ? request.getLastSeen() : Instant.now();
+        fieldsToUpdate.put(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+
+        final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, syncJobId).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        ).doc(fieldsToUpdate);
+
+        try {
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(syncJobId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(syncJobId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+
     }
 
     private String generateId() {

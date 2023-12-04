@@ -90,6 +90,7 @@ public class IndexVersions {
     public static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT = def(8_500_002, Version.LUCENE_9_7_0);
     public static final IndexVersion UPGRADE_LUCENE_9_8 = def(8_500_003, Version.LUCENE_9_8_0);
     public static final IndexVersion ES_VERSION_8_12 = def(8_500_004, Version.LUCENE_9_8_0);
+    public static final IndexVersion NORMALIZED_VECTOR_COSINE = def(8_500_005, Version.LUCENE_9_8_0);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_9_9 = def(8_500_010, Version.LUCENE_9_9_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_9_10 = def(8_500_099, Version.LUCENE_9_10_0);

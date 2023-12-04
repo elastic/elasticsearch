@@ -413,14 +413,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         final ClusterState previousClusterState = event.previousState();
         final ClusterState currentClusterState = event.state();
         if (currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
-            if (XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState) == false) {
-                logger.debug(
-                    "cannot add license to cluster as the following nodes might not understand the license metadata: {}",
-                    () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState)
-                );
-                return;
-            }
-
             final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             // notify all interested plugins
@@ -439,26 +431,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             } else {
                 logger.trace("license unchanged [{}]", currentLicensesMetadata);
             }
-
-            License currentLicense = null;
-            boolean noLicenseInPrevMetadata = prevLicensesMetadata == null || prevLicensesMetadata.getLicense() == null;
-            if (noLicenseInPrevMetadata == false) {
-                currentLicense = prevLicensesMetadata.getLicense();
-            }
-            boolean noLicenseInCurrentMetadata = (currentLicensesMetadata == null || currentLicensesMetadata.getLicense() == null);
-            if (noLicenseInCurrentMetadata == false) {
-                currentLicense = currentLicensesMetadata.getLicense();
-            }
-
-            boolean noLicense = noLicenseInPrevMetadata && noLicenseInCurrentMetadata;
-            // auto-generate license if no licenses ever existed or if the current license is basic and
-            // needs extended or if the license signature needs to be updated. this will trigger a subsequent cluster changed event
-            if (currentClusterState.getNodes().isLocalNodeElectedMaster()
-                && (noLicense
-                    || LicenseUtils.licenseNeedsExtended(currentLicense)
-                    || LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState.nodes()))) {
-                registerOrUpdateSelfGeneratedLicense();
-            }
+            maybeRegisterOrUpdateLicense(previousClusterState, currentClusterState);
         } else if (logger.isDebugEnabled()) {
             logger.debug("skipped license notifications reason: [{}]", GatewayService.STATE_NOT_RECOVERED_BLOCK);
         }
@@ -476,6 +449,36 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             } else {
                 logger.warn("license [{}] - expired", license.uid());
             }
+        }
+    }
+
+    private void maybeRegisterOrUpdateLicense(ClusterState previousClusterState, ClusterState currentClusterState) {
+        if (XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState) == false) {
+            logger.debug(
+                "cannot add license to cluster as the following nodes might not understand the license metadata: {}",
+                () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState)
+            );
+            return;
+        }
+        final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
+        final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
+        License currentLicense = null;
+        boolean noLicenseInPrevMetadata = prevLicensesMetadata == null || prevLicensesMetadata.getLicense() == null;
+        if (noLicenseInPrevMetadata == false) {
+            currentLicense = prevLicensesMetadata.getLicense();
+        }
+        boolean noLicenseInCurrentMetadata = (currentLicensesMetadata == null || currentLicensesMetadata.getLicense() == null);
+        if (noLicenseInCurrentMetadata == false) {
+            currentLicense = currentLicensesMetadata.getLicense();
+        }
+        boolean noLicense = noLicenseInPrevMetadata && noLicenseInCurrentMetadata;
+        // auto-generate license if no licenses ever existed or if the current license is basic and
+        // needs extended or if the license signature needs to be updated. this will trigger a subsequent cluster changed event
+        if (currentClusterState.getNodes().isLocalNodeElectedMaster()
+            && (noLicense
+                || LicenseUtils.licenseNeedsExtended(currentLicense)
+                || LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState.nodes()))) {
+            registerOrUpdateSelfGeneratedLicense();
         }
     }
 

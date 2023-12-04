@@ -58,7 +58,7 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 /**
  * Basic service for accessing remote clusters via gateway nodes
  */
-public final class RemoteClusterService extends RemoteClusterAware implements Closeable, ReportingService<RemoteClusterServerInfo> {
+public class RemoteClusterService extends RemoteClusterAware implements Closeable, ReportingService<RemoteClusterServerInfo> {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 

@@ -1916,16 +1916,6 @@ public class Security extends Plugin
         }
     }
 
-    private void reloadRemoteClusterCredentials(Settings settings) {
-        final RemoteClusterService remoteClusterService = remoteClusterServiceSupplier.get();
-        if (remoteClusterService == null) {
-            final String msg = "Remote cluster service unavailable during secure settings reload";
-            assert false : msg;
-            throw new IllegalStateException(msg);
-        }
-        remoteClusterService.updateRemoteClusterCredentials(settings);
-    }
-
     private void reloadJwtRealmSharedSecrets(Settings settings) {
         realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
             if (realm instanceof JwtRealm jwtRealm) {
@@ -1934,6 +1924,16 @@ public class Security extends Plugin
                 );
             }
         });
+    }
+
+    private void reloadRemoteClusterCredentials(Settings settings) {
+        final RemoteClusterService remoteClusterService = remoteClusterServiceSupplier.get();
+        if (remoteClusterService == null) {
+            final String msg = "Remote cluster service unavailable during secure settings reload";
+            assert false : msg;
+            throw new IllegalStateException(msg);
+        }
+        remoteClusterService.updateRemoteClusterCredentials(settings);
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

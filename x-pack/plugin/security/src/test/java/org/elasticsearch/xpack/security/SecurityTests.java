@@ -134,6 +134,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -206,6 +207,7 @@ public class SecurityTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         RemoteClusterService remoteClusterService = mock(RemoteClusterService.class);
+        doNothing().when(remoteClusterService).updateRemoteClusterCredentials(any());
         return security.createComponents(
             client,
             threadPool,

@@ -66,7 +66,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase {
-
     private static final String CLUSTER_ALIAS = "my_remote_cluster";
 
     @BeforeClass
@@ -117,7 +116,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         assertThat(clusterCredentialsManager.resolveCredentials(CLUSTER_ALIAS), equalTo(credentials));
 
         // Check that credentials get used for a remote connection, once we configure it
-        final BlockingQueue<CapturedHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
+        final BlockingQueue<Map<String, String>> capturedHeaders = ConcurrentCollections.newBlockingQueue();
         try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, capturedHeaders)) {
             final TransportAddress remoteAddress = remoteTransport.getOriginalTransport()
                 .profileBoundAddresses()
@@ -145,12 +144,12 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         }
     }
 
-    private void assertHeadersContainCredentialsAndClear(String credentials, BlockingQueue<CapturedHeaders> capturedHeaders) {
+    private void assertHeadersContainCredentialsAndClear(String credentials, BlockingQueue<Map<String, String>> capturedHeaders) {
         assertThat(capturedHeaders, is(not(empty())));
-        for (CapturedHeaders actualHeaders : capturedHeaders) {
-            assertThat(actualHeaders.headers(), hasKey(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
+        for (Map<String, String> actualHeaders : capturedHeaders) {
+            assertThat(actualHeaders, hasKey(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
             assertThat(
-                actualHeaders.headers().get(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY),
+                actualHeaders.get(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY),
                 equalTo(ApiKeyService.withApiKeyPrefix(credentials))
             );
         }
@@ -195,7 +194,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
     public static MockTransportService startTransport(
         final String nodeName,
         final ThreadPool threadPool,
-        final BlockingQueue<CapturedHeaders> capturedHeaders
+        final BlockingQueue<Map<String, String>> capturedHeaders
     ) {
         boolean success = false;
         final Settings settings = Settings.builder()
@@ -217,7 +216,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 ClusterStateRequest::new,
                 (request, channel, task) -> {
-                    capturedHeaders.add(new CapturedHeaders(Map.copyOf(threadPool.getThreadContext().getHeaders())));
+                    capturedHeaders.add(Map.copyOf(threadPool.getThreadContext().getHeaders()));
                     channel.sendResponse(
                         new ClusterStateResponse(ClusterName.DEFAULT, ClusterState.builder(ClusterName.DEFAULT).build(), false)
                     );
@@ -228,7 +227,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 RemoteClusterNodesAction.Request::new,
                 (request, channel, task) -> {
-                    capturedHeaders.add(new CapturedHeaders(Map.copyOf(threadPool.getThreadContext().getHeaders())));
+                    capturedHeaders.add(Map.copyOf(threadPool.getThreadContext().getHeaders()));
                     channel.sendResponse(new RemoteClusterNodesAction.Response(List.of()));
                 }
             );
@@ -237,7 +236,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
-                    capturedHeaders.add(new CapturedHeaders(Map.copyOf(threadPool.getThreadContext().getHeaders())));
+                    capturedHeaders.add(Map.copyOf(threadPool.getThreadContext().getHeaders()));
                     channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
@@ -246,7 +245,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchRequest::new,
                 (request, channel, task) -> {
-                    capturedHeaders.add(new CapturedHeaders(Map.copyOf(threadPool.getThreadContext().getHeaders())));
+                    capturedHeaders.add(Map.copyOf(threadPool.getThreadContext().getHeaders()));
                     channel.sendResponse(
                         new SearchResponse(
                             new InternalSearchResponse(
@@ -279,8 +278,6 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             }
         }
     }
-
-    public record CapturedHeaders(Map<String, String> headers) {}
 
     private void reloadSecureSettings() throws InterruptedException {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
@@ -317,5 +314,4 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             throw reloadSettingsError.get();
         }
     }
-
 }

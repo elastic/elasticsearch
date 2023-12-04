@@ -28,6 +28,7 @@ public record HuggingFaceElserSecretSettings(SecureString apiKey) implements Sec
     public static final String NAME = "hugging_face_elser_secret_settings";
 
     static final String API_KEY = "api_key";
+
     public static HuggingFaceElserSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
             return null;

@@ -15,6 +15,8 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.junit.Before;
@@ -106,6 +108,49 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
         Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
         assertThat(filteringList, equalTo(indexedConnector.getFiltering()));
+    }
+
+    public void testUpdateConnectorLastSeen() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        DocWriteResponse resp = awaitPutConnector(connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        UpdateConnectorLastSeenAction.Request checkInRequest = new UpdateConnectorLastSeenAction.Request(connector.getConnectorId());
+        DocWriteResponse updateResponse = awaitUpdateConnectorLastSeen(checkInRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnectorTime1 = awaitGetConnector(connector.getConnectorId());
+        assertNotNull(indexedConnectorTime1.getLastSeen());
+
+        checkInRequest = new UpdateConnectorLastSeenAction.Request(connector.getConnectorId());
+        updateResponse = awaitUpdateConnectorLastSeen(checkInRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnectorTime2 = awaitGetConnector(connector.getConnectorId());
+        assertNotNull(indexedConnectorTime2.getLastSeen());
+        assertTrue(indexedConnectorTime2.getLastSeen().isAfter(indexedConnectorTime1.getLastSeen()));
+
+    }
+
+    public void testUpdateConnectorLastSyncStats() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+
+        DocWriteResponse resp = awaitPutConnector(connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        ConnectorSyncInfo syncStats = ConnectorTestUtils.getRandomConnectorSyncInfo();
+
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(
+            connector.getConnectorId(),
+            syncStats
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+
+        assertThat(syncStats, equalTo(indexedConnector.getSyncInfo()));
     }
 
     public void testUpdateConnectorScheduling() throws Exception {
@@ -232,6 +277,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
         connectorIndexService.updateConnectorFiltering(updateFiltering, new ActionListener<>() {
+
             @Override
             public void onResponse(UpdateResponse indexResponse) {
                 resp.set(indexResponse);
@@ -244,11 +290,63 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
+
         assertTrue("Timeout waiting for update filtering request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
         assertNotNull("Received null response from update filtering request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorLastSeen(UpdateConnectorLastSeenAction.Request checkIn) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorLastSeen(checkIn, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for check-in request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from check-in request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorLastSyncStats(UpdateConnectorLastSyncStatsAction.Request updateLastSyncStats)
+        throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorLastSyncStats(updateLastSyncStats, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update last sync stats request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update last sync stats request", resp.get());
         return resp.get();
     }
 

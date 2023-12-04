@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -25,7 +26,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets
     ) {
         this(
             modelId,
@@ -44,7 +45,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         String service,
         OpenAiServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
-        DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }

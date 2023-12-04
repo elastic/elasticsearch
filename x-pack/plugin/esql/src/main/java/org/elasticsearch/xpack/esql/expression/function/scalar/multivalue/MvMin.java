@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -47,7 +47,7 @@ public class MvMin extends AbstractMultivalueFunction {
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return switch (LocalExecutionPlanner.toSortableElementType(field().dataType())) {
+        return switch (PlannerUtils.toSortableElementType(field().dataType())) {
             case BOOLEAN -> new MvMinBooleanEvaluator.Factory(fieldEval);
             case BYTES_REF -> new MvMinBytesRefEvaluator.Factory(fieldEval);
             case DOUBLE -> new MvMinDoubleEvaluator.Factory(fieldEval);

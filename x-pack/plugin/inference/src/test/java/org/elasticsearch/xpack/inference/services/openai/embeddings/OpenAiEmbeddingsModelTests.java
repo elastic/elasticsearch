@@ -31,12 +31,19 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
         assertThat(overriddenModel, is(createModel("url", "org", "api_key", "model_name", "user_override")));
     }
 
-    public void testOverrideWith_NullOrEmptyMap() {
+    public void testOverrideWith_EmptyMap() {
         var model = createModel("url", "org", "api_key", "model_name", null);
 
-        var requestTaskSettingsMap = randomBoolean() ? null : Map.<String, Object>of();
+        var requestTaskSettingsMap = Map.<String, Object>of();
 
         var overriddenModel = model.overrideWith(requestTaskSettingsMap);
+        assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public void testOverrideWith_NullMap() {
+        var model = createModel("url", "org", "api_key", "model_name", null);
+
+        var overriddenModel = model.overrideWith(null);
         assertThat(overriddenModel, sameInstance(model));
     }
 

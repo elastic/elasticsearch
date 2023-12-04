@@ -28,7 +28,7 @@ import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.MissedIndicesUpdateException;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
@@ -1866,8 +1866,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TransportVersions.INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED
         ),
         MISSED_INDICES_UPDATE_EXCEPTION(
-            MissedIndicesUpdateException.class,
-            MissedIndicesUpdateException::new,
+            AutoscalingMissedIndicesUpdateException.class,
+            AutoscalingMissedIndicesUpdateException::new,
             175,
             TransportVersions.MISSED_INDICES_UPDATE_EXCEPTION_ADDED
         );

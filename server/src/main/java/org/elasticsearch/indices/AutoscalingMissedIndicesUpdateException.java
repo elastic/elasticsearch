@@ -12,13 +12,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class MissedIndicesUpdateException extends ElasticsearchException {
+public class AutoscalingMissedIndicesUpdateException extends ElasticsearchException {
 
-    public MissedIndicesUpdateException(String message) {
+    public AutoscalingMissedIndicesUpdateException(String message) {
         super(message);
     }
 
-    public MissedIndicesUpdateException(StreamInput in) throws IOException {
+    public AutoscalingMissedIndicesUpdateException(StreamInput in) throws IOException {
         super(in);
     }
 }

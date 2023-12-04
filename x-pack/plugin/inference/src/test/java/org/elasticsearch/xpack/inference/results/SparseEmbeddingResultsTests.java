@@ -11,12 +11,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.is;
 
 public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase<SparseEmbeddingResults> {
@@ -149,6 +151,25 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
                 }
               ]
             }"""));
+    }
+
+    public void testTransformToCoordinationFormat() {
+        var results = createSparseResult(
+            List.of(
+                createEmbedding(List.of(new SparseEmbeddingResults.WeightedToken("token", 0.1F)), false),
+                createEmbedding(List.of(new SparseEmbeddingResults.WeightedToken("token2", 0.2F)), true)
+            )
+        ).transformToCoordinationFormat();
+
+        assertThat(
+            results,
+            is(
+                List.of(
+                    new TextExpansionResults(DEFAULT_RESULTS_FIELD, List.of(new TextExpansionResults.WeightedToken("token", 0.1F)), false),
+                    new TextExpansionResults(DEFAULT_RESULTS_FIELD, List.of(new TextExpansionResults.WeightedToken("token2", 0.2F)), true)
+                )
+            )
+        );
     }
 
     public record EmbeddingExpectation(Map<String, Float> tokens, boolean isTruncated) {}

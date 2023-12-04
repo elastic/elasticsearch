@@ -47,7 +47,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DataStreamLifecycleErrorEntriesPublisherTests extends ESTestCase {
+public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
 
     private long now;
     private ClusterService clusterService;

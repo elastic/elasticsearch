@@ -242,7 +242,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         resultsBuilder.addQuantiles(quantiles);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process();
+        resultProcessor.process(ActionListener.noop());
         resultProcessor.awaitCompletion();
 
         BucketsQueryBuilder bucketsQuery = new BucketsQueryBuilder().includeInterim(true);
@@ -302,7 +302,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         ResultsBuilder resultsBuilder = new ResultsBuilder().addModelSnapshot(modelSnapshot);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process();
+        resultProcessor.process(ActionListener.noop());
         resultProcessor.awaitCompletion();
 
         QueryPage<ModelSnapshot> persistedModelSnapshot = getModelSnapshots();
@@ -335,7 +335,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addBucket(createBucket(false, 1000));
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process();
+        resultProcessor.process(ActionListener.noop());
         resultProcessor.awaitCompletion();
 
         TimingStats timingStats = resultProcessor.timingStats();
@@ -354,7 +354,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addBucket(createBucket(false, 10000));
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process();
+        resultProcessor.process(ActionListener.noop());
         resultProcessor.awaitCompletion();
 
         TimingStats timingStats = resultProcessor.timingStats();
@@ -373,7 +373,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         resultsBuilder.addQuantiles(quantiles);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process();
+        resultProcessor.process(ActionListener.noop());
         resultProcessor.awaitCompletion();
 
         Optional<Quantiles> persistedQuantiles = getQuantiles();
@@ -390,7 +390,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         resultsBuilder.addQuantiles(quantiles);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process();
+        resultProcessor.process(ActionListener.noop());
         resultProcessor.awaitCompletion();
 
         Optional<Quantiles> persistedQuantiles = getQuantiles();
@@ -410,7 +410,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addBucket(nonInterimBucket); // and this will delete the interim results
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process();
+        resultProcessor.process(ActionListener.noop());
         resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
@@ -442,7 +442,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addBucket(finalBucket); // this deletes the previous interim and persists final bucket & records
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process();
+        resultProcessor.process(ActionListener.noop());
         resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
@@ -466,7 +466,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addRecords(secondSetOfRecords);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process();
+        resultProcessor.process(ActionListener.noop());
         resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));

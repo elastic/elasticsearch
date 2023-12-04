@@ -10,19 +10,19 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 import org.elasticsearch.common.util.FeatureFlag;
 
 /**
- * Inference rescorer feature flag. When the feature is complete, this flag will be removed.
+ * Learn to rank feature flag. When the feature is complete, this flag will be removed.
  *
  * Upon removal, ensure transport serialization is all corrected for future BWC.
  *
  * See {@link LearnToRankRescorerBuilder}
  */
-public class InferenceRescorerFeature {
+public class LearnToRankRescorerFeature {
 
-    private InferenceRescorerFeature() {}
+    private LearnToRankRescorerFeature() {}
 
-    private static final FeatureFlag INFERENCE_RESCORE_FEATURE_FLAG = new FeatureFlag("inference_rescorer");
+    private static final FeatureFlag LEARN_TO_RANK = new FeatureFlag("learn_to_rank");
 
     public static boolean isEnabled() {
-        return INFERENCE_RESCORE_FEATURE_FLAG.isEnabled();
+        return LEARN_TO_RANK.isEnabled();
     }
 }

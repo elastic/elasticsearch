@@ -97,6 +97,17 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         builder.endObject();
     }
 
+    /**
+     * We calculate the maximum number of unique tokens for any shard of data. The maximum is used to compute
+     * average token frequency since we don't have a unique inter-segment token count.
+     * Once we have the maximum number of unique tokens, we use the total count of tokens in the index to calculate
+     * the average frequency ratio.
+     *
+     * @param reader
+     * @param fieldDocCount
+     * @return float
+     * @throws IOException
+     */
     private float getAverageTokenFreqRatio(IndexReader reader, int fieldDocCount) throws IOException {
         int numUniqueTokens = 0;
         for (var leaf : reader.getContext().leaves()) {
@@ -108,6 +119,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         if (numUniqueTokens == 0) {
             return 0;
         }
+        // Return the sum of TermsEnum.docFreq()
         return (float) reader.getSumDocFreq(fieldName) / fieldDocCount / numUniqueTokens;
     }
 

@@ -8,6 +8,9 @@
 module org.elasticsearch.repositories.s3.advancedstoragetiering {
     requires org.elasticsearch.server;
     requires org.elasticsearch.repositories.s3;
+    requires org.elasticsearch.xcore;
+    requires org.elasticsearch.logging;
+    requires aws.java.sdk.s3;
 
     provides org.elasticsearch.repositories.s3.S3StorageClassStrategyProvider
         with

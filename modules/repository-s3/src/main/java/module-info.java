@@ -9,6 +9,8 @@
 module org.elasticsearch.repositories.s3 {
     requires org.elasticsearch.server;
     requires aws.java.sdk.core;
+    requires aws.java.sdk.s3;
+    requires aws.java.sdk.sts;
     requires org.apache.lucene.core;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;

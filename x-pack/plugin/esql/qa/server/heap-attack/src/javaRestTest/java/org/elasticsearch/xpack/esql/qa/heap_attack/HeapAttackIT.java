@@ -5,11 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.single_node;
+package org.elasticsearch.xpack.esql.qa.heap_attack;
 
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -41,13 +40,13 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests that run ESQL queries that have, in the past, used so much memory they
  * crash Elasticsearch.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102784")
 public class HeapAttackIT extends ESRestTestCase {
     /**
      * This used to fail, but we've since compacted top n so it actually succeeds now.
@@ -474,25 +473,23 @@ public class HeapAttackIT extends ESRestTestCase {
 
         Request request = new Request("POST", "/" + name + "/_refresh");
         Response response = client().performRequest(request);
-        assertThat(
-            EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
-            equalTo("{\"_shards\":{\"total\":2,\"successful\":1,\"failed\":0}}")
-        );
+        assertWriteResponse(response);
 
         request = new Request("POST", "/" + name + "/_forcemerge");
         request.addParameter("max_num_segments", "1");
         response = client().performRequest(request);
-        assertThat(
-            EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
-            equalTo("{\"_shards\":{\"total\":2,\"successful\":1,\"failed\":0}}")
-        );
+        assertWriteResponse(response);
 
         request = new Request("POST", "/" + name + "/_refresh");
         response = client().performRequest(request);
-        assertThat(
-            EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
-            equalTo("{\"_shards\":{\"total\":2,\"successful\":1,\"failed\":0}}")
-        );
+        assertWriteResponse(response);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertWriteResponse(Response response) throws IOException {
+        Map<String, Object> shards = (Map<String, Object>) entityAsMap(response).get("_shards");
+        assertThat((int) shards.get("successful"), greaterThanOrEqualTo(1));
+        assertThat(shards.get("failed"), equalTo(0));
     }
 
     @Before

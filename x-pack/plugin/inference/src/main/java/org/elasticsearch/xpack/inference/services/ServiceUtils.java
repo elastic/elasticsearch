@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
 
 import java.net.URI;
@@ -20,7 +21,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class MapParsingUtils {
+public class ServiceUtils {
     /**
      * Remove the object from the map and cast to the expected type.
      * If the object cannot be cast to type an ElasticsearchStatusException
@@ -71,7 +72,7 @@ public class MapParsingUtils {
 
     public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String serviceName) {
         if (settingsMap != null && settingsMap.isEmpty() == false) {
-            throw MapParsingUtils.unknownSettingsError(settingsMap, serviceName);
+            throw ServiceUtils.unknownSettingsError(settingsMap, serviceName);
         }
     }
 
@@ -102,7 +103,7 @@ public class MapParsingUtils {
         try {
             return createUri(url);
         } catch (IllegalArgumentException ignored) {
-            validationException.addValidationError(MapParsingUtils.invalidUrlErrorMsg(url, settingName, settingScope));
+            validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope));
             return null;
         }
     }
@@ -138,12 +139,12 @@ public class MapParsingUtils {
         String scope,
         ValidationException validationException
     ) {
-        String requiredField = MapParsingUtils.removeAsType(map, settingName, String.class);
+        String requiredField = ServiceUtils.removeAsType(map, settingName, String.class);
 
         if (requiredField == null) {
-            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(settingName, scope));
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
         } else if (requiredField.isEmpty()) {
-            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(settingName, scope));
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -159,10 +160,10 @@ public class MapParsingUtils {
         String scope,
         ValidationException validationException
     ) {
-        String optionalField = MapParsingUtils.removeAsType(map, settingName, String.class);
+        String optionalField = ServiceUtils.removeAsType(map, settingName, String.class);
 
         if (optionalField != null && optionalField.isEmpty()) {
-            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(settingName, scope));
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -170,5 +171,20 @@ public class MapParsingUtils {
         }
 
         return optionalField;
+    }
+
+    public static String parsePersistedConfigErrorMsg(String modelId, String serviceName) {
+        return format("Failed to parse stored model [%s] for [%s] service, please delete and add the service again", modelId, serviceName);
+    }
+
+    public static ElasticsearchStatusException createInvalidModelException(Model model) {
+        return new ElasticsearchStatusException(
+            format(
+                "The internal model was invalid, please delete the service [%s] with id [%s] and add it again.",
+                model.getConfigurations().getService(),
+                model.getConfigurations().getModelId()
+            ),
+            RestStatus.INTERNAL_SERVER_ERROR
+        );
     }
 }

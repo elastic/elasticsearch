@@ -1,0 +1,5 @@
+pr: 102840
+summary: Fail S3 repository analysis on partial reads
+area: Snapshot/Restore
+type: enhancement
+issues: []

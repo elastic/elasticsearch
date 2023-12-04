@@ -44,8 +44,7 @@ tasks.named("test").configure {
   // its entropy is quite limited, to the point that it's known to hang: https://bugs.openjdk.org/browse/JDK-6521844
   // We force the seed to be initialized from /dev/urandom, which is less secure, but in case of unit tests is not important.
   if (OS.current() == OS.LINUX) {
-    // The extra /./ is to work around https://bugs.openjdk.org/browse/JDK-4705093. See https://bugs.openjdk.org/browse/JDK-6202721.
-    systemProperty 'java.security.egd', 'file:/dev/./urandom'
+    systemProperty 'java.security.egd', 'file:/dev/urandom'
   }
 }
 

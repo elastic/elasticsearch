@@ -91,7 +91,8 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_LUCENE_9_8 = def(8_500_003, Version.LUCENE_9_8_0);
     public static final IndexVersion ES_VERSION_8_12 = def(8_500_004, Version.LUCENE_9_8_0);
     public static final IndexVersion NORMALIZED_VECTOR_COSINE = def(8_500_005, Version.LUCENE_9_8_0);
-    public static final IndexVersion TIME_SERIES_ID_HASHING = def(8_500_006, Version.LUCENE_9_8_0);
+    public static final IndexVersion UPGRADE_LUCENE_9_9 = def(8_500_006, Version.LUCENE_9_9_0);
+    public static final IndexVersion TIME_SERIES_ID_HASHING = def(8_500_007, Version.LUCENE_9_9_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

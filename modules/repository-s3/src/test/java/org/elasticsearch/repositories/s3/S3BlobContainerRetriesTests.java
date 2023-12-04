@@ -57,6 +57,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
@@ -446,7 +447,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        blobContainer.writeMetadataBlob(randomPurpose(), "write_large_blob_streaming", false, randomBoolean(), out -> {
+        blobContainer.writeMetadataBlob(randomNonDataPurpose(), "write_large_blob_streaming", false, randomBoolean(), out -> {
             final byte[] buffer = new byte[16 * 1024];
             long outstanding = blobSize;
             while (outstanding > 0) {

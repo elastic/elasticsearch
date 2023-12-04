@@ -10,7 +10,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -123,9 +123,8 @@ public class QueryProfilerIT extends ESIntegTestCase {
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
-        MultiSearchResponse response = client().prepareMultiSearch().add(vanilla).add(profile).get();
-        try {
-            MultiSearchResponse.Item[] responses = response.getResponses();
+        assertResponse(client().prepareMultiSearch().add(vanilla).add(profile), response -> {
+            Item[] responses = response.getResponses();
 
             SearchResponse vanillaResponse = responses[0].getResponse();
             SearchResponse profileResponse = responses[1].getResponse();
@@ -169,9 +168,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     equalTo(profileHits[j].getId())
                 );
             }
-        } finally {
-            response.decRef();
-        }
+        });
     }
 
     /**

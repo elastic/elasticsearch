@@ -67,7 +67,7 @@ public class IdleConnectionEvictor implements Closeable {
     private void startInternal() {
         logger.debug(() -> format("Idle connection evictor started with wait time: [%s] max idle: [%s]", sleepTime, maxIdleTime));
 
-        Scheduler.Cancellable task = threadPool.scheduleWithFixedDelay(() -> {
+        cancellableTask.set(threadPool.scheduleWithFixedDelay(() -> {
             try {
                 connectionManager.closeExpiredConnections();
                 if (maxIdleTime.get() != null) {
@@ -76,9 +76,7 @@ public class IdleConnectionEvictor implements Closeable {
             } catch (Exception e) {
                 logger.warn("HTTP connection eviction failed", e);
             }
-        }, sleepTime, threadPool.executor(UTILITY_THREAD_POOL_NAME));
-
-        cancellableTask.set(task);
+        }, sleepTime, threadPool.executor(UTILITY_THREAD_POOL_NAME)));
     }
 
     @Override

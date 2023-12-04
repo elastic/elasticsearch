@@ -63,10 +63,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         private static String generateKey(BytesRef from, BytesRef to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder().append(from == null ? "*" : format.format(from))
-                .append("-")
-                .append(to == null ? "*" : format.format(to));
-            return builder.toString();
+            return (from == null ? "*" : format.format(from)) + "-" + (to == null ? "*" : format.format(to));
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {

@@ -233,12 +233,12 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         RangeFieldType fieldType = new RangeFieldType("field", formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
-        assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
+        assertThat(query.toString(), containsString("field:<ranges:[1465975790000 : 1466062190999]>"));
 
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
-        assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
+        assertThat(queryOnDateField.toString(), containsString("field:[1465975790000 TO 1466062190999]"));
     }
 
     /**

@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -55,6 +56,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new)
     );
 
+    @FunctionInfo(returnType = "keyword")
     public ToString(
         Source source,
         @Param(

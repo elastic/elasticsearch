@@ -494,9 +494,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
-            final License previousLicense = currentLicenseHolder.get();
+            final License previousLicense = currentLicenseHolder.getAndSet(license);
             if (license.equals(previousLicense) == false) {
-                currentLicenseHolder.set(license);
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
                     scheduler.add(

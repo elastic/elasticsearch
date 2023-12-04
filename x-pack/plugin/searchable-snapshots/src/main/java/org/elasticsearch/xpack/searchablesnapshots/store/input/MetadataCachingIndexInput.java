@@ -528,7 +528,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             assert position + readLength <= fileInfo.length()
                 : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
             stats.addBlobStoreBytesRequested(readLength);
-            return directory.blobContainer().readBlob(OperationPurpose.SNAPSHOT, fileInfo.name(), position, readLength);
+            return directory.blobContainer().readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.name(), position, readLength);
         }
         return openInputStreamMultipleParts(position, readLength);
     }
@@ -558,7 +558,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
                     ? getRelativePositionInPart(position + readLength - 1) + 1
                     : fileInfo.partBytes(currentPart);
                 return directory.blobContainer()
-                    .readBlob(OperationPurpose.SNAPSHOT, fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
+                    .readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
             }
         };
     }

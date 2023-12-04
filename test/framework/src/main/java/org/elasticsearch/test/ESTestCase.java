@@ -49,6 +49,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -144,6 +146,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -786,6 +789,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * @return a random instant between a min and a max value with a random nanosecond precision
+     */
+    public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
+        return Instant.ofEpochSecond(
+            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
+            randomLongBetween(0, 999999999)
+        );
+    }
+
+    /**
      * The maximum value that can be represented as an unsigned long.
      */
     public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
@@ -1176,6 +1189,32 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static String randomDateFormatterPattern() {
         return randomFrom(FormatNames.values()).getName();
+    }
+
+    /**
+     * Generate a random valid point constrained to geographic ranges (lat, lon ranges).
+     */
+    public static SpatialPoint randomGeoPoint() {
+        return new GeoPoint(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true));
+    }
+
+    /**
+     * Generate a random valid point constrained to cartesian ranges.
+     */
+    public static SpatialPoint randomCartesianPoint() {
+        double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        return new SpatialPoint() {
+            @Override
+            public double getX() {
+                return x;
+            }
+
+            @Override
+            public double getY() {
+                return y;
+            }
+        };
     }
 
     /**

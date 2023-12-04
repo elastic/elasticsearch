@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,9 +95,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final int length = randomIntBetween(1, Math.toIntExact(Math.min(Integer.MAX_VALUE, MAX_RANGE_VAL - position)));
         final Exception exception = expectThrows(NoSuchFileException.class, () -> {
             if (randomBoolean()) {
-                Streams.readFully(blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_nonexistent_blob"));
+                Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_nonexistent_blob"));
             } else {
-                Streams.readFully(blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_nonexistent_blob", 0, 1));
+                Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_nonexistent_blob", 0, 1));
             }
         });
         final String fullBlobPath = blobContainer.path().buildAsString() + "read_nonexistent_blob";
@@ -104,7 +105,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(
             expectThrows(
                 NoSuchFileException.class,
-                () -> Streams.readFully(blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_nonexistent_blob", position, length))
+                () -> Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_nonexistent_blob", position, length))
             ).getMessage().toLowerCase(Locale.ROOT),
             containsString("blob object [" + fullBlobPath + "] not found")
         );
@@ -146,7 +147,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             }
         });
 
-        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_max_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_max_retries")) {
             final int readLimit;
             final InputStream wrappedStream;
             if (randomBoolean()) {
@@ -212,7 +213,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
-        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_range_blob_max_retries", position, length)) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_range_blob_max_retries", position, length)) {
             final int readLimit;
             final InputStream wrappedStream;
             if (randomBoolean()) {
@@ -252,7 +253,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         Exception exception = expectThrows(
             unresponsiveExceptionType(),
-            () -> Streams.readFully(blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_unresponsive"))
+            () -> Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_blob_unresponsive"))
         );
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
         assertThat(exception.getCause(), instanceOf(SocketTimeoutException.class));
@@ -269,8 +270,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
-                    ? blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_incomplete")
-                    : blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_incomplete", position, length)
+                    ? blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete")
+                    : blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete", position, length)
             ) {
                 Streams.readFully(stream);
             }
@@ -289,6 +290,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return equalTo(maxRetries);
     }
 
+    protected OperationPurpose randomRetryingPurpose() {
+        return randomPurpose();
+    }
+
     public void testReadBlobWithNoHttpResponse() {
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
         final BlobContainer blobContainer = createBlobContainer(randomInt(5), readTimeout, null, null);
@@ -298,9 +303,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         Exception exception = expectThrows(unresponsiveExceptionType(), () -> {
             if (randomBoolean()) {
-                Streams.readFully(blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_no_response"));
+                Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_blob_no_response"));
             } else {
-                Streams.readFully(blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_no_response", 0, 1));
+                Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_blob_no_response", 0, 1));
             }
         });
         assertThat(
@@ -323,8 +328,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final Exception exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
-                    ? blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_incomplete", 0, 1)
-                    : blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_incomplete")
+                    ? blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete", 0, 1)
+                    : blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete")
             ) {
                 Streams.readFully(stream);
             }

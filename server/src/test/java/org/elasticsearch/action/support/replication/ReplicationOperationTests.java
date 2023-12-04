@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -45,6 +46,7 @@ import org.elasticsearch.transport.SendRequestTransportException;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,7 +67,6 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReplicationOperationTests extends ESTestCase {
@@ -439,10 +440,17 @@ public class ReplicationOperationTests extends ESTestCase {
         final int unassignedReplicas = randomInt(2);
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
         final int activeShardCount = randomIntBetween(0, totalShards);
+        final boolean unpromotableReplicas = randomBoolean();
         Request request = new Request(shardId).waitForActiveShards(
             activeShardCount == totalShards ? ActiveShardCount.ALL : ActiveShardCount.from(activeShardCount)
         );
-        final boolean passesActiveShardCheck = activeShardCount <= assignedReplicas + 1;
+        // In the case of unpromotables, only the search/replica assigned shards are calculated as active shards. But in other cases, or
+        // when the wait is for ALL active shards, ReplicationOperation#checkActiveShardCount() takes into account the primary shard as
+        // well, and that is why we need to increment the assigned replicas by 1 when calculating the actual active shards.
+        final int actualActiveShards = assignedReplicas + ((unpromotableReplicas && request.waitForActiveShards() != ActiveShardCount.ALL)
+            ? 0
+            : 1);
+        final boolean passesActiveShardCheck = activeShardCount <= actualActiveShards;
 
         ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
         for (int i = 0; i < assignedReplicas; i++) {
@@ -452,12 +460,26 @@ public class ReplicationOperationTests extends ESTestCase {
             replicaStates[i] = ShardRoutingState.UNASSIGNED;
         }
 
-        final ClusterState state = state(index, true, ShardRoutingState.STARTED, replicaStates);
+        final ClusterState state = state(
+            index,
+            true,
+            ShardRoutingState.STARTED,
+            unpromotableReplicas ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.DEFAULT,
+            Arrays.stream(replicaStates)
+                .map(
+                    shardRoutingState -> new Tuple<>(
+                        shardRoutingState,
+                        unpromotableReplicas ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.DEFAULT
+                    )
+                )
+                .toList()
+        );
         logger.debug(
-            "using active shard count of [{}], assigned shards [{}], total shards [{}]." + " expecting op to [{}]. using state: \n{}",
+            "using active shards [{}], assigned shards [{}], total shards [{}]. unpromotable [{}]. expecting op to [{}]. state: \n{}",
             request.waitForActiveShards(),
             1 + assignedReplicas,
             1 + assignedReplicas + unassignedReplicas,
+            unpromotableReplicas,
             passesActiveShardCheck ? "succeed" : "retry",
             state
         );
@@ -487,7 +509,18 @@ public class ReplicationOperationTests extends ESTestCase {
             op.execute();
             assertTrue("operations should have been performed, active shard count is met", request.processedOnPrimary.get());
         } else {
-            assertThat(op.checkActiveShardCount(), notNullValue());
+            assertThat(
+                op.checkActiveShardCount(),
+                equalTo(
+                    "Not enough active copies to meet shard count of ["
+                        + request.waitForActiveShards()
+                        + "] (have "
+                        + actualActiveShards
+                        + ", needed "
+                        + activeShardCount
+                        + ")."
+                )
+            );
             op.execute();
             assertFalse("operations should not have been perform, active shard count is *NOT* met", request.processedOnPrimary.get());
             assertListenerThrows("should throw exception to trigger retry", listener, UnavailableShardsException.class);

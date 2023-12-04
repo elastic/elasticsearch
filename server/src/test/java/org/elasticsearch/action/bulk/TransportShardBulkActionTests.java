@@ -26,6 +26,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -262,7 +264,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
             mappingUpdate
         );
-        when(shard.mapperService()).thenReturn(mock(MapperService.class));
+        MapperService mapperService = mock(MapperService.class);
+        when(shard.mapperService()).thenReturn(mapperService);
+
+        // merged mapping source needs to be different from previous one for the master node to be invoked
+        DocumentMapper mergedDoc = mock(DocumentMapper.class);
+        when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(mergedDoc);
+        when(mergedDoc.mappingSource()).thenReturn(CompressedXContent.fromJSON("{}"));
 
         randomlySetIgnoredPrimaryResponse(items[0]);
 
@@ -969,7 +977,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 success2
             );
             when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong(), anyString())).thenCallRealMethod();
-            when(shard.mapperService()).thenReturn(mock(MapperService.class));
+            MapperService mapperService = mock(MapperService.class);
+            when(shard.mapperService()).thenReturn(mapperService);
+
+            // merged mapping source needs to be different from previous one for the master node to be invoked
+            DocumentMapper mergedDoc = mock(DocumentMapper.class);
+            when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(mergedDoc);
+            when(mergedDoc.mappingSource()).thenReturn(CompressedXContent.fromJSON("{}"));
 
             randomlySetIgnoredPrimaryResponse(items[0]);
 

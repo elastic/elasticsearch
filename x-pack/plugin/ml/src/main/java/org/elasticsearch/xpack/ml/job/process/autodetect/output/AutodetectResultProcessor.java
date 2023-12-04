@@ -64,7 +64,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST
 
 /**
  * A runnable class that reads the autodetect process output in the
- * {@link #process()} method and persists parsed
+ * {@link #process(ActionListener<Void>)} method and persists parsed
  * results via the {@linkplain JobResultsPersister} passed in the constructor.
  * <p>
  * Has methods to register and remove alert observers.
@@ -167,13 +167,13 @@ public class AutodetectResultProcessor {
         this.runningForecasts = new ConcurrentHashMap<>();
     }
 
-    public void process() {
+    public void process(ActionListener<Void> listener) {
 
         // If a function call in this throws for some reason we don't want it
         // to kill the results reader thread as autodetect will be blocked
         // trying to write its output.
         try {
-            readResults();
+            readResults(listener);
 
             try {
                 if (processKilled == false) {
@@ -211,14 +211,14 @@ public class AutodetectResultProcessor {
         }
     }
 
-    private void readResults() {
+    private void readResults(ActionListener<Void> listener) {
         currentRunBucketCount = 0;
         try {
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
             while (iterator.hasNext()) {
                 try {
                     AutodetectResult result = iterator.next();
-                    processResult(result);
+                    processResult(result, listener);
                     if (result.getBucket() != null) {
                         logger.trace("[{}] Bucket number {} parsed from output", jobId, currentRunBucketCount);
                     }
@@ -268,7 +268,7 @@ public class AutodetectResultProcessor {
         }
     }
 
-    void processResult(AutodetectResult result) {
+    void processResult(AutodetectResult result, ActionListener<Void> listener) {
         if (processKilled) {
             return;
         }
@@ -382,7 +382,7 @@ public class AutodetectResultProcessor {
                     // quantiles are superseded before they're used.
                     bulkResultsPersister.executeRequest();
                     persister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
-                });
+                }, listener);
             }
         }
         FlushAcknowledgement flushAcknowledgement = result.getFlushAcknowledgement();

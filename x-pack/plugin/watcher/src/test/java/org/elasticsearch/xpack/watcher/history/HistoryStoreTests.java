@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -61,9 +60,7 @@ import static org.mockito.Mockito.when;
 
 public class HistoryStoreTests extends ESTestCase {
 
-    private HistoryStore historyStore;
     private Client client;
-    private BulkProcessor2 bulkProcessor;
 
     @Before
     public void init() {
@@ -73,16 +70,6 @@ public class HistoryStoreTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
-        BulkProcessor2.Listener listener = mock(BulkProcessor2.Listener.class);
-        bulkProcessor = BulkProcessor2.builder(client::bulk, listener, threadPool).setBulkActions(1).build();
-        historyStore = new HistoryStore(bulkProcessor);
-    }
-
-    @After
-    public void cleanup() {
-        if (bulkProcessor != null) {
-            bulkProcessor.close();
-        }
     }
 
     public void testPut() throws Exception {
@@ -94,9 +81,9 @@ public class HistoryStoreTests extends ESTestCase {
         IndexResponse indexResponse = mock(IndexResponse.class);
 
         doAnswer(invocation -> {
-            BulkRequest request = (BulkRequest) invocation.getArguments()[1];
+            BulkRequest request = (BulkRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             if (indexRequest.id().equals(wid.value())
@@ -111,7 +98,11 @@ public class HistoryStoreTests extends ESTestCase {
             return null;
         }).when(client).bulk(any(), any());
 
-        historyStore.put(watchRecord);
+        BulkProcessor2.Listener listener = mock(BulkProcessor2.Listener.class);
+        try (BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build()) {
+            HistoryStore historyStore = new HistoryStore(bulkProcessor);
+            historyStore.put(watchRecord);
+        }
         verify(client).bulk(any(), any());
     }
 
@@ -159,17 +150,21 @@ public class HistoryStoreTests extends ESTestCase {
         ArgumentCaptor<BulkRequest> requestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
 
             IndexResponse indexResponse = mock(IndexResponse.class);
             listener.onResponse(new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1));
             return null;
         }).when(client).bulk(requestCaptor.capture(), any());
 
-        if (randomBoolean()) {
-            historyStore.put(watchRecord);
-        } else {
-            historyStore.forcePut(watchRecord);
+        BulkProcessor2.Listener listener = mock(BulkProcessor2.Listener.class);
+        try (BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build()) {
+            HistoryStore historyStore = new HistoryStore(bulkProcessor);
+            if (randomBoolean()) {
+                historyStore.put(watchRecord);
+            } else {
+                historyStore.forcePut(watchRecord);
+            }
         }
 
         assertThat(requestCaptor.getAllValues(), hasSize(1));

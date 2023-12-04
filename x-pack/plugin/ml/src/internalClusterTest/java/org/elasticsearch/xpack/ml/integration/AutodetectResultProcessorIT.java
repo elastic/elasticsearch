@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -378,7 +379,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
-        verify(renormalizer).renormalize(eq(quantiles), any(Runnable.class));
+        verify(renormalizer).renormalize(eq(quantiles), any(Runnable.class), ActionListener.noop());
     }
 
     public void testParseQuantiles_GivenRenormalizationIsDisabled() throws Exception {
@@ -395,7 +396,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
-        verify(renormalizer, never()).renormalize(any(), any());
+        verify(renormalizer, never()).renormalize(any(), any(), ActionListener.noop());
     }
 
     public void testDeleteInterimResults() throws Exception {

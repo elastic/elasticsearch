@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 
@@ -54,7 +55,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     }
 
     @Override
-    public void renormalize(Quantiles quantiles, Runnable setupStep) {
+    public void renormalize(Quantiles quantiles, Runnable setupStep, ActionListener<Void> listener) {
         if (isEnabled() == false) {
             return;
         }
@@ -69,7 +70,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
                     latestQuantilesHolder.getEvictedTimestamp(),
                     latestQuantilesHolder.getLatch()
                 );
-            tryStartWork();
+            tryStartWork(listener);
         }
     }
 
@@ -128,8 +129,9 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         return latest;
     }
 
-    private synchronized boolean tryStartWork() {
+    private synchronized boolean tryStartWork(ActionListener<Void> listener) {
         if (latestQuantilesHolder == null) {
+            listener.onResponse(null);
             return false;
         }
         // Don't start a thread if another normalization thread is still working. The existing thread will
@@ -137,7 +139,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         // without hogging threads or queuing up many large quantiles documents.
         if (semaphore.tryAcquire()) {
             try {
-                latestTask = executorService.submit(this::doRenormalizations);
+                latestTask = executorService.submit(() -> this.doRenormalizations(listener));
             } catch (RejectedExecutionException e) {
                 latestQuantilesHolder.getLatch().countDown();
                 latestQuantilesHolder = null;
@@ -148,6 +150,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
             }
             return true;
         }
+        listener.onResponse(null);
         return false;
     }
 
@@ -161,31 +164,38 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         return true;
     }
 
-    private void doRenormalizations() {
-        do {
-            AugmentedQuantiles latestAugmentedQuantiles = getLatestAugmentedQuantilesAndClear();
-            assert latestAugmentedQuantiles != null;
-            if (latestAugmentedQuantiles != null) { // TODO: remove this if the assert doesn't trip in CI over the next year or so
-                latestAugmentedQuantiles.runSetupStep();
-                Quantiles latestQuantiles = latestAugmentedQuantiles.getQuantiles();
-                CountDownLatch latch = latestAugmentedQuantiles.getLatch();
-                try {
-                    scoresUpdater.update(
-                        latestQuantiles.getQuantileState(),
-                        latestQuantiles.getTimestamp().getTime(),
-                        latestAugmentedQuantiles.getWindowExtensionMs()
-                    );
-                } catch (Exception e) {
-                    logger.error("[" + jobId + "] Normalization failed", e);
-                } finally {
-                    latch.countDown();
+    private void doRenormalizations(ActionListener<Void> listener) {
+        try {
+            do {
+                AugmentedQuantiles latestAugmentedQuantiles = getLatestAugmentedQuantilesAndClear();
+                assert latestAugmentedQuantiles != null;
+                if (latestAugmentedQuantiles != null) { // TODO: remove this if the assert doesn't trip in CI over the next year or so
+                    latestAugmentedQuantiles.runSetupStep();
+                    Quantiles latestQuantiles = latestAugmentedQuantiles.getQuantiles();
+                    CountDownLatch latch = latestAugmentedQuantiles.getLatch();
+                    try {
+                        scoresUpdater.update(
+                            latestQuantiles.getQuantileState(),
+                            latestQuantiles.getTimestamp().getTime(),
+                            latestAugmentedQuantiles.getWindowExtensionMs()
+                        );
+                    } catch (Exception e) {
+                        logger.error("[" + jobId + "] Normalization failed", e);
+                    } finally {
+                        latch.countDown();
+                    }
+                } else {
+                    logger.warn("[{}] request to normalize null quantiles", jobId);
                 }
-            } else {
-                logger.warn("[{}] request to normalize null quantiles", jobId);
-            }
-            // Loop if more work has become available while we were working, because the
-            // tasks originally submitted to do that work will have exited early.
-        } while (tryFinishWork() == false);
+                // Loop if more work has become available while we were working, because the
+                // tasks originally submitted to do that work will have exited early.
+            } while (tryFinishWork() == false);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            throw e;
+        } finally {
+            listener.onResponse(null);
+        }
     }
 
     /**

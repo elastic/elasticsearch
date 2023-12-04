@@ -522,7 +522,6 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         assert knownRepositories != null;
                         final Instant expirationTimeCopy = this.expirationTime;
                         assert expirationTimeCopy != null;
-
                         for (SearchHit searchHit : searchHits) {
                             lastSortValues = searchHit.getSortValues();
                             assert searchHit.getId() != null;
@@ -566,11 +565,11 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                                 );
                             }
                         }
-
                         assert lastSortValues != null;
                         if (bulkRequest.numberOfActions() == 0) {
                             this.searchResponse = null;
                             this.searchAfter = lastSortValues;
+                            bulkRequest.close();
                             executeNext(this);
                             return;
                         }

@@ -795,13 +795,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autodetectExecutorService);
-            autodetectExecutorService.submit(() -> {
-                try {
-                    processor.process();
-                } finally {
-                    jobRenormalizedResultsPersister.close();
-                }
-            });
+            autodetectExecutorService.submit(() -> { processor.process(ActionListener.releasing(jobRenormalizedResultsPersister)); });
         } catch (EsRejectedExecutionException e) {
             // If submitting the operation to read the results from the process fails we need to close
             // the process too, so that other submitted operations to threadpool are stopped.

@@ -273,7 +273,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Instant requestLastSeen = request.getLastSeen();
 
         Long deletedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
-            ConnectorSyncJob.DELETED_DOCUMENT_COUNT.getPreferredName()
+            ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName()
         );
         Long indexedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName()

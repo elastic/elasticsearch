@@ -160,7 +160,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction extends ActionType<Ackno
             });
 
         static {
-            PARSER.declareLong(constructorArg(), ConnectorSyncJob.DELETED_DOCUMENT_COUNT);
+            PARSER.declareLong(constructorArg(), ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD);
             PARSER.declareLong(constructorArg(), ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD);
             PARSER.declareLong(constructorArg(), ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD);
             PARSER.declareLong(optionalConstructorArg(), ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD);
@@ -192,7 +192,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction extends ActionType<Ackno
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(ConnectorSyncJob.DELETED_DOCUMENT_COUNT.getPreferredName(), deletedDocumentCount);
+                builder.field(ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(), deletedDocumentCount);
                 builder.field(ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(), indexedDocumentCount);
                 builder.field(ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName(), indexedDocumentVolume);
                 builder.field(ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName(), totalDocumentCount);

@@ -265,7 +265,7 @@ public class ConnectorSyncJobIndexService {
 
         Map<String, Object> fieldsToUpdate = new HashMap<>(
             Map.of(
-                ConnectorSyncJob.DELETED_DOCUMENT_COUNT.getPreferredName(),
+                ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(),
                 request.getDeletedDocumentCount(),
                 ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(),
                 request.getIndexedDocumentCount(),

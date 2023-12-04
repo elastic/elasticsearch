@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
@@ -42,10 +44,12 @@ public class DataStreamLifecycleHealthInfoPublisher {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final NodeFeature DSL_HEALTH_INFO_FEATURE = new NodeFeature("health.dsl.info");
 
     private final Client client;
     private final ClusterService clusterService;
     private final DataStreamLifecycleErrorStore errorStore;
+    private final FeatureService featureService;
     private volatile int signallingErrorRetryInterval;
     private volatile int maxNumberOfErrorsToPublish;
 
@@ -53,11 +57,13 @@ public class DataStreamLifecycleHealthInfoPublisher {
         Settings settings,
         Client client,
         ClusterService clusterService,
-        DataStreamLifecycleErrorStore errorStore
+        DataStreamLifecycleErrorStore errorStore,
+        FeatureService featureService
     ) {
         this.client = client;
         this.clusterService = clusterService;
         this.errorStore = errorStore;
+        this.featureService = featureService;
         this.signallingErrorRetryInterval = DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.maxNumberOfErrorsToPublish = DATA_STREAM_LIFECYCLE_MAX_ERRORS_TO_PUBLISH_SETTING.get(settings);
     }
@@ -82,6 +88,9 @@ public class DataStreamLifecycleHealthInfoPublisher {
      * {@link org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService#DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING}
      */
     public void publishDslErrorEntries(ActionListener<AcknowledgedResponse> actionListener) {
+        if (featureService.clusterHasFeature(clusterService.state(), DSL_HEALTH_INFO_FEATURE) == false) {
+            return;
+        }
         // fetching the entries that persist in the error store for more than the signalling retry interval
         // note that we're reporting this view into the error store on every publishing iteration
         List<DslErrorInfo> errorEntriesToSignal = errorStore.getErrorsInfo(

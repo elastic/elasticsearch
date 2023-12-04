@@ -166,7 +166,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
                 settings,
                 services.client(),
                 services.clusterService(),
-                errorStoreInitialisationService.get()
+                errorStoreInitialisationService.get(),
+                services.featureService()
             )
         );
         dataLifecycleInitialisationService.set(

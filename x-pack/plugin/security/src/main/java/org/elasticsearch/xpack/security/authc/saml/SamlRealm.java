@@ -278,7 +278,7 @@ public final class SamlRealm extends Realm implements Releasable {
         this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
         this.principalAttribute = AttributeParser.forSetting(logger, PRINCIPAL_ATTRIBUTE, config, true);
 
-        this.groupsAttribute = AttributeParser.forSetting(logger, GROUPS_ATTRIBUTE, config, false);
+        this.groupsAttribute = AttributeParser.forSetting(logger, GROUPS_ATTRIBUTE, config);
         this.dnAttribute = AttributeParser.forSetting(logger, DN_ATTRIBUTE, config, false);
         this.nameAttribute = AttributeParser.forSetting(logger, NAME_ATTRIBUTE, config, false);
         this.mailAttribute = AttributeParser.forSetting(logger, MAIL_ATTRIBUTE, config, false);
@@ -1004,25 +1004,20 @@ public final class SamlRealm extends Realm implements Releasable {
             return name;
         }
 
-        static AttributeParser forSetting(
-            Logger logger,
-            SamlRealmSettings.PatternDelimiterAttributeSetting setting,
-            RealmConfig realmConfig,
-            boolean required
-        ) {
-            SamlRealmSettings.PatternAttributeSetting patternAttributeSetting = setting.getAttributePatternSetting();
-            if (realmConfig.hasSetting(patternAttributeSetting.getAttribute()) && realmConfig.hasSetting(setting.getDelimiter())) {
-                if (realmConfig.hasSetting(patternAttributeSetting.getPattern())) {
+        static AttributeParser forSetting(Logger logger, SamlRealmSettings.AttributeSettingWithDelimiter setting, RealmConfig realmConfig) {
+            SamlRealmSettings.AttributeSetting attributeSetting = setting.getAttributePatternSetting();
+            if (realmConfig.hasSetting(attributeSetting.getAttribute()) && realmConfig.hasSetting(setting.getDelimiter())) {
+                if (realmConfig.hasSetting(attributeSetting.getPattern())) {
                     throw new SettingsException(
                         "Setting ["
-                            + RealmSettings.getFullSettingKey(realmConfig, patternAttributeSetting.getPattern())
+                            + RealmSettings.getFullSettingKey(realmConfig, attributeSetting.getPattern())
                             + "] can not be set when ["
                             + RealmSettings.getFullSettingKey(realmConfig, setting.getDelimiter())
                             + "] is set"
                     );
                 }
 
-                String attributeName = realmConfig.getSetting(patternAttributeSetting.getAttribute());
+                String attributeName = realmConfig.getSetting(attributeSetting.getAttribute());
                 String delimiter = realmConfig.getSetting(setting.getDelimiter());
                 return new AttributeParser(
                     "SAML Attribute ["
@@ -1030,7 +1025,7 @@ public final class SamlRealm extends Realm implements Releasable {
                         + "] with delimiter ["
                         + delimiter
                         + "] for ["
-                        + patternAttributeSetting.name(realmConfig)
+                        + attributeSetting.name(realmConfig)
                         + "]",
                     attributes -> {
                         List<String> attributeValues = attributes.getAttributeValues(attributeName);
@@ -1046,16 +1041,23 @@ public final class SamlRealm extends Realm implements Releasable {
                         return attributeValues.stream()
                             .map(s -> s.split(Pattern.quote(delimiter)))
                             .flatMap(Arrays::stream)
+                            .filter(attribute -> {
+                                if (Strings.isNullOrEmpty(attribute)) {
+                                    logger.debug("Attribute [{}] has empty components when using delimiter [{}]", attributeName, delimiter);
+                                    return false;
+                                }
+                                return true;
+                            })
                             .collect(Collectors.toList());
                     }
                 );
             }
-            return AttributeParser.forSetting(logger, patternAttributeSetting, realmConfig, required);
+            return AttributeParser.forSetting(logger, setting, realmConfig);
         }
 
         static AttributeParser forSetting(
             Logger logger,
-            SamlRealmSettings.PatternAttributeSetting setting,
+            SamlRealmSettings.AttributeSetting setting,
             RealmConfig realmConfig,
             boolean required
         ) {

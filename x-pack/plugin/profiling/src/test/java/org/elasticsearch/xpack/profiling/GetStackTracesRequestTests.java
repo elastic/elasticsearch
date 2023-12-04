@@ -8,12 +8,8 @@
 package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
@@ -28,47 +24,6 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 
 public class GetStackTracesRequestTests extends ESTestCase {
-    public void testSerialization() throws IOException {
-        Integer sampleSize = randomIntBetween(1, Integer.MAX_VALUE);
-        Double requestedDuration = randomBoolean() ? randomDoubleBetween(0.001d, Double.MAX_VALUE, true) : null;
-        Double awsCostFactor = randomBoolean() ? randomDoubleBetween(0.1d, 5.0d, true) : null;
-        Double customCO2PerKWH = randomBoolean() ? randomDoubleBetween(0.000001d, 0.001d, true) : null;
-        Double datacenterPUE = randomBoolean() ? randomDoubleBetween(1.0d, 3.0d, true) : null;
-        Double perCoreWattX86 = randomBoolean() ? randomDoubleBetween(0.01d, 20.0d, true) : null;
-        Double perCoreWattARM64 = randomBoolean() ? randomDoubleBetween(0.01d, 20.0d, true) : null;
-        Double customCostPerCoreHour = randomBoolean() ? randomDoubleBetween(0.001d, 1000.0d, true) : null;
-        QueryBuilder query = randomBoolean() ? new BoolQueryBuilder() : null;
-
-        GetStackTracesRequest request = new GetStackTracesRequest(
-            sampleSize,
-            requestedDuration,
-            awsCostFactor,
-            query,
-            null,
-            null,
-            customCO2PerKWH,
-            datacenterPUE,
-            perCoreWattX86,
-            perCoreWattARM64,
-            customCostPerCoreHour
-        );
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
-            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
-                GetStackTracesRequest deserialized = new GetStackTracesRequest(in);
-                assertEquals(sampleSize, deserialized.getSampleSize());
-                assertEquals(requestedDuration, deserialized.getRequestedDuration());
-                assertEquals(awsCostFactor, deserialized.getAwsCostFactor());
-                assertEquals(customCO2PerKWH, deserialized.getCustomCO2PerKWH());
-                assertEquals(datacenterPUE, deserialized.getCustomDatacenterPUE());
-                assertEquals(perCoreWattX86, deserialized.getCustomPerCoreWattX86());
-                assertEquals(perCoreWattARM64, deserialized.getCustomPerCoreWattARM64());
-                assertEquals(customCostPerCoreHour, deserialized.getCustomCostPerCoreHour());
-                assertEquals(query, deserialized.getQuery());
-            }
-        }
-    }
-
     public void testParseValidXContent() throws IOException {
         try (XContentParser content = createParser(XContentFactory.jsonBuilder()
         //tag::noformat

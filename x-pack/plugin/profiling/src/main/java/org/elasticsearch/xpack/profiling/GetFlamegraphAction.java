@@ -7,12 +7,13 @@
 package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public final class GetFlamegraphAction extends ActionType<GetFlamegraphResponse> {
     public static final GetFlamegraphAction INSTANCE = new GetFlamegraphAction();
     public static final String NAME = "indices:data/read/profiling/flamegraph";
 
     private GetFlamegraphAction() {
-        super(NAME, GetFlamegraphResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

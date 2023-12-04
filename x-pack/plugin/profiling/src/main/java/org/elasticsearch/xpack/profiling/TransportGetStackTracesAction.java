@@ -13,8 +13,8 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -65,7 +64,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public class TransportGetStackTracesAction extends HandledTransportAction<GetStackTracesRequest, GetStackTracesResponse> {
+public class TransportGetStackTracesAction extends TransportAction<GetStackTracesRequest, GetStackTracesResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
 
     public static final Setting<Integer> PROFILING_MAX_STACKTRACE_QUERY_SLICES = Setting.intSetting(
@@ -133,7 +132,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         InstanceTypeService instanceTypeService,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetStackTracesAction.NAME, actionFilters, transportService.getTaskManager());
         this.nodeClient = nodeClient;
         this.licenseChecker = licenseChecker;
         this.instanceTypeService = instanceTypeService;

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -55,13 +56,13 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
         var serviceSettings = OpenAiServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    OpenAiServiceSettings.URL,
+                    ServiceFields.URL,
                     url,
                     OpenAiServiceSettings.ORGANIZATION,
                     org,
-                    OpenAiServiceSettings.SIMILARITY,
+                    ServiceFields.SIMILARITY,
                     similarity,
-                    OpenAiServiceSettings.DIMENSIONS,
+                    ServiceFields.DIMENSIONS,
                     dims
                 )
             )
@@ -79,7 +80,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
     public void testFromMap_EmptyUrl_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.URL, "")))
+            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")))
         );
 
         assertThat(
@@ -87,7 +88,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
             containsString(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    OpenAiServiceSettings.URL
+                    ServiceFields.URL
                 )
             )
         );
@@ -120,18 +121,12 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
         var url = "https://www.abc^.com";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.URL, url)))
+            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)))
         );
 
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];",
-                    url,
-                    OpenAiServiceSettings.URL
-                )
-            )
+            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
         );
     }
 
@@ -139,10 +134,10 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
         var similarity = "by_size";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.SIMILARITY, similarity)))
+            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)))
         );
 
-        assertThat(thrownException.getMessage(), is("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];"));
+        assertThat(thrownException.getMessage(), is("Validation Failed: 1: [service_settings] Unknown similarity measure [by_size];"));
     }
 
     @Override
@@ -164,7 +159,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
         var map = new HashMap<String, Object>();
 
         if (url != null) {
-            map.put(OpenAiServiceSettings.URL, url);
+            map.put(ServiceFields.URL, url);
         }
 
         if (org != null) {

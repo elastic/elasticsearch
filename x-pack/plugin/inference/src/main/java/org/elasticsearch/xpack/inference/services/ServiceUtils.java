@@ -8,18 +8,25 @@
 package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 public class ServiceUtils {
     /**
@@ -133,6 +140,20 @@ public class ServiceUtils {
         return new SecureString(Objects.requireNonNull(requiredField).toCharArray());
     }
 
+    public static SimilarityMeasure extractSimilarity(Map<String, Object> map, String scope, ValidationException validationException) {
+        String similarity = extractOptionalString(map, SIMILARITY, scope, validationException);
+
+        if (similarity != null) {
+            try {
+                return SimilarityMeasure.fromString(similarity);
+            } catch (IllegalArgumentException iae) {
+                validationException.addValidationError("[" + scope + "] Unknown similarity measure [" + similarity + "]");
+            }
+        }
+
+        return null;
+    }
+
     public static String extractRequiredString(
         Map<String, Object> map,
         String settingName,
@@ -186,5 +207,42 @@ public class ServiceUtils {
             ),
             RestStatus.INTERNAL_SERVER_ERROR
         );
+    }
+
+    /**
+     * Evaluate the model and return the text embedding size
+     * @param model Should be a text embedding model
+     * @param service The inference service
+     * @param listener Size listener
+     */
+    public static void getEmbeddingSize(Model model, InferenceService service, ActionListener<Integer> listener) {
+        assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
+
+        service.infer(model, List.of("how big"), Map.of(), ActionListener.wrap(r -> {
+            if (r instanceof TextEmbeddingResults embeddingResults) {
+                if (embeddingResults.embeddings().isEmpty()) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Could not determine embedding size, no embeddings were returned in test call",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                } else {
+                    listener.onResponse(embeddingResults.embeddings().get(0).values().size());
+                }
+            } else {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Could not determine embedding size. "
+                            + "Expected a result of type ["
+                            + TextEmbeddingResults.NAME
+                            + "] got ["
+                            + r.getWriteableName()
+                            + "]",
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+            }
+        }, listener::onFailure));
     }
 }

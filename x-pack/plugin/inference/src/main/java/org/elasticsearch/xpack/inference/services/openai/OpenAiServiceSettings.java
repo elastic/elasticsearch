@@ -23,9 +23,13 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 /**
@@ -35,27 +39,15 @@ public class OpenAiServiceSettings implements ServiceSettings {
 
     public static final String NAME = "openai_service_settings";
 
-    public static final String URL = "url";
     public static final String ORGANIZATION = "organization_id";
-    public static final String SIMILARITY = "similarity";
-    public static final String DIMENSIONS = "dimensions";
 
     public static OpenAiServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String similarity = extractOptionalString(map, SIMILARITY, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-
-        SimilarityMeasure similarityMeasure = null;
-        if (similarity != null) {
-            try {
-                similarityMeasure = SimilarityMeasure.fromString(similarity);
-            } catch (IllegalArgumentException iae) {
-                validationException.addValidationError("Unknown similarity measure [" + similarity + "]");
-            }
-        }
 
         // Throw if any of the settings were empty strings or invalid
         if (validationException.validationErrors().isEmpty() == false) {
@@ -64,7 +56,7 @@ public class OpenAiServiceSettings implements ServiceSettings {
 
         // the url is optional and only for testing
         if (url == null) {
-            return new OpenAiServiceSettings((URI) null, organizationId, similarityMeasure, dims);
+            return new OpenAiServiceSettings((URI) null, organizationId, similarity, dims);
         }
 
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -73,7 +65,7 @@ public class OpenAiServiceSettings implements ServiceSettings {
             throw validationException;
         }
 
-        return new OpenAiServiceSettings(uri, organizationId, similarityMeasure, dims);
+        return new OpenAiServiceSettings(uri, organizationId, similarity, dims);
     }
 
     private final URI uri;

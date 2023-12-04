@@ -19,12 +19,12 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.List;
@@ -144,8 +144,9 @@ public class OpenAiService extends SenderService {
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
         if (model instanceof OpenAiEmbeddingsModel embeddingsModel) {
-            getEmbeddingSize(
+            ServiceUtils.getEmbeddingSize(
                 model,
+                this,
                 ActionListener.wrap(
                     size -> listener.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)),
                     listener::onFailure
@@ -154,35 +155,6 @@ public class OpenAiService extends SenderService {
         } else {
             listener.onResponse(model);
         }
-    }
-
-    private void getEmbeddingSize(Model model, ActionListener<Integer> listener) {
-        infer(model, List.of("how big"), Map.of(), ActionListener.wrap(r -> {
-            if (r instanceof TextEmbeddingResults embeddingResults) {
-                if (embeddingResults.embeddings().isEmpty()) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not determine embedding size, no embeddings were returned in test call",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                } else {
-                    listener.onResponse(embeddingResults.embeddings().get(0).values().size());
-                }
-            } else {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not determine embedding size. "
-                            + "Expected a result of type ["
-                            + TextEmbeddingResults.NAME
-                            + "] got ["
-                            + r.getWriteableName()
-                            + "]",
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-            }
-        }, listener::onFailure));
     }
 
     private OpenAiEmbeddingsModel updateModelWithEmbeddingDetails(OpenAiEmbeddingsModel model, int embeddingSize) {

@@ -43,6 +43,7 @@ import java.util.function.Predicate;
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
 
+    private final RerouteService rerouteService;
     private final MasterServiceTaskQueue<PutShutdownNodeTask> taskQueue;
 
     private final PutShutdownNodeExecutor executor = new PutShutdownNodeExecutor();
@@ -137,8 +138,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     taskContext.onFailure(e);
                     continue;
                 }
-                var reroute = clusterService.getRerouteService();
-                taskContext.success(() -> ackAndMaybeReroute(request, taskContext.getTask().listener(), reroute));
+                taskContext.success(() -> ackAndMaybeReroute(request, taskContext.getTask().listener(), rerouteService));
             }
             if (changed == false) {
                 return batchExecutionContext.initialState();
@@ -156,6 +156,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     public TransportPutShutdownNodeAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -171,6 +172,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         taskQueue = clusterService.createTaskQueue("put-shutdown", Priority.URGENT, new PutShutdownNodeExecutor());
     }
 

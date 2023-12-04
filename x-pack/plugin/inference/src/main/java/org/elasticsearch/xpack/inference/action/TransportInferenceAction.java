@@ -20,7 +20,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
@@ -43,8 +42,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     @Override
     protected void doExecute(Task task, InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
 
-        ActionListener<ModelRegistry.ModelConfigMap> getModelListener = ActionListener.wrap(modelConfigMap -> {
-            var unparsedModel = UnparsedModel.unparsedModelFromMap(modelConfigMap.config(), modelConfigMap.secrets());
+        ActionListener<ModelRegistry.UnparsedModel> getModelListener = ActionListener.wrap(unparsedModel -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
                 listener.onFailure(
@@ -72,11 +70,16 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
             }
 
             var model = service.get()
-                .parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings(), unparsedModel.secrets());
+                .parsePersistedConfigWithSecrets(
+                    unparsedModel.modelId(),
+                    unparsedModel.taskType(),
+                    unparsedModel.settings(),
+                    unparsedModel.secrets()
+                );
             inferOnService(model, request, service.get(), listener);
         }, listener::onFailure);
 
-        modelRegistry.getUnparsedModelMap(request.getModelId(), getModelListener);
+        modelRegistry.getModelWithSecrets(request.getModelId(), getModelListener);
     }
 
     private void inferOnService(

@@ -42,6 +42,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");
     private final String fieldName;
     private final Set<WeightedToken> tokens;
+    @Nullable
     private final WeightedTokensThreshold threshold;
 
     public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens) {
@@ -54,7 +55,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         if (tokens.isEmpty()) {
             throw new IllegalArgumentException("[" + NAME + "] requires at least one token");
         }
-        this.threshold = Objects.requireNonNullElse(threshold, new WeightedTokensThreshold());
+        this.threshold = threshold;
     }
 
     public WeightedTokensQueryBuilder(StreamInput in) throws IOException {
@@ -163,8 +164,10 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against an empty field");
         }
         for (var token : tokens) {
-            boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight) ^ threshold
-                .isOnlyScorePrunedTokens();
+            boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight);
+            if (threshold != null) {
+                keep ^= threshold.isOnlyScorePrunedTokens();
+            }
             if (keep) {
                 qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
             }
@@ -228,6 +231,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
                                 "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] should be an object"
                             );
                         }
+                        // TODO may need a bool here to indicate threshold null or not
                         threshold = WeightedTokensThreshold.fromXContent(parser);
                     } else if (TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         var tokensMap = parser.map();

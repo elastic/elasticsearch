@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearningToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
@@ -30,29 +30,29 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class LearnToRankConfig extends RegressionConfig implements Rewriteable<LearnToRankConfig> {
+public class LearningToRankConfig extends RegressionConfig implements Rewriteable<LearningToRankConfig> {
 
-    public static final ParseField NAME = new ParseField("learn_to_rank");
+    public static final ParseField NAME = new ParseField("learning_to_rank");
     static final TransportVersion MIN_SUPPORTED_TRANSPORT_VERSION = TransportVersion.current();
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     public static final ParseField FEATURE_EXTRACTORS = new ParseField("feature_extractors");
     public static final ParseField DEFAULT_PARAMS = new ParseField("default_params");
 
-    public static LearnToRankConfig EMPTY_PARAMS = new LearnToRankConfig(null, null, null);
+    public static LearningToRankConfig EMPTY_PARAMS = new LearningToRankConfig(null, null, null);
 
-    private static final ObjectParser<LearnToRankConfig.Builder, Boolean> LENIENT_PARSER = createParser(true);
-    private static final ObjectParser<LearnToRankConfig.Builder, Boolean> STRICT_PARSER = createParser(false);
+    private static final ObjectParser<LearningToRankConfig.Builder, Boolean> LENIENT_PARSER = createParser(true);
+    private static final ObjectParser<LearningToRankConfig.Builder, Boolean> STRICT_PARSER = createParser(false);
 
-    private static ObjectParser<LearnToRankConfig.Builder, Boolean> createParser(boolean lenient) {
-        ObjectParser<LearnToRankConfig.Builder, Boolean> parser = new ObjectParser<>(
+    private static ObjectParser<LearningToRankConfig.Builder, Boolean> createParser(boolean lenient) {
+        ObjectParser<LearningToRankConfig.Builder, Boolean> parser = new ObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            LearnToRankConfig.Builder::new
+            LearningToRankConfig.Builder::new
         );
         parser.declareInt(Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
         parser.declareNamedObjects(
-            Builder::setLearnToRankFeatureExtractorBuilders,
-            (p, c, n) -> p.namedObject(LearnToRankFeatureExtractorBuilder.class, n, lenient),
+            Builder::setLearningToRankFeatureExtractorBuilders,
+            (p, c, n) -> p.namedObject(LearningToRankFeatureExtractorBuilder.class, n, lenient),
             b -> {},
             FEATURE_EXTRACTORS
         );
@@ -60,30 +60,30 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
         return parser;
     }
 
-    public static LearnToRankConfig fromXContentStrict(XContentParser parser) {
+    public static LearningToRankConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null).build();
     }
 
-    public static LearnToRankConfig fromXContentLenient(XContentParser parser) {
+    public static LearningToRankConfig fromXContentLenient(XContentParser parser) {
         return LENIENT_PARSER.apply(parser, null).build();
     }
 
-    public static Builder builder(LearnToRankConfig config) {
+    public static Builder builder(LearningToRankConfig config) {
         return new Builder(config);
     }
 
-    private final List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders;
+    private final List<LearningToRankFeatureExtractorBuilder> featureExtractorBuilders;
     private final Map<String, Object> paramsDefaults;
 
-    public LearnToRankConfig(
+    public LearningToRankConfig(
         Integer numTopFeatureImportanceValues,
-        List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders,
+        List<LearningToRankFeatureExtractorBuilder> featureExtractorBuilders,
         Map<String, Object> paramsDefaults
     ) {
         super(DEFAULT_RESULTS_FIELD, numTopFeatureImportanceValues);
         if (featureExtractorBuilders != null) {
             Set<String> featureNames = featureExtractorBuilders.stream()
-                .map(LearnToRankFeatureExtractorBuilder::featureName)
+                .map(LearningToRankFeatureExtractorBuilder::featureName)
                 .collect(Collectors.toSet());
             if (featureNames.size() < featureExtractorBuilders.size()) {
                 throw new IllegalArgumentException(
@@ -95,19 +95,19 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
         this.paramsDefaults = Collections.unmodifiableMap(Objects.requireNonNullElse(paramsDefaults, Map.of()));
     }
 
-    public LearnToRankConfig(StreamInput in) throws IOException {
+    public LearningToRankConfig(StreamInput in) throws IOException {
         super(in);
-        this.featureExtractorBuilders = in.readNamedWriteableCollectionAsList(LearnToRankFeatureExtractorBuilder.class);
+        this.featureExtractorBuilders = in.readNamedWriteableCollectionAsList(LearningToRankFeatureExtractorBuilder.class);
         this.paramsDefaults = in.readMap();
     }
 
-    public List<LearnToRankFeatureExtractorBuilder> getFeatureExtractorBuilders() {
+    public List<LearningToRankFeatureExtractorBuilder> getFeatureExtractorBuilders() {
         return featureExtractorBuilders;
     }
 
     public List<QueryExtractorBuilder> getQueryFeatureExtractorBuilders() {
         List<QueryExtractorBuilder> queryExtractorBuilders = new ArrayList<>();
-        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : featureExtractorBuilders) {
+        for (LearningToRankFeatureExtractorBuilder featureExtractorBuilder : featureExtractorBuilders) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
                 queryExtractorBuilders.add(queryExtractorBuilder);
             }
@@ -189,7 +189,7 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        LearnToRankConfig that = (LearnToRankConfig) o;
+        LearningToRankConfig that = (LearningToRankConfig) o;
         return Objects.equals(featureExtractorBuilders, that.featureExtractorBuilders)
             && Objects.equals(paramsDefaults, that.paramsDefaults);
     }
@@ -220,33 +220,33 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
     }
 
     @Override
-    public LearnToRankConfig rewrite(QueryRewriteContext ctx) throws IOException {
+    public LearningToRankConfig rewrite(QueryRewriteContext ctx) throws IOException {
         if (this.featureExtractorBuilders.isEmpty()) {
             return this;
         }
         boolean rewritten = false;
-        List<LearnToRankFeatureExtractorBuilder> rewrittenExtractors = new ArrayList<>(this.featureExtractorBuilders.size());
-        for (LearnToRankFeatureExtractorBuilder extractorBuilder : this.featureExtractorBuilders) {
-            LearnToRankFeatureExtractorBuilder rewrittenExtractor = Rewriteable.rewrite(extractorBuilder, ctx);
+        List<LearningToRankFeatureExtractorBuilder> rewrittenExtractors = new ArrayList<>(this.featureExtractorBuilders.size());
+        for (LearningToRankFeatureExtractorBuilder extractorBuilder : this.featureExtractorBuilders) {
+            LearningToRankFeatureExtractorBuilder rewrittenExtractor = Rewriteable.rewrite(extractorBuilder, ctx);
             rewrittenExtractors.add(rewrittenExtractor);
             rewritten |= (rewrittenExtractor != extractorBuilder);
         }
         if (rewritten) {
-            return new LearnToRankConfig(getNumTopFeatureImportanceValues(), rewrittenExtractors, paramsDefaults);
+            return new LearningToRankConfig(getNumTopFeatureImportanceValues(), rewrittenExtractors, paramsDefaults);
         }
         return this;
     }
 
     public static class Builder {
         private Integer numTopFeatureImportanceValues;
-        private List<LearnToRankFeatureExtractorBuilder> learnToRankFeatureExtractorBuilders;
+        private List<LearningToRankFeatureExtractorBuilder> learningToRankFeatureExtractorBuilders;
         private Map<String, Object> paramsDefaults = Map.of();
 
         Builder() {}
 
-        Builder(LearnToRankConfig config) {
+        Builder(LearningToRankConfig config) {
             this.numTopFeatureImportanceValues = config.getNumTopFeatureImportanceValues();
-            this.learnToRankFeatureExtractorBuilders = config.featureExtractorBuilders;
+            this.learningToRankFeatureExtractorBuilders = config.featureExtractorBuilders;
             this.paramsDefaults = config.getParamsDefaults();
         }
 
@@ -255,10 +255,10 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
             return this;
         }
 
-        public Builder setLearnToRankFeatureExtractorBuilders(
-            List<LearnToRankFeatureExtractorBuilder> learnToRankFeatureExtractorBuilders
+        public Builder setLearningToRankFeatureExtractorBuilders(
+            List<LearningToRankFeatureExtractorBuilder> learningToRankFeatureExtractorBuilders
         ) {
-            this.learnToRankFeatureExtractorBuilders = learnToRankFeatureExtractorBuilders;
+            this.learningToRankFeatureExtractorBuilders = learningToRankFeatureExtractorBuilders;
             return this;
         }
 
@@ -267,8 +267,8 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
             return this;
         }
 
-        public LearnToRankConfig build() {
-            return new LearnToRankConfig(numTopFeatureImportanceValues, learnToRankFeatureExtractorBuilders, paramsDefaults);
+        public LearningToRankConfig build() {
+            return new LearningToRankConfig(numTopFeatureImportanceValues, learningToRankFeatureExtractorBuilders, paramsDefaults);
         }
     }
 }

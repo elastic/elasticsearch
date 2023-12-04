@@ -17,7 +17,7 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
-  requiresFeature 'es.learn_to_rank_feature_flag_enabled', Version.fromString("8.10.0")
+  requiresFeature 'es.learning_to_rank_feature_flag_enabled', Version.fromString("8.10.0")
 }
 
 if (BuildParams.inFipsJvm){

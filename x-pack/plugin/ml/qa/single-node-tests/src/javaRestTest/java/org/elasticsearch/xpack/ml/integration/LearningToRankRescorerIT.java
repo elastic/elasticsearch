@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LearnToRankRescorerIT extends InferenceTestCase {
+public class LearningToRankRescorerIT extends InferenceTestCase {
 
     private static final String MODEL_ID = "ltr-model";
     private static final String INDEX_NAME = "store";
@@ -30,7 +30,7 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
               "description": "super complex model for tests",
               "input": {"field_names": ["cost", "product"]},
               "inference_config": {
-                "learn_to_rank": {
+                "learning_to_rank": {
                   "feature_extractors": [
                     {
                       "query_extractor": {
@@ -196,13 +196,13 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
         adminClient().performRequest(new Request("POST", INDEX_NAME + "/_refresh"));
     }
 
-    public void testLearnToRankRescore() throws Exception {
+    public void testLearningToRankRescore() throws Exception {
         Request request = new Request("GET", "store/_search?size=3&error_trace");
         request.setJsonEntity("""
             {
               "rescore": {
                 "window_size": 10,
-                "learn_to_rank": { "model_id": "ltr-model" }
+                "learning_to_rank": { "model_id": "ltr-model" }
               }
             }""");
         assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 17.0));
@@ -211,7 +211,7 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
               "query": { "term": { "product": "Laptop" } },
               "rescore": {
                 "window_size": 10,
-                "learn_to_rank": {
+                "learning_to_rank": {
                   "model_id": "ltr-model",
                   "params": {
                     "keyword": "Laptop"
@@ -225,25 +225,25 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
               "query": {"term": { "product": "Laptop" } },
               "rescore": {
                 "window_size": 10,
-                "learn_to_rank": { "model_id": "ltr-model"}
+                "learning_to_rank": { "model_id": "ltr-model"}
               }
             }""");
         assertHitScores(client().performRequest(request), List.of(9.0, 9.0, 6.0));
     }
 
-    public void testLearnToRankRescoreSmallWindow() throws Exception {
+    public void testLearningToRankRescoreSmallWindow() throws Exception {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
             {
               "rescore": {
                 "window_size": 2,
-                "learn_to_rank": { "model_id": "ltr-model" }
+                "learning_to_rank": { "model_id": "ltr-model" }
               }
             }""");
         assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 1.0, 1.0, 1.0));
     }
 
-    public void testLearnToRankRescorerWithChainedRescorers() throws IOException {
+    public void testLearningToRankRescorerWithChainedRescorers() throws IOException {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
             {
@@ -254,7 +254,7 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
                    },
                    {
                      "window_size": 3,
-                     "learn_to_rank": { "model_id": "ltr-model" }
+                     "learning_to_rank": { "model_id": "ltr-model" }
                    },
                    {
                      "window_size": 2,

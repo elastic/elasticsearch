@@ -32,17 +32,17 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
-public class LearnToRankRescorer implements Rescorer {
+public class LearningToRankRescorer implements Rescorer {
 
-    public static final LearnToRankRescorer INSTANCE = new LearnToRankRescorer();
-    private static final Logger logger = LogManager.getLogger(LearnToRankRescorer.class);
+    public static final LearningToRankRescorer INSTANCE = new LearningToRankRescorer();
+    private static final Logger logger = LogManager.getLogger(LearningToRankRescorer.class);
 
     private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
         int cmp = Float.compare(o2.score, o1.score);
         return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
     };
 
-    private LearnToRankRescorer() {
+    private LearningToRankRescorer() {
 
     }
 
@@ -51,7 +51,7 @@ public class LearnToRankRescorer implements Rescorer {
         if (topDocs.scoreDocs.length == 0) {
             return topDocs;
         }
-        LearnToRankRescorerContext ltrRescoreContext = (LearnToRankRescorerContext) rescoreContext;
+        LearningToRankRescorerContext ltrRescoreContext = (LearningToRankRescorerContext) rescoreContext;
         if (ltrRescoreContext.regressionModelDefinition == null) {
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
         }
@@ -104,7 +104,7 @@ public class LearnToRankRescorer implements Rescorer {
         for (int i = 0; i < hitsToRescore.length; i++) {
             Map<String, Object> features = docFeatures.get(i);
             try {
-                InferenceResults results = definition.inferLtr(features, ltrRescoreContext.learnToRankConfig);
+                InferenceResults results = definition.inferLtr(features, ltrRescoreContext.learningToRankConfig);
                 if (results instanceof WarningInferenceResults warningInferenceResults) {
                     logger.warn("Failure rescoring doc, warning returned [" + warningInferenceResults.getWarning() + "]");
                 } else if (results.predictedValue() instanceof Number prediction) {

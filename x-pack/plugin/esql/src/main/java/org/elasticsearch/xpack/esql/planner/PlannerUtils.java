@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -24,12 +27,15 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.Queries;
 
@@ -163,5 +169,57 @@ public class PlannerUtils {
         });
 
         return Queries.combine(FILTER, asList(requestFilter));
+    }
+
+    /**
+     * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
+     * This specifically excludes GEO_POINT and CARTESIAN_POINT, which are backed by DataType.LONG
+     * but are not themselves sortable (the long can be sorted, but the sort order is not usually useful).
+     */
+    public static ElementType toSortableElementType(DataType dataType) {
+        if (dataType == EsqlDataTypes.GEO_POINT || dataType == EsqlDataTypes.CARTESIAN_POINT) {
+            return ElementType.UNKNOWN;
+        }
+        return toElementType(dataType);
+    }
+
+    /**
+     * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
+     */
+    public static ElementType toElementType(DataType dataType) {
+        if (dataType == DataTypes.LONG || dataType == DataTypes.DATETIME || dataType == DataTypes.UNSIGNED_LONG) {
+            return ElementType.LONG;
+        }
+        if (dataType == DataTypes.INTEGER) {
+            return ElementType.INT;
+        }
+        if (dataType == DataTypes.DOUBLE) {
+            return ElementType.DOUBLE;
+        }
+        // unsupported fields are passed through as a BytesRef
+        if (dataType == DataTypes.KEYWORD
+            || dataType == DataTypes.TEXT
+            || dataType == DataTypes.IP
+            || dataType == DataTypes.SOURCE
+            || dataType == DataTypes.VERSION
+            || dataType == DataTypes.UNSUPPORTED) {
+            return ElementType.BYTES_REF;
+        }
+        if (dataType == DataTypes.NULL) {
+            return ElementType.NULL;
+        }
+        if (dataType == DataTypes.BOOLEAN) {
+            return ElementType.BOOLEAN;
+        }
+        if (dataType == EsQueryExec.DOC_DATA_TYPE) {
+            return ElementType.DOC;
+        }
+        if (dataType == EsqlDataTypes.GEO_POINT) {
+            return ElementType.LONG;
+        }
+        if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
+            return ElementType.LONG;
+        }
+        throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 }

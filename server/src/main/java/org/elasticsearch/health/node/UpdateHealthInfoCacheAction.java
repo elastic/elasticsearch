@@ -62,6 +62,10 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
                 this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
             } else {
+                // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
+                // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
+                // before sending any requests to update the health info that'd break the pre HEALTH_INFO_ENRICHED_WITH_DSL_STATUS
+                // transport invariant of always having a disk health information in the request
                 this.diskHealthInfo = new DiskHealthInfo(in);
                 this.dslHealthInfo = null;
             }
@@ -92,6 +96,10 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 out.writeOptionalWriteable(diskHealthInfo);
                 out.writeOptionalWriteable(dslHealthInfo);
             } else {
+                // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
+                // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
+                // before sending any requests to update the health info that'd break the pre HEALTH_INFO_ENRICHED_WITH_DSL_STATUS
+                // transport invariant of always having a disk health information in the request
                 diskHealthInfo.writeTo(out);
             }
         }

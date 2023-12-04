@@ -56,8 +56,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-import static org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -506,6 +506,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("element_type", "foo")))
+        );
+        assertThat(e.getMessage(), containsString("invalid element_type [foo]; available types are "));
+        e = expectThrows(
+            MapperParsingException.class,
             () -> createDocumentMapper(
                 fieldMapping(
                     b -> b.field("type", "dense_vector")
@@ -514,18 +519,35 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                         .field("index", true)
                         .startObject("index_options")
                         .field("type", "hnsw")
-                        .field("ef_construction", 100)
+                        .startObject("foo")
+                        .endObject()
                         .endObject()
                 )
             )
         );
-        assertThat(e.getMessage(), containsString("[index_options] of type [hnsw] requires field [m] to be configured"));
-
+        assertThat(
+            e.getMessage(),
+            containsString("Failed to parse mapping: Mapping definition for [field] has unsupported parameters:  [foo : {}]")
+        );
         e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("element_type", "bytes")))
+            () -> createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 3)
+                        .field("element_type", "byte")
+                        .field("similarity", "l2_norm")
+                        .field("index", true)
+                        .startObject("index_options")
+                        .field("type", "int8_hnsw")
+                        .endObject()
+                )
+            )
         );
-        assertThat(e.getMessage(), containsString("invalid element_type [bytes]; available types are "));
+        assertThat(
+            e.getMessage(),
+            containsString("Failed to parse mapping: [element_type] cannot be [byte] when using index type [int8_hnsw]")
+        );
     }
 
     public void testInvalidParametersBeforeIndexedByDefault() {
@@ -1052,6 +1074,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testKnnVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
+        boolean setM = randomBoolean();
+        boolean setEfConstruction = randomBoolean();
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", 4);
@@ -1059,19 +1083,59 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("similarity", "dot_product");
             b.startObject("index_options");
             b.field("type", "hnsw");
-            b.field("m", m);
-            b.field("ef_construction", efConstruction);
+            if (setM) {
+                b.field("m", m);
+            }
+            if (setEfConstruction) {
+                b.field("ef_construction", efConstruction);
+            }
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        String expectedString = "Lucene95HnswVectorsFormat(name=Lucene95HnswVectorsFormat, maxConn="
+        String expectedString = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn="
+            + (setM ? m : DEFAULT_MAX_CONN)
+            + ", beamWidth="
+            + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
+            + ", flatVectorFormat=Lucene99FlatVectorsFormat()"
+            + ")";
+        assertEquals(expectedString, knnVectorsFormat.toString());
+    }
+
+    public void testKnnQuantizedHNSWVectorsFormat() throws IOException {
+        final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
+        final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
+        boolean setConfidenceInterval = randomBoolean();
+        float confidenceInterval = (float) randomDoubleBetween(0.90f, 1.0f, true);
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 4);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "int8_hnsw");
+            b.field("m", m);
+            b.field("ef_construction", efConstruction);
+            if (setConfidenceInterval) {
+                b.field("confidence_interval", confidenceInterval);
+            }
+            b.endObject();
+        }));
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        Codec codec = codecService.codec("default");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        String expectedString = "Lucene99HnswScalarQuantizedVectorsFormat(name=Lucene99HnswScalarQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
-            + ")";
+            + ", flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat("
+            + "name=Lucene99ScalarQuantizedVectorsFormat, confidenceInterval="
+            + (setConfidenceInterval ? confidenceInterval : null)
+            + ", rawVectorFormat=Lucene99FlatVectorsFormat()"
+            + "))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 

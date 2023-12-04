@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -186,6 +187,15 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 && Objects.equals(config, other.config)
                 && Objects.equals(authState, other.authState)
                 && getTimeout().equals(other.getTimeout());
+        }
+
+        @Override
+        public boolean match(Task task) {
+            if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
+                String taskId = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
+                return taskId.equals(this.id);
+            }
+            return false;
         }
     }
 

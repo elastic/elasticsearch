@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.TOKEN_GROUPS;
 import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.convertToString;
@@ -31,12 +32,20 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJE
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
 
 public class LdapMetadataResolver {
-
     private final String[] attributeNames;
     private final boolean ignoreReferralErrors;
 
     public LdapMetadataResolver(RealmConfig realmConfig, boolean ignoreReferralErrors) {
-        this(realmConfig.getSetting(LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), ignoreReferralErrors);
+        this(
+            Stream.concat(
+                realmConfig.getSetting(LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING).stream(),
+                Stream.of(
+                    realmConfig.getSetting(LdapMetadataResolverSettings.FULL_NAME_SETTING),
+                    realmConfig.getSetting(LdapMetadataResolverSettings.EMAIL_SETTING)
+                )
+            ).collect(Collectors.toSet()),
+            ignoreReferralErrors
+        );
     }
 
     LdapMetadataResolver(Collection<String> attributeNames, boolean ignoreReferralErrors) {

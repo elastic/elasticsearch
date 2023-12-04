@@ -206,6 +206,32 @@ uid: jhallett
 mail: jhallett@royalnavy.mod.uk
 userpassword: pass
 
+dn: cn=John Samuel,ou=people,o=sevenSeas
+objectclass: person
+objectclass: organizationalPerson
+objectclass: inetOrgPerson
+objectclass: top
+cn: John Samuel
+description: Clerk John Samuel
+givenname: John
+manager: cn=William Bligh,ou=people,o=sevenSeas
+sn: Samuel
+uid: jsamuel
+userpassword: pass
+
+dn: cn=William Cole,ou=people,o=sevenSeas
+objectclass: person
+objectclass: organizationalPerson
+objectclass: inetOrgPerson
+objectclass: top
+cn: William Cole
+description: William Mark Cole
+givenname: William
+manager: cn=William Bligh,ou=people,o=sevenSeas
+sn: Cole
+uid: wcole@royalnavy.mod.uk
+userpassword: pass
+
 dn: cn=HMS Bounty,ou=crews,ou=groups,o=sevenSeas
 objectclass: groupOfUniqueNames
 objectclass: top

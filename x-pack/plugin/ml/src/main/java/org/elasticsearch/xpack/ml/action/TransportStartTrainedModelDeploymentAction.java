@@ -551,7 +551,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     /*
     @param timeout null value indicates that the request should not wait for the download to complete before returning
      */
-    static void step1CheckForDownloadTask(
+    private static void step1CheckForDownloadTask(
         OriginSettingClient mlOriginClient,
         boolean errorIfDefinitionIsMissing,
         TimeValue timeout,

@@ -228,9 +228,15 @@ setup:
           	"field_names": ["text_field"]
             }
           }
-
   - do:
       catch: /Model download task is currently running\. Wait for trained model \[.elser_model_2\] download task to complete then try again/
+      ml.start_trained_model_deployment:
+        model_id: .elser_model_2
+  - do:
+      ml.delete_trained_model:
+        model_id: .elser_model_2
+  - do:
+      catch: /No known trained model with model_id \[.elser_model_2\]/
       ml.start_trained_model_deployment:
         model_id: .elser_model_2
 ---

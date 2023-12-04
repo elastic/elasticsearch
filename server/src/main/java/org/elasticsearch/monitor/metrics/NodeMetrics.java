@@ -31,7 +31,7 @@ import java.util.List;
  * and more. The metrics are periodically updated based on a schedule.
  */
 public class NodeMetrics extends AbstractLifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(NodeMetrics.class);
+    private final Logger logger = LogManager.getLogger(NodeMetrics.class);
     private final MeterRegistry registry;
     private final NodeService nodeService;
     private final List<AutoCloseable> metrics;

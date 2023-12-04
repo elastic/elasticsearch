@@ -294,18 +294,19 @@ include::repository-shared-settings.asciidoc[]
 
 `storage_class`::
 
-    Sets the S3 storage class for objects stored in the snapshot repository.
+    Sets the S3 storage class for data objects written to the repository.
     Values may be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia`
-    and `intelligent_tiering`. Defaults to `standard`. Changing this setting on
-    an existing repository only affects the storage class for newly created
-    objects, resulting in a mixed usage of storage classes. You may use an S3
-    Lifecycle Policy to adjust the storage class of existing objects in your
-    repository, but you must not transition objects to Glacier classes and you
-    must not expire objects. If you use Glacier storage classes or object
-    expiry then you may permanently lose access to your repository contents.
-    For more information about S3 storage classes, see
-    https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
-    Storage Classes Guide]
+    and `intelligent_tiering`. Defaults to `standard`. See
+    <<repository-s3-storage-classes>> for more information.
+
+`metadata_storage_class`::
+
+    Sets the S3 storage class for metadata objects written to the repository,
+    if advanced storage tiering is in use. Values may be `standard`,
+    `reduced_redundancy`, `standard_ia`, `onezone_ia` and
+    `intelligent_tiering`. If unset, metadata objects use the same storage
+    class as data objects, as set by the `storage_class` setting. See
+    <<repository-s3-storage-classes>> for more information.
 
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future
@@ -336,6 +337,43 @@ PUT _snapshot/my_s3_repository
 This sets up a repository that uses all client settings from the client
 `my_client_name` except for the `endpoint` that is overridden to
 `my.s3.endpoint` by the repository settings.
+`
+[[repository-s3-storage-classes]]
+==== S3 storage classes
+
+Amazon S3 supports a variety of  _storage classes_, each of which offers
+different operational characteristics. For instance, some classes cost less per
+byte stored per month, but cost more per request, and other classes may vary in
+terms of their availability guarantees.
+
+{es} writes two different kinds of object to a S3 repository, known as _data
+objects_ and _metadata objects_. Data objects contain a copy of the data in
+your indices, which means that data objects typically make up the majority of
+the data volume held in a repository. Metadata objects contain information
+about the data objects, for example details about the snapshots to which they
+belong and when each of those snapshots was taken, and are usually much smaller
+than the data objects. However, every operation on a repository will access one
+or more metadata objects, which means that typically the majority of requests
+to a repository will target metadata objects.
+
+You may specify the storage class that {es} uses to store data objects with the
+`storage_class` repository setting. If advanced storage tiering is in use you
+may also specify a different storage class for metadata objects with the
+`metadata_storage_class` repository setting. The `standard` storage class is
+well-suited to metadata objects since they are small and accessed frequently.
+In contrast, the larger data objects are accessed less frequently so a
+different storage class may be more suitable.
+
+Changing the `storage_class` or `metadata_storage_class` setting on an existing
+repository only affects the storage class for newly created objects, resulting
+in a mixed usage of storage classes. You may use an S3 Lifecycle Policy to
+adjust the storage class of existing objects in your repository, but you must
+not transition objects to an unsupported class such as the Glacier classes, and
+you must not expire objects. If you use a Glacier storage class, or another
+unsupported storage class, or object expiry, then you may permanently lose
+access to your repository contents. For more information about S3 storage
+classes, see
+https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide].
 
 [[repository-s3-permissions]]
 ==== Recommended S3 permissions

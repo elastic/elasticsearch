@@ -83,7 +83,7 @@ class S3BlobStore implements BlobStore {
 
     private final CannedAccessControlList cannedACL;
 
-    private final StorageClass storageClass;
+    private final S3StorageClassStrategy storageClassStrategy;
 
     private final RepositoryMetadata repositoryMetadata;
 
@@ -110,7 +110,7 @@ class S3BlobStore implements BlobStore {
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
-        String storageClass,
+        S3StorageClassStrategy storageClassStrategy,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
@@ -122,7 +122,7 @@ class S3BlobStore implements BlobStore {
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
-        this.storageClass = initStorageClass(storageClass);
+        this.storageClassStrategy = storageClassStrategy;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
@@ -377,8 +377,8 @@ class S3BlobStore implements BlobStore {
         return cannedACL;
     }
 
-    public StorageClass getStorageClass() {
-        return storageClass;
+    public StorageClass getStorageClass(OperationPurpose purpose) {
+        return storageClassStrategy.getStorageClass(purpose);
     }
 
     public static StorageClass initStorageClass(String storageClass) {

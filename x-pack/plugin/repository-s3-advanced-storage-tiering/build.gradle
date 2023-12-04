@@ -1,0 +1,24 @@
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+esplugin {
+  name 'repository-s3-advanced-storage-tiering'
+  description 'A plugin that implements advanced storage tiering for S3 repositories'
+  classname 'org.elasticsearch.repositories.s3.advancedstoragetiering.S3AdvancedStorageTieringPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+base {
+  archivesName = 'x-pack-repository-s3-advanced-storage-tiering'
+}
+
+dependencies {
+  implementation project(':modules:repository-s3')
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'))
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+addQaCheckDependencies(project)

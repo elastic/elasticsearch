@@ -90,7 +90,9 @@ class S3Service implements Closeable {
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
 
-    S3Service(Environment environment, Settings nodeSettings) {
+    private final S3StorageClassStrategyProvider storageClassStrategyProvider;
+
+    S3Service(Environment environment, Settings nodeSettings, S3StorageClassStrategyProvider storageClassStrategyProvider) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
@@ -99,6 +101,7 @@ class S3Service implements Closeable {
         );
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
+        this.storageClassStrategyProvider = storageClassStrategyProvider;
     }
 
     /**
@@ -282,6 +285,10 @@ class S3Service implements Closeable {
     public void close() throws IOException {
         releaseCachedClients();
         webIdentityTokenCredentialsProvider.shutdown();
+    }
+
+    public S3StorageClassStrategy getStorageClassStrategy(Settings settings) {
+        return storageClassStrategyProvider.getS3StorageClassStrategy(settings);
     }
 
     static class PrivilegedAWSCredentialsProvider implements AWSCredentialsProvider {

@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;

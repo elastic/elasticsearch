@@ -208,9 +208,7 @@ public final class ConnectorTestUtils {
     public static ConnectorConfiguration getRandomConnectorConfigurationField() {
         return new ConnectorConfiguration.Builder().setCategory(randomAlphaOfLength(10))
             .setDefaultValue(randomConnectorConfigurationValue())
-            .setDependsOn(
-                List.of(getRandomConfigurationDependency(), getRandomConfigurationDependency(), getRandomConfigurationDependency())
-            )
+            .setDependsOn(List.of(getRandomConfigurationDependency()))
             .setDisplay(getRandomConfigurationDisplayType())
             .setLabel(randomAlphaOfLength(10))
             .setOptions(List.of(getRandomConfigurationSelectOption(), getRandomConfigurationSelectOption()))
@@ -221,14 +219,14 @@ public final class ConnectorTestUtils {
             .setTooltip(randomAlphaOfLength(10))
             .setType(getRandomConfigurationFieldType())
             .setUiRestrictions(List.of(randomAlphaOfLength(10), randomAlphaOfLength(10)))
-            .setValidations(List.of(getRandomConfigurationValidation(), getRandomConfigurationValidation()))
+            .setValidations(List.of(getRandomConfigurationValidation()))
             .setValue(randomConnectorConfigurationValue())
             .build();
     }
 
     public static Map<String, ConnectorConfiguration> getRandomConnectorConfiguration() {
         Map<String, ConnectorConfiguration> configMap = new HashMap<>();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 3; i++) {
             configMap.put(randomAlphaOfLength(10), getRandomConnectorConfigurationField());
         }
         return configMap;

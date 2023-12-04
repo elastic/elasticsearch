@@ -73,7 +73,10 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         DocWriteResponse resp = awaitPutConnector(connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
-        Map<String, ConnectorConfiguration> connectorConfiguration = ConnectorTestUtils.getRandomConnectorConfiguration();
+        Map<String, ConnectorConfiguration> connectorConfiguration = connector.getConfiguration()
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> ConnectorTestUtils.getRandomConnectorConfigurationField()));
 
         UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
             connector.getConnectorId(),

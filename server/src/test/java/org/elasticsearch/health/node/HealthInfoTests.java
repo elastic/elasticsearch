@@ -31,7 +31,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 : new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()));
             diskInfoByNode.put(randomAlphaOfLengthBetween(10, 100), diskHealthInfo);
         }
-        return new HealthInfo(diskInfoByNode, randomDslHealthInfo());
+        return new HealthInfo(diskInfoByNode, randomBoolean() ? randomDslHealthInfo() : null);
     }
 
     @Override

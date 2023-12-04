@@ -27,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
@@ -216,6 +217,40 @@ public class ConnectorSyncJobIndexService {
                         return;
                     }
                     l.onResponse(updateResponse);
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Gets the {@link ConnectorSyncJob} from the underlying index.
+     *
+     * @param connectorSyncJobId The id of the connector sync job object.
+     * @param listener           The action listener to invoke on response/failure.
+     */
+    public void getConnectorSyncJob(String connectorSyncJobId, ActionListener<ConnectorSyncJob> listener) {
+        final GetRequest getRequest = new GetRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(connectorSyncJobId).realtime(true);
+
+        try {
+            clientWithOrigin.get(
+                getRequest,
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, getResponse) -> {
+                    if (getResponse.isExists() == false) {
+                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        return;
+                    }
+
+                    try {
+                        final ConnectorSyncJob syncJob = ConnectorSyncJob.fromXContentBytes(
+                            getResponse.getSourceAsBytesRef(),
+                            XContentType.JSON
+                        );
+                        l.onResponse(syncJob);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                 })
             );
         } catch (Exception e) {

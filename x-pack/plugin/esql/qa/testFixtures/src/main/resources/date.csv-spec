@@ -725,3 +725,84 @@ birth_date:datetime
 1952-02-27T00:00:00.000Z
 1953-04-21T00:00:00.000Z
 ;
+
+
+docsAutoBucketMonth
+//tag::docsAutoBucketMonth[]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| EVAL month = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| KEEP hire_date, month
+| SORT hire_date
+//end::docsAutoBucketMonth[]
+;
+
+//tag::docsAutoBucketMonth-result[]
+   hire_date:date    |    month:date
+1985-02-18T00:00:00.000Z|1985-02-01T00:00:00.000Z
+1985-02-24T00:00:00.000Z|1985-02-01T00:00:00.000Z
+1985-05-13T00:00:00.000Z|1985-05-01T00:00:00.000Z
+1985-07-09T00:00:00.000Z|1985-07-01T00:00:00.000Z
+1985-09-17T00:00:00.000Z|1985-09-01T00:00:00.000Z
+1985-10-14T00:00:00.000Z|1985-10-01T00:00:00.000Z
+1985-10-20T00:00:00.000Z|1985-10-01T00:00:00.000Z
+1985-11-19T00:00:00.000Z|1985-11-01T00:00:00.000Z
+1985-11-20T00:00:00.000Z|1985-11-01T00:00:00.000Z
+1985-11-20T00:00:00.000Z|1985-11-01T00:00:00.000Z
+1985-11-21T00:00:00.000Z|1985-11-01T00:00:00.000Z
+//end::docsAutoBucketMonth-result[]
+;
+
+docsAutoBucketMonthlyHistogram
+//tag::docsAutoBucketMonthlyHistogram[]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| EVAL month = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| STATS hires_per_month = COUNT(*) BY month
+| SORT month
+//end::docsAutoBucketMonthlyHistogram[]
+;
+
+//tag::docsAutoBucketMonthlyHistogram-result[]
+  hires_per_month:integer    |    month:date
+2              |1985-02-01T00:00:00.000Z
+1              |1985-05-01T00:00:00.000Z
+1              |1985-07-01T00:00:00.000Z
+1              |1985-09-01T00:00:00.000Z
+2              |1985-10-01T00:00:00.000Z
+4              |1985-11-01T00:00:00.000Z
+//end::docsAutoBucketMonthlyHistogram-result[]
+;
+
+docsAutoBucketWeeklyHistogram
+//tag::docsAutoBucketWeeklyHistogram[]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| EVAL week = AUTO_BUCKET(hire_date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| STATS hires_per_week = COUNT(*) BY week
+| SORT week
+//end::docsAutoBucketWeeklyHistogram[]
+;
+
+//tag::docsAutoBucketWeeklyHistogram-result[]
+  hires_per_week:integer    |    week:date
+2              |1985-02-18T00:00:00.000Z
+1              |1985-05-13T00:00:00.000Z
+1              |1985-07-08T00:00:00.000Z
+1              |1985-09-16T00:00:00.000Z
+2              |1985-10-14T00:00:00.000Z
+4              |1985-11-18T00:00:00.000Z
+//end::docsAutoBucketWeeklyHistogram-result[]
+;
+
+docsAutoBucketLast24hr
+//tag::docsAutoBucketLast24hr[]
+FROM sample_data 
+| WHERE @timestamp >= NOW() - 1 day and @timestamp < NOW()
+| EVAL bucket = AUTO_BUCKET(@timestamp, 25, DATE_FORMAT(NOW() - 1 day), DATE_FORMAT(NOW()))
+| STATS COUNT(*) BY bucket
+//end::docsAutoBucketLast24hr[]
+;
+
+   COUNT(*):integer    |    bucket:date
+;

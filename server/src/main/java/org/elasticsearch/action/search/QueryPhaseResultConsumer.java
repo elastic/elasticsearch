@@ -12,12 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -37,7 +37,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
@@ -570,13 +572,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         AtomicReference<TotalHits.Relation> relationAtomicReference = new AtomicReference<>(TotalHits.Relation.EQUAL_TO);
         LongAdder totalHits = new LongAdder();
 
-        private final FixedBitSet results;
+        private final AtomicBoolean terminatedEarly = new AtomicBoolean(false);
+        private final AtomicBoolean timedOut = new AtomicBoolean(false);
+        private final Set<Integer> results;
         private final SearchProgressListener progressListener;
 
         CountOnlyQueryPhaseResultConsumer(SearchProgressListener progressListener, int numShards) {
             super(numShards);
             this.progressListener = progressListener;
-            this.results = new FixedBitSet(numShards + 1);
+            this.results = Collections.newSetFromMap(Maps.newConcurrentHashMapWithExpectedSize(numShards));
         }
 
         @Override
@@ -586,21 +590,23 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         @Override
         public void consumeResult(SearchPhaseResult result, Runnable next) {
-            assert results.get(result.getShardIndex()) == false : "shardIndex: " + result.getShardIndex() + " is already set";
-            results.set(result.getShardIndex());
+            assert results.contains(result.getShardIndex()) == false : "shardIndex: " + result.getShardIndex() + " is already set";
+            results.add(result.getShardIndex());
             // set the relation to the first non-equal relation
             relationAtomicReference.compareAndSet(TotalHits.Relation.EQUAL_TO, result.queryResult().getTotalHits().relation);
             totalHits.add(result.queryResult().getTotalHits().value);
+            terminatedEarly.compareAndSet(
+                false,
+                (result.queryResult().terminatedEarly() != null && result.queryResult().terminatedEarly())
+            );
+            timedOut.compareAndSet(false, result.queryResult().searchTimedOut());
             progressListener.notifyQueryResult(result.getShardIndex(), result.queryResult());
             next.run();
         }
 
         @Override
         boolean hasResult(int shardIndex) {
-            if (shardIndex >= results.length()) {
-                return false;
-            }
-            return results.get(shardIndex);
+            return results.contains(shardIndex);
         }
 
         @Override
@@ -609,8 +615,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 new TotalHits(totalHits.sum(), relationAtomicReference.get()),
                 0,
                 Float.NaN,
-                false,
-                false,
+                timedOut.get(),
+                terminatedEarly.get(),
                 null,
                 null,
                 null,

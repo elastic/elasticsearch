@@ -20,16 +20,15 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -196,9 +195,7 @@ public class ProfileServiceTests extends ESTestCase {
         );
         this.client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        when(client.prepareSearch(SECURITY_PROFILE_ALIAS)).thenReturn(
-            new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(SECURITY_PROFILE_ALIAS)
-        );
+        when(client.prepareSearch(SECURITY_PROFILE_ALIAS)).thenReturn(new SearchRequestBuilder(client).setIndices(SECURITY_PROFILE_ALIAS));
         this.profileIndex = SecurityMocks.mockSecurityIndexManager(SECURITY_PROFILE_ALIAS);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
@@ -585,19 +582,20 @@ public class ProfileServiceTests extends ESTestCase {
             );
             @SuppressWarnings("unchecked")
             final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(
-                new MultiSearchResponse(
-                    new MultiSearchResponse.Item[] {
-                        new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
-                    1L
-                )
+            var resp = new MultiSearchResponse(
+                new MultiSearchResponse.Item[] {
+                    new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
+                1L
             );
+            try {
+                listener.onResponse(resp);
+            } finally {
+                resp.decRef();
+            }
             return null;
-        }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
 
-        when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenReturn(
-            new IndexRequestBuilder(client, IndexAction.INSTANCE, SECURITY_PROFILE_ALIAS)
-        );
+        when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenReturn(new IndexRequestBuilder(client, SECURITY_PROFILE_ALIAS));
 
         final RuntimeException expectedException = new RuntimeException("expected");
         doAnswer(invocation -> {
@@ -639,7 +637,7 @@ public class ProfileServiceTests extends ESTestCase {
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(SearchRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
         final PlainActionFuture<SuggestProfilesResponse> future3 = new PlainActionFuture<>();
         profileService.suggestProfile(
             new SuggestProfilesRequest(Set.of(), "", 1, null),
@@ -892,14 +890,8 @@ public class ProfileServiceTests extends ESTestCase {
     public void testActivateWhenShouldSkipUpdateForActivateReturnsTrue() throws IOException {
         final ProfileService service = spy(profileService);
 
-        doAnswer(
-            invocation -> new UpdateRequestBuilder(
-                client,
-                UpdateAction.INSTANCE,
-                SECURITY_PROFILE_ALIAS,
-                (String) invocation.getArguments()[1]
-            )
-        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+        doAnswer(invocation -> new UpdateRequestBuilder(client, SECURITY_PROFILE_ALIAS, (String) invocation.getArguments()[1])).when(client)
+            .prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
 
         final UpdateResponse updateResponse = mock(UpdateResponse.class);
         when(updateResponse.getPrimaryTerm()).thenReturn(randomNonNegativeLong());
@@ -928,14 +920,8 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testActivateWhenShouldSkipUpdateForActivateReturnsFalseFirst() throws IOException {
         final ProfileService service = spy(profileService);
-        doAnswer(
-            invocation -> new UpdateRequestBuilder(
-                client,
-                UpdateAction.INSTANCE,
-                SECURITY_PROFILE_ALIAS,
-                (String) invocation.getArguments()[1]
-            )
-        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+        doAnswer(invocation -> new UpdateRequestBuilder(client, SECURITY_PROFILE_ALIAS, (String) invocation.getArguments()[1])).when(client)
+            .prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
 
         // Throw version conflict on update to force GET document
         final Exception updateException;
@@ -990,14 +976,8 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testActivateWhenGetRequestErrors() throws IOException {
         final ProfileService service = spy(profileService);
-        doAnswer(
-            invocation -> new UpdateRequestBuilder(
-                client,
-                UpdateAction.INSTANCE,
-                SECURITY_PROFILE_ALIAS,
-                (String) invocation.getArguments()[1]
-            )
-        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+        doAnswer(invocation -> new UpdateRequestBuilder(client, SECURITY_PROFILE_ALIAS, (String) invocation.getArguments()[1])).when(client)
+            .prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
 
         // Throw version conflict on update to force GET document
         final var versionConflictEngineException = new VersionConflictEngineException(mock(ShardId.class), "", "");
@@ -1058,18 +1038,21 @@ public class ProfileServiceTests extends ESTestCase {
         }).toArray(MultiSearchResponse.Item[]::new);
 
         final MultiSearchResponse multiSearchResponse = new MultiSearchResponse(items, randomNonNegativeLong());
+        try {
+            doAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(multiSearchResponse);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
 
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
-            listener.onResponse(multiSearchResponse);
-            return null;
-        }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
-
-        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, MultiSearchAction.INSTANCE));
-        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
-        profileService.usageStats(future);
-        assertThat(future.actionGet(), equalTo(metrics));
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+            final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+            profileService.usageStats(future);
+            assertThat(future.actionGet(), equalTo(metrics));
+        } finally {
+            multiSearchResponse.decRef();
+        }
     }
 
     public void testUsageStatsWhenNoIndex() {

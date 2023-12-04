@@ -21,6 +21,8 @@ import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -109,6 +111,7 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -288,9 +291,15 @@ public abstract class ESRestTestCase extends ESTestCase {
 
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
+            // Historical features information is unavailable when using legacy test plugins
+            boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
+            var providers = hasHistoricalFeaturesInformation
+                ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
+                : List.of(new RestTestLegacyFeatures());
+
             testFeatureService = new TestFeatureService(
-                // TODO (ES-7313): add new ESRestTestCaseHistoricalFeatures() too
-                List.of(new RestTestLegacyFeatures()),
+                hasHistoricalFeaturesInformation,
+                providers,
                 semanticNodeVersions,
                 ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures().values())
             );
@@ -1920,7 +1929,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("elastic-connectors")) {
             return true;
         }
-        if (name.contains("@")) {
+        if (name.contains("@") && name.endsWith("@custom") == false) {
             // We have a naming convention that internal component templates contain `@`. See also index-templates.asciidoc.
             return true;
         }
@@ -2101,7 +2110,53 @@ public abstract class ESRestTestCase extends ESTestCase {
         return minVersion;
     }
 
-    private static Optional<Version> parseLegacyVersion(String version) {
+    /**
+     * Returns the minimum transport version among all nodes of the cluster
+     */
+    protected static TransportVersion minimumTransportVersion() throws IOException {
+        Response response = client.performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+
+        TransportVersion minTransportVersion = null;
+        for (String id : nodesAsMap.keySet()) {
+
+            var transportVersion = getTransportVersionWithFallback(
+                objectPath.evaluate("nodes." + id + ".version"),
+                objectPath.evaluate("nodes." + id + ".transport_version"),
+                () -> TransportVersions.MINIMUM_COMPATIBLE
+            );
+            if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
+                minTransportVersion = transportVersion;
+            }
+        }
+
+        assertNotNull(minTransportVersion);
+        return minTransportVersion;
+    }
+
+    protected static TransportVersion getTransportVersionWithFallback(
+        String versionField,
+        Object transportVersionField,
+        Supplier<TransportVersion> fallbackSupplier
+    ) {
+        if (transportVersionField instanceof Number transportVersionId) {
+            return TransportVersion.fromId(transportVersionId.intValue());
+        } else if (transportVersionField instanceof String transportVersionString) {
+            return TransportVersion.fromString(transportVersionString);
+        } else { // no transport_version field
+            // The response might be from a node <8.8.0, but about a node >=8.8.0
+            // In that case the transport_version field won't exist. Use version, but only for <8.8.0: after that versions diverge.
+            var version = parseLegacyVersion(versionField);
+            assert version.isPresent();
+            if (version.get().before(Version.V_8_8_0)) {
+                return TransportVersion.fromId(version.get().id);
+            }
+        }
+        return fallbackSupplier.get();
+    }
+
+    protected static Optional<Version> parseLegacyVersion(String version) {
         var semanticVersionMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
         if (semanticVersionMatcher.matches()) {
             return Optional.of(Version.fromString(semanticVersionMatcher.group(1)));

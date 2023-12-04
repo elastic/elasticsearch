@@ -13,9 +13,8 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.ConstantBooleanVector;
-import org.elasticsearch.compute.data.ConstantDoubleVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -54,11 +53,12 @@ class SumDoubleAggregator {
         }
     }
 
-    public static void evaluateIntermediate(SumState state, Block[] blocks, int offset) {
+    public static void evaluateIntermediate(SumState state, DriverContext driverContext, Block[] blocks, int offset) {
         assert blocks.length >= offset + 3;
-        blocks[offset + 0] = new ConstantDoubleVector(state.value(), 1).asBlock();
-        blocks[offset + 1] = new ConstantDoubleVector(state.delta(), 1).asBlock();
-        blocks[offset + 2] = new ConstantBooleanVector(state.seen, 1).asBlock();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        blocks[offset + 0] = blockFactory.newConstantDoubleBlockWith(state.value(), 1);
+        blocks[offset + 1] = blockFactory.newConstantDoubleBlockWith(state.delta(), 1);
+        blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(state.seen(), 1);
     }
 
     public static Block evaluateFinal(SumState state, DriverContext driverContext) {
@@ -143,8 +143,8 @@ class SumDoubleAggregator {
         }
 
         @Override
-        public void toIntermediate(Block[] blocks, int offset) {
-            SumDoubleAggregator.evaluateIntermediate(this, blocks, offset);
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+            SumDoubleAggregator.evaluateIntermediate(this, driverContext, blocks, offset);
         }
 
         @Override

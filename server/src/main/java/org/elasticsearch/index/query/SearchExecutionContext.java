@@ -349,6 +349,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * If field is a leaf multi-field return the path to the parent field. Otherwise, return null.
+     */
+    public String parentPath(String field) {
+        return mappingLookup.parentField(field);
+    }
+
+    /**
      * Will there be {@code _source}.
      */
     public boolean isSourceEnabled() {

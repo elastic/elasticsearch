@@ -80,6 +80,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     @Override
     public IntBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values

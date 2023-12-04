@@ -17,11 +17,17 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -41,6 +47,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -143,6 +150,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -491,9 +499,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
      */
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexReader reader, AggTestConfig aggTestConfig)
-        throws IOException {
-        IndexSearcher searcher = newIndexSearcher(reader, aggTestConfig.builder.supportsParallelCollection());
+    protected <A extends InternalAggregation> A searchAndReduce(IndexReader reader, AggTestConfig aggTestConfig) throws IOException {
+        IndexSearcher searcher = newIndexSearcher(
+            reader,
+            aggTestConfig.builder.supportsParallelCollection(field -> getCardinality(reader, field))
+        );
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
@@ -798,7 +808,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         // Don't use searchAndReduce because we only want a single aggregator.
-        IndexSearcher searcher = newIndexSearcher(reader, aggregationBuilder.supportsParallelCollection());
+        IndexSearcher searcher = newIndexSearcher(
+            reader,
+            aggregationBuilder.supportsParallelCollection(field -> getCardinality(reader, field))
+        );
         if (queryCachingPolicy != null) {
             searcher.setQueryCachingPolicy(queryCachingPolicy);
         }
@@ -1335,6 +1348,40 @@ public abstract class AggregatorTestCase extends ESTestCase {
     @Override
     protected final NamedWriteableRegistry writableRegistry() {
         return namedWriteableRegistry;
+    }
+
+    long getCardinality(IndexReader reader, String field) {
+        try {
+            final TermsEnum[] subs = new TermsEnum[reader.leaves().size()];
+            final long[] weights = new long[reader.leaves().size()];
+            for (int i = 0; i < reader.leaves().size(); i++) {
+                LeafReaderContext context = reader.leaves().get(i);
+                FieldInfos fieldInfos = context.reader().getFieldInfos();
+                FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+                if (fieldInfo == null) {
+                    return -1;
+                }
+                switch (fieldInfo.getDocValuesType()) {
+                    case SORTED -> {
+                        SortedDocValues sortedDocValues = context.reader().getSortedDocValues(field);
+                        subs[i] = sortedDocValues.termsEnum();
+                        weights[i] = sortedDocValues.getValueCount();
+                    }
+                    case SORTED_SET -> {
+                        SortedSetDocValues sortedDocValues = context.reader().getSortedSetDocValues(field);
+                        subs[i] = sortedDocValues.termsEnum();
+                        weights[i] = sortedDocValues.getValueCount();
+                    }
+                    default -> {
+                        return -1;
+                    }
+                }
+            }
+            final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, weights, PackedInts.DEFAULT);
+            return ordinalMap.getValueCount();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

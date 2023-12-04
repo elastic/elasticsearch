@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
@@ -197,6 +198,7 @@ import org.elasticsearch.xpack.ml.action.TransportAuditMlNotificationAction;
 import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.ml.action.TransportClearDeploymentCacheAction;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
+import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
 import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
@@ -324,6 +326,7 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.InferenceRescorerFeature;
 import org.elasticsearch.xpack.ml.inference.ltr.LearnToRankRescorerBuilder;
+import org.elasticsearch.xpack.ml.inference.ltr.LearnToRankService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
@@ -759,6 +762,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlLifeCycleService> mlLifeCycleService = new SetOnce<>();
     private final SetOnce<CircuitBreaker> inferenceModelBreaker = new SetOnce<>();
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
+    private final SetOnce<LearnToRankService> learnToRankService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
@@ -887,8 +891,8 @@ public class MachineLearning extends Plugin
             return List.of(
                 new RescorerSpec<>(
                     LearnToRankRescorerBuilder.NAME,
-                    in -> new LearnToRankRescorerBuilder(in, modelLoadingService::get),
-                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, modelLoadingService::get)
+                    in -> new LearnToRankRescorerBuilder(in, learnToRankService.get()),
+                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, learnToRankService.get())
                 )
             );
         }
@@ -1116,6 +1120,11 @@ public class MachineLearning extends Plugin
             getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
+
+        this.learnToRankService.set(
+            new LearnToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
+        );
+
         this.deploymentManager.set(
             new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
         );
@@ -1566,6 +1575,7 @@ public class MachineLearning extends Plugin
                         TransportUpdateTrainedModelAssignmentStateAction.class
                     )
                 );
+                actionHandlers.add(new ActionHandler<>(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
             }
         }
         return actionHandlers;

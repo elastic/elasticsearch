@@ -35,6 +35,8 @@ import java.io.IOException;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public record ColumnInfo(String name, String type) implements Writeable {
 
@@ -158,6 +160,26 @@ public record ColumnInfo(String name, String type) implements Writeable {
                     throws IOException {
                     long longVal = ((LongBlock) block).getLong(valueIndex);
                     return builder.value(UTC_DATE_TIME_FORMATTER.formatMillis(longVal));
+                }
+            };
+            case "geo_point" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    // TODO Perhaps this is just a long for geo_point? And for more advanced types we need a new block type
+                    long encoded = ((LongBlock) block).getLong(valueIndex);
+                    String wkt = GEO.pointAsString(GEO.longAsPoint(encoded));
+                    return builder.value(wkt);
+                }
+            };
+            case "cartesian_point" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    // TODO Perhaps this is just a long for cartesian_point? And for more advanced types we need a new block type
+                    long encoded = ((LongBlock) block).getLong(valueIndex);
+                    String wkt = CARTESIAN.pointAsString(CARTESIAN.longAsPoint(encoded));
+                    return builder.value(wkt);
                 }
             };
             case "boolean" -> new PositionToXContent(block) {

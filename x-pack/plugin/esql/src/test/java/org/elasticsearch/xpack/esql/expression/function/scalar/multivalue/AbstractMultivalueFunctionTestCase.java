@@ -8,15 +8,18 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.NumericUtils;
+import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
@@ -26,10 +29,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     /**
@@ -373,6 +380,104 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.DATETIME, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))
+                );
+            }));
+        }
+    }
+
+    /**
+     * Build many test cases with {@code geo_point} values.
+     */
+    protected static void geoPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        geoPoints(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code geo_point} values that are converted to another type.
+     * For example, mv_count() can consume points and produce an integer count.
+     */
+    protected static void geoPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        points(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, GEO, ESTestCase::randomGeoPoint, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code cartesian_point} values.
+     */
+    protected static void cartesianPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        cartesianPoints(cases, name, evaluatorName, EsqlDataTypes.CARTESIAN_POINT, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code cartesian_point} values that are converted to another type.
+     * For example, mv_count() can consume points and produce an integer count.
+     */
+    protected static void cartesianPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        points(
+            cases,
+            name,
+            evaluatorName,
+            EsqlDataTypes.CARTESIAN_POINT,
+            expectedDataType,
+            CARTESIAN,
+            ESTestCase::randomCartesianPoint,
+            matcher
+        );
+    }
+
+    /**
+     * Build many test cases with either {@code geo_point} or {@code cartesian_point} values.
+     */
+    protected static void points(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType dataType,
+        DataType expectedDataType,
+        SpatialCoordinateTypes coordType,
+        Supplier<SpatialPoint> randomPoint,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        cases.add(new TestCaseSupplier(name + "(" + dataType.typeName() + ")", List.of(dataType), () -> {
+            SpatialPoint point = randomPoint.get();
+            long data = coordType.pointAsLong(point);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(data), dataType, "field")),
+                evaluatorName + "[field=Attribute[channel=0]]",
+                expectedDataType,
+                matcher.apply(1, LongStream.of(data))
+            );
+        }));
+        for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
+            cases.add(new TestCaseSupplier(name + "(<" + dataType.typeName() + "s>) " + ordering, List.of(dataType), () -> {
+                List<Long> mvData = randomList(1, 100, () -> coordType.pointAsLong(randomPoint.get()));
+                putInOrder(mvData, ordering);
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(mvData, dataType, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))

@@ -35,11 +35,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         WriteRequestBuilder<PutUserRequestBuilder> {
 
     public PutUserRequestBuilder(ElasticsearchClient client) {
-        this(client, PutUserAction.INSTANCE);
-    }
-
-    public PutUserRequestBuilder(ElasticsearchClient client, PutUserAction action) {
-        super(client, action, new PutUserRequest());
+        super(client, PutUserAction.INSTANCE, new PutUserRequest());
     }
 
     public PutUserRequestBuilder username(String username) {

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -60,7 +61,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -283,13 +283,13 @@ public class ShardStateAction {
         private static final String TASK_SOURCE = "shard-failed";
 
         @Override
-        public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) {
             logger.debug(() -> format("%s received shard failed for [%s]", request.getShardId(), request), request.failure);
-            var update = new FailedShardUpdateTask(
-                request,
-                new ChannelActionListener<>(channel).map(ignored -> TransportResponse.Empty.INSTANCE)
+            taskQueue.submitTask(
+                TASK_SOURCE,
+                new FailedShardUpdateTask(request, new ChannelActionListener<>(channel).map(ignored -> TransportResponse.Empty.INSTANCE)),
+                null
             );
-            taskQueue.submitTask(TASK_SOURCE, update, null);
         }
     }
 
@@ -423,7 +423,7 @@ public class ShardStateAction {
                 // The reroute called after failing some shards will not assign any shard back to the node on which it failed. If there were
                 // no other options for a failed shard then it is left unassigned. However, absent other options it's better to try and
                 // assign it again, even if that means putting it back on the node on which it previously failed:
-                final String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
+                final String reason = Strings.format("[%d] unassigned shards after failing shards", numberOfUnassignedShards);
                 logger.trace("{}, scheduling a reroute", reason);
                 rerouteService.reroute(
                     reason,
@@ -493,16 +493,15 @@ public class ShardStateAction {
 
         @Override
         public String toString() {
-            List<String> components = new ArrayList<>(6);
-            components.add("shard id [" + shardId + "]");
-            components.add("allocation id [" + allocationId + "]");
-            components.add("primary term [" + primaryTerm + "]");
-            components.add("message [" + message + "]");
-            components.add("markAsStale [" + markAsStale + "]");
-            if (failure != null) {
-                components.add("failure [" + ExceptionsHelper.stackTrace(failure) + "]");
-            }
-            return String.join(", ", components);
+            return Strings.format(
+                "FailedShardEntry{shardId [%s], allocationId [%s], primary term [%d], message [%s], markAsStale [%b], failure [%s]}",
+                shardId,
+                allocationId,
+                primaryTerm,
+                message,
+                markAsStale,
+                failure != null ? ExceptionsHelper.stackTrace(failure) : null
+            );
         }
 
         @Override
@@ -785,8 +784,7 @@ public class ShardStateAction {
 
         @Override
         public String toString() {
-            return String.format(
-                Locale.ROOT,
+            return Strings.format(
                 "StartedShardEntry{shardId [%s], allocationId [%s], primary term [%d], message [%s]}",
                 shardId,
                 allocationId,

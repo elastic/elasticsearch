@@ -374,7 +374,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             syncJobSourceBeforeUpdate,
             syncJobSourceAfterUpdate,
             List.of(
-                ConnectorSyncJob.DELETED_DOCUMENT_COUNT,
+                ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD,
                 ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD,
                 ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD,
                 ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD,

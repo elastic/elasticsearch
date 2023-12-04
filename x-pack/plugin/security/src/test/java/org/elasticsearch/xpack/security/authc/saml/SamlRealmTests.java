@@ -682,14 +682,10 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_patterns.groups"));
     }
 
-    public void testAttributeSelectionWithDelimiterNotSupportedThrowsSettingsException() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(REALM_SETTINGS_PREFIX + ".attributes.principal", "mail")
-            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.principal", "notsupported")
-            .build();
-
+    public void testAttributeSelectionNoGroupsConfiguredThrowsSettingsException() {
+        String delimiter = ",";
+        final Settings settings = Settings.builder().put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter).build();
         final RealmConfig config = buildConfig(settings);
-
         final SamlRealmSettings.AttributeSettingWithDelimiter groupSetting = new SamlRealmSettings.AttributeSettingWithDelimiter("groups");
 
         final SettingsException settingsException = expectThrows(
@@ -698,7 +694,7 @@ public class SamlRealmTests extends SamlTestCase {
         );
 
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups"));
-        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_patterns.groups"));
+        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attributes.groups"));
     }
 
     public void testAttributeSelectionWithSplitAndListThrowsSecurityException() {
@@ -732,7 +728,6 @@ public class SamlRealmTests extends SamlTestCase {
         );
 
         assertThat(securityException.getMessage(), containsString("departments"));
-
     }
 
     public void testAttributeSelectionWithRegex() {

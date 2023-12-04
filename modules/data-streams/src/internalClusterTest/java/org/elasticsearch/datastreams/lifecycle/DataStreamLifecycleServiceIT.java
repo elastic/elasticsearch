@@ -517,7 +517,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
 
-        String firstGenerationIndex = getBackingIndices(dataStreamName).get(0);
+        List<String> dsBackingIndices = getBackingIndices(dataStreamName);
+        String firstGenerationIndex = dsBackingIndices.get(0);
+        String secondGenerationIndex = dsBackingIndices.get(1);
 
         // mark the first generation index as read-only so deletion fails when we enable the retention configuration
         updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenerationIndex);
@@ -540,7 +542,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
                 for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
                     recordedRetentionExecutionError = lifecycleService.getErrorStore().getError(firstGenerationIndex);
-                    if (recordedRetentionExecutionError != null) {
+                    if (recordedRetentionExecutionError != null && recordedRetentionExecutionError.retryCount() > 3) {
                         break;
                     }
                 }
@@ -558,11 +560,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 DataStreamLifecycleHealthInfo dslHealthInfoOnHealthNode = healthNodeResponse.getHealthInfo().dslHealthInfo();
                 assertThat(dslHealthInfoOnHealthNode, is(not(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS)));
                 // perhaps surprisingly rollover and delete are error-ing due to the read_only block on the first generation
-                // index which prevents metadata updates so rolling over the data stream is also blocked
+                // index which prevents metadata updates so rolling over the data stream is also blocked (note that both indices error at
+                // the same time so they'll have an equal retry count - the order becomes of the results, usually ordered by retry count,
+                // becomes non deterministic, hence the dynamic matching of index name)
                 assertThat(dslHealthInfoOnHealthNode.dslErrorsInfo().size(), is(2));
                 DslErrorInfo errorInfo = dslHealthInfoOnHealthNode.dslErrorsInfo().get(0);
-                assertThat(errorInfo.indexName(), is(firstGenerationIndex));
                 assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
+                assertThat(List.of(firstGenerationIndex, secondGenerationIndex).contains(errorInfo.indexName()), is(true));
             });
 
             // let's mark the index as writeable and make sure it's deleted and the error store is empty

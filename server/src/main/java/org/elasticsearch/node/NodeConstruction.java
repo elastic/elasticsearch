@@ -185,6 +185,7 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.upgrades.SystemIndexMigrationExecutor;
@@ -746,6 +747,7 @@ class NodeConstruction {
             threadPool
         );
 
+        final SetOnce<RemoteClusterService> remoteClusterServiceReference = new SetOnce<>();
         record PluginServiceInstances(
             Client client,
             ClusterService clusterService,
@@ -763,7 +765,8 @@ class NodeConstruction {
             AllocationService allocationService,
             IndicesService indicesService,
             FeatureService featureService,
-            SystemIndices systemIndices
+            SystemIndices systemIndices,
+            Supplier<RemoteClusterService> remoteClusterServiceSupplier
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -782,7 +785,8 @@ class NodeConstruction {
             clusterModule.getAllocationService(),
             indicesService,
             featureService,
-            systemIndices
+            systemIndices,
+            remoteClusterServiceReference::get
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
@@ -868,6 +872,7 @@ class NodeConstruction {
             taskManager,
             telemetryProvider.getTracer()
         );
+        remoteClusterServiceReference.set(transportService.getRemoteClusterService());
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,

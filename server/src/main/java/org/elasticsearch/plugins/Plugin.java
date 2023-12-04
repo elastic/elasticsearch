@@ -32,6 +32,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -155,6 +156,13 @@ public abstract class Plugin implements Closeable {
          * The system indices for the cluster
          */
         SystemIndices systemIndices();
+
+        /**
+         * A supplier for the service that remote cluster operations.
+         * This will return null when {@link #createComponents(PluginServices)} is called,
+         * but will return the remote cluster service once the node is initialized.
+         */
+        Supplier<RemoteClusterService> remoteClusterServiceSupplier();
     }
 
     /**

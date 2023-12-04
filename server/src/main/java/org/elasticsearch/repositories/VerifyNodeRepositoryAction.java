@@ -62,11 +62,6 @@ public class VerifyNodeRepositoryAction {
         );
     }
 
-    // TODO hack hack hack
-    public TransportService getTransportService() {
-        return transportService;
-    }
-
     public void verify(String repository, String verificationToken, final ActionListener<List<DiscoveryNode>> listener) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
         final DiscoveryNode localNode = discoNodes.getLocalNode();

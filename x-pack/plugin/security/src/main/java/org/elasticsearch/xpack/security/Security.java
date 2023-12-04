@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -96,7 +97,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
@@ -557,7 +557,7 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
     private final SetOnce<Realms> realms = new SetOnce<>();
-    private volatile Supplier<TransportService> transportServiceSupplier;
+    private volatile Supplier<RemoteClusterService> remoteClusterServiceSupplier;
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -639,7 +639,7 @@ public class Security extends Plugin
                 services.environment(),
                 services.nodeEnvironment().nodeMetadata(),
                 services.indexNameExpressionResolver(),
-                () -> services.repositoriesServiceSupplier().get().getTransportService()
+                services.remoteClusterServiceSupplier()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -658,14 +658,14 @@ public class Security extends Plugin
         Environment environment,
         NodeMetadata nodeMetadata,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<TransportService> transportServiceSupplier
+        Supplier<RemoteClusterService> remoteClusterServiceSupplier
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null, null));
         }
 
-        this.transportServiceSupplier = transportServiceSupplier;
+        this.remoteClusterServiceSupplier = remoteClusterServiceSupplier;
 
         // The settings in `environment` may have additional values over what was provided during construction
         // See Plugin#additionalSettings()
@@ -1897,19 +1897,43 @@ public class Security extends Plugin
     @Override
     public void reload(Settings settings) throws Exception {
         if (enabled) {
-            // TODO try-catch
-            transportServiceSupplier.get().getRemoteClusterService().updateRemoteClusterCredentials(settings);
-            // TODO try-catch
-            realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
-                if (realm instanceof JwtRealm jwtRealm) {
-                    jwtRealm.rotateClientSecret(
-                        CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settings)
-                    );
-                }
-            });
+            final List<Exception> exceptions = new ArrayList<>();
+            try {
+                reloadRemoteClusterCredentials(settings);
+            } catch (Exception ex) {
+                exceptions.add(ex);
+            }
+
+            try {
+                reloadJwtRealmSharedSecrets(settings);
+            } catch (Exception ex) {
+                exceptions.add(ex);
+            }
+
+            ExceptionsHelper.rethrowAndSuppress(exceptions);
         } else {
             ensureNoRemoteClusterCredentialsOnDisabledSecurity(settings);
         }
+    }
+
+    private void reloadRemoteClusterCredentials(Settings settings) {
+        final RemoteClusterService remoteClusterService = remoteClusterServiceSupplier.get();
+        if (remoteClusterService == null) {
+            final String msg = "Remote cluster service unavailable during secure settings reload";
+            assert false : msg;
+            throw new IllegalStateException(msg);
+        }
+        remoteClusterService.updateRemoteClusterCredentials(settings);
+    }
+
+    private void reloadJwtRealmSharedSecrets(Settings settings) {
+        realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
+            if (realm instanceof JwtRealm jwtRealm) {
+                jwtRealm.rotateClientSecret(
+                    CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settings)
+                );
+            }
+        });
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

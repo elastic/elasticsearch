@@ -64,8 +64,8 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -205,6 +205,7 @@ public class SecurityTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
+        RemoteClusterService remoteClusterService = mock(RemoteClusterService.class);
         return security.createComponents(
             client,
             threadPool,
@@ -216,8 +217,7 @@ public class SecurityTests extends ESTestCase {
             env,
             nodeMetadata,
             TestIndexNameExpressionResolver.newInstance(threadContext),
-            // TODO hack hack hack
-            () -> mock(TransportService.class)
+            () -> remoteClusterService
         );
     }
 

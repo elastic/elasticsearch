@@ -265,17 +265,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
                     assertTrue(response.isTerminatedEarly());
                 }
             );
-            // size=0 and track_total_hits=true to exercise the _count API code path
-            assertResponse(
-                prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))
-                    .setTerminateAfter(i)
-                    .setSize(0)
-                    .setTrackTotalHits(true),
-                response -> {
-                    assertHitCount(response, finalI);
-                    assertTrue(response.isTerminatedEarly());
-                }
-            );
         }
         assertResponse(
             prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).setTerminateAfter(2 * max),

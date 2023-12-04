@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -250,6 +251,136 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testCancelConnectorSyncJob_WithMissingSyncJobId_ExpectException() {
         expectThrows(ResourceNotFoundException.class, () -> awaitCancelConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID));
+    }
+
+    public void testUpdateConnectorSyncJobIngestionStats() throws Exception {
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connector.getConnectorId()
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+        Map<String, Object> syncJobSourceBeforeUpdate = getConnectorSyncJobSourceById(syncJobId);
+
+        UpdateConnectorSyncJobIngestionStatsAction.Request request = ConnectorSyncJobTestUtils
+            .getRandomUpdateConnectorSyncJobIngestionStatsActionRequest(syncJobId);
+        UpdateResponse updateResponse = awaitUpdateConnectorSyncJobIngestionStats(request);
+        Map<String, Object> syncJobSourceAfterUpdate = getConnectorSyncJobSourceById(syncJobId);
+
+        Long requestDeletedDocumentCount = request.getDeletedDocumentCount();
+        Long requestIndexedDocumentCount = request.getIndexedDocumentCount();
+        Long requestIndexedDocumentVolume = request.getIndexedDocumentVolume();
+        Long requestTotalDocumentCount = request.getTotalDocumentCount();
+        Instant requestLastSeen = request.getLastSeen();
+
+        Long deletedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
+            ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName()
+        );
+        Long indexedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
+            ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName()
+        );
+        Long indexedDocumentVolumeAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
+            ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName()
+        );
+        Long totalDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
+            ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName()
+        );
+        Instant lastSeenAfterUpdate = Instant.parse(
+            (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
+        );
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        assertThat(deletedDocumentCountAfterUpdate, equalTo(requestDeletedDocumentCount));
+        assertThat(indexedDocumentCountAfterUpdate, equalTo(requestIndexedDocumentCount));
+        assertThat(indexedDocumentVolumeAfterUpdate, equalTo(requestIndexedDocumentVolume));
+        assertThat(totalDocumentCountAfterUpdate, equalTo(requestTotalDocumentCount));
+        assertThat(lastSeenAfterUpdate, equalTo(requestLastSeen));
+        assertFieldsExceptAllIngestionStatsDidNotUpdate(syncJobSourceBeforeUpdate, syncJobSourceAfterUpdate);
+    }
+
+    public void testUpdateConnectorSyncJobIngestionStats_WithoutLastSeen_ExpectUpdateOfLastSeen() throws Exception {
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connector.getConnectorId()
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+        Map<String, Object> syncJobSourceBeforeUpdate = getConnectorSyncJobSourceById(syncJobId);
+        Instant lastSeenBeforeUpdate = Instant.parse(
+            (String) syncJobSourceBeforeUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
+        );
+        UpdateConnectorSyncJobIngestionStatsAction.Request request = new UpdateConnectorSyncJobIngestionStatsAction.Request(
+            syncJobId,
+            10L,
+            20L,
+            100L,
+            10L,
+            null
+        );
+
+        safeSleep(ONE_SECOND_IN_MILLIS);
+
+        UpdateResponse updateResponse = awaitUpdateConnectorSyncJobIngestionStats(request);
+        Map<String, Object> syncJobSourceAfterUpdate = getConnectorSyncJobSourceById(syncJobId);
+        Instant lastSeenAfterUpdate = Instant.parse(
+            (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
+        );
+        long secondsBetweenLastSeenBeforeAndAfterUpdate = ChronoUnit.SECONDS.between(lastSeenBeforeUpdate, lastSeenAfterUpdate);
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        assertTrue(lastSeenAfterUpdate.isAfter(lastSeenBeforeUpdate));
+        assertThat(secondsBetweenLastSeenBeforeAndAfterUpdate, greaterThanOrEqualTo(1L));
+        assertFieldsExceptAllIngestionStatsDidNotUpdate(syncJobSourceBeforeUpdate, syncJobSourceAfterUpdate);
+    }
+
+    public void testUpdateConnectorSyncJobIngestionStats_WithMissingSyncJobId_ExpectException() {
+        expectThrows(
+            ResourceNotFoundException.class,
+            () -> awaitUpdateConnectorSyncJobIngestionStats(
+                new UpdateConnectorSyncJobIngestionStatsAction.Request(NON_EXISTING_SYNC_JOB_ID, 0L, 0L, 0L, 0L, Instant.now())
+            )
+        );
+    }
+
+    private UpdateResponse awaitUpdateConnectorSyncJobIngestionStats(UpdateConnectorSyncJobIngestionStatsAction.Request request)
+        throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorSyncJobIndexService.updateConnectorSyncJobIngestionStats(request, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse updateResponse) {
+                resp.set(updateResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update request", resp.get());
+        return resp.get();
+    }
+
+    private static void assertFieldsExceptAllIngestionStatsDidNotUpdate(
+        Map<String, Object> syncJobSourceBeforeUpdate,
+        Map<String, Object> syncJobSourceAfterUpdate
+    ) {
+        assertFieldsDidNotUpdateExceptFieldList(
+            syncJobSourceBeforeUpdate,
+            syncJobSourceAfterUpdate,
+            List.of(
+                ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD,
+                ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD,
+                ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD,
+                ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD,
+                ConnectorSyncJob.LAST_SEEN_FIELD
+            )
+        );
     }
 
     private static void assertFieldsExceptSyncStatusAndCancellationRequestedAtDidNotUpdate(

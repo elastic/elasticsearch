@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class BlobStoreRepositoryOperationPurposeTests extends AbstractSnapshotIntegTestCase {
+public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

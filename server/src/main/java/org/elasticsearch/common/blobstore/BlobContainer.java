@@ -271,7 +271,7 @@ public interface BlobContainer {
      * </ul>
      */
     // This is fairly lenient because we use a wide variety of blob names and purposes in tests in order to get good coverage. See
-    // BlobStoreRepositoryOperationPurposeTests for some stricter checks which apply during genuine snapshot operations.
+    // BlobStoreRepositoryOperationPurposeIT for some stricter checks which apply during genuine snapshot operations.
     static boolean assertPurposeConsistency(OperationPurpose purpose, String blobName) {
         switch (purpose) {
             case SNAPSHOT_DATA -> {

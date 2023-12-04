@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ExtensionLoader;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
@@ -83,9 +85,13 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, meterRegistry.get());
     }
 
+    private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings(), getStorageClassStrategyProvider()));
+        final var storageClassStrategyProvider = getStorageClassStrategyProvider();
+        logger.info("--> using storageClassStrategyProvider [{}]", storageClassStrategyProvider);
+        service.set(s3Service(services.environment(), services.clusterService().getSettings(), storageClassStrategyProvider));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         meterRegistry.set(services.telemetryProvider().getMeterRegistry());
         return List.of(service);

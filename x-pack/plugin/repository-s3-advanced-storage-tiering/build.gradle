@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name 'repository-s3-advanced-storage-tiering'
@@ -14,13 +15,15 @@ base {
 
 dependencies {
   implementation project(':modules:repository-s3')
-  testImplementation project(path: ':test:fixtures:s3-fixture')
-    testImplementation project(path: ':test:test-clusters')
-    compileOnly project(":server")
+  testImplementation project(path: ':test:test-clusters')
+  compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-addQaCheckDependencies(project)
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}

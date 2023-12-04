@@ -14,6 +14,8 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategy;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategyProvider;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -37,6 +39,8 @@ public class AdvancedS3StorageClassStrategyProvider implements S3StorageClassStr
     // mutable global state because yolo I guess?
     static Supplier<XPackLicenseState> licenseStateSupplier = XPackPlugin::getSharedLicenseState;
 
+    private static final Logger logger = LogManager.getLogger(AdvancedS3StorageClassStrategyProvider.class);
+
     @Override
     public S3StorageClassStrategy getS3StorageClassStrategy(Settings repositorySettings) {
         return new S3StorageClassStrategy() {
@@ -50,6 +54,9 @@ public class AdvancedS3StorageClassStrategyProvider implements S3StorageClassStr
 
             @Override
             public StorageClass getStorageClass(OperationPurpose operationPurpose) {
+
+                logger.info("computing storage class for [{}]", operationPurpose);
+
                 if (metadataStorageClass == dataStorageClass) {
                     return dataStorageClass;
                 }

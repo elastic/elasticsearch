@@ -130,17 +130,22 @@ final class SearchResponseMerger {
 
     /**
      * Add a search response to the list of responses to be merged together into one.
-     * Merges currently happen at once when all responses are available and {@link #getMergedResponse()} )} is called.
-     * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
+     * If a SearchProgressListener is provided (and is not NOOP), then an incremental merger of all
+     * SearchResponses received so far will be made and sent to the SearchProgressListener.
+     *
+     * This method (and everything it calls) must be thread safe, since this can be called from
+     * multiple threads concurrently.
      */
-    synchronized void add(SearchResponse searchResponse) {
+    void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
         searchResponses.add(searchResponse);
         // sync-search uses a NOOP progress listener so only do incremental reductions for async-searches
-        // optimization: if all the responses have now been received (numExpectedResponses == numResponses()), then do not
-        // do an incremental merge, as the CCSActionListener will call getMergedResponse to create the final response
-        // after this method returns
-        if (progressListener != null && progressListener != SearchProgressListener.NOOP && numExpectedResponses != numResponses()) {
+        // best-effort optimization: if all the responses have now been received (numExpectedResponses == numResponses())
+        // then do not do an incremental merge, as the CCSActionListener will call getMergedResponse to create the
+        // final response after this method returns. Note that there is a benign race condition here since the add
+        // method is not synchronized. In that case, the final response can be incrementally merged, which is a
+        // minor performance hit but does not affect correctness
+        if (progressListener != null && progressListener != SearchProgressListener.NOOP && numResponses() != numExpectedResponses) {
             progressListener.notifyCcsReduce(getMergedResponse());
         }
     }
@@ -150,10 +155,11 @@ final class SearchResponseMerger {
     }
 
     /**
-     * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
-     * so that all responses are merged into a single one.
+     * All responses collected so far are merged into a single one.
+     * Note that this method is also potentially called from the add method if a SearchProgressListener has been provided.
+     * This method must be thread safe, as it can be called from multiple threads at the same time.
      */
-    synchronized SearchResponse getMergedResponse() {
+    SearchResponse getMergedResponse() {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {

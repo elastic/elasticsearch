@@ -77,11 +77,11 @@ public class SearchResponseMergerTests extends ESTestCase {
         executorService = Executors.newFixedThreadPool(numResponses);
     }
 
-    private void addResponse(SearchResponseMerger searchResponseMerger, SearchResponse searchResponse) {
-        if (randomBoolean()) {
-            executorService.submit(() -> searchResponseMerger.add(searchResponse));
-        } else {
+    private void addResponse(boolean runSerially, SearchResponseMerger searchResponseMerger, SearchResponse searchResponse) {
+        if (runSerially) {
             searchResponseMerger.add(searchResponse);
+        } else {
+            executorService.submit(() -> searchResponseMerger.add(searchResponse));
         }
     }
 
@@ -113,7 +113,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
-            addResponse(merger, searchResponse);
+            addResponse(randomBoolean(), merger, searchResponse);
         }
         awaitResponsesAdded();
         SearchResponse searchResponse = merger.getMergedResponse();
@@ -134,6 +134,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             };
         }
 
+        boolean runSerially = randomBoolean();
         SearchResponseMerger merger = new SearchResponseMerger(
             0,
             0,
@@ -177,7 +178,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 shardSearchFailures,
                 SearchResponse.Clusters.EMPTY
             );
-            addResponse(merger, searchResponse);
+            addResponse(runSerially, merger, searchResponse);
         }
         awaitResponsesAdded();
         assertEquals(numResponses, merger.numResponses());
@@ -193,7 +194,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardSearchFailure expected = priorityQueue.poll().v2();
             assertSame(expected, shardFailure);
         }
-        if (progressListener != SearchProgressListener.NOOP) {
+        if (progressListener != SearchProgressListener.NOOP && runSerially) {
             int numIncrementalResponses = incrementalResponses.size();
             assertEquals(numResponses, numIncrementalResponses);
             assertEquals(Strings.toString(mergedResponse), Strings.toString(incrementalResponses.get(numIncrementalResponses - 1)));
@@ -235,7 +236,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 shardSearchFailures,
                 SearchResponse.Clusters.EMPTY
             );
-            addResponse(merger, searchResponse);
+            addResponse(randomBoolean(), merger, searchResponse);
         }
         awaitResponsesAdded();
         assertEquals(numResponses, merger.numResponses());
@@ -283,7 +284,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 shardSearchFailures,
                 SearchResponse.Clusters.EMPTY
             );
-            addResponse(merger, searchResponse);
+            addResponse(randomBoolean(), merger, searchResponse);
         }
         awaitResponsesAdded();
         assertEquals(numResponses, merger.numResponses());
@@ -319,7 +320,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
-            addResponse(merger, searchResponse);
+            addResponse(randomBoolean(), merger, searchResponse);
         }
         awaitResponsesAdded();
         assertEquals(numResponses, merger.numResponses());
@@ -348,6 +349,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             };
         }
 
+        boolean runSerially = randomBoolean();
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             0,
             0,
@@ -394,7 +396,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
-            addResponse(searchResponseMerger, searchResponse);
+            addResponse(runSerially, searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
         assertEquals(numResponses, searchResponseMerger.numResponses());
@@ -416,7 +418,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             assertEquals(--i, option.getScore(), 0f);
         }
 
-        if (progressListener != SearchProgressListener.NOOP) {
+        if (progressListener != SearchProgressListener.NOOP && runSerially) {
             assertEquals(numResponses, incrementalResponses.size());
         }
     }
@@ -471,7 +473,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
-            addResponse(searchResponseMerger, searchResponse);
+            addResponse(randomBoolean(), searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
         assertEquals(numResponses, searchResponseMerger.numResponses());
@@ -562,6 +564,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             };
         }
 
+        boolean runSerially = randomBoolean();
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             0,
             0,
@@ -606,7 +609,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
-            addResponse(searchResponseMerger, searchResponse);
+            addResponse(runSerially, searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
         assertEquals(numResponses, searchResponseMerger.numResponses());
@@ -628,7 +631,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals("10000.0", bucket.getToAsString());
         assertEquals(totalCount, bucket.getDocCount());
 
-        if (progressListener != SearchProgressListener.NOOP) {
+        if (progressListener != SearchProgressListener.NOOP && runSerially) {
             assertEquals(numResponses, incrementalResponses.size());
         }
     }
@@ -675,6 +678,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             }
         };
 
+        boolean runSerially = randomBoolean();
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             from,
             size,
@@ -777,7 +781,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchResponseTests.randomClusters()
             );
 
-            addResponse(searchResponseMerger, searchResponse);
+            addResponse(runSerially, searchResponseMerger, searchResponse);
         }
 
         awaitResponsesAdded();
@@ -836,7 +840,12 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
 
         // the optimization to avoid merging the last entry is turned on, so should be one less than total num responses
-        assertEquals(numResponses - 1, incrementalResponses.size());
+        // the incrementalResponses size is only deterministic if the test was run serially (not multi threaded)
+        // since the don't-do-incremental-merge-on-last-response is best effort only (can still run if the last two threads
+        // are calling concurrently)
+        if (runSerially) {
+            assertEquals(numResponses - 1, incrementalResponses.size());
+        }
     }
 
     public void testMergeNoResponsesAdded() {

@@ -9,6 +9,8 @@ package org.elasticsearch.repositories.s3.advancedstoragetiering;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensingHelper;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategy;
 import org.elasticsearch.repositories.s3.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -39,6 +41,7 @@ public class S3AdvancedStorageTieringIT extends ESIntegTestCase {
     }
 
     public void testAdvancedStrategy() {
+        LicensingHelper.enableLicensing(internalCluster(), License.OperationMode.ENTERPRISE);
         final var advancedStrategy = getStrategy(
             Settings.builder()
                 .put(SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING.getKey(), OneZoneInfrequentAccess.toString())

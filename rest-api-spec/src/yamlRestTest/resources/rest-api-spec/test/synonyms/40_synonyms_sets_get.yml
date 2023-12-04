@@ -30,6 +30,7 @@ setup:
           persistent:
             logger.org.elasticsearch.synonyms: DEBUG
 
+---
 teardown:
   - do:
       cluster.put_settings:

@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.MapParsingUtils;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,26 +43,24 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
      */
     public static ElserMlNodeServiceSettings.Builder fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
-        Integer numAllocations = MapParsingUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
-        Integer numThreads = MapParsingUtils.removeAsType(map, NUM_THREADS, Integer.class);
+        Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
+        Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
 
         if (numAllocations == null) {
             validationException.addValidationError(
-                MapParsingUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
+                ServiceUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
             );
         } else if (numAllocations < 1) {
             validationException.addValidationError(mustBeAPositiveNumberError(NUM_ALLOCATIONS, numAllocations));
         }
 
         if (numThreads == null) {
-            validationException.addValidationError(
-                MapParsingUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS)
-            );
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
         } else if (numThreads < 1) {
             validationException.addValidationError(mustBeAPositiveNumberError(NUM_THREADS, numThreads));
         }
 
-        String version = MapParsingUtils.removeAsType(map, MODEL_VERSION, String.class);
+        String version = ServiceUtils.removeAsType(map, MODEL_VERSION, String.class);
         if (version != null && ElserMlNodeService.VALID_ELSER_MODELS.contains(version) == false) {
             validationException.addValidationError("unknown ELSER model version [" + version + "]");
         }

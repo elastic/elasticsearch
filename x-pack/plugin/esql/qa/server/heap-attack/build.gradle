@@ -1,0 +1,19 @@
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'indices', 'esql', 'xpack', 'enrich'
+  }
+}
+
+testClusters.configureEach {
+  numberOfNodes = 1
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
+}

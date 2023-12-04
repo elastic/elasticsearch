@@ -46,6 +46,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -65,6 +66,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -359,6 +361,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
+import org.elasticsearch.xpack.ml.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -476,7 +479,8 @@ public class MachineLearning extends Plugin
         PersistentTaskPlugin,
         SearchPlugin,
         ShutdownAwarePlugin,
-        ExtensiblePlugin {
+        ExtensiblePlugin,
+        MapperPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
@@ -2287,5 +2291,10 @@ public class MachineLearning extends Plugin
         if (enabled) {
             mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
         }
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
     }
 }

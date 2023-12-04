@@ -775,13 +775,14 @@ public class SecurityTests extends ESTestCase {
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
                 threadPool,
-                Arrays.asList(security),
+                List.of(security),
                 null,
                 null,
                 usageService,
                 null,
                 Tracer.NOOP,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );

@@ -322,7 +322,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
+                assert assertRefreshIsNotNeeded(type, incomingMapping);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
                 this.mappingVersion = newIndexMetadata.getMappingVersion();
             }
@@ -337,8 +337,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper, String type, Mapping incomingMapping) {
-        Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY);
+    private boolean assertRefreshIsNotNeeded(String type, Mapping incomingMapping) {
+        Mapping mergedMapping = mergeMappings(incomingMapping, MergeReason.MAPPING_RECOVERY);
         // skip the runtime section or removed runtime fields will make the assertion fail
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
         CompressedXContent mergedMappingSource;
@@ -542,7 +542,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private synchronized DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
         Mapping incomingMapping = parseMapping(type, mappingSourceAsMap);
-        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason, indexSettings.getMappingTotalFieldsLimit());
+        Mapping mapping = mergeMappings(incomingMapping, reason);
         // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
         // We should identify these cases reliably and save expensive serialization here
         DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
@@ -583,25 +583,50 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
-        assert reason.isAutoUpdate() == false : "Auto-update merge reasons must specify the remaining fields until limit";
-        return mergeMappings(currentMapper, incomingMapping, reason, Long.MAX_VALUE);
+    public Mapping mergeMappings(Mapping incomingMapping, MergeReason reason) {
+        return mergeMappings(this.mapper, incomingMapping, reason, getMaxFieldsToAddDuringMerge(reason));
     }
 
-    public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long totalFieldsLimit) {
-        long remainingFieldsUntilLimit = Optional.ofNullable(currentMapper)
-            .map(DocumentMapper::mappers)
-            .map(ml -> ml.remainingFieldsUntilLimit(totalFieldsLimit))
-            .orElse(totalFieldsLimit);
+    private long getMaxFieldsToAddDuringMerge(MergeReason reason) {
+        if (reason.isAutoUpdate() && indexSettings.isIgnoreDynamicFieldsBeyondLimit()) {
+            // If the index setting ignore_dynamic_beyond_limit is enabled,
+            // data nodes only add new dynamic fields until the limit is reached while parsing documents to be ingested.
+            // However, if there are concurrent mapping updates,
+            // data nodes may add dynamic fields under an outdated assumption that enough capacity is still available.
+            // When data nodes send the dynamic mapping update request to the master node,
+            // it will only add as many fields as there's actually capacity for when merging mappings.
+            long totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
+            return Optional.ofNullable(this.mapper)
+                .map(DocumentMapper::mappers)
+                .map(ml -> ml.remainingFieldsUntilLimit(totalFieldsLimit))
+                .orElse(totalFieldsLimit);
+        } else {
+            // Else, we're not limiting the number of fields so that the merged mapping fails validation if it exceeds total_fields.limit.
+            // This is the desired behavior when making an explicit mapping update, even if ignore_dynamic_beyond_limit is enabled.
+            // When ignore_dynamic_beyond_limit is disabled and a dynamic mapping update would exceed the field limit,
+            // the document will get rejected.
+            // Normally, this happens on the data node in DocumentParserContext.addDynamicMapper but if there's a race condition,
+            // data nodes may add dynamic fields under an outdated assumption that enough capacity is still available.
+            // In this case, the master node will reject mapping updates that would exceed the limit when handling the mapping update.
+            return Long.MAX_VALUE;
+        }
+    }
+
+    static Mapping mergeMappings(
+        DocumentMapper currentMapper,
+        Mapping incomingMapping,
+        MergeReason reason,
+        long maxFieldsToAddDuringMerge
+    ) {
         Mapping newMapping;
         if (currentMapper == null) {
-            if (MappingLookup.fromMapping(incomingMapping).exceedsLimit(remainingFieldsUntilLimit, 0)) {
-                newMapping = Mapping.EMPTY.merge(incomingMapping, reason, remainingFieldsUntilLimit);
+            if (MappingLookup.fromMapping(incomingMapping).exceedsLimit(maxFieldsToAddDuringMerge, 0)) {
+                newMapping = Mapping.EMPTY.merge(incomingMapping, reason, maxFieldsToAddDuringMerge);
             } else {
                 newMapping = incomingMapping;
             }
         } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason, remainingFieldsUntilLimit);
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason, maxFieldsToAddDuringMerge);
         }
         return newMapping;
     }

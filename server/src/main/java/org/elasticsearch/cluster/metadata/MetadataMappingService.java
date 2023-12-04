@@ -148,7 +148,7 @@ public class MetadataMappingService {
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 // first, simulate: just call merge and ignore the result
                 Mapping mapping = mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
-                MapperService.mergeMappings(mapperService.documentMapper(), mapping, MergeReason.MAPPING_UPDATE);
+                mapperService.mergeMappings(mapping, MergeReason.MAPPING_UPDATE);
             }
             Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;

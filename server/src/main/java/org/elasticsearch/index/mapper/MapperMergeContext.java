@@ -16,37 +16,15 @@ public class MapperMergeContext {
     private final MapperBuilderContext mapperBuilderContext;
     private final AtomicLong remainingFieldsUntilLimit;
 
-    /**
-     * The root context, to be used when building a tree of mappers
-     */
-    public static MapperMergeContext root(
-        boolean isSourceSynthetic,
-        boolean isDataStream,
-        long remainingFieldsUntilLimit,
-        MapperService.MergeReason mergeReason
-    ) {
+    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long maxFieldsToAddDuringMerge) {
         return new MapperMergeContext(
             MapperBuilderContext.root(isSourceSynthetic, isDataStream),
-            new AtomicLong(mergeReason.isAutoUpdate() ? remainingFieldsUntilLimit : Long.MAX_VALUE)
+            new AtomicLong(maxFieldsToAddDuringMerge)
         );
     }
 
-    /**
-     * This mapper merge context will not support limiting the number of fields during the merge process.
-     * Therefore, it's not appropriate to use this in the context of an auto-update aka dynamic mapping update.
-     * Outside of that context, this is safe, though.
-     */
-    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream) {
-        return from(MapperBuilderContext.root(isSourceSynthetic, isDataStream));
-    }
-
-    /**
-     * This mapper merge context will not support limiting the number of fields during the merge process.
-     * Therefore, it's not appropriate to use this in the context of an auto-update aka dynamic mapping update.
-     * Outside of that context, this is safe, though.
-     */
-    public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext) {
-        return new MapperMergeContext(mapperBuilderContext, new AtomicLong(Long.MAX_VALUE));
+    public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext, long maxFieldsToAddDuringMerge) {
+        return new MapperMergeContext(mapperBuilderContext, new AtomicLong(maxFieldsToAddDuringMerge));
     }
 
     private MapperMergeContext(MapperBuilderContext mapperBuilderContext, AtomicLong remainingFieldsUntilLimit) {

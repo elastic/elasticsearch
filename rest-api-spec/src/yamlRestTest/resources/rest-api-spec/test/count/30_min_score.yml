@@ -31,7 +31,7 @@
       count:
         index: test_count_min_score
         q: field:foo
-        min_score: 0.3
+        min_score: 0.1
   - match: { count: 2 }
 
   - do:

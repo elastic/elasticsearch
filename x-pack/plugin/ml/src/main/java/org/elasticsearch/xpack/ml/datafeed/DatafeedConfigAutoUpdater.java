@@ -113,12 +113,12 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
                 logger.debug(() -> "[" + update.getId() + "] datafeed successfully updated");
             } catch (Exception ex) {
                 logger.warn(() -> "[" + update.getId() + "] failed being updated", ex);
-                if (ex instanceof ElasticsearchStatusException elasticsearchStatusException) {
+                if (ex instanceof ElasticsearchException elasticsearchException) {
                     failures.add(
                         new ElasticsearchStatusException(
                             "Failed to update datafeed {}",
-                            elasticsearchStatusException.status(),
-                            elasticsearchStatusException,
+                            elasticsearchException.status(),
+                            elasticsearchException,
                             update.getId()
                         )
                     );

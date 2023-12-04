@@ -136,7 +136,7 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
                         + request.getJobId()
                         + "]. Total failures ["
                         + caughtExceptions.size()
-                        + "], rethrowing last. All Exceptions: ["
+                        + "], rethrowing first. All Exceptions: ["
                         + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
                         + "]";
 

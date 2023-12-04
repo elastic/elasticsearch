@@ -51,7 +51,7 @@ public class ExceptionCollectionHandling {
             if (allElasticsearchException && allStatus4xx) {
                 return new ElasticsearchStatusException(
                     message,
-                    ((ElasticsearchStatusException) caughtExceptions.get(0)).status(),
+                    ((ElasticsearchException) caughtExceptions.get(0)).status(),
                     caughtExceptions.get(0)
                 );
             } else {

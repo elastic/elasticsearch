@@ -344,7 +344,7 @@ public abstract class DocumentParserContext {
         // dynamically mapped objects when the incoming document defines no sub-fields in them:
         // 1) by default, they would be empty containers in the mappings, is it then important to map them?
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
-        dynamicMappers.computeIfAbsent(fullName, k -> new ArrayList<>(1)).add(builder);
+        dynamicMappers.computeIfAbsent(fullName, k -> new ArrayList<>()).add(builder);
         return true;
     }
 

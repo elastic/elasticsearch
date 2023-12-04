@@ -268,7 +268,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name, Dynamic dynamic) {
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
         MapperBuilderContext mapperBuilderContext = mapperMergeContext.getMapperBuilderContext();
         boolean parentIncludedInRoot = this.includeInRoot.value();
         if (mapperBuilderContext instanceof NestedMapperBuilderContext == false) {

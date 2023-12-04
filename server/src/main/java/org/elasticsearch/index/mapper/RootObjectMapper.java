@@ -212,9 +212,9 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name, Dynamic dynamic) {
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
         assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
-        return mapperMergeContext.createChildContext(mapperMergeContext.getMapperBuilderContext());
+        return mapperMergeContext;
     }
 
     @Override

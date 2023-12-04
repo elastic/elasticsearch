@@ -469,7 +469,7 @@ public class ObjectMapper extends Mapper {
         }
     }
 
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperBuilderContext, String name, Dynamic dynamic) {
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperBuilderContext, String name) {
         return mapperBuilderContext.createChildContext(name);
     }
 
@@ -532,10 +532,14 @@ public class ObjectMapper extends Mapper {
             } else {
                 subObjects = existing.subobjects;
             }
-            Dynamic dynamic = mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic;
-            MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.simpleName(), dynamic);
+            MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.simpleName());
             Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWith, reason, objectMergeContext);
-            return new MergeResult(enabled, subObjects, dynamic, mergedMappers);
+            return new MergeResult(
+                enabled,
+                subObjects,
+                mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic,
+                mergedMappers
+            );
         }
 
         private static Map<String, Mapper> buildMergedMappers(
@@ -544,6 +548,7 @@ public class ObjectMapper extends Mapper {
             MergeReason reason,
             MapperMergeContext objectMergeContext
         ) {
+            // need to preserve order to make it deterministic which fields are ignored
             Map<String, Mapper> mergedMappers = new LinkedHashMap<>(existing.mappers);
             for (Mapper mergeWithMapper : mergeWith) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());

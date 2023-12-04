@@ -20,7 +20,7 @@ public class DocumentParserContextTests extends ESTestCase {
     public void testDynamicMapperSizeMultipleMappers() {
         context.addDynamicMapper("foo", new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()));
         assertEquals(1, context.getNewDynamicMappersSize());
-        context.addDynamicMapper("bar", new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()));
+        context.addDynamicMapper("bar", new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers()));
         assertEquals(2, context.getNewDynamicMappersSize());
         context.addDynamicRuntimeField(new TestRuntimeField("runtime1", "keyword"));
         assertEquals(3, context.getNewDynamicMappersSize());

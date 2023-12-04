@@ -30,8 +30,8 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService
 /**
  * Provides the infrastructure to send errors encountered by indices managed by data stream lifecycle service to the health node.
  */
-public class DataStreamLifecycleErrorEntriesPublisher {
-    private static final Logger logger = LogManager.getLogger(DataStreamLifecycleErrorEntriesPublisher.class);
+public class DataStreamLifecycleHealthInfoPublisher {
+    private static final Logger logger = LogManager.getLogger(DataStreamLifecycleHealthInfoPublisher.class);
     /**
      * Controls the number of DSL error entries we publish to the health node.
      */
@@ -49,7 +49,7 @@ public class DataStreamLifecycleErrorEntriesPublisher {
     private volatile int signallingErrorRetryInterval;
     private volatile int maxNumberOfErrorsToPublish;
 
-    public DataStreamLifecycleErrorEntriesPublisher(
+    public DataStreamLifecycleHealthInfoPublisher(
         Settings settings,
         Client client,
         ClusterService clusterService,

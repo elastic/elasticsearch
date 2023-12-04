@@ -47,7 +47,7 @@ import org.elasticsearch.datastreams.lifecycle.action.TransportExplainDataStream
 import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportPutDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleErrorEntriesPublisher;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
@@ -111,7 +111,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
     private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
 
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
-    private final SetOnce<DataStreamLifecycleErrorEntriesPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
+    private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final Settings settings;
 
     public DataStreamsPlugin(Settings settings) {
@@ -162,7 +162,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         components.add(this.updateTimeSeriesRangeService.get());
         errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(services.threadPool()::absoluteTimeInMillis));
         dataStreamLifecycleErrorsPublisher.set(
-            new DataStreamLifecycleErrorEntriesPublisher(
+            new DataStreamLifecycleHealthInfoPublisher(
                 settings,
                 services.client(),
                 services.clusterService(),

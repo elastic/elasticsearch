@@ -62,7 +62,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleIndexExecutor;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
-import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleErrorEntriesPublisher;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -159,7 +159,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final ThreadPool threadPool;
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     final ResultDeduplicator<String, Void> clusterStateChangesDeduplicator;
-    private final DataStreamLifecycleErrorEntriesPublisher dataStreamLifecycleErrorsPublisher;
+    private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -207,7 +207,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         LongSupplier nowSupplier,
         DataStreamLifecycleErrorStore errorStore,
         AllocationService allocationService,
-        DataStreamLifecycleErrorEntriesPublisher dataStreamLifecycleErrorsPublisher
+        DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher
     ) {
         this.settings = settings;
         this.client = client;
@@ -235,7 +235,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             Priority.URGENT, // urgent priority as this deletes indices
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
         );
-        this.dataStreamLifecycleErrorsPublisher = dataStreamLifecycleErrorsPublisher;
+        this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
     }
 
     /**
@@ -300,7 +300,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     event.getTriggeredTime()
                 );
                 run(clusterService.state());
-                dataStreamLifecycleErrorsPublisher.publishDslErrorEntries(new ActionListener<AcknowledgedResponse>() {
+                dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         assert acknowledgedResponse.isAcknowledged() : "updating the health info is always acknowledged";

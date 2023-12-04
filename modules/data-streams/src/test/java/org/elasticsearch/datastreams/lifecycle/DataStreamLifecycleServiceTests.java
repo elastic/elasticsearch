@@ -62,7 +62,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleErrorEntriesPublisher;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -170,7 +170,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             () -> now,
             errorStore,
             allocationService,
-            new DataStreamLifecycleErrorEntriesPublisher(Settings.EMPTY, client, clusterService, errorStore)
+            new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore)
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -1396,7 +1396,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             () -> now.getAndAdd(delta),
             errorStore,
             mock(AllocationService.class),
-            new DataStreamLifecycleErrorEntriesPublisher(Settings.EMPTY, getTransportRequestsRecordingClient(), clusterService, errorStore)
+            new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, getTransportRequestsRecordingClient(), clusterService, errorStore)
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));

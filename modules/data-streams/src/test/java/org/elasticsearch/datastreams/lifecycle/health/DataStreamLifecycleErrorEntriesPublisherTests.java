@@ -53,7 +53,7 @@ public class DataStreamLifecycleErrorEntriesPublisherTests extends ESTestCase {
     private ClusterService clusterService;
     private TestThreadPool threadPool;
     private CopyOnWriteArrayList<UpdateHealthInfoCacheAction.Request> clientSeenRequests;
-    private DataStreamLifecycleErrorEntriesPublisher dslErrorEntriesPublisher;
+    private DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
         .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
         .build();
@@ -79,7 +79,7 @@ public class DataStreamLifecycleErrorEntriesPublisherTests extends ESTestCase {
 
         final Client client = getTransportRequestsRecordingClient();
         errorStore = new DataStreamLifecycleErrorStore(() -> now);
-        dslErrorEntriesPublisher = new DataStreamLifecycleErrorEntriesPublisher(Settings.EMPTY, client, clusterService, errorStore);
+        dslHealthInfoPublisher = new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore);
     }
 
     @After
@@ -96,7 +96,7 @@ public class DataStreamLifecycleErrorEntriesPublisherTests extends ESTestCase {
         errorStore.recordError("testIndex", new IllegalStateException("bad state"));
         ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterServiceUtils.setState(clusterService, stateWithHealthNode);
-        dslErrorEntriesPublisher.publishDslErrorEntries(new ActionListener<>() {
+        dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
 
@@ -124,7 +124,7 @@ public class DataStreamLifecycleErrorEntriesPublisherTests extends ESTestCase {
 
         ClusterState stateNoHealthNode = ClusterStateCreationUtils.state(node1, node1, null, allNodes);
         ClusterServiceUtils.setState(clusterService, stateNoHealthNode);
-        dslErrorEntriesPublisher.publishDslErrorEntries(new ActionListener<>() {
+        dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
 
@@ -141,7 +141,7 @@ public class DataStreamLifecycleErrorEntriesPublisherTests extends ESTestCase {
         // publishes the empty error store (this is the "back to healthy" state where all errors have been fixed)
         ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterServiceUtils.setState(clusterService, state);
-        dslErrorEntriesPublisher.publishDslErrorEntries(new ActionListener<>() {
+        dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
 

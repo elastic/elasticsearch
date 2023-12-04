@@ -1,0 +1,6 @@
+pr: 102934
+summary: Filter persistent transform tasks that match the update request
+area: Transform
+type: bug
+issues:
+ - 102933

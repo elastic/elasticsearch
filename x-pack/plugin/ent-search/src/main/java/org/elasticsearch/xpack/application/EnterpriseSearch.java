@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.application.connector.action.RestDeleteConnectorA
 import org.elasticsearch.xpack.application.connector.action.RestGetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.RestUpdateConnectorLastSeenAction;
@@ -60,12 +61,14 @@ import org.elasticsearch.xpack.application.connector.action.TransportDeleteConne
 import org.elasticsearch.xpack.application.connector.action.TransportGetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.TransportUpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
@@ -207,6 +210,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(GetConnectorAction.INSTANCE, TransportGetConnectorAction.class),
                     new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
                     new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
+                    new ActionHandler<>(UpdateConnectorConfigurationAction.INSTANCE, TransportUpdateConnectorConfigurationAction.class),
                     new ActionHandler<>(UpdateConnectorErrorAction.INSTANCE, TransportUpdateConnectorErrorAction.class),
                     new ActionHandler<>(UpdateConnectorFilteringAction.INSTANCE, TransportUpdateConnectorFilteringAction.class),
                     new ActionHandler<>(UpdateConnectorLastSeenAction.INSTANCE, TransportUpdateConnectorLastSeenAction.class),
@@ -275,6 +279,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestGetConnectorAction(),
                     new RestListConnectorAction(),
                     new RestPutConnectorAction(),
+                    new RestUpdateConnectorConfigurationAction(),
                     new RestUpdateConnectorErrorAction(),
                     new RestUpdateConnectorFilteringAction(),
                     new RestUpdateConnectorLastSeenAction(),

@@ -29,6 +29,7 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
@@ -282,7 +283,9 @@ public class ConnectorSyncJobIndexService {
                         .setLanguage((String) source.get(Connector.LANGUAGE_FIELD.getPreferredName()))
                         .setPipeline((ConnectorIngestPipeline) source.get(Connector.PIPELINE_FIELD.getPreferredName()))
                         .setServiceType((String) source.get(Connector.SERVICE_TYPE_FIELD.getPreferredName()))
-                        .setConfiguration((Map<String, Object>) source.get(Connector.CONFIGURATION_FIELD.getPreferredName()))
+                        .setConfiguration(
+                            (Map<String, ConnectorConfiguration>) source.get(Connector.CONFIGURATION_FIELD.getPreferredName())
+                        )
                         .build();
 
                     listener.onResponse(syncJobConnectorInfo);

@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
@@ -317,7 +318,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
                 .setLanguage((String) args[i++])
                 .setPipeline((ConnectorIngestPipeline) args[i++])
                 .setServiceType((String) args[i++])
-                .setConfiguration((Map<String, Object>) args[i++])
+                .setConfiguration((Map<String, ConnectorConfiguration>) args[i++])
                 .build();
         }
     );

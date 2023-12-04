@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -44,18 +45,25 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                 )
         );
 
-        client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(
-                prepareIndex("idx").setId("1").setSource(jsonBuilder().startObject().field("name", "first").field("foo", "bar").endObject())
-            )
-            .add(
-                prepareIndex("idx").setId("2")
-                    .setSource(
-                        jsonBuilder().startObject().field("name", "second").startObject("foo").field("what", "ever").endObject().endObject()
-                    )
-            )
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(
+                    prepareIndex("idx").setId("1")
+                        .setSource(jsonBuilder().startObject().field("name", "first").field("foo", "bar").endObject())
+                )
+                .add(
+                    prepareIndex("idx").setId("2")
+                        .setSource(
+                            jsonBuilder().startObject()
+                                .field("name", "second")
+                                .startObject("foo")
+                                .field("what", "ever")
+                                .endObject()
+                                .endObject()
+                        )
+                )
+                .get();
+        }
 
         new PutWatchRequestBuilder(client(), "_first").setSource(
             watchBuilder().trigger(schedule(interval("5s")))

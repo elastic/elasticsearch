@@ -18,7 +18,11 @@ public class RetryException extends ElasticsearchException implements Elasticsea
         this.shouldRetry = shouldRetry;
     }
 
-    public RetryException(boolean shouldRetry, String msg) {
+    /**
+     * This should really only be used for testing. Ideally a retry exception would be associated with
+     * an actual exception that can be provided back to the client in the event that retrying fails.
+     */
+    RetryException(boolean shouldRetry, String msg) {
         super(msg);
         this.shouldRetry = shouldRetry;
     }

@@ -118,7 +118,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 @LuceneTestCase.SuppressFileSystems("*")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102783")
 public class InstallPluginActionTests extends ESTestCase {
 
     private InstallPluginAction skipJarHellAction;

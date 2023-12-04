@@ -933,7 +933,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         indexRandom(true, docs);
         flush();
-        assertThat(prepareSearch(name).setSize(0).get().getHits().getTotalHits().value, equalTo((long) numDocs));
+        assertHitCount(prepareSearch(name).setSize(0), numDocs);
         return indicesAdmin().prepareStats(name).get();
     }
 

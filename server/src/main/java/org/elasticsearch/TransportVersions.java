@@ -185,6 +185,7 @@ public class TransportVersions {
     public static final TransportVersion CLUSTER_STATS_RESCORER_USAGE_ADDED = def(8_552_00_0);
     public static final TransportVersion ML_INFERENCE_HF_SERVICE_ADDED = def(8_553_00_0);
     public static final TransportVersion INFERENCE_USAGE_ADDED = def(8_554_00_0);
+    public static final TransportVersion UPGRADE_TO_LUCENE_9_9 = def(8_555_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

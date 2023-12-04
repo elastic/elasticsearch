@@ -887,7 +887,6 @@ public class MachineLearning extends Plugin
     @Override
     public List<RescorerSpec<?>> getRescorers() {
         if (enabled && LearnToRankRescorerFeature.isEnabled()) {
-            // Inference rescorer requires access to the model loading service
             return List.of(
                 new RescorerSpec<>(
                     LearnToRankRescorerBuilder.NAME,

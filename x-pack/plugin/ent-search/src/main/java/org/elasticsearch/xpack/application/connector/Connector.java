@@ -200,14 +200,14 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
     static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
     static final ParseField DESCRIPTION_FIELD = new ParseField("description");
-    static final ParseField ERROR_FIELD = new ParseField("error");
+    public static final ParseField ERROR_FIELD = new ParseField("error");
     static final ParseField FEATURES_FIELD = new ParseField("features");
     public static final ParseField FILTERING_FIELD = new ParseField("filtering");
     public static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
     static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
     public static final ParseField LANGUAGE_FIELD = new ParseField("language");
     public static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
-    static final ParseField NAME_FIELD = new ParseField("name");
+    public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
     public static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
     public static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
@@ -457,8 +457,28 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return connectorId;
     }
 
-    public ConnectorScheduling getScheduling() {
-        return scheduling;
+    public String getApiKeyId() {
+        return apiKeyId;
+    }
+
+    public Map<String, Object> getConfiguration() {
+        return configuration;
+    }
+
+    public Map<String, ConnectorCustomSchedule> getCustomScheduling() {
+        return customScheduling;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public String getError() {
+        return error;
+    }
+
+    public ConnectorFeatures getFeatures() {
+        return features;
     }
 
     public List<ConnectorFiltering> getFiltering() {
@@ -469,20 +489,40 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return indexName;
     }
 
+    public boolean isNative() {
+        return isNative;
+    }
+
     public String getLanguage() {
         return language;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public ConnectorIngestPipeline getPipeline() {
         return pipeline;
     }
 
+    public ConnectorScheduling getScheduling() {
+        return scheduling;
+    }
+
     public String getServiceType() {
         return serviceType;
     }
 
-    public Map<String, Object> getConfiguration() {
-        return configuration;
+    public ConnectorStatus getStatus() {
+        return status;
+    }
+
+    public Object getSyncCursor() {
+        return syncCursor;
+    }
+
+    public boolean isSyncNow() {
+        return syncNow;
     }
 
     public ConnectorSyncInfo getSyncInfo() {

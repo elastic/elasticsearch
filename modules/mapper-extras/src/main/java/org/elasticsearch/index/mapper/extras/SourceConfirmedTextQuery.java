@@ -236,7 +236,7 @@ public final class SourceConfirmedTextQuery extends Query {
             for (Term term : terms) {
                 TermStates ts = termStates.computeIfAbsent(term, t -> {
                     try {
-                        return TermStates.build(searcher.getTopReaderContext(), t, scoreMode.needsScores());
+                        return TermStates.build(searcher, t, scoreMode.needsScores());
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

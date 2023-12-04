@@ -424,7 +424,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 .actionGet();
             boolean found = false;
             for (ExplainIndexDataStreamLifecycle index : response.getIndices()) {
-                if (index.getError() != null && index.getError().retryCount() > 10) {
+                if (index.getError() != null && index.getError().retryCount() > 3) {
                     found = true;
                     break;
                 }

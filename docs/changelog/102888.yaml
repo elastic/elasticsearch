@@ -1,5 +1,5 @@
 pr: 102888
-summary: "{DRAFT} Optimize `_count` type API requests"
+summary: "Optimize `_count` type API requests"
 area: Search
 type: enhancement
 issues: []

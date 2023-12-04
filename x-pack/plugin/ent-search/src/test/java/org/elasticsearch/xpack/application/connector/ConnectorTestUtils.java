@@ -8,6 +8,12 @@
 package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationDependency;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationDisplayType;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationFieldType;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationSelectOption;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationValidation;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationValidationType;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringAdvancedSnippet;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringPolicy;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRule;
@@ -19,6 +25,7 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -178,10 +185,59 @@ public final class ConnectorTestUtils {
             .build();
     }
 
+    private static Object randomConnectorConfigurationValue() {
+        return randomFrom(randomInt(), randomBoolean(), randomAlphaOfLength(10), null);
+    }
+
+    private static ConfigurationDependency getRandomConfigurationDependency() {
+        return new ConfigurationDependency.Builder().setField(randomAlphaOfLength(10))
+            .setValue(randomConnectorConfigurationValue())
+            .build();
+    }
+
+    private static ConfigurationSelectOption getRandomConfigurationSelectOption() {
+        return new ConfigurationSelectOption.Builder().setLabel(randomAlphaOfLength(10)).setValue(randomAlphaOfLength(10)).build();
+    }
+
+    private static ConfigurationValidation getRandomConfigurationValidation() {
+        return new ConfigurationValidation.Builder().setConstraint(randomFrom(randomAlphaOfLength(10), randomInt()))
+            .setType(getRandomConfigurationValidationType())
+            .build();
+    }
+
+    public static ConnectorConfiguration getRandomConnectorConfigurationField() {
+        return new ConnectorConfiguration.Builder().setCategory(randomAlphaOfLength(10))
+            .setDefaultValue(randomConnectorConfigurationValue())
+            .setDependsOn(
+                List.of(getRandomConfigurationDependency(), getRandomConfigurationDependency(), getRandomConfigurationDependency())
+            )
+            .setDisplay(getRandomConfigurationDisplayType())
+            .setLabel(randomAlphaOfLength(10))
+            .setOptions(List.of(getRandomConfigurationSelectOption(), getRandomConfigurationSelectOption()))
+            .setOrder(randomInt())
+            .setPlaceholder(randomAlphaOfLength(10))
+            .setRequired(randomBoolean())
+            .setSensitive(randomBoolean())
+            .setTooltip(randomAlphaOfLength(10))
+            .setType(getRandomConfigurationFieldType())
+            .setUiRestrictions(List.of(randomAlphaOfLength(10), randomAlphaOfLength(10)))
+            .setValidations(List.of(getRandomConfigurationValidation(), getRandomConfigurationValidation()))
+            .setValue(randomConnectorConfigurationValue())
+            .build();
+    }
+
+    public static Map<String, ConnectorConfiguration> getRandomConnectorConfiguration() {
+        Map<String, ConnectorConfiguration> configMap = new HashMap<>();
+        for (int i = 0; i < 10; i++) {
+            configMap.put(randomAlphaOfLength(10), getRandomConnectorConfigurationField());
+        }
+        return configMap;
+    }
+
     public static Connector getRandomConnector() {
         return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
             .setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setConfiguration(Collections.emptyMap())
+            .setConfiguration(getRandomConnectorConfiguration())
             .setCustomScheduling(Map.of(randomAlphaOfLengthBetween(5, 10), getRandomConnectorCustomSchedule()))
             .setDescription(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
@@ -249,6 +305,21 @@ public final class ConnectorTestUtils {
 
     private static FilteringValidationState getRandomFilteringValidationState() {
         FilteringValidationState[] values = FilteringValidationState.values();
+        return values[randomInt(values.length - 1)];
+    }
+
+    private static ConfigurationDisplayType getRandomConfigurationDisplayType() {
+        ConfigurationDisplayType[] values = ConfigurationDisplayType.values();
+        return values[randomInt(values.length - 1)];
+    }
+
+    private static ConfigurationFieldType getRandomConfigurationFieldType() {
+        ConfigurationFieldType[] values = ConfigurationFieldType.values();
+        return values[randomInt(values.length - 1)];
+    }
+
+    private static ConfigurationValidationType getRandomConfigurationValidationType() {
+        ConfigurationValidationType[] values = ConfigurationValidationType.values();
         return values[randomInt(values.length - 1)];
     }
 }

@@ -21,8 +21,8 @@ public enum ConfigurationDisplayType {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public static ConfigurationValidationType displayType(String type) {
-        for (ConfigurationValidationType displayType : ConfigurationValidationType.values()) {
+    public static ConfigurationDisplayType displayType(String type) {
+        for (ConfigurationDisplayType displayType : ConfigurationDisplayType.values()) {
             if (displayType.name().equalsIgnoreCase(type)) {
                 return displayType;
             }

@@ -169,7 +169,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public Connector(StreamInput in) throws IOException {
         this.connectorId = in.readString();
         this.apiKeyId = in.readOptionalString();
-        this.configuration = in.readMap(StreamInput::readGenericValue);
+        this.configuration = in.readMap(ConnectorConfiguration::new);
         this.customScheduling = in.readMap(ConnectorCustomSchedule::new);
         this.description = in.readOptionalString();
         this.error = in.readOptionalString();
@@ -424,7 +424,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(connectorId);
         out.writeOptionalString(apiKeyId);
-        out.writeMap(configuration, StreamOutput::writeGenericValue);
+        out.writeMap(configuration, StreamOutput::writeWriteable);
         out.writeMap(customScheduling, StreamOutput::writeWriteable);
         out.writeOptionalString(description);
         out.writeOptionalString(error);

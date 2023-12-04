@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Objects;
 
 public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
 
@@ -30,9 +31,17 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
         private long count;
 
         public ModelStats(String service, TaskType taskType) {
+            this(service, taskType, 0L);
+        }
+
+        public ModelStats(String service, TaskType taskType, long count) {
             this.service = service;
             this.taskType = taskType;
-            this.count = 0;
+            this.count = count;
+        }
+
+        public ModelStats(ModelStats stats) {
+            this(stats.service, stats.taskType, stats.count);
         }
 
         public ModelStats(StreamInput in) throws IOException {
@@ -60,6 +69,19 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeString(service);
             out.writeEnum(taskType);
             out.writeLong(count);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ModelStats that = (ModelStats) o;
+            return count == that.count && Objects.equals(service, that.service) && taskType == that.taskType;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(service, taskType, count);
         }
     }
 

@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Represents the data stream lifecycle information that would help shape the functionality health.
+ * Represents the data stream lifecycle information that would help shape the functionality's health.
  */
 public record DataStreamLifecycleHealthInfo(List<DslErrorInfo> dslErrorsInfo, int totalErrorEntriesCount) implements Writeable {
 

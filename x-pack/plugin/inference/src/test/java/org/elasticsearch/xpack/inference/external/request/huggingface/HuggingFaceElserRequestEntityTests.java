@@ -21,7 +21,7 @@ import static org.hamcrest.CoreMatchers.is;
 public class HuggingFaceElserRequestEntityTests extends ESTestCase {
 
     public void testXContent() throws IOException {
-        var entity = new HuggingFaceElserRequestEntity(List.of("abc"));
+        var entity = new HuggingFaceInferenceRequestEntity(List.of("abc"));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

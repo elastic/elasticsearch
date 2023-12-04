@@ -22,12 +22,19 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
     private static final Map<SpatialCoordinateTypes, TestTypeFunctions> types = new LinkedHashMap<>();
     static {
         types.put(SpatialCoordinateTypes.GEO, new TestTypeFunctions(ESTestCase::randomGeoPoint, v -> 1e-5));
-        types.put(SpatialCoordinateTypes.CARTESIAN, new TestTypeFunctions(ESTestCase::randomCartesianPoint, v -> Math.abs(v / 1e5)));
+        types.put(
+            SpatialCoordinateTypes.CARTESIAN,
+            new TestTypeFunctions(ESTestCase::randomCartesianPoint, SpatialCoordinateTypesTests::cartesianError)
+        );
+    }
+
+    private static double cartesianError(double v) {
+        double abs = Math.abs(v);
+        return (abs < 1) ? 1e-5 : abs / 1e7;
     }
 
     record TestTypeFunctions(Supplier<SpatialPoint> randomPoint, Function<Double, Double> error) {}
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102863")
     public void testEncoding() {
         for (var type : types.entrySet()) {
             for (int i = 0; i < 10; i++) {
@@ -35,8 +42,8 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
                 SpatialPoint original = type.getValue().randomPoint().get();
                 var error = type.getValue().error;
                 SpatialPoint point = coordType.longAsPoint(coordType.pointAsLong(original));
-                assertThat(coordType + ": Y[" + i + "]", point.getY(), closeTo(original.getY(), error.apply(original.getX())));
-                assertThat(coordType + ": X[" + i + "]", point.getX(), closeTo(original.getX(), error.apply(original.getY())));
+                assertThat(coordType + ": Y[" + i + "]", point.getY(), closeTo(original.getY(), error.apply(original.getY())));
+                assertThat(coordType + ": X[" + i + "]", point.getX(), closeTo(original.getX(), error.apply(original.getX())));
             }
         }
     }

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 
@@ -150,6 +151,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         return List.of(
             ElserMlNodeService::new,
             context -> new HuggingFaceElserService(httpFactory, serviceComponents),
+            context -> new HuggingFaceService(httpFactory, serviceComponents),
             context -> new OpenAiService(httpFactory, serviceComponents)
         );
     }

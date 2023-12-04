@@ -17,6 +17,7 @@ import java.util.Set;
  */
 public final class SearchUsage {
     private final Set<String> queries = new HashSet<>();
+    private final Set<String> rescorers = new HashSet<>();
     private final Set<String> sections = new HashSet<>();
 
     /**
@@ -34,10 +35,24 @@ public final class SearchUsage {
     }
 
     /**
+     * Track the usage of the provided rescorer
+     */
+    public void trackRescorerUsage(String name) {
+        rescorers.add(name);
+    }
+
+    /**
      * Returns the query types that have been used at least once in the tracked search request
      */
     public Set<String> getQueryUsage() {
         return Collections.unmodifiableSet(queries);
+    }
+
+    /**
+     * Returns the rescorer types that have been used at least once in the tracked search request
+     */
+    public Set<String> getRescorerUsage() {
+        return Collections.unmodifiableSet(rescorers);
     }
 
     /**

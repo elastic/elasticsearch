@@ -132,7 +132,6 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                     exceptions.add(e);
                 }
             });
-
             ExceptionsHelper.rethrowAndSuppress(exceptions);
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
         } catch (final Exception e) {

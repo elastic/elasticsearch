@@ -61,7 +61,7 @@ public class AdvancedS3StorageClassStrategyProvider implements S3StorageClassStr
                     );
                 }
 
-                if (operationPurpose == OperationPurpose.INDICES) { // TODO!
+                if (operationPurpose == OperationPurpose.SNAPSHOT_DATA) {
                     return dataStorageClass;
                 } else {
                     return metadataStorageClass;

@@ -502,9 +502,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected long getCountForIndex(String indexName) {
-        return client().search(
+        var resp = client().search(
             new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
-        ).actionGet().getHits().getTotalHits().value;
+        ).actionGet();
+        try {
+            return resp.getHits().getTotalHits().value;
+        } finally {
+            resp.decRef();
+        }
     }
 
     protected void assertDocCount(String index, long count) {

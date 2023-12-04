@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategy;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategyProvider;
-import org.elasticsearch.repositories.s3.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import static org.elasticsearch.repositories.s3.SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING;

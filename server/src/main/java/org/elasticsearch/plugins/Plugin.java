@@ -90,11 +90,6 @@ public abstract class Plugin implements Closeable {
         ThreadPool threadPool();
 
         /**
-         * The plugins service itself
-         */
-        PluginsService pluginsService();
-
-        /**
          * A service to watch for changes to node local files
          */
         ResourceWatcherService resourceWatcherService();

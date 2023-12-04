@@ -19,8 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.ExtensionLoader;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
@@ -84,22 +85,16 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(
-            s3Service(
-                services.environment(),
-                services.clusterService().getSettings(),
-                getStorageClassStrategyProvider(services.pluginsService())
-            )
-        );
+        service.set(s3Service(services.environment(), services.clusterService().getSettings(), getStorageClassStrategyProvider()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         meterRegistry.set(services.telemetryProvider().getMeterRegistry());
         return List.of(service);
     }
 
-    public static S3StorageClassStrategyProvider getStorageClassStrategyProvider(PluginsService pluginsService) {
+    public static S3StorageClassStrategyProvider getStorageClassStrategyProvider() {
         return AccessController.doPrivileged(
-            (PrivilegedAction<S3StorageClassStrategyProvider>) () -> pluginsService.loadSingletonServiceProvider(
-                S3StorageClassStrategyProvider.class,
+            (PrivilegedAction<S3StorageClassStrategyProvider>) () -> ExtensionLoader.loadSingleton(
+                ServiceLoader.load(S3StorageClassStrategyProvider.class),
                 () -> SimpleS3StorageClassStrategyProvider.INSTANCE
             )
         );

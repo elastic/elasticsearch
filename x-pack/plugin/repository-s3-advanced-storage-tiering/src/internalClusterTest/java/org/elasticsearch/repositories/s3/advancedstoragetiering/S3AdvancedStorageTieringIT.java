@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.s3.advancedstoragetiering;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategy;
 import org.elasticsearch.repositories.s3.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,9 +55,8 @@ public class S3AdvancedStorageTieringIT extends ESIntegTestCase {
     }
 
     private static S3StorageClassStrategy getStrategy(Settings.Builder settings) {
-        return asInstanceOf(
-            AdvancedS3StorageClassStrategyProvider.class,
-            getStorageClassStrategyProvider(internalCluster().getInstance(PluginsService.class))
-        ).getS3StorageClassStrategy(settings.build());
+        return asInstanceOf(AdvancedS3StorageClassStrategyProvider.class, getStorageClassStrategyProvider()).getS3StorageClassStrategy(
+            settings.build()
+        );
     }
 }

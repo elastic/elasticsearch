@@ -14,7 +14,6 @@ import com.amazonaws.services.s3.AmazonS3Client;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;

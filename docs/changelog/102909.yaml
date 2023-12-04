@@ -1,0 +1,5 @@
+pr: 102909
+summary: Allow separate S3 storage classes for data & metadata
+area: Snapshot/Restore
+type: enhancement
+issues: []

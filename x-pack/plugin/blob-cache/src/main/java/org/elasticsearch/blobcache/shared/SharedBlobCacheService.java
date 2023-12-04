@@ -681,7 +681,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToRead,
-                    ActionListener.runBefore(listener, resource::close).delegateFailureAndWrap((l, success) -> {
+                    ActionListener.runAfter(listener, resource::close).delegateFailureAndWrap((l, success) -> {
                         var ioRef = io;
                         assert regionOwners.get(ioRef) == this;
                         final int start = Math.toIntExact(rangeToRead.start());

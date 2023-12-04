@@ -3,6 +3,10 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
+dependencies {
+  javaRestTestImplementation(project(':modules:lang-mustache'))
+}
+
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
@@ -13,7 +17,7 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
-  requiresFeature 'es.inference_rescorer_feature_flag_enabled', Version.fromString("8.10.0")
+  requiresFeature 'es.learn_to_rank_feature_flag_enabled', Version.fromString("8.10.0")
 }
 
 if (BuildParams.inFipsJvm){

@@ -273,7 +273,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo")
             );
             deterministicTaskQueue.runAllRunnableTasks();
-            assertNull(future.result());
+            assertTrue(future.isDone());
+            final var result = future.result();
+            if (result != null) {
+                fail(result);
+            }
         } finally {
             testClusterNodes.nodes.values().forEach(TestClusterNodes.TestClusterNode::stop);
         }
@@ -1641,7 +1645,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         }
                     }
                 );
-                clusterService.setRerouteService((reason, priority, listener) -> listener.onResponse(null));
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override
@@ -1722,6 +1725,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 snapshotsService = new SnapshotsService(
                     settings,
                     clusterService,
+                    (reason, priority, listener) -> listener.onResponse(null),
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,

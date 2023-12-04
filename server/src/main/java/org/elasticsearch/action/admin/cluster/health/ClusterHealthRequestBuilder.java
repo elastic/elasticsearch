@@ -21,8 +21,8 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
     ClusterHealthResponse,
     ClusterHealthRequestBuilder> {
 
-    public ClusterHealthRequestBuilder(ElasticsearchClient client, ClusterHealthAction action) {
-        super(client, action, new ClusterHealthRequest());
+    public ClusterHealthRequestBuilder(ElasticsearchClient client) {
+        super(client, ClusterHealthAction.INSTANCE, new ClusterHealthRequest());
     }
 
     public ClusterHealthRequestBuilder setIndices(String... indices) {

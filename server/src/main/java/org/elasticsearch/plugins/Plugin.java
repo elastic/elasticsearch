@@ -158,7 +158,7 @@ public abstract class Plugin implements Closeable {
         SystemIndices systemIndices();
 
         /**
-         * A supplier for the service that remote cluster operations.
+         * A supplier for the service that manages remote cluster operations.
          * This will return null when {@link #createComponents(PluginServices)} is called,
          * but will return the remote cluster service once the node is initialized.
          */

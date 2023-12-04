@@ -1087,7 +1087,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         );
     }
 
-    public static MockTransportService startTransport(
+    private static MockTransportService startTransport(
         final String nodeName,
         final ThreadPool threadPool,
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders
@@ -1206,7 +1206,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    public record CapturedActionWithHeaders(String action, Map<String, String> headers) {}
+    private record CapturedActionWithHeaders(String action, Map<String, String> headers) {}
 
     private static void updateRemoteClusterSettings(final String clusterAlias, final Map<String, Object> settings) throws IOException {
         final Request request = new Request("PUT", "/_cluster/settings");

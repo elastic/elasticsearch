@@ -168,9 +168,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
 
     @Override
     protected Settings nodeSettings() {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings());
-        builder.put("xpack.security.remote_cluster_client.ssl.enabled", false);
-        return builder.build();
+        return Settings.builder().put(super.nodeSettings()).put("xpack.security.remote_cluster_client.ssl.enabled", false).build();
     }
 
     private void configureRemoteCluster(TransportAddress remoteAddress) throws InterruptedException, ExecutionException {

@@ -136,6 +136,7 @@ public class Constants {
         "cluster:admin/xpack/connector/sync_job/post",
         "cluster:admin/xpack/connector/sync_job/delete",
         "cluster:admin/xpack/connector/sync_job/check_in",
+        "cluster:admin/xpack/connector/sync_job/get",
         "cluster:admin/xpack/connector/sync_job/cancel",
         "cluster:admin/xpack/deprecation/info",
         "cluster:admin/xpack/deprecation/nodes/info",

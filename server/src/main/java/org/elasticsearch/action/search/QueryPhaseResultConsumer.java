@@ -11,15 +11,12 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -37,14 +34,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
@@ -561,105 +554,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 }
             }
             consumeListener();
-        }
-    }
-
-    /**
-     * Optimized phase result consumer that only counts the number of hits and does not
-     * store any other information.
-     */
-    static class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseResult> {
-        AtomicReference<TotalHits.Relation> relationAtomicReference = new AtomicReference<>(TotalHits.Relation.EQUAL_TO);
-        LongAdder totalHits = new LongAdder();
-
-        private final AtomicBoolean terminatedEarly = new AtomicBoolean(false);
-        private final AtomicBoolean timedOut = new AtomicBoolean(false);
-        private final Set<Integer> results;
-        private final SearchProgressListener progressListener;
-
-        CountOnlyQueryPhaseResultConsumer(SearchProgressListener progressListener, int numShards) {
-            super(numShards);
-            this.progressListener = progressListener;
-            this.results = Collections.newSetFromMap(Maps.newConcurrentHashMapWithExpectedSize(numShards));
-        }
-
-        @Override
-        Stream<SearchPhaseResult> getSuccessfulResults() {
-            return Stream.empty();
-        }
-
-        @Override
-        public void consumeResult(SearchPhaseResult result, Runnable next) {
-            assert results.contains(result.getShardIndex()) == false : "shardIndex: " + result.getShardIndex() + " is already set";
-            results.add(result.getShardIndex());
-            // set the relation to the first non-equal relation
-            relationAtomicReference.compareAndSet(TotalHits.Relation.EQUAL_TO, result.queryResult().getTotalHits().relation);
-            totalHits.add(result.queryResult().getTotalHits().value);
-            terminatedEarly.compareAndSet(
-                false,
-                (result.queryResult().terminatedEarly() != null && result.queryResult().terminatedEarly())
-            );
-            timedOut.compareAndSet(false, result.queryResult().searchTimedOut());
-            progressListener.notifyQueryResult(result.getShardIndex(), result.queryResult());
-            next.run();
-        }
-
-        @Override
-        boolean hasResult(int shardIndex) {
-            return results.contains(shardIndex);
-        }
-
-        @Override
-        public SearchPhaseController.ReducedQueryPhase reduce() throws Exception {
-            SearchPhaseController.ReducedQueryPhase reducePhase = new SearchPhaseController.ReducedQueryPhase(
-                new TotalHits(totalHits.sum(), relationAtomicReference.get()),
-                0,
-                Float.NaN,
-                timedOut.get(),
-                terminatedEarly.get(),
-                null,
-                null,
-                null,
-                SearchPhaseController.SortedTopDocs.EMPTY,
-                null,
-                null,
-                1,
-                0,
-                0,
-                false
-            );
-            if (progressListener != SearchProgressListener.NOOP) {
-                progressListener.notifyFinalReduce(
-                    List.of(),
-                    reducePhase.totalHits(),
-                    reducePhase.aggregations(),
-                    reducePhase.numReducePhases()
-                );
-            }
-            return reducePhase;
-        }
-
-        @Override
-        AtomicArray<SearchPhaseResult> getAtomicArray() {
-            return new AtomicArray<>(0);
-        }
-
-        @Override
-        public void incRef() {}
-
-        @Override
-        public boolean tryIncRef() {
-            return true;
-        }
-
-        @Override
-        public boolean decRef() {
-            return true;
-        }
-
-        @Override
-        public boolean hasReferences() {
-            return false;
         }
     }
 }

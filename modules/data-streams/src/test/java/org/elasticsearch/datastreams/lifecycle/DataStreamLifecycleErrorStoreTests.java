@@ -89,13 +89,13 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
     }
 
     public void testGetFilteredEntries() {
-        IntStream.range(0, 20).forEach(i -> errorStore.recordError("test10", new NullPointerException("testing")));
+        IntStream.range(0, 20).forEach(i -> errorStore.recordError("test20", new NullPointerException("testing")));
         IntStream.range(0, 5).forEach(i -> errorStore.recordError("test5", new NullPointerException("testing")));
 
         {
             List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 7, 100);
             assertThat(entries.size(), is(1));
-            assertThat(entries.get(0).indexName(), is("test10"));
+            assertThat(entries.get(0).indexName(), is("test20"));
         }
 
         {
@@ -111,7 +111,7 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
         {
             List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 2, 100);
             assertThat(entries.size(), is(2));
-            assertThat(entries.get(0).indexName(), is("test10"));
+            assertThat(entries.get(0).indexName(), is("test20"));
             assertThat(entries.get(1).indexName(), is("test5"));
         }
     }

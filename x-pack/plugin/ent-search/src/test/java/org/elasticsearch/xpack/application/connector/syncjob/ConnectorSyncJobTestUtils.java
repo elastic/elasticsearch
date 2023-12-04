@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnec
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobErrorAction;
 
 import java.time.Instant;
 
@@ -99,5 +100,9 @@ public class ConnectorSyncJobTestUtils {
 
     public static CheckInConnectorSyncJobAction.Request getRandomCheckInConnectorSyncJobActionRequest() {
         return new CheckInConnectorSyncJobAction.Request(randomAlphaOfLength(10));
+    }
+
+    public static UpdateConnectorSyncJobErrorAction.Request getRandomUpdateConnectorSyncJobErrorActionRequest() {
+        return new UpdateConnectorSyncJobErrorAction.Request(randomAlphaOfLength(10), randomAlphaOfLengthBetween(5, 100));
     }
 }

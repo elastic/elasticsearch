@@ -265,6 +265,43 @@ public class ConnectorSyncJobIndexService {
     }
 
     /**
+     * Sets the error for the {@link ConnectorSyncJob} in the underlying index.
+     * This also sets the {@link ConnectorSyncStatus} to 'ERROR'.
+     *
+     * @param connectorSyncJobId     The id of the connector sync job object.
+     * @param error                  The error to set.
+     * @param listener               The action listener to invoke on response/failure.
+     */
+    public void updateConnectorSyncJobError(String connectorSyncJobId, String error, ActionListener<UpdateResponse> listener) {
+        final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        )
+            .doc(
+                Map.of(
+                    ConnectorSyncJob.ERROR_FIELD.getPreferredName(),
+                    error,
+                    ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                    ConnectorSyncStatus.ERROR
+                )
+            );
+
+        try {
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Listeners that checks failures for IndexNotFoundException and DocumentMissingException,
      * and transforms them in ResourceNotFoundException, invoking onFailure on the delegate listener.
      */

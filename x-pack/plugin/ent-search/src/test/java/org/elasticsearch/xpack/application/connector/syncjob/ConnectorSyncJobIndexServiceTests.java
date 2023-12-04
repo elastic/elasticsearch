@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobErrorAction;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -261,6 +262,35 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitCancelConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID));
     }
 
+    public void testUpdateConnectorSyncJobError() throws Exception {
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+            connector.getConnectorId()
+        );
+        PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
+        String syncJobId = response.getId();
+
+        UpdateConnectorSyncJobErrorAction.Request request = ConnectorSyncJobTestUtils.getRandomUpdateConnectorSyncJobErrorActionRequest();
+        String errorInRequest = request.getError();
+
+        UpdateResponse updateResponse = awaitUpdateConnectorSyncJob(syncJobId, errorInRequest);
+        Map<String, Object> connectorSyncJobSource = getConnectorSyncJobSourceById(syncJobId);
+        String error = (String) connectorSyncJobSource.get(ConnectorSyncJob.ERROR_FIELD.getPreferredName());
+        ConnectorSyncStatus syncStatus = ConnectorSyncStatus.fromString(
+            (String) connectorSyncJobSource.get(ConnectorSyncJob.STATUS_FIELD.getPreferredName())
+        );
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        assertThat(error, equalTo(errorInRequest));
+        assertThat(syncStatus, equalTo(ConnectorSyncStatus.ERROR));
+    }
+
+    public void testUpdateConnectorSyncJobError_WithMissingSyncJobId_ExceptException() {
+        expectThrows(
+            ResourceNotFoundException.class,
+            () -> awaitUpdateConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID, randomAlphaOfLengthBetween(5, 100))
+        );
+    }
+
     private static void assertFieldsExceptSyncStatusAndCancellationRequestedAtDidNotUpdate(
         Map<String, Object> syncJobSourceBeforeUpdate,
         Map<String, Object> syncJobSourceAfterUpdate
@@ -311,6 +341,31 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
                 );
             }
         }
+    }
+
+    private UpdateResponse awaitUpdateConnectorSyncJob(String syncJobId, String error) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorSyncJobIndexService.updateConnectorSyncJobError(syncJobId, error, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse updateResponse) {
+                resp.set(updateResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update request", resp.get());
+        return resp.get();
     }
 
     private UpdateResponse awaitCancelConnectorSyncJob(String syncJobId) throws Exception {

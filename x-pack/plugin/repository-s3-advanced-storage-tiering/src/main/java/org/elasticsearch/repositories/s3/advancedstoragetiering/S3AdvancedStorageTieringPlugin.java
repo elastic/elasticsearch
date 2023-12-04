@@ -9,7 +9,9 @@ package org.elasticsearch.repositories.s3.advancedstoragetiering;
 
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 @SuppressWarnings("unused")
 public class S3AdvancedStorageTieringPlugin extends Plugin {
@@ -18,4 +20,8 @@ public class S3AdvancedStorageTieringPlugin extends Plugin {
         "repository-s3-advanced-storage-tiering",
         License.OperationMode.ENTERPRISE
     );
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
 }

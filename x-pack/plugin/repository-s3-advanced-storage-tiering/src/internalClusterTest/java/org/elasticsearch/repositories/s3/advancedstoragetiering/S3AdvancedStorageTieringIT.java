@@ -16,7 +16,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategy;
 import org.elasticsearch.repositories.s3.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.Collection;
 
@@ -29,7 +28,7 @@ public class S3AdvancedStorageTieringIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), LocalStateCompositeXPackPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), LocalStateS3AdvancedStorageTieringPlugin.class);
     }
 
     public void testDefaultStrategy() {

@@ -259,8 +259,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<NamedExpression> enrichFields,
             EnrichPolicy policy
         ) {
-            Map<String, Attribute> fieldMap = mapping.stream().collect(Collectors.toMap(NamedExpression::name, Function.identity()));
-            fieldMap.remove(policy.getMatchField());
+            Set<String> policyEnrichFieldSet = new HashSet<>(policy.getEnrichFields());
+            Map<String, Attribute> fieldMap = mapping.stream()
+                .filter(e -> policyEnrichFieldSet.contains(e.name()))
+                .collect(Collectors.toMap(NamedExpression::name, Function.identity()));
             List<NamedExpression> result = new ArrayList<>();
             if (enrichFields == null || enrichFields.isEmpty()) {
                 // use the policy to infer the enrich fields

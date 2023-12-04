@@ -35,6 +35,8 @@ module org.elasticsearch.application {
     exports org.elasticsearch.xpack.application.rules.action;
     exports org.elasticsearch.xpack.application.connector;
     exports org.elasticsearch.xpack.application.connector.action;
+    exports org.elasticsearch.xpack.application.connector.syncjob;
+    exports org.elasticsearch.xpack.application.connector.syncjob.action;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
 }

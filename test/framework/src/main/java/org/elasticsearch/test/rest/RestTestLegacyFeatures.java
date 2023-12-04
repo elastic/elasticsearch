@@ -31,6 +31,10 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
         "indices.delete_template_multiple_names_supported"
     );
 
+    // QA - rolling upgrade tests
+    public static final NodeFeature SECURITY_UPDATE_API_KEY = new NodeFeature("security.api_key_update");
+    public static final NodeFeature SECURITY_BULK_UPDATE_API_KEY = new NodeFeature("security.api_key_bulk_update");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.ofEntries(
@@ -39,7 +43,9 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(HIDDEN_INDICES_SUPPORTED, Version.V_7_7_0),
             entry(COMPONENT_TEMPLATE_SUPPORTED, Version.V_7_8_0),
             entry(DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED, Version.V_7_13_0),
-            entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0)
+            entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0),
+            entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
+            entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0)
         );
     }
 }

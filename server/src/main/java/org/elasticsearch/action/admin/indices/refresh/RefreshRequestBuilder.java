@@ -18,7 +18,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  */
 public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<RefreshRequest, RefreshResponse, RefreshRequestBuilder> {
 
-    public RefreshRequestBuilder(ElasticsearchClient client, RefreshAction action) {
-        super(client, action, new RefreshRequest());
+    public RefreshRequestBuilder(ElasticsearchClient client) {
+        super(client, RefreshAction.INSTANCE, new RefreshRequest());
     }
 }

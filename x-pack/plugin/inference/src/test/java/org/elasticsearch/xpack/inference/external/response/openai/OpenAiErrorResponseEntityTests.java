@@ -49,7 +49,7 @@ public class OpenAiErrorResponseEntityTests extends ESTestCase {
         assertNull(errorMessage);
     }
 
-    public void testFromResponse_noErro() {
+    public void testFromResponse_noError() {
         String responseJson = """
             {
                 "something": {

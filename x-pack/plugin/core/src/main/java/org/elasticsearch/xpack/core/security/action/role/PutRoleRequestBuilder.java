@@ -25,11 +25,7 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         WriteRequestBuilder<PutRoleRequestBuilder> {
 
     public PutRoleRequestBuilder(ElasticsearchClient client) {
-        this(client, PutRoleAction.INSTANCE);
-    }
-
-    public PutRoleRequestBuilder(ElasticsearchClient client, PutRoleAction action) {
-        super(client, action, new PutRoleRequest());
+        super(client, PutRoleAction.INSTANCE, new PutRoleRequest());
     }
 
     /**

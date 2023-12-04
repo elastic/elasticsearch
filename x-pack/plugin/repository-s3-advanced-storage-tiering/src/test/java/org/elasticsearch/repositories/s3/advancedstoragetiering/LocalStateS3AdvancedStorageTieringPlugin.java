@@ -17,11 +17,11 @@ public class LocalStateS3AdvancedStorageTieringPlugin extends LocalStateComposit
 
     public LocalStateS3AdvancedStorageTieringPlugin(final Settings settings, final Path configPath) {
         super(settings, configPath);
-        plugins.add(new S3AdvancedStorageTieringPlugin() {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return LocalStateS3AdvancedStorageTieringPlugin.this.getLicenseState();
-            }
-        });
+    }
+
+    @Override
+    protected void setLicenseState(XPackLicenseState licenseState) {
+        super.setLicenseState(licenseState);
+        AdvancedS3StorageClassStrategyProvider.licenseStateSupplier = () -> licenseState;
     }
 }

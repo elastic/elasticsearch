@@ -13,9 +13,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategy;
 import org.elasticsearch.repositories.s3.S3StorageClassStrategyProvider;
 import org.elasticsearch.xpack.core.XPackPlugin;
+
+import java.util.function.Supplier;
 
 import static org.elasticsearch.repositories.s3.SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING;
 import static org.elasticsearch.repositories.s3.advancedstoragetiering.S3AdvancedStorageTieringPlugin.S3_ADVANCED_STORAGE_TIERING_FEATURE;
@@ -30,6 +33,9 @@ public class AdvancedS3StorageClassStrategyProvider implements S3StorageClassStr
         "metadata_storage_class",
         STORAGE_CLASS_SETTING
     );
+
+    // mutable global state because yolo I guess?
+    static Supplier<XPackLicenseState> licenseStateSupplier = XPackPlugin::getSharedLicenseState;
 
     @Override
     public S3StorageClassStrategy getS3StorageClassStrategy(Settings repositorySettings) {
@@ -48,7 +54,7 @@ public class AdvancedS3StorageClassStrategyProvider implements S3StorageClassStr
                     return dataStorageClass;
                 }
 
-                final var licenseState = XPackPlugin.getSharedLicenseState();
+                final var licenseState = licenseStateSupplier.get();
                 if (S3_ADVANCED_STORAGE_TIERING_FEATURE.check(licenseState) == false) {
                     throw new IllegalArgumentException(
                         Strings.format(

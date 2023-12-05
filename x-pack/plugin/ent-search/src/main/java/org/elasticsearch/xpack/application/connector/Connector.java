@@ -70,7 +70,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     @Nullable
     private final String apiKeyId;
     @Nullable
-    private final Map<String, Object> configuration; // TODO: add explicit types
+    private final Map<String, ConnectorConfiguration> configuration;
     @Nullable
     private final Map<String, ConnectorCustomSchedule> customScheduling;
     @Nullable
@@ -131,7 +131,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     private Connector(
         String connectorId,
         String apiKeyId,
-        Map<String, Object> configuration,
+        Map<String, ConnectorConfiguration> configuration,
         Map<String, ConnectorCustomSchedule> customScheduling,
         String description,
         String error,
@@ -175,7 +175,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public Connector(StreamInput in) throws IOException {
         this.connectorId = in.readString();
         this.apiKeyId = in.readOptionalString();
-        this.configuration = in.readMap(StreamInput::readGenericValue);
+        this.configuration = in.readMap(ConnectorConfiguration::new);
         this.customScheduling = in.readMap(ConnectorCustomSchedule::new);
         this.description = in.readOptionalString();
         this.error = in.readOptionalString();
@@ -220,7 +220,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         int i = 0;
         return new Builder().setConnectorId((String) args[i++])
             .setApiKeyId((String) args[i++])
-            .setConfiguration((Map<String, Object>) args[i++])
+            .setConfiguration((Map<String, ConnectorConfiguration>) args[i++])
             .setCustomScheduling((Map<String, ConnectorCustomSchedule>) args[i++])
             .setDescription((String) args[i++])
             .setError((String) args[i++])
@@ -258,7 +258,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), API_KEY_ID_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (parser, context) -> parser.map(),
+            (p, c) -> p.map(HashMap::new, ConnectorConfiguration::fromXContent),
             CONFIGURATION_FIELD,
             ObjectParser.ValueType.OBJECT
         );
@@ -378,10 +378,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
                 builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
             }
             if (configuration != null) {
-                builder.field(CONFIGURATION_FIELD.getPreferredName(), configuration);
+                builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
             }
             if (customScheduling != null) {
-                builder.field(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
+                builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
             }
             if (description != null) {
                 builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
@@ -433,7 +433,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(connectorId);
         out.writeOptionalString(apiKeyId);
-        out.writeMap(configuration, StreamOutput::writeGenericValue);
+        out.writeMap(configuration, StreamOutput::writeWriteable);
         out.writeMap(customScheduling, StreamOutput::writeWriteable);
         out.writeOptionalString(description);
         out.writeOptionalString(error);
@@ -459,10 +459,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     public String getApiKeyId() {
         return apiKeyId;
-    }
-
-    public Map<String, Object> getConfiguration() {
-        return configuration;
     }
 
     public Map<String, ConnectorCustomSchedule> getCustomScheduling() {
@@ -513,8 +509,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return serviceType;
     }
 
-    public ConnectorStatus getStatus() {
-        return status;
+    public Map<String, ConnectorConfiguration> getConfiguration() {
+        return configuration;
     }
 
     public Object getSyncCursor() {
@@ -531,6 +527,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     public Instant getLastSeen() {
         return lastSeen;
+    }
+
+    public ConnectorStatus getStatus() {
+        return status;
     }
 
     @Override
@@ -595,7 +595,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
         private String connectorId;
         private String apiKeyId;
-        private Map<String, Object> configuration = Collections.emptyMap();
+        private Map<String, ConnectorConfiguration> configuration = Collections.emptyMap();
         private Map<String, ConnectorCustomSchedule> customScheduling = Collections.emptyMap();
         private String description;
         private String error;
@@ -625,7 +625,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             return this;
         }
 
-        public Builder setConfiguration(Map<String, Object> configuration) {
+        public Builder setConfiguration(Map<String, ConnectorConfiguration> configuration) {
             this.configuration = configuration;
             return this;
         }

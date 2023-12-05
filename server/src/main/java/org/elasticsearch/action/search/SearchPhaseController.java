@@ -241,8 +241,7 @@ public final class SearchPhaseController {
             final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            checkSameSortTypes(results, firstTopDocs.fields);
-            final Sort sort = new Sort(firstTopDocs.fields);
+            final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
@@ -252,19 +251,26 @@ public final class SearchPhaseController {
         return mergedTopDocs;
     }
 
-    private static void checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
-        if (results.size() < 2) return;
+    private static Sort checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
+        Sort sort = new Sort(firstSortFields);
+        if (results.size() < 2) return sort;
 
-        SortField.Type[] firstTypes = new SortField.Type[firstSortFields.length];
+        SortField.Type[] firstTypes = null;
         boolean isFirstResult = true;
         for (TopDocs topDocs : results) {
+            // We don't actually merge in empty score docs, so ignore potentially mismatched types if there are no docs
+            if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) {
+                continue;
+            }
             SortField[] curSortFields = ((TopFieldDocs) topDocs).fields;
             if (isFirstResult) {
+                sort = new Sort(curSortFields);
+                firstTypes = new SortField.Type[curSortFields.length];
                 for (int i = 0; i < curSortFields.length; i++) {
-                    firstTypes[i] = getType(firstSortFields[i]);
+                    firstTypes[i] = getType(curSortFields[i]);
                     if (firstTypes[i] == SortField.Type.CUSTOM) {
                         // for custom types that we can't resolve, we can't do the check
-                        return;
+                        return sort;
                     }
                 }
                 isFirstResult = false;
@@ -274,7 +280,7 @@ public final class SearchPhaseController {
                     if (curType != firstTypes[i]) {
                         if (curType == SortField.Type.CUSTOM) {
                             // for custom types that we can't resolve, we can't do the check
-                            return;
+                            return sort;
                         }
                         throw new IllegalArgumentException(
                             "Can't sort on field ["
@@ -289,6 +295,7 @@ public final class SearchPhaseController {
                 }
             }
         }
+        return sort;
     }
 
     private static SortField.Type getType(SortField sortField) {
@@ -776,7 +783,7 @@ public final class SearchPhaseController {
     /**
      * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
      */
-    QueryPhaseResultConsumer newSearchPhaseResults(
+    SearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(
         Executor executor,
         CircuitBreaker circuitBreaker,
         Supplier<Boolean> isCanceled,
@@ -785,6 +792,19 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
+        final int size = request.source() == null || request.source().size() == -1 ? SearchService.DEFAULT_SIZE : request.source().size();
+        // Use CountOnlyQueryPhaseResultConsumer for requests without aggs, suggest, etc. things only wanting a total count and
+        // returning no hits
+        if (size == 0
+            && (request.source() == null
+                || (request.source().aggregations() == null
+                    && request.source().suggest() == null
+                    && request.source().rankBuilder() == null
+                    && request.source().knnSearch().isEmpty()
+                    && request.source().profile() == false))
+            && request.resolveTrackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+            return new CountOnlyQueryPhaseResultConsumer(listener, numShards);
+        }
         return new QueryPhaseResultConsumer(
             request,
             executor,

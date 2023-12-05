@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -42,7 +41,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testParseFields() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
-        ZoneId zoneId = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -53,16 +51,14 @@ public class EsqlQueryRequestTests extends ESTestCase {
             {
                 "query": "%s",
                 "columnar": %s,
-                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, zoneId, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
-        assertEquals(zoneId, request.zoneId());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -77,8 +73,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertParserErrorMessage("""
             {
                 "query": "foo",
-                "time_z0ne": "Z"
-            }""", "unknown field [time_z0ne] did you mean [time_zone]?");
+                "columbar": true
+            }""", "unknown field [columbar] did you mean [columnar]?");
 
         assertParserErrorMessage("""
             {
@@ -90,7 +86,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testMissingQueryIsNotValidation() throws IOException {
         EsqlQueryRequest request = parseEsqlQueryRequest("""
             {
-                "time_zone": "Z"
+                "columnar": true
             }""");
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[query] is required"));

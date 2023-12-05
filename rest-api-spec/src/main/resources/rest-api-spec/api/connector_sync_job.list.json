@@ -6,6 +6,7 @@
     },
     "stability": "experimental",
     "visibility": "public",
+    "headers": {
       "accept": [
         "application/json"
       ]

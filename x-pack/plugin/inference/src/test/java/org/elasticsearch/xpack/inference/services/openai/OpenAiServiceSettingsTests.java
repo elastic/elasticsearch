@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -45,7 +46,8 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
             similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
             dims = 1536;
         }
-        return new OpenAiServiceSettings(url, organizationId, similarityMeasure, dims);
+        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
+        return new OpenAiServiceSettings(ServiceUtils.createUri(url), organizationId, similarityMeasure, dims, maxInputTokens);
     }
 
     public void testFromMap() {
@@ -53,6 +55,7 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
         var org = "organization";
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var dims = 1536;
+        var maxInputTokens = 512;
         var serviceSettings = OpenAiServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
@@ -63,12 +66,17 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
                     ServiceFields.SIMILARITY,
                     similarity,
                     ServiceFields.DIMENSIONS,
-                    dims
+                    dims,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens
                 )
             )
         );
 
-        assertThat(serviceSettings, is(new OpenAiServiceSettings(url, org, SimilarityMeasure.DOT_PRODUCT, dims)));
+        assertThat(
+            serviceSettings,
+            is(new OpenAiServiceSettings(ServiceUtils.createUri(url), org, SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens))
+        );
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {

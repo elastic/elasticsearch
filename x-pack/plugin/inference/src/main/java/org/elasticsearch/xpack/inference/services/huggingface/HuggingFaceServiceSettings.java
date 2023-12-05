@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
@@ -41,11 +42,12 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
 
         SimilarityMeasure similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
+        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-        return new HuggingFaceServiceSettings(uri, similarityMeasure, dims);
+        return new HuggingFaceServiceSettings(uri, similarityMeasure, dims, maxInputTokens);
     }
 
     public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
@@ -59,17 +61,25 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
     private final URI uri;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
+    private final Integer maxInputTokens;
 
     public HuggingFaceServiceSettings(URI uri) {
         this.uri = Objects.requireNonNull(uri);
         this.similarity = null;
         this.dimensions = null;
+        this.maxInputTokens = null;
     }
 
-    public HuggingFaceServiceSettings(URI uri, @Nullable SimilarityMeasure similarityMeasure, @Nullable Integer dimensions) {
+    public HuggingFaceServiceSettings(
+        URI uri,
+        @Nullable SimilarityMeasure similarityMeasure,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens
+    ) {
         this.uri = Objects.requireNonNull(uri);
         this.similarity = similarityMeasure;
         this.dimensions = dimensions;
+        this.maxInputTokens = maxInputTokens;
     }
 
     public HuggingFaceServiceSettings(String url) {
@@ -81,9 +91,11 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
             similarity = in.readOptionalEnum(SimilarityMeasure.class);
             dimensions = in.readOptionalVInt();
+            maxInputTokens = in.readOptionalVInt();
         } else {
             similarity = null;
             dimensions = null;
+            maxInputTokens = null;
         }
     }
 
@@ -96,6 +108,9 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         }
         if (dimensions != null) {
             builder.field(DIMENSIONS, dimensions);
+        }
+        if (maxInputTokens != null) {
+            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
         builder.endObject();
         return builder;
@@ -117,6 +132,7 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
             out.writeOptionalEnum(similarity);
             out.writeOptionalVInt(dimensions);
+            out.writeOptionalVInt(maxInputTokens);
         }
     }
 
@@ -132,16 +148,23 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         return dimensions;
     }
 
+    public Integer maxInputTokens() {
+        return maxInputTokens;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         HuggingFaceServiceSettings that = (HuggingFaceServiceSettings) o;
-        return Objects.equals(uri, that.uri) && similarity == that.similarity && Objects.equals(dimensions, that.dimensions);
+        return Objects.equals(uri, that.uri)
+            && similarity == that.similarity
+            && Objects.equals(dimensions, that.dimensions)
+            && Objects.equals(maxInputTokens, that.maxInputTokens);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, similarity, dimensions);
+        return Objects.hash(uri, similarity, dimensions, maxInputTokens);
     }
 }

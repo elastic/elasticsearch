@@ -36,13 +36,15 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
             similarityMeasure = randomFrom(SimilarityMeasure.values());
             dims = randomIntBetween(32, 256);
         }
-        return new HuggingFaceServiceSettings(ServiceUtils.createUri(url), similarityMeasure, dims);
+        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
+        return new HuggingFaceServiceSettings(ServiceUtils.createUri(url), similarityMeasure, dims, maxInputTokens);
     }
 
     public void testFromMap() {
         var url = "https://www.abc.com";
         var similarity = SimilarityMeasure.DOT_PRODUCT;
         var dims = 384;
+        var maxInputTokens = 128;
         {
             var serviceSettings = HuggingFaceServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)));
             assertThat(serviceSettings, is(new HuggingFaceServiceSettings(url)));
@@ -50,10 +52,19 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
         {
             var serviceSettings = HuggingFaceServiceSettings.fromMap(
                 new HashMap<>(
-                    Map.of(ServiceFields.URL, url, ServiceFields.SIMILARITY, similarity.toString(), ServiceFields.DIMENSIONS, dims)
+                    Map.of(
+                        ServiceFields.URL,
+                        url,
+                        ServiceFields.SIMILARITY,
+                        similarity.toString(),
+                        ServiceFields.DIMENSIONS,
+                        dims,
+                        ServiceFields.MAX_INPUT_TOKENS,
+                        maxInputTokens
+                    )
                 )
             );
-            assertThat(serviceSettings, is(new HuggingFaceServiceSettings(ServiceUtils.createUri(url), similarity, dims)));
+            assertThat(serviceSettings, is(new HuggingFaceServiceSettings(ServiceUtils.createUri(url), similarity, dims, maxInputTokens)));
         }
     }
 

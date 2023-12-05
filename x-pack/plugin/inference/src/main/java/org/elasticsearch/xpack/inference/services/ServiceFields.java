@@ -14,6 +14,7 @@ public final class ServiceFields {
 
     public static final String SIMILARITY = "similarity";
     public static final String DIMENSIONS = "dimensions";
+    public static final String MAX_INPUT_TOKENS = "max_input_tokens";
     public static final String URL = "url";
 
     private ServiceFields() {

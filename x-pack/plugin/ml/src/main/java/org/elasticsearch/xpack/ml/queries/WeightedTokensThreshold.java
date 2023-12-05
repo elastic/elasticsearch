@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 public class WeightedTokensThreshold implements Writeable, ToXContentObject {
@@ -43,7 +44,7 @@ public class WeightedTokensThreshold implements Writeable, ToXContentObject {
                 "["
                     + RATIO_THRESHOLD_FIELD.getPreferredName()
                     + "] must be between [1.0] and ["
-                    + MAX_RATIO_THRESHOLD
+                    + String.format(Locale.ROOT, "%.1f", MAX_RATIO_THRESHOLD)
                     + "], got "
                     + ratioThreshold
             );

@@ -50,134 +50,160 @@ public class ConnectorTests extends ESTestCase {
         String connectorId = "test-connector";
         String content = XContentHelper.stripWhitespace("""
             {
-                "api_key_id": "test",
-                "custom_scheduling": {
-                    "schedule-key": {
-                        "configuration_overrides": {
-                            "domain_allowlist": [
-                                "https://example.com"
-                            ],
-                            "max_crawl_depth": 1,
-                            "seed_urls": [
-                                "https://example.com/blog",
-                                "https://example.com/info"
-                            ],
-                            "sitemap_discovery_disabled": true,
-                            "sitemap_urls": [
-                                "https://example.com/sitemap.xml"
-                            ]
-                        },
-                        "enabled": true,
-                        "interval": "0 0 12 * * ?",
-                        "last_synced": null,
-                        "name": "My Schedule"
-                    }
-                },
-                "configuration": {},
-                "description": "test-connector",
-                "features": {
-                    "document_level_security": {
-                        "enabled": true
-                    },
-                    "filtering_advanced_config": true,
-                    "sync_rules": {
-                        "advanced": {
-                            "enabled": false
-                        },
-                        "basic": {
-                            "enabled": true
+               "api_key_id":"test",
+               "custom_scheduling":{
+                  "schedule-key":{
+                     "configuration_overrides":{
+                        "domain_allowlist":[
+                           "https://example.com"
+                        ],
+                        "max_crawl_depth":1,
+                        "seed_urls":[
+                           "https://example.com/blog",
+                           "https://example.com/info"
+                        ],
+                        "sitemap_discovery_disabled":true,
+                        "sitemap_urls":[
+                           "https://example.com/sitemap.xml"
+                        ]
+                     },
+                     "enabled":true,
+                     "interval":"0 0 12 * * ?",
+                     "last_synced":null,
+                     "name":"My Schedule"
+                  }
+               },
+               "configuration":{
+                  "some_field":{
+                     "default_value":null,
+                     "depends_on":[
+                        {
+                           "field":"some_field",
+                           "value":true
                         }
-                    }
-                },
-                "filtering": [
-                    {
-                        "active": {
-                            "advanced_snippet": {
-                                "created_at": "2023-11-09T15:13:08.231Z",
-                                "updated_at": "2023-11-09T15:13:08.231Z",
-                                "value": {}
-                            },
-                            "rules": [
-                                {
-                                    "created_at": "2023-11-09T15:13:08.231Z",
-                                    "field": "_",
-                                    "id": "DEFAULT",
-                                    "order": 0,
-                                    "policy": "include",
-                                    "rule": "regex",
-                                    "updated_at": "2023-11-09T15:13:08.231Z",
-                                    "value": ".*"
-                                }
-                            ],
-                            "validation": {
-                                "errors": [],
-                                "state": "valid"
-                            }
-                        },
-                        "domain": "DEFAULT",
-                        "draft": {
-                            "advanced_snippet": {
-                                "created_at": "2023-11-09T15:13:08.231Z",
-                                "updated_at": "2023-11-09T15:13:08.231Z",
-                                "value": {}
-                            },
-                            "rules": [
-                                {
-                                    "created_at": "2023-11-09T15:13:08.231Z",
-                                    "field": "_",
-                                    "id": "DEFAULT",
-                                    "order": 0,
-                                    "policy": "include",
-                                    "rule": "regex",
-                                    "updated_at": "2023-11-09T15:13:08.231Z",
-                                    "value": ".*"
-                                }
-                            ],
-                            "validation": {
-                                "errors": [],
-                                "state": "valid"
-                            }
+                     ],
+                     "display":"textbox",
+                     "label":"Very important field",
+                     "options":[],
+                     "order":4,
+                     "required":true,
+                     "sensitive":false,
+                     "tooltip":"Wow, this tooltip is useful.",
+                     "type":"str",
+                     "ui_restrictions":[],
+                     "validations":[
+                        {
+                           "constraint":0,
+                           "type":"greater_than"
                         }
-                    }
-                ],
-                "index_name": "search-test",
-                "is_native": true,
-                "language": "polish",
-                "last_access_control_sync_error": "some error",
-                "last_access_control_sync_scheduled_at": "2023-11-09T15:13:08.231Z",
-                "last_access_control_sync_status": "pending",
-                "last_deleted_document_count": 42,
-                "last_incremental_sync_scheduled_at": "2023-11-09T15:13:08.231Z",
-                "last_indexed_document_count": 42,
-                "last_seen": "2023-11-09T15:13:08.231Z",
-                "last_sync_error": "some error",
-                "last_sync_scheduled_at": "2024-11-09T15:13:08.231Z",
-                "last_sync_status": "completed",
-                "last_synced": "2024-11-09T15:13:08.231Z",
-                "name": "test-name",
-                "pipeline": {
-                    "extract_binary_content": true,
-                    "name": "ent-search-generic-ingestion",
-                    "reduce_whitespace": true,
-                    "run_ml_inference": false
-                },
-                "scheduling": {
-                    "access_control": {
-                        "enabled": false,
-                        "interval": "0 0 0 * * ?"
-                    },
-                    "full": {
-                        "enabled": false,
-                        "interval": "0 0 0 * * ?"
-                    },
-                    "incremental": {
-                        "enabled": false,
-                        "interval": "0 0 0 * * ?"
-                    }
-                },
-                "service_type": "google_drive",
-                "status": "needs_configuration",
-                "sync_now": false
+                     ],
+                     "value":""
+                  }
+               },
+               "description":"test-connector",
+               "features":{
+                  "document_level_security":{
+                     "enabled":true
+                  },
+                  "filtering_advanced_config":true,
+                  "sync_rules":{
+                     "advanced":{
+                        "enabled":false
+                     },
+                     "basic":{
+                        "enabled":true
+                     }
+                  }
+               },
+               "filtering":[
+                  {
+                     "active":{
+                        "advanced_snippet":{
+                           "created_at":"2023-11-09T15:13:08.231Z",
+                           "updated_at":"2023-11-09T15:13:08.231Z",
+                           "value":{}
+                        },
+                        "rules":[
+                           {
+                              "created_at":"2023-11-09T15:13:08.231Z",
+                              "field":"_",
+                              "id":"DEFAULT",
+                              "order":0,
+                              "policy":"include",
+                              "rule":"regex",
+                              "updated_at":"2023-11-09T15:13:08.231Z",
+                              "value":".*"
+                           }
+                        ],
+                        "validation":{
+                           "errors":[],
+                           "state":"valid"
+                        }
+                     },
+                     "domain":"DEFAULT",
+                     "draft":{
+                        "advanced_snippet":{
+                           "created_at":"2023-11-09T15:13:08.231Z",
+                           "updated_at":"2023-11-09T15:13:08.231Z",
+                           "value":{}
+                        },
+                        "rules":[
+                           {
+                              "created_at":"2023-11-09T15:13:08.231Z",
+                              "field":"_",
+                              "id":"DEFAULT",
+                              "order":0,
+                              "policy":"include",
+                              "rule":"regex",
+                              "updated_at":"2023-11-09T15:13:08.231Z",
+                              "value":".*"
+                           }
+                        ],
+                        "validation":{
+                           "errors":[],
+                           "state":"valid"
+                        }
+                     }
+                  }
+               ],
+               "index_name":"search-test",
+               "is_native":true,
+               "language":"polish",
+               "last_access_control_sync_error":"some error",
+               "last_access_control_sync_scheduled_at":"2023-11-09T15:13:08.231Z",
+               "last_access_control_sync_status":"pending",
+               "last_deleted_document_count":42,
+               "last_incremental_sync_scheduled_at":"2023-11-09T15:13:08.231Z",
+               "last_indexed_document_count":42,
+               "last_seen":"2023-11-09T15:13:08.231Z",
+               "last_sync_error":"some error",
+               "last_sync_scheduled_at":"2024-11-09T15:13:08.231Z",
+               "last_sync_status":"completed",
+               "last_synced":"2024-11-09T15:13:08.231Z",
+               "name":"test-name",
+               "pipeline":{
+                  "extract_binary_content":true,
+                  "name":"ent-search-generic-ingestion",
+                  "reduce_whitespace":true,
+                  "run_ml_inference":false
+               },
+               "scheduling":{
+                  "access_control":{
+                     "enabled":false,
+                     "interval":"0 0 0 * * ?"
+                  },
+                  "full":{
+                     "enabled":false,
+                     "interval":"0 0 0 * * ?"
+                  },
+                  "incremental":{
+                     "enabled":false,
+                     "interval":"0 0 0 * * ?"
+                  }
+               },
+               "service_type":"google_drive",
+               "status":"needs_configuration",
+               "sync_now":false
             }""");
 
         Connector connector = Connector.fromXContentBytes(new BytesArray(content), connectorId, XContentType.JSON);

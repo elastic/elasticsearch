@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -59,6 +60,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -111,6 +113,8 @@ import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
+    public static final String NAME = "indices:data/read/search";
+    public static final ActionType<SearchResponse> TYPE = new ActionType<>(NAME, SearchResponse::new);
     private static final Logger logger = LogManager.getLogger(TransportSearchAction.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportSearchAction.class);
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
@@ -160,7 +164,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         ExecutorSelector executorSelector
     ) {
-        super(SearchAction.NAME, transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;
@@ -546,8 +550,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.isTerminatedEarly(),
                         searchResponse.getNumReducePhases()
                     );
-
-                    listener.onResponse(
+                    ActionListener.respondAndRelease(
+                        listener,
                         new SearchResponse(
                             internalSearchResponse,
                             searchResponse.getScrollId(),
@@ -568,7 +572,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     logCCSError(failure, clusterAlias, skipUnavailable);
                     ccsClusterInfoUpdate(failure, clusters, clusterAlias, skipUnavailable);
                     if (skipUnavailable) {
-                        listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
+                        ActionListener.respondAndRelease(listener, SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
                     } else {
                         listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
                     }
@@ -706,7 +710,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterService.maybeEnsureConnectedAndGetConnection(
                 clusterAlias,
                 skipUnavailable == false,
-                ActionListener.wrap(connection -> {
+                singleListener.delegateFailureAndWrap((delegate, connection) -> {
                     final String[] indices = entry.getValue().indices();
                     final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                     // TODO: support point-in-time
@@ -722,10 +726,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         );
                         transportService.sendRequest(
                             connection,
-                            SearchShardsAction.NAME,
+                            TransportSearchShardsAction.TYPE.name(),
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new, responseExecutor)
+                            new ActionListenerResponseHandler<>(delegate, SearchShardsResponse::new, responseExecutor)
                         );
                     } else {
                         // does not do a can-match
@@ -738,13 +742,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                singleListener.map(SearchShardsResponse::fromLegacyResponse),
+                                delegate.map(SearchShardsResponse::fromLegacyResponse),
                                 ClusterSearchShardsResponse::new,
                                 responseExecutor
                             )
                         );
                     }
-                }, singleListener::onFailure)
+                })
             );
         }
     }
@@ -1283,7 +1287,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     && task.getProgressListener() == SearchProgressListener.NOOP) {
                     task.setProgressListener(new CCSSingleCoordinatorSearchProgressListener());
                 }
-                final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
+                final SearchPhaseResults<SearchPhaseResult> queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                     executor,
                     circuitBreaker,
                     task::isCancelled,

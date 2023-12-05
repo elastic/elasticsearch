@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -429,7 +429,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             startContext.config.getHeaders(),
             ClientHelper.ML_ORIGIN,
             parentTaskClient,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             destEmptySearch,
             ActionListener.wrap(searchResponse -> {
                 if (searchResponse.getHits().getTotalHits().value > 0) {

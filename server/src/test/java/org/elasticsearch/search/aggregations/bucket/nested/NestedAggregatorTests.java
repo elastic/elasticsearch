@@ -25,6 +25,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -105,6 +106,7 @@ import static org.hamcrest.Matchers.equalTo;
  *     prefixed with the nested path: nestedPath + "." + fieldName</li>
  * </ul>
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102974")
 public class NestedAggregatorTests extends AggregatorTestCase {
 
     private static final String VALUE_FIELD_NAME = "number";

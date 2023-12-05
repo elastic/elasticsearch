@@ -39,7 +39,7 @@ This query returns up to 500 documents from the `sample_data` index:
 
 [source,esql]
 ----
-FROM sample_data
+include::{esql-specs}/docs.csv-spec[tag=gs-from]
 ----
 
 Each column corresponds to a field, and can be accessed by the name of that
@@ -52,7 +52,7 @@ previous one:
 
 [source,esql]
 ----
-from sample_data
+include::{esql-specs}/docs.csv-spec[tag=gs-from-lowercase]
 ----
 ====
 
@@ -73,8 +73,7 @@ that are returned, up to a maximum of 10,000 rows:
 
 [source,esql]
 ----
-FROM sample_data
-| LIMIT 3
+include::{esql-specs}/docs.csv-spec[tag=gs-limit]
 ----
 
 [TIP]
@@ -84,7 +83,7 @@ have to. The following query is identical to the previous one:
 
 [source,esql]
 ----
-FROM sample_data | LIMIT 3
+include::{esql-specs}/docs.csv-spec[tag=gs-limit-one-line]
 ----
 ====
 
@@ -100,8 +99,7 @@ sort rows on one or more columns:
 
 [source,esql]
 ----
-FROM sample_data
-| SORT @timestamp DESC
+include::{esql-specs}/docs.csv-spec[tag=gs-sort]
 ----
 
 [discrete]
@@ -113,16 +111,14 @@ events with a duration longer than 5ms:
 
 [source,esql]
 ----
-FROM sample_data
-| WHERE event.duration > 5000000
+include::{esql-specs}/where.csv-spec[tag=gs-where]
 ----
 
 `WHERE` supports several <<esql-operators,operators>>. For example, you can use <<esql-like-operator>> to run a wildcard query against the `message` column:
 
 [source,esql]
 ----
-FROM sample_data
-| WHERE message LIKE "Connected*"
+include::{esql-specs}/where-like.csv-spec[tag=gs-like]
 ----
 
 [discrete]
@@ -149,9 +145,7 @@ result set to 3 rows:
 
 [source,esql]
 ----
-FROM sample_data
-| SORT @timestamp DESC
-| LIMIT 3
+include::{esql-specs}/docs.csv-spec[tag=gs-chaining]
 ----
 
 NOTE: The order of processing commands is important. First limiting the result
@@ -164,13 +158,12 @@ is different than this example, where the sorting comes before the limit.
 
 Use the <<esql-eval>> command to append columns to a table, with calculated
 values. For example, the following query appends a `duration_ms` column. The
-values in the column are computed by dividing `event.duration` by 1,000,000. In
-other words: `event.duration` converted from nanoseconds to milliseconds.
+values in the column are computed by dividing `event_duration` by 1,000,000. In
+other words: `event_duration` converted from nanoseconds to milliseconds.
 
 [source,esql]
 ----
-FROM sample_data
-| EVAL duration_ms = event.duration / 1000000.0
+include::{esql-specs}/eval.csv-spec[tag=gs-eval]
 ----
 
 `EVAL` supports several <<esql-functions,functions>>. For example, to round a
@@ -179,8 +172,7 @@ number to the closest number with the specified number of digits, use the
 
 [source,esql]
 ----
-FROM sample_data
-| EVAL duration_ms = ROUND(event.duration / 1000000.0, 1)
+include::{esql-specs}/eval.csv-spec[tag=gs-round]
 ----
 
 [discrete]
@@ -193,16 +185,14 @@ example, the median duration:
 
 [source,esql]
 ----
-FROM sample_data
-| STATS median_duration = MEDIAN(event.duration)
+include::{esql-specs}/stats.csv-spec[tag=gs-stats]
 ----
 
 You can calculate multiple stats with one command:
 
 [source,esql]
 ----
-FROM sample_data
-| STATS median_duration = MEDIAN(event.duration), max_duration = MAX(event.duration)
+include::{esql-specs}/stats.csv-spec[tag=gs-two-stats]
 ----
 
 Use `BY` to group calculated stats by one or more columns. For example, to
@@ -210,8 +200,7 @@ calculate the median duration per client IP:
 
 [source,esql]
 ----
-FROM sample_data
-| STATS median_duration = MEDIAN(event.duration) BY client.ip
+include::{esql-specs}/stats.csv-spec[tag=gs-stats-by]
 ----
 
 [discrete]
@@ -227,9 +216,7 @@ For example, to create hourly buckets for the data on October 23rd:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket]
 ----
 
 Combine `AUTO_BUCKET` with <<esql-stats-by>> to create a histogram. For example,
@@ -237,20 +224,14 @@ to count the number of events per hour:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp, event.duration
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
-| STATS COUNT(*) BY bucket
+include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by]
 ----
 
 Or the median duration per hour:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp, event.duration
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
-| STATS median_duration = MEDIAN(event.duration) BY bucket
+include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by-median]
 ----
 
 [discrete]
@@ -273,10 +254,7 @@ command:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp, client.ip, event.duration
-| EVAL client.ip = TO_STRING(client.ip)
-| ENRICH clientip_policy ON client.ip WITH env
+include::{esql-specs}/enrich.csv-spec[tag=gs-enrich]
 ----
 
 You can use the new `env` column that's added by the `ENRICH` command in
@@ -285,11 +263,7 @@ environment:
 
 [source,esql]
 ----
-FROM sample_data
-| KEEP @timestamp, client.ip, event.duration
-| EVAL client.ip = TO_STRING(client.ip)
-| ENRICH clientip_policy ON client.ip WITH env
-| STATS median_duration = MEDIAN(event.duration) BY env
+include::{esql-specs}/enrich.csv-spec[tag=gs-enrich-stats-by]
 ----
 
 For more about data enrichment with {esql}, refer to <<esql-enrich-data>>.
@@ -321,23 +295,19 @@ string, you can use the following `DISSECT` command:
 
 [source,esql]
 ----
-FROM sample_data
-| DISSECT message "Connected to %{server.ip}"
+include::{esql-specs}/dissect.csv-spec[tag=gs-dissect]
 ----
 
-This adds a `server.ip` column to those rows that have a `message` that matches
-this pattern. For other rows, the value of `server.ip` is `null`.
+This adds a `server_ip` column to those rows that have a `message` that matches
+this pattern. For other rows, the value of `server_ip` is `null`.
 
-You can use the new `server.ip` column that's added by the `DISSECT` command in
+You can use the new `server_ip` column that's added by the `DISSECT` command in
 subsequent commands. For example, to determine how many connections each server
 has accepted:
 
 [source,esql]
 ----
-FROM sample_data
-| WHERE STARTS_WITH(message, "Connected to")
-| DISSECT message "Connected to %{server.ip}"
-| STATS COUNT(*) BY server.ip
+include::{esql-specs}/dissect.csv-spec[tag=gs-dissect-stats-by]
 ----
 
 For more about data processing with {esql}, refer to

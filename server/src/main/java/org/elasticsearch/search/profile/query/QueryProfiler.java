@@ -31,8 +31,18 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      */
     private CollectorResult collectorResult;
 
+    private long vectorOpsCount;
+
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
+    }
+
+    public void setVectorOpsCount(long vectorOpsCount) {
+        this.vectorOpsCount = vectorOpsCount;
+    }
+
+    public long getVectorOpsCount() {
+        return this.vectorOpsCount;
     }
 
     /** Set the collector result that is associated with this profiler. */

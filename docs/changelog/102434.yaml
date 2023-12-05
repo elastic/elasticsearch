@@ -1,0 +1,5 @@
+pr: 102434
+summary: "ESQL: Short circuit loading empty doc values"
+area: ES|QL
+type: enhancement
+issues: []

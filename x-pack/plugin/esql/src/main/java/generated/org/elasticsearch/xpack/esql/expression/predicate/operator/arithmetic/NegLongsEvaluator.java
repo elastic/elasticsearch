@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -36,21 +37,27 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref vRef = v.eval(page)) {
-      LongBlock vBlock = (LongBlock) vRef.block();
+  public Block eval(Page page) {
+    try (LongBlock vBlock = (LongBlock) v.eval(page)) {
       LongVector vVector = vBlock.asVector();
       if (vVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+        return eval(page.getPositionCount(), vBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), vVector));
+      return eval(page.getPositionCount(), vVector);
     }
   }
 
   public LongBlock eval(int positionCount, LongBlock vBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+        if (vBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (vBlock.getValueCount(p) != 1) {
+          if (vBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

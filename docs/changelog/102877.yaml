@@ -1,0 +1,5 @@
+pr: 102877
+summary: Add basic telelemetry for the inference feature
+area: Machine Learning
+type: enhancement
+issues: []

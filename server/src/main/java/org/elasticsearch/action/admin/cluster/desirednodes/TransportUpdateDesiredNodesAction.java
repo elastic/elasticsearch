@@ -36,26 +36,53 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 import static java.lang.String.format;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
 
+    private final RerouteService rerouteService;
     private final FeatureService featureService;
-    private final DesiredNodesSettingsValidator settingsValidator;
+    private final Consumer<List<DesiredNode>> desiredNodesValidator;
     private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
 
     @Inject
     public TransportUpdateDesiredNodesAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         FeatureService featureService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DesiredNodesSettingsValidator settingsValidator,
+        AllocationService allocationService
+    ) {
+        this(
+            transportService,
+            clusterService,
+            rerouteService,
+            featureService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            new DesiredNodesSettingsValidator(),
+            allocationService
+        );
+    }
+
+    TransportUpdateDesiredNodesAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RerouteService rerouteService,
+        FeatureService featureService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Consumer<List<DesiredNode>> desiredNodesValidator,
         AllocationService allocationService
     ) {
         super(
@@ -70,12 +97,13 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             UpdateDesiredNodesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         this.featureService = featureService;
-        this.settingsValidator = settingsValidator;
+        this.desiredNodesValidator = desiredNodesValidator;
         this.taskQueue = clusterService.createTaskQueue(
             "update-desired-nodes",
             Priority.URGENT,
-            new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService)
+            new UpdateDesiredNodesExecutor(rerouteService, allocationService)
         );
     }
 
@@ -92,7 +120,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ActionListener<UpdateDesiredNodesResponse> responseListener
     ) throws Exception {
         ActionListener.run(responseListener, listener -> {
-            settingsValidator.validate(request.getNodes());
+            desiredNodesValidator.accept(request.getNodes());
             taskQueue.submitTask("update-desired-nodes", new UpdateDesiredNodesTask(request, listener), request.masterNodeTimeout());
         });
     }

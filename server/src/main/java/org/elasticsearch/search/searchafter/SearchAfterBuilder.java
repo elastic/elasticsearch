@@ -152,23 +152,17 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
     private static Object convertValueFromSortType(String fieldName, SortField.Type sortType, Object value, DocValueFormat format) {
         try {
             switch (sortType) {
-                case DOC:
+                case DOC, INT:
                     if (value instanceof Number) {
                         return ((Number) value).intValue();
                     }
                     return Integer.parseInt(value.toString());
 
-                case SCORE:
+                case SCORE, FLOAT:
                     if (value instanceof Number) {
                         return ((Number) value).floatValue();
                     }
                     return Float.parseFloat(value.toString());
-
-                case INT:
-                    if (value instanceof Number) {
-                        return ((Number) value).intValue();
-                    }
-                    return Integer.parseInt(value.toString());
 
                 case DOUBLE:
                     if (value instanceof Number) {
@@ -186,12 +180,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                         false,
                         () -> { throw new IllegalStateException("now() is not allowed in [search_after] key"); }
                     );
-
-                case FLOAT:
-                    if (value instanceof Number) {
-                        return ((Number) value).floatValue();
-                    }
-                    return Float.parseFloat(value.toString());
 
                 case STRING_VAL:
                 case STRING:

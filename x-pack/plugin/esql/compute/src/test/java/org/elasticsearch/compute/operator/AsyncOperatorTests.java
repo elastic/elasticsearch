@@ -23,11 +23,13 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -69,7 +71,16 @@ public class AsyncOperatorTests extends ESTestCase {
     }
 
     public void testBasic() {
-        DriverContext driverContext = driverContext();
+        BlockFactory globalBlockFactory = blockFactory();
+        LocalCircuitBreaker localBreaker = null;
+        final DriverContext driverContext;
+        if (randomBoolean()) {
+            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
+            BlockFactory localFactory = new BlockFactory(localBreaker, globalBlockFactory.bigArrays());
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
+        } else {
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
+        }
         int positions = randomIntBetween(0, 10_000);
         List<Long> ids = new ArrayList<>(positions);
         Map<Long, String> dict = new HashMap<>();
@@ -97,8 +108,8 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         };
         int maxConcurrentRequests = randomIntBetween(1, 10);
-        AsyncOperator asyncOperator = new AsyncOperator(maxConcurrentRequests) {
-            final LookupService lookupService = new LookupService(threadPool, driverContext.blockFactory(), dict, maxConcurrentRequests);
+        AsyncOperator asyncOperator = new AsyncOperator(driverContext, maxConcurrentRequests) {
+            final LookupService lookupService = new LookupService(threadPool, globalBlockFactory, dict, maxConcurrentRequests);
 
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
@@ -110,7 +121,16 @@ public class AsyncOperatorTests extends ESTestCase {
 
             }
         };
-        Iterator<Long> it = ids.iterator();
+        List<Operator> intermediateOperators = new ArrayList<>();
+        intermediateOperators.add(asyncOperator);
+        final Iterator<Long> it;
+        if (randomBoolean()) {
+            int limit = between(1, ids.size());
+            it = ids.subList(0, limit).iterator();
+            intermediateOperators.add(new LimitOperator(limit));
+        } else {
+            it = ids.iterator();
+        }
         SinkOperator outputOperator = new PageConsumerOperator(page -> {
             try (Releasable ignored = page::releaseBlocks) {
                 assertThat(page.getBlockCount(), equalTo(2));
@@ -131,15 +151,17 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, () -> assertFalse(it.hasNext()));
+        Driver driver = new Driver(driverContext, sourceOperator, intermediateOperators, outputOperator, () -> assertFalse(it.hasNext()));
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
         future.actionGet();
+        Releasables.close(localBreaker);
     }
 
     public void testStatus() {
-        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
         Map<Page, ActionListener<Page>> handlers = new HashMap<>();
-        AsyncOperator operator = new AsyncOperator(2) {
+        AsyncOperator operator = new AsyncOperator(driverContext, 2) {
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 handlers.put(inputPage, listener);
@@ -185,16 +207,24 @@ public class AsyncOperatorTests extends ESTestCase {
         operator.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102264")
     public void testFailure() throws Exception {
-        DriverContext driverContext = driverContext();
+        BlockFactory globalBlockFactory = blockFactory();
+        LocalCircuitBreaker localBreaker = null;
+        final DriverContext driverContext;
+        if (randomBoolean()) {
+            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
+            BlockFactory localFactory = new BlockFactory(localBreaker, globalBlockFactory.bigArrays());
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
+        } else {
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
+        }
         final SequenceLongBlockSourceOperator sourceOperator = new SequenceLongBlockSourceOperator(
             driverContext.blockFactory(),
             LongStream.range(0, 100 * 1024)
         );
         int maxConcurrentRequests = randomIntBetween(1, 10);
         AtomicBoolean failed = new AtomicBoolean();
-        AsyncOperator asyncOperator = new AsyncOperator(maxConcurrentRequests) {
+        AsyncOperator asyncOperator = new AsyncOperator(driverContext, maxConcurrentRequests) {
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 ActionRunnable<Page> command = new ActionRunnable<>(listener) {
@@ -205,7 +235,7 @@ public class AsyncOperatorTests extends ESTestCase {
                             throw new ElasticsearchException("simulated");
                         }
                         int positionCount = inputPage.getBlock(0).getPositionCount();
-                        IntBlock block = driverContext.blockFactory().newConstantIntBlockWith(between(1, 100), positionCount);
+                        IntBlock block = globalBlockFactory.newConstantIntBlockWith(between(1, 100), positionCount);
                         listener.onResponse(inputPage.appendPage(new Page(block)));
                     }
                 };
@@ -224,17 +254,19 @@ public class AsyncOperatorTests extends ESTestCase {
         };
         SinkOperator outputOperator = new PageConsumerOperator(Page::releaseBlocks);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, () -> {});
+        Driver driver = new Driver(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, localBreaker);
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
-        assertBusy(() -> {
-            assertTrue(asyncOperator.isFinished());
-            assertTrue(future.isDone());
-        });
+        assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {
             ElasticsearchException error = expectThrows(ElasticsearchException.class, future::actionGet);
             assertThat(error.getMessage(), containsString("simulated"));
+            error = expectThrows(ElasticsearchException.class, asyncOperator::isFinished);
+            assertThat(error.getMessage(), containsString("simulated"));
+            error = expectThrows(ElasticsearchException.class, asyncOperator::getOutput);
+            assertThat(error.getMessage(), containsString("simulated"));
         } else {
-            future.actionGet();
+            assertTrue(asyncOperator.isFinished());
+            assertNull(asyncOperator.getOutput());
         }
     }
 
@@ -280,13 +312,13 @@ public class AsyncOperatorTests extends ESTestCase {
         }
     }
 
-    protected DriverContext driverContext() {
+    protected BlockFactory blockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
         BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
         blockFactories.add(factory);
-        return new DriverContext(bigArrays, factory);
+        return factory;
     }
 
     private final List<CircuitBreaker> breakers = new ArrayList<>();

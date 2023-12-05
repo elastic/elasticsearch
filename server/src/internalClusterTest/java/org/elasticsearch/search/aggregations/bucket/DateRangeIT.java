@@ -55,17 +55,16 @@ import static org.hamcrest.core.IsNull.nullValue;
 public class DateRangeIT extends ESIntegTestCase {
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
-        return client().prepareIndex("idx")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("value", value)
-                    .timeField("date", date(month, day))
-                    .startArray("dates")
-                    .timeValue(date(month, day))
-                    .timeValue(date(month + 1, day + 1))
-                    .endArray()
-                    .endObject()
-            );
+        return prepareIndex("idx").setSource(
+            jsonBuilder().startObject()
+                .field("value", value)
+                .timeField("date", date(month, day))
+                .startArray("dates")
+                .timeValue(date(month, day))
+                .timeValue(date(month + 1, day + 1))
+                .endArray()
+                .endObject()
+        );
     }
 
     private static ZonedDateTime date(int month, int day) {
@@ -104,9 +103,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertAcked(prepareCreate("empty_bucket_idx").setMapping("value", "type=integer"));
         for (int i = 0; i < 2; i++) {
             docs.add(
-                client().prepareIndex("empty_bucket_idx")
-                    .setId("" + i)
-                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+                prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
             );
         }
         indexRandom(true, docs);
@@ -623,12 +620,8 @@ public class DateRangeIT extends ESIntegTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx")
-                .setId("1")
-                .setSource(jsonBuilder().startObject().timeField("date", date(1, 1)).endObject()),
-            client().prepareIndex("cache_test_idx")
-                .setId("2")
-                .setSource(jsonBuilder().startObject().timeField("date", date(2, 1)).endObject())
+            prepareIndex("cache_test_idx").setId("1").setSource(jsonBuilder().startObject().timeField("date", date(1, 1)).endObject()),
+            prepareIndex("cache_test_idx").setId("2").setSource(jsonBuilder().startObject().timeField("date", date(2, 1)).endObject())
         );
 
         // Make sure we are starting with a clear cache
@@ -718,9 +711,9 @@ public class DateRangeIT extends ESIntegTestCase {
         assertAcked(prepareCreate(indexName).setMapping("date", "type=date,format=strict_hour_minute_second"));
         indexRandom(
             true,
-            client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
-            client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
-            client().prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject())
+            prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
+            prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
+            prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject())
         );
 
         // using no format should work when to/from is compatible with format in
@@ -785,9 +778,9 @@ public class DateRangeIT extends ESIntegTestCase {
         assertAcked(prepareCreate(indexName).setMapping("date", "type=date,format=epoch_second"));
         indexRandom(
             true,
-            client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
-            client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
-            client().prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", 3008).endObject())
+            prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
+            prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
+            prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", 3008).endObject())
         );
 
         // using no format should work when to/from is compatible with format in

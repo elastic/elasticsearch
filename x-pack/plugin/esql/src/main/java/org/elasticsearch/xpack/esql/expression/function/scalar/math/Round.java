@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -37,6 +38,8 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class Round extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+
+    private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 
     private final Expression field, decimals;
 
@@ -137,28 +140,28 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
             return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator.Factory::new, RoundDoubleEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return toEvaluator(toEvaluator, Function.identity(), RoundIntEvaluator.Factory::new);
+            return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundIntEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.LONG) {
-            return toEvaluator(toEvaluator, Function.identity(), RoundLongEvaluator.Factory::new);
+            return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundLongEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return toEvaluator(toEvaluator, Function.identity(), RoundUnsignedLongEvaluator.Factory::new);
+            return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundUnsignedLongEvaluator.Factory::new);
         }
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
     }
 
     private ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, ExpressionEvaluator.Factory> toEvaluator,
-        Function<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> noDecimals,
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> withDecimals
+        BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> noDecimals,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> withDecimals
     ) {
         var fieldEvaluator = toEvaluator.apply(field());
         if (decimals == null) {
-            return noDecimals.apply(fieldEvaluator);
+            return noDecimals.apply(source(), fieldEvaluator);
         }
-        var decimalsEvaluator = Cast.cast(decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
-        return withDecimals.apply(fieldEvaluator, decimalsEvaluator);
+        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
+        return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
     }
 
     @Override

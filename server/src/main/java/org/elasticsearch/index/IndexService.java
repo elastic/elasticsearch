@@ -48,6 +48,7 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
@@ -158,7 +159,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -231,7 +232,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, FieldDataContext.noRuntimeFields("index sort"))
+                        (fieldType, searchLookup) -> loadFielddata(fieldType, FieldDataContext.noRuntimeFields("index sort"))
                     );
             } else {
                 this.indexSortSupplier = () -> null;
@@ -662,7 +663,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shardRequestIndex,
             indexSettings,
             indexCache.bitsetFilterCache(),
-            indexFieldData::getForField,
+            this::loadFielddata,
             mapperService(),
             mapperService().mappingLookup(),
             similarityService(),
@@ -1293,4 +1294,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return runtimeFieldTypes;
     }
 
+    public IndexFieldData<?> loadFielddata(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+        return indexFieldData.getForField(fieldType, fieldDataContext);
+    }
 }

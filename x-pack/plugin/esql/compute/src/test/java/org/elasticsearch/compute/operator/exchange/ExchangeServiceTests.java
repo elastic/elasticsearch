@@ -225,7 +225,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void addInput(Page page) {
+                protected void doAddInput(Page page) {
                     try {
                         assertFalse("already finished", finished);
                         IntBlock block = page.getBlock(0);
@@ -412,10 +412,6 @@ public class ExchangeServiceTests extends ESTestCase {
                         }
                         ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
                         origResp.decRef();
-                        while (origResp.hasReferences()) {
-                            newResp.incRef();
-                            origResp.decRef();
-                        }
                         super.sendResponse(newResp);
                     }
                 };

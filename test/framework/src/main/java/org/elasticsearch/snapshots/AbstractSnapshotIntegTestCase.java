@@ -196,9 +196,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void assertFileCount(Path dir, int expectedCount) throws IOException {
+        final List<Path> found = getAllFilesInDirectoryAndDescendants(dir);
+        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
+    }
+
+    protected static List<Path> getAllFilesInDirectoryAndDescendants(Path dir) throws IOException {
         final List<Path> found = new ArrayList<>();
         forEachFileRecursively(dir, ((path, basicFileAttributes) -> found.add(path)));
-        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
+        return found;
     }
 
     protected void stopNode(final String node) throws IOException {
@@ -489,7 +494,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = prepareIndex(index).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
         flushAndRefresh(index);
@@ -497,9 +502,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected long getCountForIndex(String indexName) {
-        return client().search(
+        var resp = client().search(
             new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
-        ).actionGet().getHits().getTotalHits().value;
+        ).actionGet();
+        try {
+            return resp.getHits().getTotalHits().value;
+        } finally {
+            resp.decRef();
+        }
     }
 
     protected void assertDocCount(String index, long count) {

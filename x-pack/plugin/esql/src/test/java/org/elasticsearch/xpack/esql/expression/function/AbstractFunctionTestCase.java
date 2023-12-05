@@ -12,6 +12,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -30,12 +31,13 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -58,6 +60,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -83,6 +86,9 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -114,7 +120,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
+            case "geo_point" -> GEO.pointAsLong(randomGeoPoint());
+            case "cartesian_point" -> CARTESIAN.pointAsLong(randomCartesianPoint());
             case "null" -> null;
+            case "_source" -> {
+                try {
+                    yield BytesReference.bytes(
+                        JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomAlphaOfLength(10)).endObject()
+                    ).toBytesRef();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);
     }
@@ -221,8 +238,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
-            try (Block.Ref ref = evaluator.eval(row(testCase.getDataValues()))) {
-                result = toJavaObject(ref.block(), 0);
+            try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
+                result = toJavaObject(block, 0);
             }
         }
         assertThat(result, not(equalTo(Double.NaN)));
@@ -360,7 +377,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         try {
             for (int b = 0; b < data.size(); b++) {
-                ElementType elementType = LocalExecutionPlanner.toElementType(data.get(b).type());
+                ElementType elementType = PlannerUtils.toElementType(data.get(b).type());
                 try (Block.Builder builder = elementType.newBlockBuilder(positions, inputBlockFactory)) {
                     for (int p = 0; p < positions; p++) {
                         if (nullPositions.contains(p)) {
@@ -373,18 +390,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
             Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block.Ref ref = eval.eval(new Page(manyPositionsBlocks))) {
-                assertThat(ref.block().getPositionCount(), equalTo(ref.block().getPositionCount()));
+            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(new Page(manyPositionsBlocks))) {
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
-                        assertThat(toJavaObject(ref.block(), p), allNullsMatcher());
+                        assertThat(toJavaObject(block, p), allNullsMatcher());
                         continue;
                     }
-                    assertThat(toJavaObject(ref.block(), p), testCase.getMatcher());
+                    assertThat(toJavaObject(block, p), testCase.getMatcher());
                 }
                 assertThat(
                     "evaluates to tracked block",
-                    ref.block().blockFactory(),
+                    block.blockFactory(),
                     either(sameInstance(context.blockFactory())).or(sameInstance(inputBlockFactory))
                 );
             }
@@ -416,9 +432,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         data.add(simpleData.get(b));
                     }
                 }
-                try (Block.Ref ref = eval.eval(new Page(blocks))) {
-                    assertSimpleWithNulls(data, ref.block(), i);
+                try (Block block = eval.eval(new Page(blocks))) {
+                    assertSimpleWithNulls(data, block, i);
                 }
+            }
+
+            // Note: the null-in-fast-null-out handling prevents any exception from being thrown, so the warnings provided in some test
+            // cases won't actually be registered. This isn't an issue for unary functions, but could be an issue for n-ary ones, if
+            // function processing of the first parameter(s) could raise an exception/warning. (But hasn't been the case so far.)
+            // For n-ary functions, dealing with one multivalue (before hitting the null parameter injected above) will now trigger
+            // a warning ("SV-function encountered a MV") that thus needs to be checked.
+            if (simpleData.stream().anyMatch(List.class::isInstance) && testCase.getExpectedWarnings() != null) {
+                assertWarnings(testCase.getExpectedWarnings());
             }
         }
     }
@@ -444,8 +469,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 futures.add(exec.submit(() -> {
                     try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
-                            try (Block.Ref ref = eval.eval(page)) {
-                                assertThat(toJavaObject(ref.block(), 0), testCase.getMatcher());
+                            try (Block block = eval.eval(page)) {
+                                assertThat(toJavaObject(block, 0), testCase.getMatcher());
                             }
                         }
                     }
@@ -673,6 +698,30 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return suppliers;
     }
 
+    /**
+     * Adds test cases containing unsupported parameter types that immediately fail.
+     */
+    protected static List<TestCaseSupplier> failureForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
+        typesRequired(testCaseSuppliers);
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
+        suppliers.addAll(testCaseSuppliers);
+
+        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
+        List<Set<DataType>> validPerPosition = validPerPosition(valid);
+
+        testCaseSuppliers.stream()
+            .map(s -> s.types().size())
+            .collect(Collectors.toSet())
+            .stream()
+            .flatMap(count -> allPermutations(count))
+            .filter(types -> valid.contains(types) == false)
+            .map(types -> new TestCaseSupplier("type error for " + TestCaseSupplier.nameFromTypes(types), types, () -> {
+                throw new IllegalStateException("must implement a case for " + types);
+            }))
+            .forEach(suppliers::add);
+        return suppliers;
+    }
+
     private static void typesRequired(List<TestCaseSupplier> suppliers) {
         String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
         if (bad.equals("") == false) {
@@ -758,11 +807,70 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
-        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version"),
+        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword")
+        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "ip or string"),
+        Map.entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
+        Map.entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial"),
+        Map.entry(
+            Set.of(
+                DataTypes.BOOLEAN,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
+            ),
+            "boolean or numeric or string"
+        ),
+        Map.entry(
+            Set.of(
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
+            ),
+            "datetime or numeric or string"
+        ),
+        Map.entry(
+            Set.of(
+                DataTypes.BOOLEAN,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
+            ),
+            "boolean or datetime or numeric or string"
+        ),
+        Map.entry(
+            Set.of(
+                DataTypes.BOOLEAN,
+                EsqlDataTypes.CARTESIAN_POINT,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                EsqlDataTypes.GEO_POINT,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
+            ),
+            "boolean or cartesian_point or datetime or geo_point or numeric or string"
+        )
     );
 
+    // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
     private static String expectedType(Set<DataType> validTypes) {
         String named = NAMED_EXPECTED_TYPES.get(validTypes);
         if (named == null) {
@@ -778,8 +886,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return named;
     }
 
-    private static Stream<DataType> representable() {
+    protected static Stream<DataType> representable() {
         return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
+    }
+
+    protected static DataType[] representableTypes() {
+        return representable().toArray(DataType[]::new);
+    }
+
+    protected static Stream<DataType> representableNonSpatial() {
+        return representable().filter(t -> isSpatial(t) == false);
+    }
+
+    protected static DataType[] representableNonSpatialTypes() {
+        return representableNonSpatial().toArray(DataType[]::new);
     }
 
     @AfterClass

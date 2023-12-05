@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.external.response.openai;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -303,39 +303,6 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
                   "total_tokens": 8
               }
             }
-            """;
-
-        var thrownException = expectThrows(
-            ParsingException.class,
-            () -> OpenAiEmbeddingsResponseEntity.fromResponse(
-                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
-            )
-        );
-
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
-        );
-    }
-
-    public void testFromResponse_FailsWhenIsMissingFinalClosingBracket() {
-        String responseJson = """
-            {
-              "object": "list",
-              "data": [
-                  {
-                      "object": "embedding",
-                      "index": 0,
-                      "embedding": [
-                          {}
-                      ]
-                  }
-              ],
-              "model": "text-embedding-ada-002-v2",
-              "usage": {
-                  "prompt_tokens": 8,
-                  "total_tokens": 8
-              }
             """;
 
         var thrownException = expectThrows(

@@ -128,8 +128,7 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         BiFunction<String, Integer, IndexRequestBuilder> indexFunc = (index, id) -> {
             try {
-                return client().prepareIndex(index)
-                    .setId(Integer.toString(id))
+                return prepareIndex(index).setId(Integer.toString(id))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("foo", "bar")
@@ -344,7 +343,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         internalCluster().ensureAtLeastNumDataNodes(2);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
@@ -413,7 +412,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             }
 
             for (int i = docs; i < 2 * docs; i++) {
-                client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+                prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
             }
             flushAndRefresh();
             assertHitCount(prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")), 2 * docs);
@@ -446,10 +445,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                 .put("number_of_replicas", 0)
         ).setMapping("id", "type=keyword,doc_values=true").get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source")
-                .setId(Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON)
-                .get();
+            prepareIndex("source").setId(Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON).get();
         }
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
@@ -480,14 +476,14 @@ public class SplitIndexIT extends ESIntegTestCase {
         );
         ensureGreen();
         flushAndRefresh();
-        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").execute().actionGet();
+        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").get();
         assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
         assertEquals(settingsResponse.getSetting("target", "index.sort.order"), "desc");
         assertSortedSegments("target", expectedIndexSort);
 
         // ... and that the index sort is also applied to updates
         for (int i = 20; i < 40; i++) {
-            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);

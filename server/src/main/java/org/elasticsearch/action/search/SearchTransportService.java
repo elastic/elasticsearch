@@ -59,6 +59,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.CLEAR_SCROLL_CONTEXTS_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.DFS_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FETCH_ID_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FETCH_ID_SCROLL_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FREE_CONTEXT_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FREE_CONTEXT_SCROLL_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_CAN_MATCH_NODE_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_FETCH_SCROLL_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_ID_ACTION_METRIC;
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.QUERY_SCROLL_ACTION_METRIC;
+
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
@@ -68,13 +80,27 @@ public class SearchTransportService {
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
     public static final String CLEAR_SCROLL_CONTEXTS_ACTION_NAME = "indices:data/read/search[clear_scroll_contexts]";
+
+    /**
+     * Part of DFS_QUERY_THEN_FETCH, which fetches distributed term frequencies and executes KNN.
+     */
     public static final String DFS_ACTION_NAME = "indices:data/read/search[phase/dfs]";
     public static final String QUERY_ACTION_NAME = "indices:data/read/search[phase/query]";
+
+    /**
+     * Part of DFS_QUERY_THEN_FETCH, which fetches distributed term frequencies and executes KNN.
+     */
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
     public static final String QUERY_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query/scroll]";
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
+
+    /**
+     * The Can-Match phase. It is executed to pre-filter shards that a search request hits. It rewrites the query on
+     * the shard and checks whether the result of the rewrite matches no documents, in which case the shard can be
+     * filtered out.
+     */
     public static final String QUERY_CAN_MATCH_NODE_NAME = "indices:data/read/search[can_match][n]";
 
     private final TransportService transportService;
@@ -391,7 +417,7 @@ public class SearchTransportService {
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ScrollFreeContextRequest::new,
-            instrumentedHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, transportService, searchTransportMetrics, (request, channel, task) -> {
+            instrumentedHandler(FREE_CONTEXT_SCROLL_ACTION_METRIC, transportService, searchTransportMetrics, (request, channel, task) -> {
                 boolean freed = searchService.freeReaderContext(request.id());
                 channel.sendResponse(new SearchFreeContextResponse(freed));
             })
@@ -402,7 +428,7 @@ public class SearchTransportService {
             FREE_CONTEXT_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             SearchFreeContextRequest::new,
-            instrumentedHandler(FREE_CONTEXT_ACTION_NAME, transportService, searchTransportMetrics, (request, channel, task) -> {
+            instrumentedHandler(FREE_CONTEXT_ACTION_METRIC, transportService, searchTransportMetrics, (request, channel, task) -> {
                 boolean freed = searchService.freeReaderContext(request.id());
                 channel.sendResponse(new SearchFreeContextResponse(freed));
             })
@@ -413,7 +439,7 @@ public class SearchTransportService {
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             TransportRequest.Empty::new,
-            instrumentedHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, transportService, searchTransportMetrics, (request, channel, task) -> {
+            instrumentedHandler(CLEAR_SCROLL_CONTEXTS_ACTION_METRIC, transportService, searchTransportMetrics, (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             })
@@ -430,7 +456,7 @@ public class SearchTransportService {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
             instrumentedHandler(
-                DFS_ACTION_NAME,
+                DFS_ACTION_METRIC,
                 transportService,
                 searchTransportMetrics,
                 (request, channel, task) -> searchService.executeDfsPhase(
@@ -447,7 +473,7 @@ public class SearchTransportService {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
             instrumentedHandler(
-                QUERY_ACTION_NAME,
+                QUERY_ACTION_METRIC,
                 transportService,
                 searchTransportMetrics,
                 (request, channel, task) -> searchService.executeQueryPhase(
@@ -469,7 +495,7 @@ public class SearchTransportService {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             QuerySearchRequest::new,
             instrumentedHandler(
-                QUERY_ID_ACTION_NAME,
+                QUERY_ID_ACTION_METRIC,
                 transportService,
                 searchTransportMetrics,
                 (request, channel, task) -> searchService.executeQueryPhase(
@@ -486,7 +512,7 @@ public class SearchTransportService {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
             instrumentedHandler(
-                QUERY_SCROLL_ACTION_NAME,
+                QUERY_SCROLL_ACTION_METRIC,
                 transportService,
                 searchTransportMetrics,
                 (request, channel, task) -> searchService.executeQueryPhase(
@@ -503,7 +529,7 @@ public class SearchTransportService {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
             instrumentedHandler(
-                QUERY_FETCH_SCROLL_ACTION_NAME,
+                QUERY_FETCH_SCROLL_ACTION_METRIC,
                 transportService,
                 searchTransportMetrics,
                 (request, channel, task) -> searchService.executeFetchPhase(
@@ -520,7 +546,7 @@ public class SearchTransportService {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardFetchRequest::new,
             instrumentedHandler(
-                FETCH_ID_SCROLL_ACTION_NAME,
+                FETCH_ID_SCROLL_ACTION_METRIC,
                 transportService,
                 searchTransportMetrics,
                 (request, channel, task) -> searchService.executeFetchPhase(
@@ -539,7 +565,7 @@ public class SearchTransportService {
             true,
             ShardFetchSearchRequest::new,
             instrumentedHandler(
-                FETCH_ID_ACTION_NAME,
+                FETCH_ID_ACTION_METRIC,
                 transportService,
                 searchTransportMetrics,
                 (request, channel, task) -> searchService.executeFetchPhase(
@@ -556,7 +582,7 @@ public class SearchTransportService {
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),
             CanMatchNodeRequest::new,
             instrumentedHandler(
-                QUERY_CAN_MATCH_NODE_NAME,
+                QUERY_CAN_MATCH_NODE_METRIC,
                 transportService,
                 searchTransportMetrics,
                 (request, channel, task) -> searchService.canMatch(request, new ChannelActionListener<>(channel))
@@ -566,7 +592,7 @@ public class SearchTransportService {
     }
 
     private static <Request extends TransportRequest> TransportRequestHandler<Request> instrumentedHandler(
-        String actionName,
+        String actionQualifier,
         TransportService transportService,
         SearchTransportAPMMetrics searchTransportMetrics,
         TransportRequestHandler<Request> transportRequestHandler
@@ -577,7 +603,7 @@ public class SearchTransportService {
                 transportRequestHandler.messageReceived(request, channel, task);
             } finally {
                 var elapsedTime = transportService.getThreadPool().relativeTimeInMillis() - startTime;
-                searchTransportMetrics.getActionLatencies().record(elapsedTime, Map.of("action", actionName));
+                searchTransportMetrics.getActionLatencies().record(elapsedTime, Map.of("action", actionQualifier));
             }
         };
     }

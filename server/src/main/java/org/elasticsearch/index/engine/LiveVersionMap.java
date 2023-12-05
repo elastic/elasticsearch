@@ -64,9 +64,13 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
         // Modifies the map of this instance by merging with the given VersionLookup
         public void merge(VersionLookup versionLookup) {
+            long existingEntriesSize = 0;
             for (var entry : versionLookup.map.entrySet()) {
-                put(entry.getKey(), entry.getValue());
+                var existingValue = map.get(entry.getKey());
+                existingEntriesSize += existingValue == null ? 0 : mapEntryBytesUsed(entry.getKey(), existingValue);
             }
+            map.putAll(versionLookup.map);
+            adjustRam(versionLookup.ramBytesUsed() - existingEntriesSize);
             minDeleteTimestamp.accumulateAndGet(versionLookup.minDeleteTimestamp(), Math::min);
         }
 

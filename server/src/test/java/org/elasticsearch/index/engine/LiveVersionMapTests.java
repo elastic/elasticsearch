@@ -13,6 +13,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.translog.Translog;
@@ -30,7 +31,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency;
@@ -477,13 +477,12 @@ public class LiveVersionMapTests extends ESTestCase {
                     }
                     break;
                 case 2: // merge
-                    Map<BytesRef, VersionValue> entries = IntStream.range(0, randomIntBetween(1, 100))
+                    var toMerge = new LiveVersionMap.VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency());
+                    IntStream.range(0, randomIntBetween(1, 100))
                         .mapToObj(n -> randomEntry.get())
-                        // in case we pick the same existing key more than once, just pick a value randomly
-                        .collect(Collectors.toMap(Tuple::v1, Tuple::v2, ESTestCase::randomFrom));
-                    var toMerge = new LiveVersionMap.VersionLookup(entries);
+                        .forEach(kv -> toMerge.put(kv.v1(), kv.v2()));
                     vl.merge(toMerge);
-                    existingKeys.addAll(entries.keySet());
+                    existingKeys.addAll(toMerge.getMap().keySet());
                     break;
                 default:
                     throw new IllegalStateException("branch value unexpected");

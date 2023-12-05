@@ -14,6 +14,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,6 +34,11 @@ import java.util.Objects;
  * Represents an enrich policy including its configuration.
  */
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
+
+    private static final String ELASTICEARCH_VERSION_DEPRECATION_MESSAGE =
+        "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in Elasticsearch 9.0";
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EnrichPolicy.class);
 
     public static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
     public static final String ENRICH_INDEX_PATTERN = ENRICH_INDEX_NAME_BASE + "*";
@@ -132,9 +139,16 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         List<String> enrichFields,
         String elasticsearchVersion
     ) {
-        // for backwards compatibility reasons, it is possible to pass in an elasticsearchVersion -- that version is
-        // completely ignored and does nothing.
         this(type, query, indices, matchField, enrichFields);
+        // for backwards compatibility reasons, it is possible to pass in an elasticsearchVersion -- that version is
+        // completely ignored and does nothing. we'll fix that in a future version, so send a deprecation warning.
+        if (elasticsearchVersion != null) {
+            deprecationLogger.warn(
+                DeprecationCategory.OTHER,
+                "enrich_policy_with_elasticsearch_version",
+                ELASTICEARCH_VERSION_DEPRECATION_MESSAGE
+            );
+        }
     }
 
     public String getType() {

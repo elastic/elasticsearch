@@ -259,12 +259,6 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             }
             source.field("match_field", field);
             source.field("enrich_fields", new String[] { "globalRank", "tldRank", "tld" });
-
-            // technically it's possible to include an elasticsearch_version here. previously it had to match the current version of
-            // elasticsearch itself, but now it can be any string.
-            if (randomBoolean()) {
-                source.field("elasticsearch_version", randomAlphaOfLength(8));
-            }
         }
         source.endObject().endObject();
         return Strings.toString(source);

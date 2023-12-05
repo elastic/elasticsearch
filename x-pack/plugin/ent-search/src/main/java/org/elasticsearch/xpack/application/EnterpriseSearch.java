@@ -76,16 +76,19 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnec
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.GetConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.ListConnectorSyncJobsAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestCancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestCheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestGetConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.RestListConnectorSyncJobsAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.RestPostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportCancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportCheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportDeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportGetConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.TransportListConnectorSyncJobsAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportPostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
@@ -219,7 +222,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class),
                     new ActionHandler<>(DeleteConnectorSyncJobAction.INSTANCE, TransportDeleteConnectorSyncJobAction.class),
                     new ActionHandler<>(CheckInConnectorSyncJobAction.INSTANCE, TransportCheckInConnectorSyncJobAction.class),
-                    new ActionHandler<>(CancelConnectorSyncJobAction.INSTANCE, TransportCancelConnectorSyncJobAction.class)
+                    new ActionHandler<>(CancelConnectorSyncJobAction.INSTANCE, TransportCancelConnectorSyncJobAction.class),
+                    new ActionHandler<>(ListConnectorSyncJobsAction.INSTANCE, TransportListConnectorSyncJobsAction.class)
                 )
             );
         }
@@ -287,7 +291,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestPostConnectorSyncJobAction(),
                     new RestDeleteConnectorSyncJobAction(),
                     new RestCancelConnectorSyncJobAction(),
-                    new RestCheckInConnectorSyncJobAction()
+                    new RestCheckInConnectorSyncJobAction(),
+                    new RestListConnectorSyncJobsAction()
                 )
             );
         }

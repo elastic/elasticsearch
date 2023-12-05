@@ -175,6 +175,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             startElasticsearch();
         }
 
+        public synchronized void writeToKeystore() {
+            addKeystoreSettings();
+        }
+
         public synchronized void stop(boolean forcibly) {
             LOGGER.info("Shutting down node '{}'", name);
             if (process != null) {
@@ -457,7 +461,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     ? value
                     : spec.getKeystorePassword() + "\n" + value;
 
-                runToolScript("elasticsearch-keystore", input, "add", key);
+                runToolScript("elasticsearch-keystore", input, "add", key, "-f");
             });
         }
 

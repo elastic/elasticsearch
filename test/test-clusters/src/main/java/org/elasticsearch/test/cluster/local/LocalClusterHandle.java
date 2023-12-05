@@ -93,4 +93,8 @@ public interface LocalClusterHandle extends ClusterHandle {
      * Returns an {@link InputStream} for the given node log.
      */
     InputStream getNodeLog(int index, LogType logType);
+
+    default void writeToKeystore() {
+        throw new UnsupportedOperationException("writing to keystore not supported");
+    }
 }

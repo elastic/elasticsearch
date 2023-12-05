@@ -203,8 +203,10 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
               ]
             }""");
         keystoreSettings.put("cluster.remote.my_remote_cluster.credentials", (String) crossClusterAccessApiKey.get("encoded"));
-        queryCluster.restart(false);
-        closeClients();
+        queryCluster.writeToKeystore();
+        assertOK(adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        // queryCluster.restart(false);
+        // closeClients();
     }
 
     @Order(40)

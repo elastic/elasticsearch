@@ -75,6 +75,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     @Override
+    public void writeToKeystore() {
+        execute(() -> nodes.parallelStream().forEach(n -> n.writeToKeystore()));
+    }
+
+    @Override
     public void stop(boolean forcibly) {
         if (started.getAndSet(false)) {
             LOGGER.info("Stopping Elasticsearch test cluster '{}', forcibly: {}", name, forcibly);

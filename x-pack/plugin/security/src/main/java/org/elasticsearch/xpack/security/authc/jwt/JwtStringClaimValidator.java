@@ -87,16 +87,19 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
         if (claimValues == null) {
             throw new IllegalArgumentException("missing required string claim [" + fallbackableClaim + "]");
         }
-        if (false == claimValues.stream().anyMatch(allowedClaimValuesPredicate)) {
-            throw new IllegalArgumentException(
-                "string claim ["
-                    + fallbackableClaim
-                    + "] has value ["
-                    + Strings.collectionToCommaDelimitedString(claimValues)
-                    + "] which does not match allowed claim values "
-                    + allowedClaimValuesPredicate
-            );
+        for (String claimValue : claimValues) {
+            if (allowedClaimValuesPredicate.test(claimValue)) {
+                return;
+            }
         }
+        throw new IllegalArgumentException(
+            "string claim ["
+                + fallbackableClaim
+                + "] has value ["
+                + Strings.collectionToCommaDelimitedString(claimValues)
+                + "] which does not match allowed claim values "
+                + allowedClaimValuesPredicate
+        );
     }
 
     private List<String> getStringClaimValues(FallbackableClaim fallbackableClaim) {

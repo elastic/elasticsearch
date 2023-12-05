@@ -1539,13 +1539,14 @@ public class TransportSearchActionTests extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 transportService,
                 searchService,
-                new SearchTransportService(transportService, client, null, SearchTransportAPMMetrics.NOOP),
+                new SearchTransportService(transportService, client, null),
                 null,
                 clusterService,
                 actionFilters,
                 null,
                 null,
-                null
+                null,
+                SearchTransportAPMMetrics.NOOP
             );
 
             CountDownLatch latch = new CountDownLatch(1);

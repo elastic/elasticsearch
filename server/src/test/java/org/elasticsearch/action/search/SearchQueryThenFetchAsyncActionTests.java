@@ -97,7 +97,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger numWithTopDocs = new AtomicInteger();
         AtomicInteger successfulOps = new AtomicInteger();
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(
                 Transport.Connection connection,
@@ -341,7 +341,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.source(new SearchSourceBuilder().size(1));
         searchRequest.allowPartialSearchResults(false);
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP);
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null);
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
@@ -444,7 +444,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")));
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(
                 Transport.Connection connection,
@@ -593,7 +593,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")));
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(
                 Transport.Connection connection,

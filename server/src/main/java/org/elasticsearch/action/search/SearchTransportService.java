@@ -82,7 +82,6 @@ public class SearchTransportService {
         Transport.Connection,
         SearchActionListener<? super SearchPhaseResult>,
         ActionListener<? super SearchPhaseResult>> responseWrapper;
-    private final SearchTransportAPMMetrics searchTransportMetrics;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public SearchTransportService(
@@ -91,13 +90,11 @@ public class SearchTransportService {
         BiFunction<
             Transport.Connection,
             SearchActionListener<? super SearchPhaseResult>,
-            ActionListener<? super SearchPhaseResult>> responseWrapper,
-        SearchTransportAPMMetrics searchTransportMetrics
+            ActionListener<? super SearchPhaseResult>> responseWrapper
     ) {
         this.transportService = transportService;
         this.client = client;
         this.responseWrapper = responseWrapper;
-        this.searchTransportMetrics = searchTransportMetrics;
     }
 
     public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
@@ -384,7 +381,11 @@ public class SearchTransportService {
         }
     }
 
-    public void registerRequestHandler(TransportService transportService, SearchService searchService) {
+    public static void registerRequestHandler(
+        TransportService transportService,
+        SearchService searchService,
+        SearchTransportAPMMetrics searchTransportMetrics
+    ) {
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -427,6 +428,8 @@ public class SearchTransportService {
             ShardSearchRequest::new,
             (request, channel, task) -> instrumentedHandler(
                 DFS_ACTION_NAME,
+                transportService,
+                searchTransportMetrics,
                 () -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
             )
         );
@@ -439,6 +442,8 @@ public class SearchTransportService {
             ShardSearchRequest::new,
             (request, channel, task) -> instrumentedHandler(
                 QUERY_ACTION_NAME,
+                transportService,
+                searchTransportMetrics,
                 () -> searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
             )
         );
@@ -455,6 +460,8 @@ public class SearchTransportService {
             QuerySearchRequest::new,
             (request, channel, task) -> instrumentedHandler(
                 QUERY_ID_ACTION_NAME,
+                transportService,
+                searchTransportMetrics,
                 () -> searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
             )
         );
@@ -466,6 +473,8 @@ public class SearchTransportService {
             InternalScrollSearchRequest::new,
             (request, channel, task) -> instrumentedHandler(
                 QUERY_SCROLL_ACTION_NAME,
+                transportService,
+                searchTransportMetrics,
                 () -> searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
             )
         );
@@ -477,6 +486,8 @@ public class SearchTransportService {
             InternalScrollSearchRequest::new,
             (request, channel, task) -> instrumentedHandler(
                 QUERY_FETCH_SCROLL_ACTION_NAME,
+                transportService,
+                searchTransportMetrics,
                 () -> searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
             )
         );
@@ -488,6 +499,8 @@ public class SearchTransportService {
             ShardFetchRequest::new,
             (request, channel, task) -> instrumentedHandler(
                 FETCH_ID_SCROLL_ACTION_NAME,
+                transportService,
+                searchTransportMetrics,
                 () -> searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
             )
         );
@@ -501,6 +514,8 @@ public class SearchTransportService {
             ShardFetchSearchRequest::new,
             (request, channel, task) -> instrumentedHandler(
                 FETCH_ID_ACTION_NAME,
+                transportService,
+                searchTransportMetrics,
                 () -> searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
             )
         );
@@ -512,13 +527,20 @@ public class SearchTransportService {
             CanMatchNodeRequest::new,
             (request, channel, task) -> instrumentedHandler(
                 FETCH_ID_ACTION_NAME,
+                transportService,
+                searchTransportMetrics,
                 () -> searchService.canMatch(request, new ChannelActionListener<>(channel))
             )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
     }
 
-    private void instrumentedHandler(String actionName, Runnable runnable) {
+    private static void instrumentedHandler(
+        String actionName,
+        TransportService transportService,
+        SearchTransportAPMMetrics searchTransportMetrics,
+        Runnable runnable
+    ) {
         var startTime = transportService.getThreadPool().relativeTimeInMillis();
         try {
             runnable.run();

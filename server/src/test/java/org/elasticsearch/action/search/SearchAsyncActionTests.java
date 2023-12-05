@@ -85,7 +85,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
 
-        SearchTransportService transportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP);
+        SearchTransportService transportService = new SearchTransportService(null, null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -190,7 +190,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             primaryNode,
             replicaNode
         );
-        SearchTransportService transportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP);
+        SearchTransportService transportService = new SearchTransportService(null, null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -297,7 +297,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             replicaNode
         );
         AtomicInteger numFreedContext = new AtomicInteger();
-        SearchTransportService transportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService transportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId, OriginalIndices originalIndices) {
                 numFreedContext.incrementAndGet();
@@ -423,7 +423,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             replicaNode
         );
         AtomicInteger numFreedContext = new AtomicInteger();
-        SearchTransportService transportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService transportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId, OriginalIndices originalIndices) {
                 assertNotNull(contextId);
@@ -534,7 +534,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         );
         CountDownLatch latch = new CountDownLatch(1);
 
-        SearchTransportService transportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP);
+        SearchTransportService transportService = new SearchTransportService(null, null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -648,7 +648,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
             "test",
             logger,
-            new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP),
+            new SearchTransportService(null, null, null),
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node);

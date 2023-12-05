@@ -1834,8 +1834,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final SearchTransportService searchTransportService = new SearchTransportService(
                     transportService,
                     client,
-                    SearchExecutionStatsCollector.makeWrapper(responseCollectorService),
-                    SearchTransportAPMMetrics.NOOP
+                    SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
                 final SearchService searchService = new SearchService(
                     clusterService,
@@ -2013,7 +2012,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
-                        EmptySystemIndices.INSTANCE.getExecutorSelector()
+                        EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                        SearchTransportAPMMetrics.NOOP
                     )
                 );
                 actions.put(

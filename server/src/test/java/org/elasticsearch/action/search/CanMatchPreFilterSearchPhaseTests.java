@@ -107,7 +107,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard2 = randomBoolean();
 
         final AtomicInteger numRequests = new AtomicInteger();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendCanMatch(
                 Transport.Connection connection,
@@ -191,7 +191,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard1 = randomBoolean();
         final boolean useReplicas = randomBoolean();
         final boolean fullFailure = randomBoolean();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendCanMatch(
                 Transport.Connection connection,
@@ -286,7 +286,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             List<MinAndMax<?>> minAndMaxes = new ArrayList<>();
             Set<ShardId> shardToSkip = new HashSet<>();
 
-            SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+            SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendCanMatch(
                     Transport.Connection connection,
@@ -385,7 +385,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             List<ShardId> shardIds = new ArrayList<>();
             Set<ShardId> shardToSkip = new HashSet<>();
 
-            SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+            SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendCanMatch(
                     Transport.Connection connection,
@@ -790,7 +790,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         // We respond by default that the query can match
         final List<ShardSearchRequest> requests = Collections.synchronizedList(new ArrayList<>());
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendCanMatch(
                 Transport.Connection connection,

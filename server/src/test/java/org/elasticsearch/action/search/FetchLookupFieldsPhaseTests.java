@@ -34,7 +34,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
 
     public void testNoLookupField() {
         MockSearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1);
-        searchPhaseContext.searchTransport = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        searchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 throw new AssertionError("No lookup field");
@@ -56,7 +56,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
     public void testBasic() {
         MockSearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1);
         final AtomicBoolean requestSent = new AtomicBoolean();
-        searchPhaseContext.searchTransport = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        searchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             void sendExecuteMultiSearch(
                 MultiSearchRequest multiSearchRequest,

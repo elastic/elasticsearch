@@ -71,7 +71,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(
                 Transport.Connection connection,
@@ -174,7 +174,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(
                 Transport.Connection connection,
@@ -262,7 +262,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(
                 Transport.Connection connection,
@@ -334,7 +334,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             )
         );
         MockSearchPhaseContext mspc = new MockSearchPhaseContext(2);
-        mspc.searchTransport = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP);
+        mspc.searchTransport = new SearchTransportService(null, null, null);
         DfsQueryPhase dqp = new DfsQueryPhase(null, null, dkrs, mock(QueryPhaseResultConsumer.class), null, mspc);
 
         QueryBuilder bm25 = new TermQueryBuilder("field", "term");

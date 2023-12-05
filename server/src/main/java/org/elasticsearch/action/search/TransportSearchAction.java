@@ -161,7 +161,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
-        ExecutorSelector executorSelector
+        ExecutorSelector executorSelector,
+        SearchTransportAPMMetrics searchTransportMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -169,7 +170,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        searchTransportService.registerRequestHandler(transportService, searchService);
+        SearchTransportService.registerRequestHandler(transportService, searchService, searchTransportMetrics);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;

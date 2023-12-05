@@ -191,7 +191,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 queryResult.decRef();
             }
 
-            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendExecuteFetch(
                     Transport.Connection connection,
@@ -306,7 +306,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 queryResult.decRef();
             }
 
-            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendExecuteFetch(
                     Transport.Connection connection,
@@ -414,7 +414,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     queryResult.decRef();
                 }
             }
-            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendExecuteFetch(
                     Transport.Connection connection,
@@ -544,7 +544,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             }
 
             AtomicInteger numFetches = new AtomicInteger(0);
-            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendExecuteFetch(
                     Transport.Connection connection,
@@ -656,7 +656,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 queryResult.decRef();
             }
 
-            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
+            mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendExecuteFetch(
                     Transport.Connection connection,

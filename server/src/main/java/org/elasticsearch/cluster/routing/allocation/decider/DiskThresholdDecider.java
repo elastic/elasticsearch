@@ -142,13 +142,9 @@ public class DiskThresholdDecider extends AllocationDecider {
             // if we don't yet know the actual path of the incoming shard then conservatively assume it's going to the path with the least
             // free space
             if (actualPath == null || actualPath.equals(dataPath)) {
-                totalSize += getExpectedShardSize(
-                    routing,
-                    Math.max(routing.getExpectedShardSize(), 0L),
-                    clusterInfo,
-                    null,
-                    metadata,
-                    routingTable
+                totalSize += Math.max(
+                    routing.getExpectedShardSize(),
+                    getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable)
                 );
             }
         }

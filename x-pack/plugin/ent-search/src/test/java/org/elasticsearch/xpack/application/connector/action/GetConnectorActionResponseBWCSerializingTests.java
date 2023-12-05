@@ -38,7 +38,7 @@ public class GetConnectorActionResponseBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected GetConnectorAction.Response doParseInstance(XContentParser parser) throws IOException {
-        return GetConnectorAction.Response.fromXContent(parser);
+        return GetConnectorAction.Response.fromXContent(parser, connector.getConnectorId());
     }
 
     @Override

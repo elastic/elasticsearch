@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -245,7 +244,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         try {
             final CachedBlob cachedBlob = new CachedBlob(
                 Instant.ofEpochMilli(timeInEpochMillis),
-                Version.CURRENT,
                 repository,
                 name,
                 generatePath(snapshotId, indexId, shardId),

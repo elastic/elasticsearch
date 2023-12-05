@@ -162,8 +162,20 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
         var model = service.parseRequestConfig(modelId, taskType, config, platformArchitectures);
-        // model is valid good to persist then start
-        this.modelRegistry.storeModel(model, ActionListener.wrap(r -> { startModel(service, model, listener); }, listener::onFailure));
+
+        service.checkModelConfig(
+            model,
+            ActionListener.wrap(
+                // model is valid good to persist then start
+                verifiedModel -> {
+                    modelRegistry.storeModel(
+                        verifiedModel,
+                        ActionListener.wrap(r -> { startModel(service, verifiedModel, listener); }, listener::onFailure)
+                    );
+                },
+                listener::onFailure
+            )
+        );
     }
 
     private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {

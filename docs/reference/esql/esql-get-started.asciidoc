@@ -158,8 +158,8 @@ is different than this example, where the sorting comes before the limit.
 
 Use the <<esql-eval>> command to append columns to a table, with calculated
 values. For example, the following query appends a `duration_ms` column. The
-values in the column are computed by dividing `event.duration` by 1,000,000. In
-other words: `event.duration` converted from nanoseconds to milliseconds.
+values in the column are computed by dividing `event_duration` by 1,000,000. In
+other words: `event_duration` converted from nanoseconds to milliseconds.
 
 [source,esql]
 ----
@@ -298,10 +298,10 @@ string, you can use the following `DISSECT` command:
 include::{esql-specs}/dissect.csv-spec[tag=gs-dissect]
 ----
 
-This adds a `server.ip` column to those rows that have a `message` that matches
-this pattern. For other rows, the value of `server.ip` is `null`.
+This adds a `server_ip` column to those rows that have a `message` that matches
+this pattern. For other rows, the value of `server_ip` is `null`.
 
-You can use the new `server.ip` column that's added by the `DISSECT` command in
+You can use the new `server_ip` column that's added by the `DISSECT` command in
 subsequent commands. For example, to determine how many connections each server
 has accepted:
 

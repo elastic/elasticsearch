@@ -534,7 +534,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         listener = new WatcherIndexingListener(watchParser, getClock(), triggerService, watcherLifeCycleService.getState());
         clusterService.addListener(listener);
 
-        logger.info("[Watcher] initialized components at: {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(getClock().millis()));
+        logger.debug("Watcher initialized components at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(getClock().millis()));
         // note: clock is needed here until actions can be constructed directly instead of by guice
         return Arrays.asList(
             new ClockHolder(getClock()),

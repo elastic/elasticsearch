@@ -255,12 +255,12 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateConnectorSyncJobError() throws Exception {
-          PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
+        PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connector.getConnectorId()
         );
         PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
         String syncJobId = response.getId();
-           
+
         UpdateConnectorSyncJobErrorAction.Request request = ConnectorSyncJobTestUtils.getRandomUpdateConnectorSyncJobErrorActionRequest();
         String errorInRequest = request.getError();
 
@@ -275,13 +275,14 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(error, equalTo(errorInRequest));
         assertThat(syncStatus, equalTo(ConnectorSyncStatus.ERROR));
     }
-    
+
     public void testUpdateConnectorSyncJobError_WithMissingSyncJobId_ExceptException() {
         expectThrows(
             ResourceNotFoundException.class,
             () -> awaitUpdateConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID, randomAlphaOfLengthBetween(5, 100))
+        );
     }
-  
+
     public void testUpdateConnectorSyncJobIngestionStats() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connector.getConnectorId()

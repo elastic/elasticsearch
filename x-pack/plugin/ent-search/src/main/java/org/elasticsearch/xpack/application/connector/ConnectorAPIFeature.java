@@ -22,7 +22,7 @@ public class ConnectorAPIFeature {
      * and customers should be aware that no SLAs or support are guaranteed during
      * its pre-General Availability (GA) stage.
      *
-     * Instead of removing the "feature" flag from the code, we enable it by default.
+     * Instead of removing the feature flag from the code, we enable it by default.
      * This approach allows for the complete deactivation of the feature during the QA phase,
      * should any critical bugs be discovered, with a single, trackable code change.
      */

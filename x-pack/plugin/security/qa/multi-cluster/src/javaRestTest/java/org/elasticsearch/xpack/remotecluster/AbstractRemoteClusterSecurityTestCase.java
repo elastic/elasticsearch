@@ -191,19 +191,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         boolean skipUnavailable
     ) throws Exception {
         // For configurable remote cluster security, this method assumes the cross cluster access API key is already configured in keystore
-        final Settings.Builder builder = Settings.builder();
-        final String remoteClusterEndpoint = basicSecurity
-            ? targetFulfillingCluster.getTransportEndpoint(0)
-            : targetFulfillingCluster.getRemoteClusterServerEndpoint(0);
-        if (isProxyMode) {
-            builder.put("cluster.remote." + clusterAlias + ".mode", "proxy")
-                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint);
-        } else {
-            builder.put("cluster.remote." + clusterAlias + ".mode", "sniff")
-                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint);
-        }
-        builder.put("cluster.remote." + clusterAlias + ".skip_unavailable", skipUnavailable);
-        updateClusterSettings(builder.build());
+        configureRemoteClusterWithoutConnectionCheck(clusterAlias, targetFulfillingCluster, basicSecurity, isProxyMode, skipUnavailable);
 
         // Ensure remote cluster is connected
         final Request remoteInfoRequest = new Request("GET", "/_remote/info");
@@ -229,6 +217,28 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
                 assertThat(credentialsValue, equalTo("::es_redacted::"));
             }
         });
+    }
+
+    void configureRemoteClusterWithoutConnectionCheck(
+        String clusterAlias,
+        ElasticsearchCluster targetFulfillingCluster,
+        boolean basicSecurity,
+        boolean isProxyMode,
+        boolean skipUnavailable
+    ) throws IOException {
+        final Settings.Builder builder = Settings.builder();
+        final String remoteClusterEndpoint = basicSecurity
+            ? targetFulfillingCluster.getTransportEndpoint(0)
+            : targetFulfillingCluster.getRemoteClusterServerEndpoint(0);
+        if (isProxyMode) {
+            builder.put("cluster.remote." + clusterAlias + ".mode", "proxy")
+                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint);
+        } else {
+            builder.put("cluster.remote." + clusterAlias + ".mode", "sniff")
+                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint);
+        }
+        builder.put("cluster.remote." + clusterAlias + ".skip_unavailable", skipUnavailable);
+        updateClusterSettings(builder.build());
     }
 
     protected static Response performRequestAgainstFulfillingCluster(Request request) throws IOException {

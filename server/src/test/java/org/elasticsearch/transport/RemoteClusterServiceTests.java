@@ -748,7 +748,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.updateRemoteCluster(
                         "cluster_1",
                         createSettings("cluster_1", Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
-                        connectionListener(firstLatch)
+                        connectionListener(firstLatch),
+                        false
                     );
                     firstLatch.await();
 
@@ -756,7 +757,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.updateRemoteCluster(
                         "cluster_2",
                         createSettings("cluster_2", Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
-                        connectionListener(secondLatch)
+                        connectionListener(secondLatch),
+                        false
                     );
                     secondLatch.await();
 
@@ -841,7 +843,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.updateRemoteCluster(
                         "cluster_1",
                         createSettings("cluster_1", Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
-                        connectionListener(firstLatch)
+                        connectionListener(firstLatch),
+                        false
                     );
                     firstLatch.await();
 
@@ -849,7 +852,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.updateRemoteCluster(
                         "cluster_2",
                         createSettings("cluster_2", Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
-                        connectionListener(secondLatch)
+                        connectionListener(secondLatch),
+                        false
                     );
                     secondLatch.await();
 
@@ -940,7 +944,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.updateRemoteCluster(
                         "cluster_1",
                         createSettings("cluster_1", Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString())),
-                        connectionListener(firstLatch)
+                        connectionListener(firstLatch),
+                        false
                     );
                     firstLatch.await();
 
@@ -948,7 +953,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.updateRemoteCluster(
                         "cluster_2",
                         createSettings("cluster_2", Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString())),
-                        connectionListener(secondLatch)
+                        connectionListener(secondLatch),
+                        false
                     );
                     secondLatch.await();
                     CountDownLatch latch = new CountDownLatch(1);
@@ -1204,7 +1210,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.updateRemoteCluster(
                         "cluster_test",
                         createSettings("cluster_test", Collections.singletonList(node0.getAddress().toString())),
-                        connectionListener(firstLatch)
+                        connectionListener(firstLatch),
+                        false
                     );
                     firstLatch.await();
 
@@ -1223,7 +1230,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     }
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
-                    service.updateRemoteCluster("cluster_test", createSettings("cluster_test", newSeeds), connectionListener(secondLatch));
+                    service.updateRemoteCluster(
+                        "cluster_test",
+                        createSettings("cluster_test", newSeeds),
+                        connectionListener(secondLatch),
+                        false
+                    );
                     secondLatch.await();
 
                     assertTrue(service.isCrossClusterSearchEnabled());
@@ -1391,7 +1403,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     } else {
                         firstRemoteClusterSettingsBuilder.put("cluster.remote.cluster_1.seeds", c1Node.getAddress().toString());
                     }
-                    service.updateRemoteCluster("cluster_1", firstRemoteClusterSettingsBuilder.build(), connectionListener(firstLatch));
+                    service.updateRemoteCluster(
+                        "cluster_1",
+                        firstRemoteClusterSettingsBuilder.build(),
+                        connectionListener(firstLatch),
+                        false
+                    );
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
@@ -1403,7 +1420,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     } else {
                         secondRemoteClusterSettingsBuilder.put("cluster.remote.cluster_2.seeds", c2Node.getAddress().toString());
                     }
-                    service.updateRemoteCluster("cluster_2", secondRemoteClusterSettingsBuilder.build(), connectionListener(secondLatch));
+                    service.updateRemoteCluster(
+                        "cluster_2",
+                        secondRemoteClusterSettingsBuilder.build(),
+                        connectionListener(secondLatch),
+                        false
+                    );
                     secondLatch.await();
 
                     assertTrue(service.isCrossClusterSearchEnabled());

@@ -74,7 +74,7 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
+        protected void updateRemoteCluster(String clusterAlias, Settings settings, boolean forceUpdate) {
             String repositoryName = CcrRepository.NAME_PREFIX + clusterAlias;
             if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings)) {
                 putRepository(repositoryName);

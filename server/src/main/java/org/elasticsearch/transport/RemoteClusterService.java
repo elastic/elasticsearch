@@ -304,8 +304,14 @@ public class RemoteClusterService extends RemoteClusterAware implements Closeabl
         }
     }
 
-    public void updateRemoteClusterCredentials(Settings settings) {
-        remoteClusterCredentialsManager.updateClusterCredentials(settings);
+    public synchronized void updateRemoteClusterCredentials(Settings newSettings) {
+        final var result = remoteClusterCredentialsManager.updateClusterCredentials(newSettings);
+        for (var added : result.added()) {
+            updateRemoteCluster(added, newSettings, true);
+        }
+        for (var removed : result.removed()) {
+            updateRemoteCluster(removed, newSettings, true);
+        }
     }
 
     public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {
@@ -313,7 +319,7 @@ public class RemoteClusterService extends RemoteClusterAware implements Closeabl
     }
 
     @Override
-    protected void updateRemoteCluster(String clusterAlias, Settings settings) {
+    protected void updateRemoteCluster(String clusterAlias, Settings settings, boolean forceUpdate) {
         CountDownLatch latch = new CountDownLatch(1);
         updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
             @Override
@@ -325,7 +331,7 @@ public class RemoteClusterService extends RemoteClusterAware implements Closeabl
             public void onFailure(Exception e) {
                 logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "]", e);
             }
-        }, latch::countDown));
+        }, latch::countDown), forceUpdate);
 
         try {
             // Wait 10 seconds for a connections. We must use a latch instead of a future because we
@@ -349,7 +355,8 @@ public class RemoteClusterService extends RemoteClusterAware implements Closeabl
     synchronized void updateRemoteCluster(
         String clusterAlias,
         Settings newSettings,
-        ActionListener<RemoteClusterConnectionStatus> listener
+        ActionListener<RemoteClusterConnectionStatus> listener,
+        boolean forceUpdate
     ) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
@@ -373,7 +380,7 @@ public class RemoteClusterService extends RemoteClusterAware implements Closeabl
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
-        } else if (remote.shouldRebuildConnection(newSettings)) {
+        } else if (remote.shouldRebuildConnection(newSettings) || forceUpdate) {
             // Changes to connection configuration. Must tear down existing connection
             try {
                 IOUtils.close(remote);
@@ -413,7 +420,7 @@ public class RemoteClusterService extends RemoteClusterAware implements Closeabl
 
         CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
-            updateRemoteCluster(clusterAlias, settings, listener.map(ignored -> null));
+            updateRemoteCluster(clusterAlias, settings, listener.map(ignored -> null), false);
         }
 
         if (enabledClusters.isEmpty()) {

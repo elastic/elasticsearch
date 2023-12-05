@@ -26,7 +26,7 @@ public final class RemoteClusterResolver extends RemoteClusterAware {
     }
 
     @Override
-    protected void updateRemoteCluster(String clusterAlias, Settings settings) {
+    protected void updateRemoteCluster(String clusterAlias, Settings settings, boolean forceUpdate) {
         if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings)) {
             clusters.add(clusterAlias);
         } else {

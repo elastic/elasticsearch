@@ -269,8 +269,10 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
 
         // Remove remote cluster credentials to revert back to RCS 1.0
         keystoreSettings.remove("cluster.remote.my_remote_cluster.credentials");
-        queryCluster.restart(false);
-        closeClients();
+        queryCluster.writeToKeystore();
+        assertOK(adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        // queryCluster.restart(false);
+        // closeClients();
     }
 
     @Order(60)

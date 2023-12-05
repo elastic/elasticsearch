@@ -79,12 +79,21 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
               ]
             }""");
 
+        boolean configured = false;
+        // it's valid to first configure remote cluster, then reload
+        if (randomBoolean()) {
+            configureRemoteClusterWithoutConnectionCheck("my_remote_cluster", fulfillingCluster, false, randomBoolean(), randomBoolean());
+            configured = true;
+        }
+
         keystoreSettings.put("cluster.remote.my_remote_cluster.credentials", (String) apiKeyMap.get("encoded"));
         queryCluster.writeToKeystore();
         assertOK(adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
 
-        // Trigger cluster settings update to configure remote and use credentials for connection
-        configureRemoteCluster("my_remote_cluster");
+        // also valid to first reload, then configure
+        if (false == configured) {
+            configureRemoteCluster("my_remote_cluster");
+        }
 
         final var searchRequest = new Request(
             "GET",

@@ -95,11 +95,16 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
     @Override
     public void tearDown() throws Exception {
         try {
-            clearRemoteCluster();
+            removeRemoteCluster();
             super.tearDown();
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
+    }
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
     }
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -141,11 +146,45 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         }
     }
 
+    public void testReloadRemoteClusterCredentialsRebuildsConnection() throws Exception {
+        final String credentials = randomAlphaOfLength(42);
+        writeCredentialsToKeyStore(credentials);
+        final RemoteClusterCredentialsManager clusterCredentialsManager = getInstanceFromNode(TransportService.class)
+            .getRemoteClusterService()
+            .getRemoteClusterCredentialsManager();
+        // Until we reload, credentials written to key store are not loaded into the credentials manager
+        assertThat(clusterCredentialsManager.hasCredentials(CLUSTER_ALIAS), is(false));
+
+        // Check that credentials get used for a remote connection, once we configure it
+        final BlockingQueue<Map<String, String>> capturedHeaders = ConcurrentCollections.newBlockingQueue();
+        try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, capturedHeaders)) {
+            final TransportAddress remoteAddress = remoteTransport.getOriginalTransport()
+                .profileBoundAddresses()
+                .get("_remote_cluster")
+                .publishAddress();
+
+            configureRemoteCluster(remoteAddress);
+
+            reloadSecureSettings();
+            assertThat(clusterCredentialsManager.resolveCredentials(CLUSTER_ALIAS), equalTo(credentials));
+
+            // Run search to trigger header capturing on the receiving side
+            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
+
+            assertHeadersContainCredentialsAndClear(credentials, capturedHeaders);
+        }
+    }
+
     private void assertHeadersContainCredentialsAndClear(String credentials, BlockingQueue<Map<String, String>> capturedHeaders) {
         assertThat(capturedHeaders, is(not(empty())));
         for (Map<String, String> actualHeaders : capturedHeaders) {
-            assertThat(actualHeaders, hasKey(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
             assertThat(
+                "Captured: " + capturedHeaders,
+                actualHeaders,
+                hasKey(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY)
+            );
+            assertThat(
+                "Captured: " + capturedHeaders,
                 actualHeaders.get(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY),
                 equalTo(ApiKeyService.withApiKeyPrefix(credentials))
             );
@@ -154,7 +193,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         assertThat(capturedHeaders, is(empty()));
     }
 
-    private void clearRemoteCluster() throws InterruptedException, ExecutionException {
+    private void removeRemoteCluster() throws InterruptedException, ExecutionException {
         final var builder = Settings.builder()
             .putNull("cluster.remote." + CLUSTER_ALIAS + ".mode")
             .putNull("cluster.remote." + CLUSTER_ALIAS + ".seeds")

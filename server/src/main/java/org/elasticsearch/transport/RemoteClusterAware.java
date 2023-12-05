@@ -139,13 +139,13 @@ public abstract class RemoteClusterAware {
         if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
-        updateRemoteCluster(clusterAlias, settings);
+        updateRemoteCluster(clusterAlias, settings, false);
     }
 
     /**
      * Subclasses must implement this to receive information about updated cluster aliases.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings);
+    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings, boolean forceUpdate);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.

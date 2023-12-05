@@ -456,6 +456,19 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void addKeystoreSettings() {
+            addKeystoreSettings(false);
+        }
+
+        public void addKeystoreSettings(boolean forceRecreate) {
+            if (forceRecreate) {
+                Path keystoreFile = workingDir.resolve("config").resolve("elasticsearch.keystore");
+                try {
+                    Files.deleteIfExists(keystoreFile);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                createKeystore();
+            }
             spec.resolveKeystore().forEach((key, value) -> {
                 String input = spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()
                     ? value

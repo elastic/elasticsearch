@@ -531,6 +531,8 @@ public class Security extends Plugin
     private Settings settings;
     private final boolean enabled;
     private final SecuritySystemIndices systemIndices;
+
+    private ClusterService clusterService;
     private final ListenableFuture<Void> nodeStartedListenable;
 
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
@@ -660,6 +662,9 @@ public class Security extends Plugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RemoteClusterService> remoteClusterServiceSupplier
     ) throws Exception {
+        // TODO hack hack hack
+        this.clusterService = clusterService;
+
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null, null));
@@ -1929,11 +1934,16 @@ public class Security extends Plugin
     private void reloadRemoteClusterCredentials(Settings settings) {
         final RemoteClusterService remoteClusterService = remoteClusterServiceSupplier.get();
         if (remoteClusterService == null) {
-            final String msg = "Remote cluster service unavailable during secure settings reload";
+            final String msg = "remote cluster service unavailable during secure settings reload";
             assert false : msg;
             throw new IllegalStateException(msg);
         }
-        remoteClusterService.updateRemoteClusterCredentials(settings);
+        // We need cluster settings to capture settings API updates;
+        final Settings persistentSettings = clusterService.state().metadata().persistentSettings();
+        final Settings transientSettings = clusterService.state().metadata().transientSettings();
+        remoteClusterService.updateRemoteClusterCredentials(
+            Settings.builder().put(settings, true).put(persistentSettings).put(transientSettings).build()
+        );
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

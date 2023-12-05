@@ -199,8 +199,10 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
               ]
             }""");
         keystoreSettings.put("cluster.remote.my_remote_cluster.credentials", (String) crossClusterAccessApiKey.get("encoded"));
-        queryCluster.restart(false);
-        closeClients();
+        queryCluster.writeToKeystore();
+        assertOK(adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        // queryCluster.restart(false);
+        // closeClients();
     }
 
     @Order(40)
@@ -248,8 +250,10 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
 
         // Remove remote cluster credentials to revert back to RCS 1.0
         keystoreSettings.remove("cluster.remote.my_remote_cluster.credentials");
-        queryCluster.restart(false);
-        closeClients();
+        queryCluster.writeToKeystore();
+        assertOK(adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        // queryCluster.restart(false);
+        // closeClients();
     }
 
     @Order(60)

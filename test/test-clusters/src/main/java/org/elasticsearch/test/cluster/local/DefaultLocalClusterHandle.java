@@ -76,7 +76,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public void writeToKeystore() {
-        execute(() -> nodes.parallelStream().forEach(n -> n.writeToKeystore()));
+        execute(() -> nodes.parallelStream().forEach(n -> n.addKeystoreSettings(true)));
     }
 
     @Override

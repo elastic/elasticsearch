@@ -13,8 +13,11 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnec
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.GetConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.ListConnectorSyncJobsAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobErrorAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
+import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 
 import java.time.Instant;
 
@@ -104,6 +107,10 @@ public class ConnectorSyncJobTestUtils {
         return new CheckInConnectorSyncJobAction.Request(randomAlphaOfLength(10));
     }
 
+    public static UpdateConnectorSyncJobErrorAction.Request getRandomUpdateConnectorSyncJobErrorActionRequest() {
+        return new UpdateConnectorSyncJobErrorAction.Request(randomAlphaOfLength(10), randomAlphaOfLengthBetween(5, 100));
+    }
+
     public static UpdateConnectorSyncJobIngestionStatsAction.Request getRandomUpdateConnectorSyncJobIngestionStatsActionRequest() {
         Instant lowerBoundInstant = Instant.ofEpochSecond(0L);
         Instant upperBoundInstant = Instant.ofEpochSecond(3000000000L);
@@ -140,5 +147,13 @@ public class ConnectorSyncJobTestUtils {
 
     public static GetConnectorSyncJobAction.Response getRandomGetConnectorSyncJobResponse() {
         return new GetConnectorSyncJobAction.Response(getRandomConnectorSyncJob());
+    }
+
+    public static ListConnectorSyncJobsAction.Request getRandomListConnectorSyncJobsActionRequest() {
+        return new ListConnectorSyncJobsAction.Request(
+            SearchApplicationTestUtils.randomPageParams(),
+            randomAlphaOfLength(10),
+            ConnectorTestUtils.getRandomSyncStatus()
+        );
     }
 }

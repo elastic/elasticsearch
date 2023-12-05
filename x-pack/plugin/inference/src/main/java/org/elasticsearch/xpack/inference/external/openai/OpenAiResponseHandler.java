@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
+import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -22,6 +24,17 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
+    /**
+     * Rate limit headers taken from https://platform.openai.com/docs/guides/rate-limits/rate-limits-in-headers
+     */
+    // The maximum number of requests that are permitted before exhausting the rate limit.
+    static final String REQUESTS_LIMIT = "x-ratelimit-limit-requests";
+    // The maximum number of tokens that are permitted before exhausting the rate limit.
+    static final String TOKENS_LIMIT = "x-ratelimit-limit-tokens";
+    // The remaining number of requests that are permitted before exhausting the rate limit.
+    static final String REMAINING_REQUESTS = "x-ratelimit-remaining-requests";
+    // The remaining number of tokens that are permitted before exhausting the rate limit.
+    static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     public OpenAiResponseHandler(String requestType, CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
@@ -52,7 +65,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         if (statusCode >= 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            throw new RetryException(false, buildError(RATE_LIMIT, request, result)); // TODO back off and retry
+            throw new RetryException(true, buildError(buildRateLimitErrorMessage(request, result), request, result));
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {
@@ -60,5 +73,32 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else {
             throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
         }
+    }
+
+    static String buildRateLimitErrorMessage(HttpRequestBase request, HttpResult result) {
+        var response = result.response();
+        int statusCode = result.response().getStatusLine().getStatusCode();
+        var tokenLimit = getFirstHeaderOrUnknown(response, TOKENS_LIMIT);
+        var remainingTokens = getFirstHeaderOrUnknown(response, REMAINING_TOKENS);
+        var requestLimit = getFirstHeaderOrUnknown(response, REQUESTS_LIMIT);
+        var remainingRequests = getFirstHeaderOrUnknown(response, REMAINING_REQUESTS);
+
+        var usageMessage = Strings.format(
+            "Token limit [%s], remaining tokens [%s]. Request limit [%s], remaining requests [%s]",
+            tokenLimit,
+            remainingTokens,
+            requestLimit,
+            remainingRequests
+        );
+
+        return RATE_LIMIT + ". " + usageMessage;
+    }
+
+    private static String getFirstHeaderOrUnknown(HttpResponse response, String name) {
+        var header = response.getFirstHeader(name);
+        if (header != null && header.getElements().length > 0) {
+            return header.getElements()[0].getName();
+        }
+        return "unknown";
     }
 }

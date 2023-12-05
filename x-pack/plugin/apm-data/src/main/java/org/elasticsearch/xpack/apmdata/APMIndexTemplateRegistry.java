@@ -136,7 +136,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
             final byte[] content = loadVersionedResourceUTF8("/component-templates/" + name + ".yaml", version);
             return ComponentTemplate.parse(YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content));
         } catch (Exception e) {
-            throw new RuntimeException("failed to load APM component template: " + name, e);
+            throw new RuntimeException("failed to load APM Ingest plugin's component template: " + name, e);
         }
     }
 
@@ -145,7 +145,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
             final byte[] content = loadVersionedResourceUTF8("/index-templates/" + name + ".yaml", version);
             return ComposableIndexTemplate.parse(YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, content));
         } catch (Exception e) {
-            throw new RuntimeException("failed to load APM index template: " + name, e);
+            throw new RuntimeException("failed to load APM Ingest plugin's index template: " + name, e);
         }
     }
 

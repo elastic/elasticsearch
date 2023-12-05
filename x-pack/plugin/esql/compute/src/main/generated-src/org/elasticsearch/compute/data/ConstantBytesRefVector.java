@@ -89,6 +89,6 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
             throw new IllegalStateException("can't release already released vector [" + this + "]");
         }
         released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

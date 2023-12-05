@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Map.entry;
@@ -19,7 +18,6 @@ final class CO2Calculator {
     private static final double DEFAULT_KILOWATTS_PER_CORE_ARM64 = 2.8d / 1000.0d; // unit: watt / core
     private static final double DEFAULT_KILOWATTS_PER_CORE = DEFAULT_KILOWATTS_PER_CORE_X86; // unit: watt / core
     private static final double DEFAULT_DATACENTER_PUE = 1.7d;
-    private static final Provider DEFAULT_PROVIDER = new Provider(DEFAULT_DATACENTER_PUE, Collections.emptyMap());
     private final InstanceTypeService instanceTypeService;
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
@@ -76,12 +74,13 @@ final class CO2Calculator {
     }
 
     private double getCO2TonsPerKWH(HostMetadata host) {
-        Provider provider = PROVIDERS.getOrDefault(host.instanceType.provider, DEFAULT_PROVIDER);
-        return provider.co2TonsPerKWH.getOrDefault(host.instanceType.region, customCO2PerKWH);
+        Provider provider = PROVIDERS.get(host.instanceType.provider);
+        return provider == null ? customCO2PerKWH : provider.co2TonsPerKWH.getOrDefault(host.instanceType.region, customCO2PerKWH);
     }
 
-    private static double getDatacenterPUE(HostMetadata host) {
-        return PROVIDERS.getOrDefault(host.instanceType.provider, DEFAULT_PROVIDER).pue;
+    private double getDatacenterPUE(HostMetadata host) {
+        Provider provider = PROVIDERS.get(host.instanceType.provider);
+        return provider == null ? customDatacenterPUE : provider.pue;
     }
 
     private record Provider(double pue, Map<String, Double> co2TonsPerKWH) {}

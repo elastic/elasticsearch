@@ -1,0 +1,5 @@
+pr: 102032
+summary: Add vector_operation_count in profile output for knn searches
+area: Vector Search
+type: enhancement
+issues: []

@@ -8,10 +8,12 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,17 +37,27 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     public static final String REWRITE_TIME = "rewrite_time";
     public static final String QUERY_ARRAY = "query";
 
+    public static final String VECTOR_OPERATIONS_COUNT = "vector_operations_count";
+
     private final List<ProfileResult> queryProfileResults;
 
     private final CollectorResult profileCollector;
 
     private final long rewriteTime;
 
-    public QueryProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
+    private final Long vectorOperationsCount;
+
+    public QueryProfileShardResult(
+        List<ProfileResult> queryProfileResults,
+        long rewriteTime,
+        CollectorResult profileCollector,
+        @Nullable Long vectorOperationsCount
+    ) {
         assert (profileCollector != null);
         this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
+        this.vectorOperationsCount = vectorOperationsCount;
     }
 
     /**
@@ -60,6 +72,9 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
 
         profileCollector = new CollectorResult(in);
         rewriteTime = in.readLong();
+        vectorOperationsCount = (in.getTransportVersion().onOrAfter(TransportVersions.UPGRADE_TO_LUCENE_9_9))
+            ? in.readOptionalLong()
+            : null;
     }
 
     @Override
@@ -70,6 +85,9 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         }
         profileCollector.writeTo(out);
         out.writeLong(rewriteTime);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.UPGRADE_TO_LUCENE_9_9)) {
+            out.writeOptionalLong(vectorOperationsCount);
+        }
     }
 
     public List<ProfileResult> getQueryResults() {
@@ -87,6 +105,9 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (vectorOperationsCount != null) {
+            builder.field(VECTOR_OPERATIONS_COUNT, vectorOperationsCount);
+        }
         builder.startArray(QUERY_ARRAY);
         for (ProfileResult p : queryProfileResults) {
             p.toXContent(builder, params);
@@ -127,6 +148,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         String currentFieldName = null;
         List<ProfileResult> queryProfileResults = new ArrayList<>();
         long rewriteTime = 0;
+        Long vectorOperationsCount = null;
         CollectorResult collector = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -134,6 +156,8 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
             } else if (token.isValue()) {
                 if (REWRITE_TIME.equals(currentFieldName)) {
                     rewriteTime = parser.longValue();
+                } else if (VECTOR_OPERATIONS_COUNT.equals(currentFieldName)) {
+                    vectorOperationsCount = parser.longValue();
                 } else {
                     parser.skipChildren();
                 }
@@ -153,6 +177,6 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
                 parser.skipChildren();
             }
         }
-        return new QueryProfileShardResult(queryProfileResults, rewriteTime, collector);
+        return new QueryProfileShardResult(queryProfileResults, rewriteTime, collector, vectorOperationsCount);
     }
 }

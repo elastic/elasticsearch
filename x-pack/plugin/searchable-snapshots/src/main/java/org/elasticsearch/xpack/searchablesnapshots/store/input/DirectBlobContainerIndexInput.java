@@ -341,7 +341,7 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {
         assert MetadataCachingIndexInput.assertCurrentThreadMayAccessBlobStore();
         stats.addBlobStoreBytesRequested(length);
-        return blobContainer.readBlob(OperationPurpose.SNAPSHOT, fileInfo.partName(part), pos, length);
+        return blobContainer.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(part), pos, length);
     }
 
     private static class StreamForSequentialReads implements Closeable {

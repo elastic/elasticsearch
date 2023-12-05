@@ -9,15 +9,15 @@ package org.elasticsearch.repositories.s3.advancedstoragetiering;
 
 import fixture.s3.S3HttpFixture;
 
-import com.sun.net.httpserver.HttpExchange;
-
+import org.elasticsearch.client.Request;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -35,15 +35,18 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, ACCESS_KEY) {
         @Override
-        @SuppressForbidden(reason = "looking at HttpExchange")
-        protected void validatePutObjectRequest(HttpExchange exchange) {
-            logger.error("--> validatePutObjectRequest: {} {}", exchange.getRequestMethod(), exchange.getRequestURI());
+        protected void validateStorageClass(String path, String storageClass) {
+            logger.info("validateStorageClass: {} -- {}", storageClass, path);
+            assertEquals(path, storageClass, getLeafBlobName(path).startsWith("__") ? "ONEZONE_IA" : "STANDARD_IA");
         }
 
-        @Override
-        @SuppressForbidden(reason = "looking at HttpExchange")
-        protected void validateInitiateMultipartUploadRequest(HttpExchange exchange) {
-            logger.error("--> validateInitiateMultipartUploadRequest: {} {}", exchange.getRequestMethod(), exchange.getRequestURI());
+        private String getLeafBlobName(String path) {
+            final var lastSeparator = path.lastIndexOf("/");
+            if (lastSeparator < 0) {
+                return path;
+            } else {
+                return path.substring(lastSeparator + 1);
+            }
         }
     };
 
@@ -55,7 +58,6 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
         .keystore("s3.client." + CLIENT_NAME + ".secret_key", "s3_test_secret_key")
         .setting("s3.client." + CLIENT_NAME + ".protocol", "http")
         .setting("s3.client." + CLIENT_NAME + ".endpoint", s3Fixture::getAddress)
-        .setting("logger.org.apache.http.wire", "DEBUG")
         .build();
 
     @ClassRule
@@ -82,6 +84,24 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
                 .build()
         );
 
-        fail("boom");
+        createIndex("testindex");
+
+        final var indexRequest = new Request("POST", "/testindex/_bulk");
+        try (var bodyStream = new BytesStreamOutput()) {
+            for (int i = 0; i < 10; i++) {
+                try (var metaLine = XContentFactory.jsonBuilder(bodyStream)) {
+                    metaLine.startObject().startObject("index").endObject().endObject();
+                }
+                bodyStream.writeByte((byte) 0x0a);
+                try (var docLine = XContentFactory.jsonBuilder(bodyStream)) {
+                    docLine.startObject().field("foo", "bar-" + i).endObject();
+                }
+                bodyStream.writeByte((byte) 0x0a);
+            }
+            indexRequest.setJsonEntity(bodyStream.bytes().utf8ToString());
+        }
+        client().performRequest(indexRequest);
+
+        createSnapshot(repoName, randomIdentifier(), true);
     }
 }

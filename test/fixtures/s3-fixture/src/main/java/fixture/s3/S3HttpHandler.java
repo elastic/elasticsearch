@@ -43,7 +43,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -121,7 +120,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
-                validateInitiateMultipartUploadRequest(exchange);
+                validateStorageClass(exchange);
 
                 final var upload = new MultipartUpload(
                     UUIDs.randomBase64UUID(),
@@ -187,7 +186,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + path + "/*", request)) {
-                validatePutObjectRequest(exchange);
+                validateStorageClass(exchange);
 
                 final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
                 blobs.put(exchange.getRequestURI().toString(), blob.v2());
@@ -313,10 +312,6 @@ public class S3HttpHandler implements HttpHandler {
             exchange.close();
         }
     }
-
-    protected void validatePutObjectRequest(HttpExchange exchange) {}
-
-    protected void validateInitiateMultipartUploadRequest(HttpExchange exchange) {}
 
     public Map<String, BytesReference> blobs() {
         return blobs;
@@ -484,5 +479,14 @@ public class S3HttpHandler implements HttpHandler {
 
     MultipartUpload getUpload(String uploadId) {
         return uploads.get(uploadId);
+    }
+
+    protected void validateStorageClass(String path, String storageClass) {}
+
+    private void validateStorageClass(HttpExchange exchange) {
+        validateStorageClass(
+            exchange.getRequestURI().getPath().substring(bucket.length() + 2),
+            exchange.getRequestHeaders().getFirst("x-amz-storage-class")
+        );
     }
 }

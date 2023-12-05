@@ -563,6 +563,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102974")
     public void testPreGetChildLeafCollectors() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {

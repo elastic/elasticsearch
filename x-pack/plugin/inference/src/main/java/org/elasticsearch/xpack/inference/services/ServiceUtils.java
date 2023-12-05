@@ -218,7 +218,7 @@ public class ServiceUtils {
     public static void getEmbeddingSize(Model model, InferenceService service, ActionListener<Integer> listener) {
         assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
 
-        service.infer(model, List.of("how big"), Map.of(), ActionListener.wrap(r -> {
+        service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), ActionListener.wrap(r -> {
             if (r instanceof TextEmbeddingResults embeddingResults) {
                 if (embeddingResults.embeddings().isEmpty()) {
                     listener.onFailure(
@@ -245,4 +245,6 @@ public class ServiceUtils {
             }
         }, listener::onFailure));
     }
+
+    private static final String TEST_EMBEDDING_INPUT = "how big";
 }

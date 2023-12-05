@@ -39,7 +39,7 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, ACCESS_KEY) {
         @Override
         protected void validateStorageClass(String path, String storageClass) {
-            assertEquals(path, getLeafBlobName(path).startsWith("__") ? "ONEZONE_IA" : "STANDARD_IA", storageClass);
+            assertEquals(path, storageClass, getLeafBlobName(path).startsWith("__") ? "ONEZONE_IA" : "STANDARD_IA");
         }
 
         private String getLeafBlobName(String path) {
@@ -99,7 +99,7 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
                 .put("client", CLIENT_NAME)
                 .put("bucket", BUCKET)
                 .put("base_path", BASE_PATH)
-                .put("storage_class", "standard_ia")
+                .put("storage_class", "onezone_ia")
                 .put("metadata_storage_class", "standard_ia")
                 .build()
         );

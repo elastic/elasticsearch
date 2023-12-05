@@ -1,5 +1,5 @@
 pr: 102798
-summary: Hot-reloadable cross cluster access keys
+summary: Hot-reloadable remote cluster credentials
 area: Security
 type: enhancement
 issues: []

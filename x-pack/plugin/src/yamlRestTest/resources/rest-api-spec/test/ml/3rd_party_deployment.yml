@@ -218,7 +218,9 @@ setup:
 
 ---
 "Test start deployment fails while model download in progress":
-
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/102948"
   - do:
       ml.put_trained_model:
         model_id: .elser_model_2

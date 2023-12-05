@@ -668,11 +668,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
-            new Phase(
-                "delete",
-                TimeValue.ZERO,
-                singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)
-            )
+            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
         );
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to be deleted...", partiallyMountedIndexName);

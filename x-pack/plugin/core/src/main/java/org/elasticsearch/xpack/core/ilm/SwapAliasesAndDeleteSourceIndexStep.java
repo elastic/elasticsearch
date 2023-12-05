@@ -136,12 +136,12 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
             );
         });
 
-        client.admin().indices().aliases(aliasesRequest, ActionListener.wrap(response -> {
+        client.admin().indices().aliases(aliasesRequest, listener.delegateFailureAndWrap((l, response) -> {
             if (response.isAcknowledged() == false) {
                 logger.warn("aliases swap from [{}] to [{}] response was not acknowledged", sourceIndexName, targetIndex);
             }
-            listener.onResponse(null);
-        }, listener::onFailure));
+            l.onResponse(null);
+        }));
     }
 
     @Override

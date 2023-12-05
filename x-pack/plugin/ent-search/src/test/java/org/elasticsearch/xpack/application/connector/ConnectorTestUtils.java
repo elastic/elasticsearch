@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringAdvancedSnippet;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringPolicy;
@@ -36,6 +37,17 @@ public final class ConnectorTestUtils {
     public static PutConnectorAction.Request getRandomPutConnectorActionRequest() {
         return new PutConnectorAction.Request(
             randomAlphaOfLengthBetween(5, 15),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomBoolean()),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15))
+        );
+    }
+
+    public static PostConnectorAction.Request getRandomPostConnectorActionRequest() {
+        return new PostConnectorAction.Request(
             randomFrom(randomAlphaOfLengthBetween(5, 15)),
             randomFrom(randomAlphaOfLengthBetween(5, 15)),
             randomFrom(randomBoolean()),
@@ -178,8 +190,7 @@ public final class ConnectorTestUtils {
     }
 
     public static Connector getRandomConnector() {
-        return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
-            .setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+        return new Connector.Builder().setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setConfiguration(Collections.emptyMap())
             .setCustomScheduling(Map.of(randomAlphaOfLengthBetween(5, 10), getRandomConnectorCustomSchedule()))
             .setDescription(randomFrom(new String[] { null, randomAlphaOfLength(10) }))

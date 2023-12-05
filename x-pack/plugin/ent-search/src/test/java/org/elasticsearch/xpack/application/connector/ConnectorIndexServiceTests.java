@@ -14,6 +14,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
@@ -46,8 +47,20 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testPutConnector() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
-        DocWriteResponse resp = awaitPutConnector(connector);
+        String connectorId = randomUUID();
+        DocWriteResponse resp = awaitPutConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(connectorId, equalTo(indexedConnector.getConnectorId()));
+    }
+
+    public void testPostConnector() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        PostConnectorAction.Response resp = awaitPostConnector(connector);
+
+        Connector indexedConnector = awaitGetConnector(resp.getId());
+        assertThat(resp.getId(), equalTo(indexedConnector.getConnectorId()));
     }
 
     public void testDeleteConnector() throws Exception {
@@ -55,9 +68,8 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         List<String> connectorIds = new ArrayList<>();
         for (int i = 0; i < numConnectors; i++) {
             Connector connector = ConnectorTestUtils.getRandomConnector();
-            connectorIds.add(connector.getConnectorId());
-            DocWriteResponse resp = awaitPutConnector(connector);
-            assertThat(resp.status(), equalTo(RestStatus.CREATED));
+            PostConnectorAction.Response resp = awaitPostConnector(connector);
+            connectorIds.add(resp.getId());
         }
 
         String connectorIdToDelete = connectorIds.get(0);
@@ -70,7 +82,8 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateConnectorPipeline() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
-        DocWriteResponse resp = awaitPutConnector(connector);
+        String connectorId = randomUUID();
+        DocWriteResponse resp = awaitPutConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         ConnectorIngestPipeline updatedPipeline = new ConnectorIngestPipeline.Builder().setName("test-pipeline")
@@ -80,20 +93,21 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             .build();
 
         UpdateConnectorPipelineAction.Request updatePipelineRequest = new UpdateConnectorPipelineAction.Request(
-            connector.getConnectorId(),
+            connectorId,
             updatedPipeline
         );
 
         DocWriteResponse updateResponse = awaitUpdateConnectorPipeline(updatePipelineRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
-        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(updatedPipeline, equalTo(indexedConnector.getPipeline()));
     }
 
     public void testUpdateConnectorFiltering() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
 
-        DocWriteResponse resp = awaitPutConnector(connector);
+        DocWriteResponse resp = awaitPutConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         List<ConnectorFiltering> filteringList = IntStream.range(0, 10)
@@ -101,33 +115,35 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             .collect(Collectors.toList());
 
         UpdateConnectorFilteringAction.Request updateFilteringRequest = new UpdateConnectorFilteringAction.Request(
-            connector.getConnectorId(),
+            connectorId,
             filteringList
         );
 
         DocWriteResponse updateResponse = awaitUpdateConnectorFiltering(updateFilteringRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
-        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(filteringList, equalTo(indexedConnector.getFiltering()));
     }
 
     public void testUpdateConnectorLastSeen() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
-        DocWriteResponse resp = awaitPutConnector(connector);
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = awaitPutConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
-        UpdateConnectorLastSeenAction.Request checkInRequest = new UpdateConnectorLastSeenAction.Request(connector.getConnectorId());
+        UpdateConnectorLastSeenAction.Request checkInRequest = new UpdateConnectorLastSeenAction.Request(connectorId);
         DocWriteResponse updateResponse = awaitUpdateConnectorLastSeen(checkInRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
-        Connector indexedConnectorTime1 = awaitGetConnector(connector.getConnectorId());
+        Connector indexedConnectorTime1 = awaitGetConnector(connectorId);
         assertNotNull(indexedConnectorTime1.getLastSeen());
 
-        checkInRequest = new UpdateConnectorLastSeenAction.Request(connector.getConnectorId());
+        checkInRequest = new UpdateConnectorLastSeenAction.Request(connectorId);
         updateResponse = awaitUpdateConnectorLastSeen(checkInRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
-        Connector indexedConnectorTime2 = awaitGetConnector(connector.getConnectorId());
+        Connector indexedConnectorTime2 = awaitGetConnector(connectorId);
         assertNotNull(indexedConnectorTime2.getLastSeen());
         assertTrue(indexedConnectorTime2.getLastSeen().isAfter(indexedConnectorTime1.getLastSeen()));
 
@@ -135,58 +151,60 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateConnectorLastSyncStats() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
 
-        DocWriteResponse resp = awaitPutConnector(connector);
+        DocWriteResponse resp = awaitPutConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         ConnectorSyncInfo syncStats = ConnectorTestUtils.getRandomConnectorSyncInfo();
 
-        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(
-            connector.getConnectorId(),
-            syncStats
-        );
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, syncStats);
 
         DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
-        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        Connector indexedConnector = awaitGetConnector(connectorId);
 
         assertThat(syncStats, equalTo(indexedConnector.getSyncInfo()));
     }
 
     public void testUpdateConnectorScheduling() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
-        DocWriteResponse resp = awaitPutConnector(connector);
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = awaitPutConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         ConnectorScheduling updatedScheduling = ConnectorTestUtils.getRandomConnectorScheduling();
 
         UpdateConnectorSchedulingAction.Request updateSchedulingRequest = new UpdateConnectorSchedulingAction.Request(
-            connector.getConnectorId(),
+            connectorId,
             updatedScheduling
         );
 
         DocWriteResponse updateResponse = awaitUpdateConnectorScheduling(updateSchedulingRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
-        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(updatedScheduling, equalTo(indexedConnector.getScheduling()));
     }
 
     public void testUpdateConnectorError() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
-        DocWriteResponse resp = awaitPutConnector(connector);
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = awaitPutConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
         UpdateConnectorErrorAction.Request updateErrorRequest = new UpdateConnectorErrorAction.Request(
-            connector.getConnectorId(),
+            connectorId,
             randomAlphaOfLengthBetween(5, 15)
         );
 
         DocWriteResponse updateResponse = awaitUpdateConnectorError(updateErrorRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
-        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(updateErrorRequest.getError(), equalTo(indexedConnector.getError()));
     }
 
@@ -215,11 +233,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private DocWriteResponse awaitPutConnector(Connector connector) throws Exception {
+    private DocWriteResponse awaitPutConnector(String docId, Connector connector) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DocWriteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.putConnector(connector, new ActionListener<>() {
+        connectorIndexService.putConnector(docId, connector, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 resp.set(indexResponse);
@@ -237,6 +255,31 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from put request", resp.get());
+        return resp.get();
+    }
+
+    private PostConnectorAction.Response awaitPostConnector(Connector connector) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<PostConnectorAction.Response> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.postConnector(connector, new ActionListener<>() {
+            @Override
+            public void onResponse(PostConnectorAction.Response indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for post connector request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from post connector request", resp.get());
         return resp.get();
     }
 

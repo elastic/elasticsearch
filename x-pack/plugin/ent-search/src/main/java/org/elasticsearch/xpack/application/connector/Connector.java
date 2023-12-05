@@ -32,7 +32,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -107,7 +106,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     /**
      * Constructor for Connector.
      *
-     * @param connectorId        Unique identifier for the connector.
+     * @param connectorId        Unique identifier for the connector. Used when building get/list response. Equals to doc _id.
      * @param apiKeyId           API key ID used for authentication/authorization against ES.
      * @param configuration      Configuration settings for the connector.
      * @param customScheduling   Custom scheduling settings for the connector.
@@ -150,7 +149,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         Object syncCursor,
         boolean syncNow
     ) {
-        this.connectorId = Objects.requireNonNull(connectorId, "connectorId cannot be null");
+        this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
         this.configuration = configuration;
         this.customScheduling = customScheduling;
@@ -173,7 +172,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     }
 
     public Connector(StreamInput in) throws IOException {
-        this.connectorId = in.readString();
+        this.connectorId = in.readOptionalString();
         this.apiKeyId = in.readOptionalString();
         this.configuration = in.readMap(StreamInput::readGenericValue);
         this.customScheduling = in.readMap(ConnectorCustomSchedule::new);
@@ -195,7 +194,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         this.syncNow = in.readBoolean();
     }
 
-    public static final ParseField ID_FIELD = new ParseField("connector_id");
+    public static final ParseField ID_FIELD = new ParseField("id");
     static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
     public static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
     static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
@@ -216,45 +215,48 @@ public class Connector implements NamedWriteable, ToXContentObject {
     static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Connector, Void> PARSER = new ConstructingObjectParser<>("connector", true, (args) -> {
-        int i = 0;
-        return new Builder().setConnectorId((String) args[i++])
-            .setApiKeyId((String) args[i++])
-            .setConfiguration((Map<String, Object>) args[i++])
-            .setCustomScheduling((Map<String, ConnectorCustomSchedule>) args[i++])
-            .setDescription((String) args[i++])
-            .setError((String) args[i++])
-            .setFeatures((ConnectorFeatures) args[i++])
-            .setFiltering((List<ConnectorFiltering>) args[i++])
-            .setIndexName((String) args[i++])
-            .setIsNative((Boolean) args[i++])
-            .setLanguage((String) args[i++])
-            .setLastSeen((Instant) args[i++])
-            .setSyncInfo(
-                new ConnectorSyncInfo.Builder().setLastAccessControlSyncError((String) args[i++])
-                    .setLastAccessControlSyncScheduledAt((Instant) args[i++])
-                    .setLastAccessControlSyncStatus((ConnectorSyncStatus) args[i++])
-                    .setLastDeletedDocumentCount((Long) args[i++])
-                    .setLastIncrementalSyncScheduledAt((Instant) args[i++])
-                    .setLastIndexedDocumentCount((Long) args[i++])
-                    .setLastSyncError((String) args[i++])
-                    .setLastSyncScheduledAt((Instant) args[i++])
-                    .setLastSyncStatus((ConnectorSyncStatus) args[i++])
-                    .setLastSynced((Instant) args[i++])
-                    .build()
-            )
-            .setName((String) args[i++])
-            .setPipeline((ConnectorIngestPipeline) args[i++])
-            .setScheduling((ConnectorScheduling) args[i++])
-            .setServiceType((String) args[i++])
-            .setStatus((ConnectorStatus) args[i++])
-            .setSyncCursor(args[i++])
-            .setSyncNow((Boolean) args[i])
-            .build();
-    });
+    private static final ConstructingObjectParser<Connector, String> PARSER = new ConstructingObjectParser<>(
+        "connector",
+        true,
+        (args, docId) -> {
+            int i = 0;
+            return new Builder().setConnectorId(docId)
+                .setApiKeyId((String) args[i++])
+                .setConfiguration((Map<String, Object>) args[i++])
+                .setCustomScheduling((Map<String, ConnectorCustomSchedule>) args[i++])
+                .setDescription((String) args[i++])
+                .setError((String) args[i++])
+                .setFeatures((ConnectorFeatures) args[i++])
+                .setFiltering((List<ConnectorFiltering>) args[i++])
+                .setIndexName((String) args[i++])
+                .setIsNative((Boolean) args[i++])
+                .setLanguage((String) args[i++])
+                .setLastSeen((Instant) args[i++])
+                .setSyncInfo(
+                    new ConnectorSyncInfo.Builder().setLastAccessControlSyncError((String) args[i++])
+                        .setLastAccessControlSyncScheduledAt((Instant) args[i++])
+                        .setLastAccessControlSyncStatus((ConnectorSyncStatus) args[i++])
+                        .setLastDeletedDocumentCount((Long) args[i++])
+                        .setLastIncrementalSyncScheduledAt((Instant) args[i++])
+                        .setLastIndexedDocumentCount((Long) args[i++])
+                        .setLastSyncError((String) args[i++])
+                        .setLastSyncScheduledAt((Instant) args[i++])
+                        .setLastSyncStatus((ConnectorSyncStatus) args[i++])
+                        .setLastSynced((Instant) args[i++])
+                        .build()
+                )
+                .setName((String) args[i++])
+                .setPipeline((ConnectorIngestPipeline) args[i++])
+                .setScheduling((ConnectorScheduling) args[i++])
+                .setServiceType((String) args[i++])
+                .setStatus((ConnectorStatus) args[i++])
+                .setSyncCursor(args[i++])
+                .setSyncNow((Boolean) args[i])
+                .build();
+        }
+    );
 
     static {
-        PARSER.declareString(constructorArg(), ID_FIELD);
         PARSER.declareString(optionalConstructorArg(), API_KEY_ID_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
@@ -357,23 +359,25 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareBoolean(optionalConstructorArg(), SYNC_NOW_FIELD);
     }
 
-    public static Connector fromXContentBytes(BytesReference source, XContentType xContentType) {
+    public static Connector fromXContentBytes(BytesReference source, String docId, XContentType xContentType) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-            return Connector.fromXContent(parser);
+            return Connector.fromXContent(parser, docId);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse a connector document.", e);
         }
     }
 
-    public static Connector fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static Connector fromXContent(XContentParser parser, String docId) throws IOException {
+        return PARSER.parse(parser, docId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(ID_FIELD.getPreferredName(), connectorId);
+            if (connectorId != null) {
+                builder.field(ID_FIELD.getPreferredName(), connectorId);
+            }
             if (apiKeyId != null) {
                 builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
             }
@@ -431,7 +435,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(connectorId);
+        out.writeOptionalString(connectorId);
         out.writeOptionalString(apiKeyId);
         out.writeMap(configuration, StreamOutput::writeGenericValue);
         out.writeMap(customScheduling, StreamOutput::writeWriteable);

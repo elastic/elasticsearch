@@ -31,6 +31,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
@@ -65,16 +66,42 @@ public class ConnectorIndexService {
     /**
      * Creates or updates the {@link Connector} in the underlying index.
      *
+     * @param docId     The ID of the connector.
      * @param connector The connector object.
      * @param listener  The action listener to invoke on response/failure.
      */
-    public void putConnector(Connector connector, ActionListener<DocWriteResponse> listener) {
+    public void putConnector(String docId, Connector connector, ActionListener<DocWriteResponse> listener) {
         try {
             final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                .id(connector.getConnectorId())
+                .id(docId)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
             clientWithOrigin.index(indexRequest, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Creates or updates the {@link Connector} in the underlying index.
+     * Assigns connector an auto-generated doc ID.
+     *
+     * @param connector The connector object.
+     * @param listener  The action listener to invoke on response/failure.
+     */
+    public void postConnector(Connector connector, ActionListener<PostConnectorAction.Response> listener) {
+        try {
+            final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
+
+            clientWithOrigin.index(
+                indexRequest,
+                ActionListener.wrap(
+                    indexResponse -> listener.onResponse(new PostConnectorAction.Response(indexResponse.getId())),
+                    listener::onFailure
+                )
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -96,7 +123,11 @@ public class ConnectorIndexService {
                     return;
                 }
                 try {
-                    final Connector connector = Connector.fromXContentBytes(getResponse.getSourceAsBytesRef(), XContentType.JSON);
+                    final Connector connector = Connector.fromXContentBytes(
+                        getResponse.getSourceAsBytesRef(),
+                        connectorId,
+                        XContentType.JSON
+                    );
                     l.onResponse(connector);
                 } catch (Exception e) {
                     listener.onFailure(e);
@@ -136,7 +167,7 @@ public class ConnectorIndexService {
     }
 
     /**
-     * List the {@link Connector} in ascending order of their ids.
+     * List the {@link Connector} in ascending order of their index names.
      *
      * @param from From index to start the search from.
      * @param size The maximum number of {@link Connector}s to return.
@@ -148,7 +179,7 @@ public class ConnectorIndexService {
                 .size(size)
                 .query(new MatchAllQueryBuilder())
                 .fetchSource(true)
-                .sort(Connector.ID_FIELD.getPreferredName(), SortOrder.ASC);
+                .sort(Connector.INDEX_NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
             clientWithOrigin.search(req, new ActionListener<>() {
                 @Override
@@ -365,7 +396,7 @@ public class ConnectorIndexService {
 
         // todo: don't return sensitive data from configuration in list endpoint
 
-        return Connector.fromXContentBytes(searchHit.getSourceRef(), XContentType.JSON);
+        return Connector.fromXContentBytes(searchHit.getSourceRef(), searchHit.getId(), XContentType.JSON);
     }
 
     public record ConnectorResult(List<Connector> connectors, long totalResults) {}

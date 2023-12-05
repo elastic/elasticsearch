@@ -20,9 +20,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -33,25 +31,26 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -85,6 +84,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
     public void setup() {
 
         indicesService = mock(IndicesService.class);
+        when(indicesService.iterator()).thenReturn(List.<IndexService>of().iterator());
         publisher = mock(IndicesMappingSizePublisher.class);
         collector = spy(new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS));
 
@@ -102,22 +102,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
         testThreadPool.shutdownNow();
     }
 
-    public void testMetricPublicationThreadIsRunning() throws Exception {
-
-        // setup to invoke listener
-        DiscoveryNodes.Delta nodeDelta = mock(DiscoveryNodes.Delta.class);
-        ClusterChangedEvent event = mock(ClusterChangedEvent.class);
-        when(event.nodesDelta()).thenReturn(nodeDelta);
-        when(nodeDelta.masterNodeChanged()).thenReturn(true);
-
-        collector.clusterChanged(event);
-
-        final long asyncDelayInMillis = FREQUENCY_IN_SECONDS * 1000 + randomLongBetween(1000, 2000);
-        verify(collector, Mockito.after(asyncDelayInMillis).times(1)).publishIndicesMappingSize();
-        verify(publisher, never()).publishIndicesMappingSize(any(), any());
-    }
-
-    public void testPublicationAfterIndexShardStarted() {
+    public void testPublicationAfterIndexShardStarted() throws Exception {
 
         ShardId shardId = new ShardId(TEST_INDEX, 0);
         ShardRouting shardRoutingStub = TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.STARTED);
@@ -132,143 +117,40 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
 
         // simulate event
         collector.afterIndexShardStarted(indexShard);
-        assertThat(
-            collector.getIndexToMappingSizeMetrics().get(TEST_INDEX),
-            equalTo(new IndexMappingSize(testIndexMappingSizeInBytes, "node-0"))
-        );
 
-        // invoke publication
-        ArgumentCaptor<HeapMemoryUsage> captor = ArgumentCaptor.forClass(HeapMemoryUsage.class);
-        collector.publishIndicesMappingSize();
-        verify(publisher, times(1)).publishIndicesMappingSize(captor.capture(), any());
-        HeapMemoryUsage memoryMetrics = captor.getValue();
-        assertThat(memoryMetrics.publicationSeqNo(), equalTo(1L));
-        assertThat(
-            memoryMetrics.indicesMappingSize().get(TEST_INDEX),
-            equalTo(new IndexMappingSize(testIndexMappingSizeInBytes, "node-0"))
-        );
+        assertBusy(() -> {
+            ArgumentCaptor<HeapMemoryUsage> captor = ArgumentCaptor.forClass(HeapMemoryUsage.class);
+            verify(publisher, times(1)).publishIndicesMappingSize(captor.capture(), any());
+            HeapMemoryUsage memoryMetrics = captor.getValue();
+            assertThat(1L, Matchers.equalTo(memoryMetrics.publicationSeqNo()));
+            assertThat(
+                new IndexMappingSize(testIndexMappingSizeInBytes, "node-0"),
+                Matchers.equalTo(memoryMetrics.indicesMappingSize().get(TEST_INDEX))
+            );
+        });
     }
 
-    public void testProtectionAgainstFrequentPublication() {
-
-        final List<HeapMemoryUsage> metricsValues = new ArrayList<>();
-        final List<ActionListener<ActionResponse.Empty>> nodeClientResponseListeners = new ArrayList<>();
+    public void testIndexMappingRequestAreRetried() {
+        CountDownLatch published = new CountDownLatch(1);
+        AtomicInteger attempts = new AtomicInteger(randomIntBetween(2, 5));
         publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool), () -> TransportVersions.V_8_500_050) {
             @Override
             public void publishIndicesMappingSize(HeapMemoryUsage heapMemoryUsage, ActionListener<ActionResponse.Empty> listener) {
-                // collect listeners which are passed to node client
-                nodeClientResponseListeners.add(listener);
-                metricsValues.add(heapMemoryUsage);
+                if (attempts.decrementAndGet() == 0) {
+                    listener.onResponse(ActionResponse.Empty.INSTANCE);
+                    published.countDown();
+                } else {
+                    listener.onFailure(
+                        new RemoteTransportException(
+                            "Memory metrics service error",
+                            new AutoscalingMissedIndicesUpdateException("Unable to publish metrics")
+                        )
+                    );
+                }
             }
         };
         collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
-
-        // simulate sequential calls which are made by PublishTask
-        int N = randomIntBetween(2, 10);
-        for (int i = 0; i < N; i++) {
-            // prepare test data in backing map
-            // every sending attempt has unique `newTestSizeInBytes` value, so that later it is possible to assert that only first
-            // message was sent and the rest were ignored by the publication gate
-            final long testSizeInBytes = 1024L + i;
-            final String testShardNodeId = "newTestShardNodeId-" + i;
-            collector.getIndexToMappingSizeMetrics().put(TEST_INDEX, new IndexMappingSize(testSizeInBytes, testShardNodeId));
-            collector.publishIndicesMappingSize();
-        }
-
-        // simulate slow call by deferring invoke `onResponse` or `onFailure` on node client listener
-        // hence only first call should be able to acquire publication ticket, the rest are ignored
-        assertThat(nodeClientResponseListeners.size(), equalTo(1));
-        assertThat(metricsValues.size(), equalTo(1));
-        assertThat(metricsValues.get(0).indicesMappingSize().get(TEST_INDEX).sizeInBytes(), equalTo(1024L));
-        assertThat(metricsValues.get(0).indicesMappingSize().get(TEST_INDEX).metricShardNodeId(), equalTo("newTestShardNodeId-0"));
-
-        // invoke `onResponse` or `onFailure` to clear publication ticket and open the gate
-        final ActionListener<ActionResponse.Empty> nodeClientCallListener = nodeClientResponseListeners.get(0);
-        if (randomBoolean()) {
-            nodeClientCallListener.onResponse(null);
-        } else {
-            nodeClientCallListener.onFailure(new Exception("TEST Exception is thrown during node client call"));
-        }
-
-        // clear registered listener (and metrics) as it is completed by now (purely for test housekeeping)
-        nodeClientResponseListeners.clear();
-        metricsValues.clear();
-
-        // assert that consequent call succeeds and can acquire publication ticket
-        final long newTestSizeInBytes = 1234;
-        final String newTestShardNodeId = "newTestShardNodeId-1234";
-        collector.getIndexToMappingSizeMetrics().put(TEST_INDEX, new IndexMappingSize(newTestSizeInBytes, newTestShardNodeId));
-        collector.publishIndicesMappingSize();
-
-        assertThat(nodeClientResponseListeners.size(), equalTo(1));
-        assertThat(metricsValues.size(), equalTo(1));
-        assertThat(metricsValues.get(0).indicesMappingSize().get(TEST_INDEX).sizeInBytes(), equalTo(1234L));
-        assertThat(metricsValues.get(0).indicesMappingSize().get(TEST_INDEX).metricShardNodeId(), equalTo("newTestShardNodeId-1234"));
-    }
-
-    public void testMetricsPublicationOnMasterFailover() throws Exception {
-
-        // test scenario: there is ongoing publication, then master failover is happening and collector immediately pushes metrics to
-        // new master, therefore 2 messages are expected to be published
-        final CountDownLatch latch = new CountDownLatch(2);
-
-        final List<ActionListener<ActionResponse.Empty>> nodeClientResponseListeners = new ArrayList<>();
-        publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool), () -> TransportVersions.V_8_500_050) {
-            @Override
-            public void publishIndicesMappingSize(HeapMemoryUsage heapMemoryUsage, ActionListener<ActionResponse.Empty> listener) {
-                // collect listeners which are passed to node client
-                nodeClientResponseListeners.add(listener);
-                latch.countDown();
-            }
-        };
-        collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
-
-        // prepare test data in backing map
-        collector.getIndexToMappingSizeMetrics().put(TEST_INDEX, new IndexMappingSize(1024, "node-0"));
-
-        // simulate sequential calls which are made by PublishTask
-        int N = randomIntBetween(2, 10);
-        for (int i = 0; i < N; i++) {
-            collector.publishIndicesMappingSize();
-        }
-
-        // simulate slow call by deferring invoke `onResponse` or `onFailure` on node client listener
-        // hence only first call should be able to acquire publication ticket, the rest are ignored
-        assertThat(nodeClientResponseListeners.size(), equalTo(1));
-        assertThat(latch.getCount(), equalTo(1L));   // first message passed the gate
-
-        final boolean firstCallCompletedByNow = randomBoolean();
-        if (firstCallCompletedByNow) {
-            // completed with either result, publication gate is cleared regardless the call response
-            if (randomBoolean()) {
-                nodeClientResponseListeners.get(0).onResponse(null);
-            } else {
-                nodeClientResponseListeners.get(0).onFailure(new Exception("TEST Exception is thrown during node client call"));
-            }
-            // housekeeping, clean up used listeners
-            nodeClientResponseListeners.clear();
-        }
-
-        // simulate masterNodeChanged() event to invoke immediate metric publication to new master
-        DiscoveryNodes.Delta nodeDelta = mock(DiscoveryNodes.Delta.class);
-        ClusterChangedEvent event = mock(ClusterChangedEvent.class);
-        when(event.nodesDelta()).thenReturn(nodeDelta);
-        when(nodeDelta.masterNodeChanged()).thenReturn(true);
-        collector.clusterChanged(event);
-
-        safeAwait(latch);
-        assertThat("Message to new master was not sent", latch.getCount(), equalTo(0L));
-
-        // assert that immediate publication was able to pass through the gate and send metrics over the node client
-        if (firstCallCompletedByNow) {
-            // by time when masterNodeChanged() event might cause metrics immediate publishing
-            // first call to the prev master could finish
-            assertThat(nodeClientResponseListeners.size(), equalTo(1));
-        } else {
-            // assert that there are two simultaneous calls (and hence registered listeners)
-            // first (call is still ongoing) is for prev master, second - for current
-            assertThat(nodeClientResponseListeners.size(), equalTo(2));
-        }
-
+        collector.publishIndicesMappingSize(Map.of(TEST_INDEX, new IndexMappingSize(randomNonNegativeInt(), "newTestShardNodeId")));
+        safeAwait(published);
     }
 }

@@ -20,15 +20,20 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -113,5 +118,49 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         safeAwait(latch);
 
         assertThat(100L, equalTo(service.getTotalIndicesMappingSize().getSizeInBytes()));
+    }
+
+    public void testDoNotThrowMissedIndicesUpdateExceptionOnOutOfOrderMessages() {
+        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0"));
+
+        int amount = randomIntBetween(50, 100);
+        List<Integer> seqIds = IntStream.range(1, amount + 1).mapToObj(Integer::valueOf).collect(Collectors.toList());
+        Collections.shuffle(seqIds, random());
+        for (int i = 0; i < amount; i++) {
+            service.updateIndicesMappingSize(
+                new HeapMemoryUsage(seqIds.get(i), Map.of(INDEX, new IndexMappingSize(randomIntBetween(0, 100), "node-0")))
+            );
+        }
+
+        assertThat(service.getIndicesMemoryMetrics().get(INDEX).getMetricQuality(), equalTo(MetricQuality.EXACT));
+    }
+
+    public void testThrowMissedIndicesUpdateExceptionOnMissedIndex() {
+        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0"));
+
+        expectThrows(AutoscalingMissedIndicesUpdateException.class, () -> {
+            service.updateIndicesMappingSize(
+                new HeapMemoryUsage(
+                    randomIntBetween(0, 100),
+                    Map.of(
+                        randomValueOtherThan(INDEX, () -> new Index(randomIdentifier(), randomUUID())),
+                        new IndexMappingSize(randomIntBetween(0, 100), "node-0")
+                    )
+                )
+            );
+        });
+    }
+
+    public void testThrowMissedIndicesUpdateExceptionOnMissedNode() {
+        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0"));
+
+        expectThrows(AutoscalingMissedIndicesUpdateException.class, () -> {
+            service.updateIndicesMappingSize(
+                new HeapMemoryUsage(
+                    randomIntBetween(0, 100),
+                    Map.of(INDEX, new IndexMappingSize(randomIntBetween(0, 100), randomIdentifier()))
+                )
+            );
+        });
     }
 }

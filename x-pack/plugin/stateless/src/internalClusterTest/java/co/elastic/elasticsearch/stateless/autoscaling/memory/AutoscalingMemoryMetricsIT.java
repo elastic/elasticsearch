@@ -25,10 +25,14 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,6 +41,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -45,6 +50,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -65,9 +72,11 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         .put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
         .build();
 
+    private String masterNode;
+
     @Before
     public void init() {
-        startMasterNode();
+        masterNode = startMasterNode();
     }
 
     public void testCreateIndexWithMapping() throws Exception {
@@ -130,12 +139,13 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         final long sizeBeforeMappingUpdate = totalIndexMappingSizeBeforeUpdate.getSizeInBytes();
 
-        final AtomicInteger transportMetricCounter = new AtomicInteger(0);
+        // We need to delay the second update until the mapping got updated to MISSING on the master node
+        final CountDownLatch mappingUpdated = new CountDownLatch(1);
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.equals(PublishHeapMemoryMetricsAction.NAME)) {
-                    transportMetricCounter.incrementAndGet();
+                    safeAwait(mappingUpdated);
                 }
                 connection.sendRequest(requestId, action, request, options);
             });
@@ -146,11 +156,8 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         // Update index mapping
         assertAcked(indicesAdmin().putMapping(new PutMappingRequest(INDEX_NAME).source(indexMapping)).get());
+        mappingUpdated.countDown();
 
-        // Why strict comparison is not possible here?
-        // There seen cases of double sending in IndicesMappingSizeCollector#publishIndicesMappingSize
-        // Reason: Prev threshold value might not be updated by the time the next execution started
-        assertBusy(() -> assertThat(transportMetricCounter.get(), greaterThanOrEqualTo(1)));
         assertBusy(() -> {
             final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeAfterUpdate = internalCluster().getCurrentMasterNodeInstance(
                 MemoryMetricsService.class
@@ -414,7 +421,6 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 handler.messageReceived(request, channel, task);
             }
         });
-
         var indexName = randomIdentifier();
         assertAcked(
             prepareCreate(indexName).setMapping(createIndexMapping(randomIntBetween(10, 100)))
@@ -439,6 +445,15 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.getSizeInBytes();
             assertThat(sizeAfterIndexCreate, greaterThan(0L));
             assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+
+            // Make sure the index stats are assigned to node2
+            assertThat(
+                internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                    .getIndicesMemoryMetrics()
+                    .get(resolveIndex(indexName))
+                    .getMetricShardNodeId(),
+                equalTo(getNodeId(indexNode2))
+            );
         });
     }
 
@@ -494,6 +509,14 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 .getTotalIndicesMappingSize();
             assertThat(totalIndicesMappingSize.getSizeInBytes(), greaterThan(0L));
             assertThat(totalIndicesMappingSize.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            // Make sure the index stats are assigned to node2
+            assertThat(
+                internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                    .getIndicesMemoryMetrics()
+                    .get(index)
+                    .getMetricShardNodeId(),
+                equalTo(getNodeId(indexNode2))
+            );
         });
     }
 
@@ -636,6 +659,127 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         deleteRepository("test-repo");
     }
 
+    public void testNoMissedIndexMappingUpdatesOnSlowClusterUpdates() throws Exception {
+        startIndexNode();
+        ensureStableCluster(2);
+
+        ServiceDisruptionScheme disruption = new SlowClusterStateProcessing(masterNode, random(), 0, 0, 10, 100);
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+
+        List<String> indices = Stream.generate(ESTestCase::randomIdentifier).limit(randomIntBetween(4, 10)).toList();
+        Thread backgroundIndexer = new Thread(() -> {
+            for (String index : indices) {
+                assertAcked(prepareCreate(index).setMapping(createIndexMapping(randomIntBetween(10, 100))).get());
+                safeSleep(randomIntBetween(10, 50));
+            }
+        });
+        backgroundIndexer.start();
+
+        assertBusy(() -> {
+            var indicesMetricQuality = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .getIndicesMemoryMetrics()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(e -> e.getKey().getName(), e -> e.getValue().getMetricQuality()));
+            for (String index : indices) {
+                assertEquals(
+                    "Mappings for index " + index + " haven't been applied on master node",
+                    MetricQuality.EXACT,
+                    indicesMetricQuality.get(index)
+                );
+            }
+        });
+
+        backgroundIndexer.join();
+        disruption.stopDisrupting();
+    }
+
+    public void testNoRetriesOnOutOfOrderSeqNos() throws Exception {
+        startIndexNode();
+        ensureStableCluster(2);
+
+        AtomicInteger numberOfFields = new AtomicInteger(randomIntBetween(10, 20));
+        var indexName = randomIdentifier();
+        assertAcked(prepareCreate(indexName).setMapping(createIndexMapping(numberOfFields.get())).get());
+
+        int attempts = randomIntBetween(5, 10);
+        var transportService = (MockTransportService) internalCluster().getCurrentMasterNodeInstance(TransportService.class);
+        CountDownLatch requestsAreSubmitted = new CountDownLatch(attempts);
+        CountDownLatch requestsAreHandled = new CountDownLatch(attempts);
+        List<CheckedRunnable<Exception>> pendingRequests = new ArrayList<>();
+        transportService.addRequestHandlingBehavior(PublishHeapMemoryMetricsAction.NAME, (handler, request, channel, task) -> {
+            assertTrue("No retry requests should be submitted", requestsAreSubmitted.getCount() > 0);
+            synchronized (pendingRequests) {
+                pendingRequests.add(() -> {
+                    handler.messageReceived(request, channel, task);
+                    requestsAreHandled.countDown();
+                });
+            }
+            requestsAreSubmitted.countDown();
+        });
+
+        for (int i = 0; i < attempts; i++) {
+            assertAcked(
+                indicesAdmin().putMapping(new PutMappingRequest(indexName).source(createIndexMapping(numberOfFields.addAndGet(10)))).get()
+            );
+        }
+
+        safeAwait(requestsAreSubmitted);
+        // Send requests out of order and verify that all of them get processed without retries
+        synchronized (pendingRequests) {
+            Collections.shuffle(pendingRequests, random());
+            for (var pendingRequest : pendingRequests) {
+                pendingRequest.run();
+            }
+        }
+        safeAwait(requestsAreHandled);
+    }
+
+    public void testShardMovesToNewNodeWithSlowClusterUpdate() throws Exception {
+        var indexNode1 = startIndexNode();
+        var indexNode2 = startIndexNode();
+        ensureStableCluster(3);
+
+        var indexNode1Id = getNodeId(indexNode1);
+        var indexNode2Id = getNodeId(indexNode2);
+
+        ServiceDisruptionScheme disruption = new SlowClusterStateProcessing(masterNode, random(), 0, 0, 10, 100);
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+
+        var indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(indexName).setMapping(createIndexMapping(randomIntBetween(10, 100)))
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.require._name", indexNode1).build())
+                .get()
+        );
+        var index = resolveIndex(indexName);
+
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics indexMappingSize = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getIndicesMemoryMetrics().get(index);
+            assertThat(indexMappingSize.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(indexMappingSize.getMetricShardNodeId(), equalTo(indexNode1Id));
+        });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNode2));
+
+        // Make sure the index stats are eventually assigned to node2 despite the slow cluster updates
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics indexMappingSize = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getIndicesMemoryMetrics().get(index);
+            final long sizeAfterIndexCreate = indexMappingSize.getSizeInBytes();
+            assertThat(sizeAfterIndexCreate, greaterThan(0L));
+            assertThat(indexMappingSize.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(indexMappingSize.getMetricShardNodeId(), equalTo(indexNode2Id));
+        });
+
+        disruption.stopDisrupting();
+    }
+
     private String startMasterNode() {
         return internalCluster().startMasterOnlyNode(
             nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
@@ -660,5 +804,9 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static String getNodeId(String nodeName) {
+        return internalCluster().clusterService().state().getNodes().resolveNode(nodeName).getId();
     }
 }

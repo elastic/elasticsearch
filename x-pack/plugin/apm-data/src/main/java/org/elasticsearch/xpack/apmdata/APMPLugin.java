@@ -16,8 +16,8 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collection;
 import java.util.List;
 
-public class ApmIngestPlugin extends Plugin implements ActionPlugin {
-    private static final Logger logger = LogManager.getLogger(ApmIngestPlugin.class);
+public class APMPLugin extends Plugin implements ActionPlugin {
+    private static final Logger logger = LogManager.getLogger(APMPLugin.class);
 
     private final SetOnce<APMIndexTemplateRegistry> registry = new SetOnce<>();
 

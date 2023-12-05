@@ -93,8 +93,8 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.TransportDel
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportGetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportPostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportUpdateConnectorSyncJobErrorAction;
-import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobErrorAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.TransportUpdateConnectorSyncJobIngestionStatsAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobErrorAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;

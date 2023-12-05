@@ -26,7 +26,7 @@ public final class RefCountAwareThreadedActionListener<Response extends RefCount
 
     @Override
     public void onResponse(final Response response) {
-        response.incRef();
+        response.mustIncRef();
         executor.execute(new ActionRunnable<>(delegate) {
             @Override
             public boolean isForceExecution() {

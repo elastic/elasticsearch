@@ -88,14 +88,11 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, meterRegistry.get());
     }
 
-    private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
-
     @Override
     public Collection<?> createComponents(PluginServices services) {
         if (storageClassStrategyProvider == null) {
             storageClassStrategyProvider = SimpleS3StorageClassStrategyProvider.INSTANCE;
         }
-        logger.info("--> using storageClassStrategyProvider [{}]", storageClassStrategyProvider);
         service.set(s3Service(services.environment(), services.clusterService().getSettings(), storageClassStrategyProvider));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         meterRegistry.set(services.telemetryProvider().getMeterRegistry());
@@ -108,7 +105,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             throw new IllegalStateException("storage class provider already set: " + storageClassStrategyProvider);
         }
         final var storageClassStrategyProviders = loader.loadExtensions(S3StorageClassStrategyProvider.class);
-        logger.info("--> storageClassStrategyProviders: {}", storageClassStrategyProviders);
         if (storageClassStrategyProviders.size() == 1) {
             storageClassStrategyProvider = storageClassStrategyProviders.get(0);
         } else if (storageClassStrategyProviders.size() > 1) {

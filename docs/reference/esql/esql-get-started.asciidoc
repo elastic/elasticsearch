@@ -158,8 +158,8 @@ is different than this example, where the sorting comes before the limit.
 
 Use the <<esql-eval>> command to append columns to a table, with calculated
 values. For example, the following query appends a `duration_ms` column. The
-values in the column are computed by dividing `event.duration` by 1,000,000. In
-other words: `event.duration` converted from nanoseconds to milliseconds.
+values in the column are computed by dividing `event_duration` by 1,000,000. In
+other words: `event_duration` converted from nanoseconds to milliseconds.
 
 [source,esql]
 ----

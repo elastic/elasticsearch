@@ -40,11 +40,11 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
-    private final QueryPhaseResultConsumer queryResult;
+    private final SearchPhaseResults<SearchPhaseResult> queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
     private final List<DfsKnnResults> knnResults;
-    private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
@@ -53,8 +53,8 @@ final class DfsQueryPhase extends SearchPhase {
         List<DfsSearchResult> searchResults,
         AggregatedDfs dfs,
         List<DfsKnnResults> knnResults,
-        QueryPhaseResultConsumer queryResult,
-        Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
+        SearchPhaseResults<SearchPhaseResult> queryResult,
+        Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
         SearchPhaseContext context
     ) {
         super("dfs_query");
@@ -170,7 +170,8 @@ final class DfsQueryPhase extends SearchPhase {
 
         if (source.rankBuilder() != null) {
             List<SearchSourceBuilder> sources = new ArrayList<>();
-            if (source.aggregations() != null || source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) {
+            if (source.aggregations() != null
+                || source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) {
                 SearchSourceBuilder compoundSource = source.shallowCopyForQueryPhase();
                 compoundSource.queryId(0);
                 compoundSource.subSearches(List.of(new SubSearchSourceBuilder(source.query())));

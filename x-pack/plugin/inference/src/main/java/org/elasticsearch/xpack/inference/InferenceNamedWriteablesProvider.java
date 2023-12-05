@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
@@ -32,6 +33,7 @@ public class InferenceNamedWriteablesProvider {
 
     private InferenceNamedWriteablesProvider() {}
 
+    @SuppressWarnings("deprecation")
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 
@@ -62,13 +64,16 @@ public class InferenceNamedWriteablesProvider {
             new NamedWriteableRegistry.Entry(TaskSettings.class, ElserMlNodeTaskSettings.NAME, ElserMlNodeTaskSettings::new)
         );
 
-        // Hugging Face ELSER config
+        // Hugging Face config
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
                 HuggingFaceElserServiceSettings.NAME,
                 HuggingFaceElserServiceSettings::new
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, HuggingFaceServiceSettings.NAME, HuggingFaceServiceSettings::new)
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(SecretSettings.class, HuggingFaceElserSecretSettings.NAME, HuggingFaceElserSecretSettings::new)

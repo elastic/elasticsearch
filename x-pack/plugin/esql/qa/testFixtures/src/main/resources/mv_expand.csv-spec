@@ -361,3 +361,12 @@ row  a = 1, b = -15 | where b > 3   | mv_expand b;
 
 a:integer | b:integer
 ;
+
+
+//see https://github.com/elastic/elasticsearch/issues/102912
+statsDissectThatOverwritesAndMvExpand#[skip:-8.11.99]
+row  a = "a", b = 1 | stats  e = min(b) by a | dissect a "%{e}" | mv_expand e;
+
+a:keyword | e:keyword
+a         | a
+;

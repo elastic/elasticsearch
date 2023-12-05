@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -671,7 +671,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         // fill the boolean block later in LocalExecutionPlanner
                         if (dataType != DataTypes.BOOLEAN) {
                             // look for count(literal) with literal != null
-                            var wrapper = BlockUtils.wrapperFor(blockFactory, LocalExecutionPlanner.toElementType(dataType), 1);
+                            var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(dataType), 1);
                             if (aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)) {
                                 wrapper.accept(0L);
                             } else {

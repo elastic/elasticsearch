@@ -201,7 +201,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
         }
     }
 
@@ -238,7 +238,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            listener.onResponse(getResponseWithHeaders());
+                            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
                         }
                     }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
@@ -255,7 +255,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
         }
     }
 

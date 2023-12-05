@@ -78,7 +78,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -87,7 +86,6 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
@@ -273,58 +271,6 @@ public class LocalExecutionPlanner {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context));
     }
 
-    /**
-     * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
-     */
-    public static ElementType toElementType(DataType dataType) {
-        if (dataType == DataTypes.LONG || dataType == DataTypes.DATETIME || dataType == DataTypes.UNSIGNED_LONG) {
-            return ElementType.LONG;
-        }
-        if (dataType == DataTypes.INTEGER) {
-            return ElementType.INT;
-        }
-        if (dataType == DataTypes.DOUBLE) {
-            return ElementType.DOUBLE;
-        }
-        // unsupported fields are passed through as a BytesRef
-        if (dataType == DataTypes.KEYWORD
-            || dataType == DataTypes.TEXT
-            || dataType == DataTypes.IP
-            || dataType == DataTypes.SOURCE
-            || dataType == DataTypes.VERSION
-            || dataType == DataTypes.UNSUPPORTED) {
-            return ElementType.BYTES_REF;
-        }
-        if (dataType == DataTypes.NULL) {
-            return ElementType.NULL;
-        }
-        if (dataType == DataTypes.BOOLEAN) {
-            return ElementType.BOOLEAN;
-        }
-        if (dataType == EsQueryExec.DOC_DATA_TYPE) {
-            return ElementType.DOC;
-        }
-        if (dataType == EsqlDataTypes.GEO_POINT) {
-            return ElementType.LONG;
-        }
-        if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
-            return ElementType.LONG;
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(dataType);
-    }
-
-    /**
-     * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
-     * This specifically excludes GEO_POINT and CARTESIAN_POINT, which are backed by DataType.LONG
-     * but are not themselves sortable (the long can be sorted, but the sort order is not usually useful).
-     */
-    public static ElementType toSortableElementType(DataType dataType) {
-        if (dataType == EsqlDataTypes.GEO_POINT || dataType == EsqlDataTypes.CARTESIAN_POINT) {
-            return ElementType.UNKNOWN;
-        }
-        return toElementType(dataType);
-    }
-
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(outputExec.child(), context);
         var output = outputExec.output();
@@ -422,7 +368,7 @@ public class LocalExecutionPlanner {
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
         List<Layout.ChannelSet> inverse = source.layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
-            elementTypes[channel] = toElementType(inverse.get(channel).type());
+            elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type());
             encoders[channel] = switch (inverse.get(channel).type().typeName()) {
                 case "ip" -> TopNEncoder.IP;
                 case "text", "keyword" -> TopNEncoder.UTF8;
@@ -519,7 +465,7 @@ public class LocalExecutionPlanner {
         ElementType[] types = new ElementType[extractedFields.size()];
         for (int i = 0; i < extractedFields.size(); i++) {
             Attribute extractedField = extractedFields.get(i);
-            ElementType type = toElementType(extractedField.dataType());
+            ElementType type = PlannerUtils.toElementType(extractedField.dataType());
             fieldToPos.put(extractedField.name(), i);
             fieldToType.put(extractedField.name(), type);
             types[i] = type;
@@ -635,20 +581,9 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
-        List<Attribute> childOutput = mvExpandExec.child().output();
         int blockSize = 5000;// TODO estimate row size and use context.pageSize()
-
-        Layout.Builder layout = new Layout.Builder();
-        List<Layout.ChannelSet> inverse = source.layout.inverse();
-        var expandedName = mvExpandExec.expanded().name();
-        for (int index = 0; index < inverse.size(); index++) {
-            if (childOutput.get(index).name().equals(expandedName)) {
-                layout.append(mvExpandExec.expanded());
-            } else {
-                layout.append(inverse.get(index));
-            }
-        }
-
+        Layout.Builder layout = source.layout.builder();
+        layout.replace(mvExpandExec.target().id(), mvExpandExec.expanded().id());
         return source.with(
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()

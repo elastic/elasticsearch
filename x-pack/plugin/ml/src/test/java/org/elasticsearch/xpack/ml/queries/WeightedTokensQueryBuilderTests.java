@@ -60,8 +60,8 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     @Override
     protected WeightedTokensQueryBuilder doCreateTestQueryBuilder() {
-        WeightedTokensThreshold threshold = randomBoolean()
-            ? new WeightedTokensThreshold(randomIntBetween(1, 100), randomFloat(), randomBoolean())
+        TokenPruningConfig threshold = randomBoolean()
+            ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean())
             : null;
 
         var builder = new WeightedTokensQueryBuilder(RANK_FEATURES_FIELD, WEIGHTED_TOKENS, threshold);
@@ -212,23 +212,23 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new WeightedTokensThreshold(-1f, 0.0f, false))
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(-1f, 0.0f, false))
             );
-            assertEquals("[ratio_threshold] must be between [1.0] and [100.0], got -1.0", e.getMessage());
+            assertEquals("[tokens_freq_ratio_threshold] must be between [1.0] and [100.0], got -1.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new WeightedTokensThreshold(101f, 0.0f, false))
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(101f, 0.0f, false))
             );
-            assertEquals("[ratio_threshold] must be between [1.0] and [100.0], got 101.0", e.getMessage());
+            assertEquals("[tokens_freq_ratio_threshold] must be between [1.0] and [100.0], got 101.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new WeightedTokensThreshold(5f, 5f, false))
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(5f, 5f, false))
             );
-            assertEquals("[weight_threshold] must be between 0 and 1", e.getMessage());
+            assertEquals("[tokens_weight_threshold] must be between 0 and 1", e.getMessage());
         }
     }
 
@@ -246,16 +246,34 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testToXContentWithThresholds() throws IOException {
-        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new WeightedTokensThreshold(4, 0.4f, false));
+        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new TokenPruningConfig(4, 0.4f, false));
         checkGeneratedJson("""
             {
               "text_expansion": {
                 "foo": {
                   "model_text": "bar",
                   "model_id": "baz",
-                  "tokens_threshold": {
-                    "ratio_threshold": 4.0,
-                    "weight_threshold": 0.4
+                  "pruning_config": {
+                    "tokens_freq_ratio_threshold": 4.0,
+                    "tokens_weight_threshold": 0.4
+                    }
+                 }
+              }
+            }""", query);
+    }
+
+    public void testToXContentWithThresholdsAndOnlyScorePrunedTokens() throws IOException {
+        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new TokenPruningConfig(4, 0.4f, true));
+        checkGeneratedJson("""
+            {
+              "text_expansion": {
+                "foo": {
+                  "model_text": "bar",
+                  "model_id": "baz",
+                  "pruning_config": {
+                    "tokens_freq_ratio_threshold": 4.0,
+                    "tokens_weight_threshold": 0.4,
+                    "only_score_pruned_tokens": true
                     }
                  }
               }

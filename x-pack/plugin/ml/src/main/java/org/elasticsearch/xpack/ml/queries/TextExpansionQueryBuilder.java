@@ -38,7 +38,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.TOKENS_THRESHOLD_FIELD;
+import static org.elasticsearch.xpack.ml.queries.TokenPruningConfig.PRUNING_CONFIG;
 
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
 
@@ -50,13 +50,13 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelText;
     private final String modelId;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
-    private final WeightedTokensThreshold threshold;
+    private final TokenPruningConfig tokenPruningConfig;
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         this(fieldName, modelText, modelId, null);
     }
 
-    public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId, @Nullable WeightedTokensThreshold threshold) {
+    public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId, @Nullable TokenPruningConfig tokenPruningConfig) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a fieldName");
         }
@@ -69,7 +69,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = fieldName;
         this.modelText = modelText;
         this.modelId = modelId;
-        this.threshold = threshold;
+        this.tokenPruningConfig = tokenPruningConfig;
     }
 
     public TextExpansionQueryBuilder(StreamInput in) throws IOException {
@@ -77,10 +77,10 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = in.readString();
         this.modelText = in.readString();
         this.modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.WEIGHTED_TOKENS_QUERY_ADDED)) {
-            this.threshold = in.readOptionalWriteable(WeightedTokensThreshold::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+            this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
         } else {
-            this.threshold = null;
+            this.tokenPruningConfig = null;
         }
     }
 
@@ -88,7 +88,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = other.fieldName;
         this.modelText = other.modelText;
         this.modelId = other.modelId;
-        this.threshold = other.threshold;
+        this.tokenPruningConfig = other.tokenPruningConfig;
         this.boost = other.boost;
         this.queryName = other.queryName;
         this.weightedTokensSupplier = weightedTokensSupplier;
@@ -98,8 +98,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         return fieldName;
     }
 
-    public WeightedTokensThreshold getThreshold() {
-        return threshold;
+    public TokenPruningConfig getTokenPruningConfig() {
+        return tokenPruningConfig;
     }
 
     @Override
@@ -120,8 +120,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         out.writeString(fieldName);
         out.writeString(modelText);
         out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.WEIGHTED_TOKENS_QUERY_ADDED)) {
-            out.writeOptionalWriteable(threshold);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+            out.writeOptionalWriteable(tokenPruningConfig);
         }
     }
 
@@ -131,8 +131,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         builder.startObject(fieldName);
         builder.field(MODEL_TEXT.getPreferredName(), modelText);
         builder.field(MODEL_ID.getPreferredName(), modelId);
-        if (threshold != null) {
-            threshold.toXContent(builder, params);
+        if (tokenPruningConfig != null) {
+            tokenPruningConfig.toXContent(builder, params);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
@@ -201,9 +201,9 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         String fieldName,
         TextExpansionResults textExpansionResults,
         QueryRewriteContext queryRewriteContext
-    ) throws IOException {
-        if (threshold != null) {
-            return new WeightedTokensQueryBuilder(fieldName, new HashSet<>(textExpansionResults.getWeightedTokens()), threshold);
+    ) {
+        if (tokenPruningConfig != null) {
+            return new WeightedTokensQueryBuilder(fieldName, new HashSet<>(textExpansionResults.getWeightedTokens()), tokenPruningConfig);
         }
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {
@@ -214,7 +214,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) {
         throw new IllegalStateException("text_expansion should have been rewritten to another query type");
     }
 
@@ -223,20 +223,20 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(modelText, other.modelText)
             && Objects.equals(modelId, other.modelId)
-            && Objects.equals(threshold, other.threshold)
+            && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
             && Objects.equals(weightedTokensSupplier, other.weightedTokensSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, modelText, modelId, threshold, weightedTokensSupplier);
+        return Objects.hash(fieldName, modelText, modelId, tokenPruningConfig, weightedTokensSupplier);
     }
 
     public static TextExpansionQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         String modelText = null;
         String modelId = null;
-        WeightedTokensThreshold threshold = null;
+        TokenPruningConfig threshold = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
@@ -251,8 +251,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        if (TOKENS_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            threshold = WeightedTokensThreshold.fromXContent(parser);
+                        if (PRUNING_CONFIG.match(currentFieldName, parser.getDeprecationHandler())) {
+                            threshold = TokenPruningConfig.fromXContent(parser);
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),

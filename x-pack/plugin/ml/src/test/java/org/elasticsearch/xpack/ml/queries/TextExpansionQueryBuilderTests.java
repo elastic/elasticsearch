@@ -47,9 +47,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
-        WeightedTokensThreshold threshold = rarely()
-            ? new WeightedTokensThreshold(randomIntBetween(1, 100), randomFloat(), randomBoolean())
-            : null;
+        TokenPruningConfig threshold = rarely() ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean()) : null;
         var builder = new TextExpansionQueryBuilder(RANK_FEATURES_FIELD, randomAlphaOfLength(4), randomAlphaOfLength(4), threshold);
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
@@ -167,16 +165,34 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     public void testToXContentWithThresholds() throws IOException {
-        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new WeightedTokensThreshold(4, 0.3f, false));
+        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new TokenPruningConfig(4, 0.3f, false));
         checkGeneratedJson("""
             {
               "text_expansion": {
                 "foo": {
                   "model_text": "bar",
                   "model_id": "baz",
-                  "tokens_threshold": {
-                    "ratio_threshold": 4.0,
-                    "weight_threshold": 0.3
+                  "pruning_config": {
+                    "tokens_freq_ratio_threshold": 4.0,
+                    "tokens_weight_threshold": 0.3
+                  }
+                }
+              }
+            }""", query);
+    }
+
+    public void testToXContentWithThresholdsAndOnlyScorePrunedTokens() throws IOException {
+        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new TokenPruningConfig(4, 0.3f, true));
+        checkGeneratedJson("""
+            {
+              "text_expansion": {
+                "foo": {
+                  "model_text": "bar",
+                  "model_id": "baz",
+                  "pruning_config": {
+                    "tokens_freq_ratio_threshold": 4.0,
+                    "tokens_weight_threshold": 0.3,
+                    "only_score_pruned_tokens": true
                   }
                 }
               }

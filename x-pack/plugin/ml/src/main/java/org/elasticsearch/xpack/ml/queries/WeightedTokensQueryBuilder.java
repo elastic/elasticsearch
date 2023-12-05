@@ -34,7 +34,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensThreshold.TOKENS_THRESHOLD_FIELD;
+import static org.elasticsearch.xpack.ml.queries.TokenPruningConfig.PRUNING_CONFIG;
 
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
     public static final String NAME = "weighted_tokens";
@@ -43,13 +43,13 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     private final String fieldName;
     private final Set<WeightedToken> tokens;
     @Nullable
-    private final WeightedTokensThreshold threshold;
+    private final TokenPruningConfig threshold;
 
     public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens) {
         this(fieldName, tokens, null);
     }
 
-    public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens, @Nullable WeightedTokensThreshold threshold) {
+    public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens, @Nullable TokenPruningConfig threshold) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
         if (tokens.isEmpty()) {
@@ -62,7 +62,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         super(in);
         this.fieldName = in.readString();
         this.tokens = in.readCollectionAsSet(WeightedToken::new);
-        this.threshold = in.readOptionalWriteable(WeightedTokensThreshold::new);
+        this.threshold = in.readOptionalWriteable(TokenPruningConfig::new);
     }
 
     public String getFieldName() {
@@ -70,7 +70,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     }
 
     @Nullable
-    public WeightedTokensThreshold getThreshold() {
+    public TokenPruningConfig getThreshold() {
         return threshold;
     }
 
@@ -120,7 +120,6 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         if (numUniqueTokens == 0) {
             return 0;
         }
-        // Return the sum of TermsEnum.docFreq()
         return (float) reader.getSumDocFreq(fieldName) / fieldDocCount / numUniqueTokens;
     }
 
@@ -143,8 +142,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             return false;
         }
         float tokenFreqRatio = (float) docFreq / fieldDocCount;
-        return tokenFreqRatio < threshold.getRatioThreshold() * averageTokenFreqRatio
-            || token.weight() > threshold.getWeightThreshold() * bestWeight;
+        return tokenFreqRatio < threshold.getTokensFreqRatioThreshold() * averageTokenFreqRatio
+            || token.weight() > threshold.getTokensWeightThreshold() * bestWeight;
     }
 
     @Override
@@ -192,7 +191,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.WEIGHTED_TOKENS_QUERY_ADDED;
+        return TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED;
     }
 
     private static float parseWeight(String token, Object weight) throws IOException {
@@ -211,7 +210,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         String currentFieldName = null;
         String fieldName = null;
         Set<WeightedToken> tokens = new HashSet<>();
-        WeightedTokensThreshold threshold = null;
+        TokenPruningConfig threshold = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         XContentParser.Token token;
@@ -224,15 +223,15 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else if (TOKENS_THRESHOLD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    } else if (PRUNING_CONFIG.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token != XContentParser.Token.START_OBJECT) {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
-                                "[" + TOKENS_THRESHOLD_FIELD.getPreferredName() + "] should be an object"
+                                "[" + PRUNING_CONFIG.getPreferredName() + "] should be an object"
                             );
                         }
                         // TODO may need a bool here to indicate threshold null or not
-                        threshold = WeightedTokensThreshold.fromXContent(parser);
+                        threshold = TokenPruningConfig.fromXContent(parser);
                     } else if (TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         var tokensMap = parser.map();
                         for (var e : tokensMap.entrySet()) {

@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -15,20 +16,25 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
  * This class is generated. Do not edit it.
  */
 public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator val;
 
   private final EvalOperator.ExpressionEvaluator decimals;
 
   private final DriverContext driverContext;
 
-  public RoundIntEvaluator(EvalOperator.ExpressionEvaluator val,
+  public RoundIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.val = val;
     this.decimals = decimals;
     this.driverContext = driverContext;
@@ -54,11 +60,25 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   public IntBlock eval(int positionCount, IntBlock valBlock, LongBlock decimalsBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        if (valBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
+        if (valBlock.getValueCount(p) != 1) {
+          if (valBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (decimalsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (decimalsBlock.getValueCount(p) != 1) {
+          if (decimalsBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -88,19 +108,22 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final EvalOperator.ExpressionEvaluator.Factory val;
 
     private final EvalOperator.ExpressionEvaluator.Factory decimals;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory val,
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
         EvalOperator.ExpressionEvaluator.Factory decimals) {
+      this.source = source;
       this.val = val;
       this.decimals = decimals;
     }
 
     @Override
     public RoundIntEvaluator get(DriverContext context) {
-      return new RoundIntEvaluator(val.get(context), decimals.get(context), context);
+      return new RoundIntEvaluator(source, val.get(context), decimals.get(context), context);
     }
 
     @Override

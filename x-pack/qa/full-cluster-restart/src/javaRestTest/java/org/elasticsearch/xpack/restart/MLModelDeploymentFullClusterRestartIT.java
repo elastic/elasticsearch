@@ -92,7 +92,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
 
     public void testDeploymentSurvivesRestart() throws Exception {
         @UpdateForV9 // upgrade will always be from v8, condition can be removed
-        var originalClusterAtLeastV8 = getOldClusterVersion().onOrAfter(Version.V_8_0_0);
+        var originalClusterAtLeastV8 = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_8_0_0)).orElse(true);
         // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
         assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
 

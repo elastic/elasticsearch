@@ -195,6 +195,10 @@ gradlePlugin {
       id = 'elasticsearch.legacy-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
     }
+    cacheTestFixtures {
+        id = 'elasticsearch.cache-test-fixtures'
+        implementationClass = 'org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin'
+    }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
@@ -288,6 +292,8 @@ dependencies {
   api buildLibs.httpcore
 
   compileOnly buildLibs.checkstyle
+  compileOnly buildLibs.reflections
+
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle
   testImplementation buildLibs.wiremock

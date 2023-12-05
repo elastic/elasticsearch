@@ -30,7 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.randomStringList;
-import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
+import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
 
 public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<DatafeedConfig.Builder> {
 
@@ -44,7 +44,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         }
         builder.setIndices(randomStringList(1, 10));
         if (randomBoolean()) {
-            builder.setQueryProvider(createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            builder.setQueryProvider(createTestQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
         boolean addScriptFields = randomBoolean();
         if (addScriptFields) {

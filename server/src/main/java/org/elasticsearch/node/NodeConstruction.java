@@ -121,11 +121,11 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
-import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -139,7 +139,6 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
-import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -516,13 +515,6 @@ class NodeConstruction {
 
         localNodeFactory = new Node.LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
-        InferenceServiceRegistry inferenceServiceRegistry = new InferenceServiceRegistry(
-            pluginsService.filterPlugins(InferenceServicePlugin.class).toList(),
-            new InferenceServicePlugin.InferenceServiceFactoryContext(client)
-        );
-        resourcesToClose.add(inferenceServiceRegistry);
-        modules.bindToInstance(InferenceServiceRegistry.class, inferenceServiceRegistry);
-
         namedWriteableRegistry = new NamedWriteableRegistry(
             Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
@@ -530,8 +522,7 @@ class NodeConstruction {
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.flatMap(Plugin::getNamedWriteables),
                 ClusterModule.getNamedWriteables().stream(),
-                SystemIndexMigrationExecutor.getNamedWriteables().stream(),
-                inferenceServiceRegistry.getNamedWriteables().stream()
+                SystemIndexMigrationExecutor.getNamedWriteables().stream()
             ).flatMap(Function.identity()).toList()
         );
         xContentRegistry = new NamedXContentRegistry(
@@ -607,8 +598,7 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
-        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
-        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager, rerouteServiceReference::get);
+        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
@@ -628,6 +618,7 @@ class NodeConstruction {
         SystemIndices systemIndices = createSystemIndices(settings);
 
         final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
             settings,
@@ -759,6 +750,7 @@ class NodeConstruction {
         record PluginServiceInstances(
             Client client,
             ClusterService clusterService,
+            RerouteService rerouteService,
             ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService,
             ScriptService scriptService,
@@ -777,6 +769,7 @@ class NodeConstruction {
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
+            rerouteService,
             threadPool,
             createResourceWatcherService(settings, threadPool),
             scriptService,
@@ -814,6 +807,7 @@ class NodeConstruction {
             systemIndices,
             telemetryProvider.getTracer(),
             clusterService,
+            rerouteService,
             buildReservedStateHandlers(
                 settingsModule,
                 clusterService,
@@ -900,6 +894,7 @@ class NodeConstruction {
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,
             clusterService,
+            rerouteService,
             clusterModule.getIndexNameExpressionResolver(),
             repositoryService,
             transportService,
@@ -968,6 +963,8 @@ class NodeConstruction {
             searchModule.getValuesSourceRegistry().getUsageService(),
             repositoryService
         );
+
+        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
 
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
@@ -1045,6 +1042,7 @@ class NodeConstruction {
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
             b.bind(Transport.class).toInstance(transport);
             b.bind(TransportService.class).toInstance(transportService);
+            b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
@@ -1074,18 +1072,12 @@ class NodeConstruction {
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }
 
-    private ClusterService createClusterService(
-        SettingsModule settingsModule,
-        ThreadPool threadPool,
-        TaskManager taskManager,
-        Supplier<RerouteService> rerouteService
-    ) {
+    private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
             threadPool,
-            taskManager,
-            rerouteService
+            taskManager
         );
         resourcesToClose.add(clusterService);
 

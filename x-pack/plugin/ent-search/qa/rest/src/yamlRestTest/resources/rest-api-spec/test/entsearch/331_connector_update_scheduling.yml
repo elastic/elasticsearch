@@ -45,7 +45,7 @@ setup:
   - match: { scheduling.incremental.interval: "3 0 0 * * ?" }
 
 ---
-"Update Connector Scheduling - 404 status code returned when connector doesn't exist":
+"Update Connector Scheduling - Connector doesn't exist":
   - do:
       catch: "missing"
       connector.update_scheduling:
@@ -63,7 +63,7 @@ setup:
               interval: 3 0 0 * * ?
 
 ---
-"Update Connector Scheduling - 400 status code returned when required fields are missing":
+"Update Connector Scheduling - Required fields are missing":
   - do:
       catch: "bad_request"
       connector.update_scheduling:
@@ -75,7 +75,7 @@ setup:
               interval: 3 0 0 * * ?
 
 ---
-"Update Connector Scheduling - 400 status code returned with wrong CRON expression":
+"Update Connector Scheduling - Wrong CRON expression":
   - do:
       catch: "bad_request"
       connector.update_scheduling:

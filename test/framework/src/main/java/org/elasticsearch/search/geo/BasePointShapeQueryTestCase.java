@@ -147,7 +147,8 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         try {
             client().prepareSearch(defaultIndexName)
                 .setQuery(queryBuilder().shapeQuery(defaultFieldName, geometry).relation(ShapeRelation.INTERSECTS))
-                .get();
+                .get()
+                .decRef();
         } catch (Exception e) {
             assertThat(
                 e.getCause().getMessage(),

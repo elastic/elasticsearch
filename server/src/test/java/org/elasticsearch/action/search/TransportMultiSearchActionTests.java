@@ -83,7 +83,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                     assertEquals(task.getId(), request.getParentTask().getId());
                     assertEquals(localNodeId, request.getParentTask().getNodeId());
                     counter.incrementAndGet();
-                    listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+                    var response = SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY);
+                    try {
+                        listener.onResponse(response);
+                    } finally {
+                        response.decRef();
+                    }
                 }
 
                 @Override
@@ -161,18 +166,21 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 final ExecutorService executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
                     counter.decrementAndGet();
-                    listener.onResponse(
-                        new SearchResponse(
-                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                            null,
-                            0,
-                            0,
-                            0,
-                            0L,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
+                    var response = new SearchResponse(
+                        InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0L,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
                     );
+                    try {
+                        listener.onResponse(response);
+                    } finally {
+                        response.decRef();
+                    }
                 });
             }
 

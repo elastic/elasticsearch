@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class UpdateConnectorNameAction extends ActionType<UpdateConnectorNameAction.Response> {
@@ -86,6 +87,9 @@ public class UpdateConnectorNameAction extends ActionType<UpdateConnectorNameAct
             if (Strings.isNullOrEmpty(connectorId)) {
                 validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
             }
+            if (Strings.isNullOrEmpty(name)) {
+                validationException = addValidationError("[name] cannot be null or empty.", validationException);
+            }
 
             return validationException;
         }
@@ -97,7 +101,7 @@ public class UpdateConnectorNameAction extends ActionType<UpdateConnectorNameAct
         );
 
         static {
-            PARSER.declareStringOrNull(optionalConstructorArg(), Connector.NAME_FIELD);
+            PARSER.declareStringOrNull(constructorArg(), Connector.NAME_FIELD);
             PARSER.declareStringOrNull(optionalConstructorArg(), Connector.DESCRIPTION_FIELD);
         }
 

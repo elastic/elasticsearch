@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.allocation;
 import co.elastic.elasticsearch.stateless.Stateless;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -30,6 +31,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import java.util.Set;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 public class StatelessAllocationDecider extends AllocationDecider {
 
@@ -51,6 +54,25 @@ public class StatelessAllocationDecider extends AllocationDecider {
         return decideCanAllocateShardToNode(shardRouting, node, allocation);
     }
 
+    @Override
+    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+        var nodeRole = node.getRoles().contains(INDEX_ROLE) ? INDEX_ROLE : SEARCH_ROLE;
+        // This is a hack to bypass all auto-expand replicas configurations and force that only 1 replica is configured in such
+        // cases, for that we only accept to expand to the "first" index or search node, that way we limit the number of replicas to 1.
+        // This assumes that the cluster will have at least 1 index node and 1 search node.
+        for (DiscoveryNode discoveryNode : allocation.nodes()) {
+            if (discoveryNode.getRoles().contains(nodeRole)) {
+                if (discoveryNode.equals(node)) {
+                    return Decision.YES;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        return Decision.NO;
+    }
+
     private Decision decideCanAllocateShardToNode(ShardRouting shardRouting, RoutingNode routingNode, RoutingAllocation allocation) {
         var roles = routingNode.node().getRoles();
         return canAllocateShardToNode(shardRouting, roles)
@@ -65,7 +87,7 @@ public class StatelessAllocationDecider extends AllocationDecider {
     }
 
     private boolean canAllocateShardToNode(ShardRouting shardRouting, Set<DiscoveryNodeRole> nodeRoles) {
-        return (shardRouting.isPromotableToPrimary() && nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE))
+        return (shardRouting.isPromotableToPrimary() && nodeRoles.contains(INDEX_ROLE))
             || (shardRouting.isSearchable() && nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE));
     }
 

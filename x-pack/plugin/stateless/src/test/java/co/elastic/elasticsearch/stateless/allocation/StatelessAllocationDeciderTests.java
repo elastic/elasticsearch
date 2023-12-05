@@ -98,6 +98,24 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
+    public void testAutoExpandToSearchNodesOnly() {
+        var indexName = UUIDs.randomBase64UUID();
+        var autoExpandReplicasSetting = randomFrom("0-all", "0-20", "0-3", "0-1");
+        var indexMetadata = IndexMetadata.builder(indexName)
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), autoExpandReplicasSetting)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(randomBoolean() ? 0 : 1);
+
+        var state = createClusterState(2, 1, indexMetadata.build());
+
+        var service = createAllocationService(new StatelessAllocationDecider());
+        state = applyStartedShardsUntilNoChange(state, service);
+
+        assertThat(state.getRoutingNodes().hasUnassignedShards(), equalTo(false));
+    }
+
     private static void assertContainsDecision(ShardAllocationDecision explain, Decision.Type type, String explanation) {
         assertTrue(
             explain.getAllocateDecision()

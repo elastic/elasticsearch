@@ -93,3 +93,37 @@ M              |10
 M              |10           
 M              |10           
 ;
+
+docsCaseSuccessRate
+// tag::docsCaseSuccessRate[]
+FROM sample_data
+| EVAL successful = CASE(
+    STARTS_WITH(message, "Connected to"), 1,
+    message == "Connection error", 0
+  )
+| STATS success_rate = AVG(successful)
+// end::docsCaseSuccessRate[]
+;
+
+// tag::docsCaseSuccessRate-result[]
+success_rate:double
+0.5
+// end::docsCaseSuccessRate-result[]
+;
+
+docsCaseHourlyErrorRate
+// tag::docsCaseHourlyErrorRate[]
+FROM sample_data
+| EVAL error = CASE(message LIKE "*error*", 1, 0)
+| EVAL hour = DATE_TRUNC(1 hour, @timestamp)
+| STATS error_rate = AVG(error) by hour
+| SORT hour
+// end::docsCaseHourlyErrorRate[]
+;
+
+// tag::docsCaseHourlyErrorRate-result[]
+error_rate:double | hour:date
+0.0            |2023-10-23T12:00:00.000Z
+0.6            |2023-10-23T13:00:00.000Z
+// end::docsCaseHourlyErrorRate-result[]
+;

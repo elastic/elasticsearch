@@ -46,7 +46,7 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
             return new SqrtLongEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return new SqrtUnsignedLongEvaluator.Factory(field);
+            return new SqrtUnsignedLongEvaluator.Factory(source(), field);
         }
 
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);

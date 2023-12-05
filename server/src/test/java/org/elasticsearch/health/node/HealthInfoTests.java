@@ -31,7 +31,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 : new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()));
             diskInfoByNode.put(randomAlphaOfLengthBetween(10, 100), diskHealthInfo);
         }
-        return new HealthInfo(diskInfoByNode);
+        return new HealthInfo(diskInfoByNode, randomBoolean() ? randomDslHealthInfo() : null);
     }
 
     @Override
@@ -67,6 +67,16 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 default -> throw new IllegalStateException();
             }
         }
-        return new HealthInfo(diskHealthInfoMapCopy);
+        return new HealthInfo(
+            diskHealthInfoMapCopy,
+            randomValueOtherThan(originalHealthInfo.dslHealthInfo(), HealthInfoTests::randomDslHealthInfo)
+        );
+    }
+
+    static DataStreamLifecycleHealthInfo randomDslHealthInfo() {
+        return new DataStreamLifecycleHealthInfo(
+            randomList(5, () -> new DslErrorInfo(randomAlphaOfLength(100), System.currentTimeMillis(), randomIntBetween(15, 500))),
+            randomIntBetween(6, 1000)
+        );
     }
 }

@@ -52,16 +52,16 @@ public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var field = toEvaluator.apply(field());
         if (dataType() == DataTypes.DOUBLE) {
-            return new AbsDoubleEvaluator.Factory(field);
+            return new AbsDoubleEvaluator.Factory(source(), field);
         }
         if (dataType() == DataTypes.UNSIGNED_LONG) {
             return field;
         }
         if (dataType() == DataTypes.LONG) {
-            return new AbsLongEvaluator.Factory(field);
+            return new AbsLongEvaluator.Factory(source(), field);
         }
         if (dataType() == DataTypes.INTEGER) {
-            return new AbsIntEvaluator.Factory(field);
+            return new AbsIntEvaluator.Factory(source(), field);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType());
     }

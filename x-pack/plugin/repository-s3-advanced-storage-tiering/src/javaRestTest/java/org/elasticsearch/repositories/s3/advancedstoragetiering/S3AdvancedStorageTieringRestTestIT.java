@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -39,7 +40,11 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, ACCESS_KEY) {
         @Override
         protected void validateStorageClass(String path, String storageClass) {
-            assertEquals(path, storageClass, getLeafBlobName(path).startsWith("__") ? "ONEZONE_IA" : "STANDARD_IA");
+            assertEquals(
+                path,
+                storageClass,
+                getLeafBlobName(path).startsWith(BlobStoreRepository.UPLOADED_DATA_BLOB_PREFIX) ? "ONEZONE_IA" : "STANDARD_IA"
+            );
         }
 
         private String getLeafBlobName(String path) {

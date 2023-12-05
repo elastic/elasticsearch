@@ -199,7 +199,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
     public static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
     static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
-    static final ParseField DESCRIPTION_FIELD = new ParseField("description");
+    public static final ParseField DESCRIPTION_FIELD = new ParseField("description");
     public static final ParseField ERROR_FIELD = new ParseField("error");
     static final ParseField FEATURES_FIELD = new ParseField("features");
     public static final ParseField FILTERING_FIELD = new ParseField("filtering");
@@ -461,6 +461,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return apiKeyId;
     }
 
+    public Map<String, ConnectorConfiguration> getConfiguration() {
+        return configuration;
+    }
+
     public Map<String, ConnectorCustomSchedule> getCustomScheduling() {
         return customScheduling;
     }
@@ -493,6 +497,14 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return language;
     }
 
+    public Instant getLastSeen() {
+        return lastSeen;
+    }
+
+    public ConnectorSyncInfo getSyncInfo() {
+        return syncInfo;
+    }
+
     public String getName() {
         return name;
     }
@@ -509,8 +521,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return serviceType;
     }
 
-    public Map<String, ConnectorConfiguration> getConfiguration() {
-        return configuration;
+    public ConnectorStatus getStatus() {
+        return status;
     }
 
     public Object getSyncCursor() {
@@ -519,18 +531,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     public boolean isSyncNow() {
         return syncNow;
-    }
-
-    public ConnectorSyncInfo getSyncInfo() {
-        return syncInfo;
-    }
-
-    public Instant getLastSeen() {
-        return lastSeen;
-    }
-
-    public ConnectorStatus getStatus() {
-        return status;
     }
 
     @Override

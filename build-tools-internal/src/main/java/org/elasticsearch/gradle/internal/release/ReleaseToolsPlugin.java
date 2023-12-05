@@ -46,10 +46,15 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
         final Directory projectDirectory = projectLayout.getProjectDirectory();
 
         final Version version = VersionProperties.getElasticsearchVersion();
+        String luceneVersion = VersionProperties.getLucene();
 
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()
             .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
+
+        project.getTasks().register("freezeVersions", FreezeVersionTask.class, t -> {
+            t.luceneVersion(luceneVersion);
+        });
 
         final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsTask = project.getTasks()
             .register("validateChangelogs", ValidateYamlAgainstSchemaTask.class, task -> {

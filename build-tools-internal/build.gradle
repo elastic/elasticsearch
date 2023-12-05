@@ -291,6 +291,8 @@ dependencies {
   api buildLibs.httpclient
   api buildLibs.httpcore
 
+  implementation 'com.github.javaparser:javaparser-core:3.18.0'
+
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
 

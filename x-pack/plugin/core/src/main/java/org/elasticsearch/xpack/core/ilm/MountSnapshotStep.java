@@ -73,15 +73,17 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         String policyName = indexMetadata.getLifecyclePolicyName();
         String snapshotRepository = lifecycleState.snapshotRepository();
-        if (Strings.hasText(snapshotRepository) == false && searchableSnapshotMetadata == null) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"
-                )
-            );
-            return;
-        } else if (searchableSnapshotMetadata != null) {
-            snapshotRepository = searchableSnapshotMetadata.repositoryName();
+        if (Strings.hasText(snapshotRepository) == false) {
+            if (searchableSnapshotMetadata == null) {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"
+                    )
+                );
+                return;
+            } else {
+                snapshotRepository = searchableSnapshotMetadata.repositoryName();
+            }
         }
 
         String snapshotName = lifecycleState.snapshotName();
@@ -107,19 +109,21 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         final String snapshotIndexName = lifecycleState.snapshotIndexName();
-        if (snapshotIndexName == null && searchableSnapshotMetadata == null) {
-            // This index had its searchable snapshot created prior to a version where we captured
-            // the original index name, so make our best guess at the name
-            indexName = bestEffortIndexNameResolution(indexName);
-            logger.debug(
-                "index [{}] using policy [{}] does not have a stored snapshot index name, "
-                    + "using our best effort guess of [{}] for the original snapshotted index name",
-                indexMetadata.getIndex().getName(),
-                policyName,
-                indexName
-            );
-        } else if (searchableSnapshotMetadata != null) {
-            indexName = searchableSnapshotMetadata.indexName();
+        if (snapshotIndexName == null) {
+            if (searchableSnapshotMetadata == null) {
+                // This index had its searchable snapshot created prior to a version where we captured
+                // the original index name, so make our best guess at the name
+                indexName = bestEffortIndexNameResolution(indexName);
+                logger.debug(
+                    "index [{}] using policy [{}] does not have a stored snapshot index name, "
+                        + "using our best effort guess of [{}] for the original snapshotted index name",
+                    indexMetadata.getIndex().getName(),
+                    policyName,
+                    indexName
+                );
+            } else {
+                indexName = searchableSnapshotMetadata.indexName();
+            }
         } else {
             // Use the name of the snapshot as specified in the metadata, because the current index
             // name not might not reflect the name of the index actually in the snapshot

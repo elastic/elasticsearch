@@ -21,6 +21,11 @@ versions << [
   'aws': '1.12.270'
 ]
 
+configurations {
+  spi
+  compileOnlyApi.extendsFrom(spi)
+}
+
 dependencies {
   api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
@@ -40,6 +45,8 @@ dependencies {
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
   api 'javax.xml.bind:jaxb-api:2.2.2'
+
+  spi project('spi')
 
   testImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(":test:framework")
@@ -64,8 +71,11 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-esplugin.bundleSpec.from('config/repository-s3') {
-    into 'config'
+esplugin.bundleSpec.into('config') {
+  from('config/repository-s3')
+}
+esplugin.bundleSpec.into('spi') {
+  from(configurations.spi)
 }
 
 def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {

@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.s3;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 

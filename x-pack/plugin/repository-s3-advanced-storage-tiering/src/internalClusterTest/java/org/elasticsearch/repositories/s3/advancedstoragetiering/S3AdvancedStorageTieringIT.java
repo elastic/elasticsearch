@@ -13,15 +13,15 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensingHelper;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.s3.S3StorageClassStrategy;
-import org.elasticsearch.repositories.s3.SimpleS3StorageClassStrategyProvider;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategy;
+import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 
-import static com.amazonaws.services.s3.model.StorageClass.OneZoneInfrequentAccess;
-import static com.amazonaws.services.s3.model.StorageClass.Standard;
-import static com.amazonaws.services.s3.model.StorageClass.StandardInfrequentAccess;
+import static org.elasticsearch.repositories.s3.spi.S3StorageClass.ONEZONE_IA;
+import static org.elasticsearch.repositories.s3.spi.S3StorageClass.STANDARD;
+import static org.elasticsearch.repositories.s3.spi.S3StorageClass.STANDARD_IA;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -37,18 +37,18 @@ public class S3AdvancedStorageTieringIT extends ESIntegTestCase {
         final var defaultStrategy = getStrategy(Settings.builder());
         assertEquals("STANDARD", defaultStrategy.toString());
         for (final var purpose : OperationPurpose.values()) {
-            assertEquals(purpose.toString(), Standard, defaultStrategy.getStorageClass(purpose));
+            assertEquals(purpose.toString(), STANDARD, defaultStrategy.getStorageClass(purpose));
         }
     }
 
     public void testConstantStrategy() {
         LicensingHelper.enableLicensing(internalCluster(), randomOperationMode());
         final var constantStrategy = getStrategy(
-            Settings.builder().put(SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING.getKey(), OneZoneInfrequentAccess.toString())
+            Settings.builder().put(SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING.getKey(), ONEZONE_IA.toString())
         );
         assertEquals("ONEZONE_IA", constantStrategy.toString());
         for (final var purpose : OperationPurpose.values()) {
-            assertEquals(purpose.toString(), OneZoneInfrequentAccess, constantStrategy.getStorageClass(purpose));
+            assertEquals(purpose.toString(), ONEZONE_IA, constantStrategy.getStorageClass(purpose));
         }
     }
 
@@ -56,14 +56,14 @@ public class S3AdvancedStorageTieringIT extends ESIntegTestCase {
         LicensingHelper.enableLicensing(internalCluster(), randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.TRIAL));
         final var advancedStrategy = getStrategy(
             Settings.builder()
-                .put(SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING.getKey(), OneZoneInfrequentAccess.toString())
-                .put(AdvancedS3StorageClassStrategyProvider.METADATA_STORAGE_CLASS_SETTING.getKey(), StandardInfrequentAccess.toString())
+                .put(SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING.getKey(), ONEZONE_IA.toString())
+                .put(AdvancedS3StorageClassStrategyProvider.METADATA_STORAGE_CLASS_SETTING.getKey(), STANDARD_IA.toString())
         );
         assertEquals("Advanced[data=ONEZONE_IA, metadata=STANDARD_IA]", advancedStrategy.toString());
         for (final var purpose : OperationPurpose.values()) {
             assertEquals(
                 purpose.toString(),
-                purpose == OperationPurpose.SNAPSHOT_DATA ? OneZoneInfrequentAccess : StandardInfrequentAccess,
+                purpose == OperationPurpose.SNAPSHOT_DATA ? ONEZONE_IA : STANDARD_IA,
                 advancedStrategy.getStorageClass(purpose)
             );
         }
@@ -79,8 +79,8 @@ public class S3AdvancedStorageTieringIT extends ESIntegTestCase {
         );
         final var advancedStrategy = getStrategy(
             Settings.builder()
-                .put(SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING.getKey(), OneZoneInfrequentAccess.toString())
-                .put(AdvancedS3StorageClassStrategyProvider.METADATA_STORAGE_CLASS_SETTING.getKey(), StandardInfrequentAccess.toString())
+                .put(SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING.getKey(), ONEZONE_IA.toString())
+                .put(AdvancedS3StorageClassStrategyProvider.METADATA_STORAGE_CLASS_SETTING.getKey(), STANDARD_IA.toString())
         );
         assertEquals("Advanced[data=ONEZONE_IA, metadata=STANDARD_IA]", advancedStrategy.toString());
         for (final var purpose : OperationPurpose.values()) {

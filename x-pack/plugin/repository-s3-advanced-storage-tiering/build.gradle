@@ -14,14 +14,15 @@ base {
 }
 
 dependencies {
-  implementation project(':modules:repository-s3')
   testImplementation project(path: ':test:test-clusters')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(':modules:repository-s3:spi')
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation project(':modules:repository-s3:spi')
 }
 
 tasks.named('javaRestTest') {

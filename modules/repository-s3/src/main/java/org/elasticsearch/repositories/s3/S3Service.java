@@ -37,6 +37,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategy;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategyProvider;
 
 import java.io.Closeable;
 import java.io.IOException;

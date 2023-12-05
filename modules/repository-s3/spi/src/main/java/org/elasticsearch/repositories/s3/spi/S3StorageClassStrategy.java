@@ -6,9 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.repositories.s3;
-
-import com.amazonaws.services.s3.model.StorageClass;
+package org.elasticsearch.repositories.s3.spi;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
 
@@ -19,5 +17,5 @@ public interface S3StorageClassStrategy {
     /**
      * @return the storage class for an upload to S3 for the given purpose.
      */
-    StorageClass getStorageClass(OperationPurpose operationPurpose);
+    S3StorageClass getStorageClass(OperationPurpose operationPurpose);
 }

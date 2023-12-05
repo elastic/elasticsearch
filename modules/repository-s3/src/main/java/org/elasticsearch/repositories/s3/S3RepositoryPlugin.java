@@ -26,6 +26,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategyProvider;
+import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -63,7 +65,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     private final SetOnce<S3Service> service = new SetOnce<>();
     private final SetOnce<MeterRegistry> meterRegistry = new SetOnce<>();
-    private S3StorageClassStrategyProvider storageClassStrategyProvider = SimpleS3StorageClassStrategyProvider.INSTANCE;
+    private S3StorageClassStrategyProvider storageClassStrategyProvider = null;
     private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
@@ -89,6 +91,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        if (storageClassStrategyProvider == null) {
+            storageClassStrategyProvider = SimpleS3StorageClassStrategyProvider.INSTANCE;
+        }
         logger.info("--> using storageClassStrategyProvider [{}]", storageClassStrategyProvider);
         service.set(s3Service(services.environment(), services.clusterService().getSettings(), storageClassStrategyProvider));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
@@ -98,6 +103,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
+        if (storageClassStrategyProvider != null) {
+            throw new IllegalStateException("storage class provider already set: " + storageClassStrategyProvider);
+        }
         final var storageClassStrategyProviders = loader.loadExtensions(S3StorageClassStrategyProvider.class);
         logger.info("--> storageClassStrategyProviders: {}", storageClassStrategyProviders);
         if (storageClassStrategyProviders.size() == 1) {

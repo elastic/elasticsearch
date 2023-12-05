@@ -6,9 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.repositories.s3;
-
-import com.amazonaws.services.s3.model.StorageClass;
+package org.elasticsearch.repositories.s3.spi;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Setting;
@@ -21,20 +19,18 @@ public class SimpleS3StorageClassStrategyProvider implements S3StorageClassStrat
     private SimpleS3StorageClassStrategyProvider() {/* singleton */}
 
     /**
-     * Sets the S3 storage class type for the objects written to S3. See {@link S3StorageClassStrategyProvider#parseStorageClass} for
-     * details.
+     * Sets the S3 storage class type for the objects written to S3.
      */
-    public static final Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
+    public static final Setting<S3StorageClass> STORAGE_CLASS_SETTING =
+        Setting.enumSetting(S3StorageClass.class, "storage_class", S3StorageClass.STANDARD);
 
     @Override
     public S3StorageClassStrategy getS3StorageClassStrategy(Settings repositorySettings) {
         return new S3StorageClassStrategy() {
-            private final StorageClass storageClass = S3StorageClassStrategyProvider.parseStorageClass(
-                STORAGE_CLASS_SETTING.get(repositorySettings)
-            );
+            private final S3StorageClass storageClass = STORAGE_CLASS_SETTING.get(repositorySettings);
 
             @Override
-            public StorageClass getStorageClass(OperationPurpose operationPurpose) {
+            public S3StorageClass getStorageClass(OperationPurpose operationPurpose) {
                 return storageClass;
             }
 

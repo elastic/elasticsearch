@@ -6,20 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.repositories.s3;
-
-import com.amazonaws.services.s3.model.StorageClass;
+package org.elasticsearch.repositories.s3.spi;
 
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * A provider for a {@link S3StorageClassStrategy}, either defined via SPI or {@link SimpleS3StorageClassStrategyProvider#INSTANCE} if SPI
- * does not define one.
+ * A provider for a {@link S3StorageClassStrategy}, registered through SPI.
  */
 public interface S3StorageClassStrategyProvider {
     S3StorageClassStrategy getS3StorageClassStrategy(Settings repositorySettings);
-
-    static StorageClass parseStorageClass(String storageClassString) {
-        return S3BlobStore.initStorageClass(storageClassString);
-    }
 }

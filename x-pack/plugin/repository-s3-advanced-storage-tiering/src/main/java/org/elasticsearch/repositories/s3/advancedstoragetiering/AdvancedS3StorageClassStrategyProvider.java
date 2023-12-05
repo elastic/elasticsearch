@@ -7,8 +7,6 @@
 
 package org.elasticsearch.repositories.s3.advancedstoragetiering;
 
-import com.amazonaws.services.s3.model.StorageClass;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Setting;
@@ -16,24 +14,26 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.repositories.s3.S3StorageClassStrategy;
-import org.elasticsearch.repositories.s3.S3StorageClassStrategyProvider;
+import org.elasticsearch.repositories.s3.spi.S3StorageClass;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategy;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategyProvider;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.function.Supplier;
 
-import static org.elasticsearch.repositories.s3.SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING;
 import static org.elasticsearch.repositories.s3.advancedstoragetiering.S3AdvancedStorageTieringPlugin.S3_ADVANCED_STORAGE_TIERING_FEATURE;
+import static org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider.STORAGE_CLASS_SETTING;
 
 public class AdvancedS3StorageClassStrategyProvider implements S3StorageClassStrategyProvider {
 
     /**
-     * Sets the S3 storage class type for metadata objects written to S3. See {@link S3StorageClassStrategyProvider#parseStorageClass} for
-     * details.
+     * Sets the S3 storage class type for metadata objects written to S3.
      */
-    public static final Setting<String> METADATA_STORAGE_CLASS_SETTING = Setting.simpleString(
+    public static final Setting<S3StorageClass> METADATA_STORAGE_CLASS_SETTING = Setting.enumSetting(
+        S3StorageClass.class,
         "metadata_storage_class",
-        STORAGE_CLASS_SETTING
+        STORAGE_CLASS_SETTING,
+        value -> {}
     );
 
     // mutable global state because yolo I guess?
@@ -45,15 +45,11 @@ public class AdvancedS3StorageClassStrategyProvider implements S3StorageClassStr
     public S3StorageClassStrategy getS3StorageClassStrategy(Settings repositorySettings) {
         return new S3StorageClassStrategy() {
 
-            private final StorageClass dataStorageClass = S3StorageClassStrategyProvider.parseStorageClass(
-                STORAGE_CLASS_SETTING.get(repositorySettings)
-            );
-            private final StorageClass metadataStorageClass = S3StorageClassStrategyProvider.parseStorageClass(
-                METADATA_STORAGE_CLASS_SETTING.get(repositorySettings)
-            );
+            private final S3StorageClass dataStorageClass = STORAGE_CLASS_SETTING.get(repositorySettings);
+            private final S3StorageClass metadataStorageClass = METADATA_STORAGE_CLASS_SETTING.get(repositorySettings);
 
             @Override
-            public StorageClass getStorageClass(OperationPurpose operationPurpose) {
+            public S3StorageClass getStorageClass(OperationPurpose operationPurpose) {
 
                 logger.info("computing storage class for [{}]", operationPurpose);
 

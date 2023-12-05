@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategy;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -378,7 +379,16 @@ class S3BlobStore implements BlobStore {
     }
 
     public StorageClass getStorageClass(OperationPurpose purpose) {
-        return storageClassStrategy.getStorageClass(purpose);
+        // map the ES s3 storage class to s3 sdk storage class
+        return switch(storageClassStrategy.getStorageClass(purpose)) {
+            case STANDARD -> StorageClass.Standard;
+            case REDUCED_REDUNDANCY -> StorageClass.ReducedRedundancy;
+            case STANDARD_IA -> StorageClass.StandardInfrequentAccess;
+            case ONEZONE_IA -> StorageClass.OneZoneInfrequentAccess;
+            case INTELLIGENT_TIERING -> StorageClass.IntelligentTiering;
+            case GLACIER_IR -> StorageClass.GlacierInstantRetrieval;
+            case OUTPOSTS -> StorageClass.Outposts;
+        };
     }
 
     public static StorageClass initStorageClass(String storageClass) {

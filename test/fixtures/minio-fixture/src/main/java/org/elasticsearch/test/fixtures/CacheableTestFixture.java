@@ -5,16 +5,9 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.java'
 
-description = 'Fixture for GeoIPv2 service'
+package org.elasticsearch.test.fixtures;
 
-dependencies {
-  api project(':server')
-  api project(':distribution:tools:geoip-cli')
-  api project(":libs:elasticsearch-cli")
-  api project(":libs:elasticsearch-x-content")
-  api("junit:junit:${versions.junit}") {
-    exclude module: 'hamcrest-core'
-  }
+public interface CacheableTestFixture {
+    void cache();
 }

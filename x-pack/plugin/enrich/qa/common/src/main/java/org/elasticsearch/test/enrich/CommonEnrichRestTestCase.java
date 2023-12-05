@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -261,10 +260,10 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             source.field("match_field", field);
             source.field("enrich_fields", new String[] { "globalRank", "tldRank", "tld" });
 
-            // technically it's possible to include an elasticsearch_version here. if the field is present,
-            // the value must be parseable as an elasticsearch version. none of this is documented anywhere.
+            // technically it's possible to include an elasticsearch_version here. previously it had to match the current version of
+            // elasticsearch itself, but now it can be any string.
             if (randomBoolean()) {
-                source.field("elasticsearch_version", VersionUtils.randomVersion(random()));
+                source.field("elasticsearch_version", randomAlphaOfLength(8));
             }
         }
         source.endObject().endObject();

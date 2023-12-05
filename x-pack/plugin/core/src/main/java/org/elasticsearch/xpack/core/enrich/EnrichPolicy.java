@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,7 +57,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             (List<String>) args[1],
             (String) args[2],
             (List<String>) args[3],
-            (Version) args[4]
+            (String) args[4]
         )
     );
 
@@ -75,12 +74,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES);
         parser.declareString(ConstructingObjectParser.constructorArg(), MATCH_FIELD);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_FIELDS);
-        parser.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            ((p, c) -> Version.fromString(p.text())),
-            ELASTICSEARCH_VERSION,
-            ValueType.STRING
-        );
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), ELASTICSEARCH_VERSION);
     }
 
     public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
@@ -136,7 +130,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         List<String> indices,
         String matchField,
         List<String> enrichFields,
-        Version elasticsearchVersion
+        String elasticsearchVersion
     ) {
         // for backwards compatibility reasons, it is possible to pass in an elasticsearchVersion -- that version is
         // completely ignored and does nothing.
@@ -307,7 +301,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                     (List<String>) args[2],
                     (String) args[3],
                     (List<String>) args[4],
-                    (Version) args[5]
+                    (String) args[5]
                 )
             )
         );

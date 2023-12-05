@@ -78,8 +78,8 @@ public class ServerProcess {
      */
     public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
         try {
-            var serverProcessOptions = ServerProcessOptions.create(processInfo, JvmOptionsParser::determineJvmOptions, args);
-            return start(terminal, serverProcessOptions, ProcessBuilder::start);
+            var serverProcessOptions = ServerProcessOptions.builder(processInfo, args).build();
+            return start(terminal, serverProcessOptions);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (InterruptedException e) {
@@ -88,14 +88,13 @@ public class ServerProcess {
     }
 
     // package private so tests can mock options building and process starting
-    static ServerProcess start(Terminal terminal, ServerProcessOptions serverProcessOptions, ProcessStarter processStarter)
-        throws UserException {
+    static ServerProcess start(Terminal terminal, ServerProcessOptions serverProcessOptions) throws UserException {
         Process jvmProcess = null;
         ErrorPumpThread errorPump;
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(serverProcessOptions, processStarter);
+            jvmProcess = createProcess(serverProcessOptions, serverProcessOptions.getProcessStarter());
             errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(serverProcessOptions.getServerArgs(), jvmProcess.getOutputStream());

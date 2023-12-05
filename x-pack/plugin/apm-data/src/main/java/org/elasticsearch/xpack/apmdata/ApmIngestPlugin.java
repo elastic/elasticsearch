@@ -16,8 +16,8 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collection;
 import java.util.List;
 
-public class APMServerPlugin extends Plugin implements ActionPlugin {
-    private static final Logger logger = LogManager.getLogger(APMServerPlugin.class);
+public class ApmIngestPlugin extends Plugin implements ActionPlugin {
+    private static final Logger logger = LogManager.getLogger(ApmIngestPlugin.class);
 
     private final SetOnce<APMIndexTemplateRegistry> registry = new SetOnce<>();
 
@@ -33,7 +33,7 @@ public class APMServerPlugin extends Plugin implements ActionPlugin {
             )
         );
         APMIndexTemplateRegistry registryInstance = registry.get();
-        logger.info("APM Server is {}", registryInstance.isEnabled() ? "enabled" : "disabled");
+        logger.info("APM ingest plugin is {}", registryInstance.isEnabled() ? "enabled" : "disabled");
         registryInstance.initialize();
         return List.of(registryInstance);
     }

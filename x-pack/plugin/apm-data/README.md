@@ -1,8 +1,8 @@
 NOTE: this plugin is not related to APM Metrics used in ES codebase. The APM Metrics are in :modules:apm
 
-## APM Data plugin
+## APM Ingest plugin
 
-The APM data plugin installs index templates, component templates, and ingest pipelines for Elastic APM Server.
+The APM Ingest plugin installs index templates, component templates, and ingest pipelines for Elastic APM Server.
 
 All resources are defined as YAML under [src/main/resources](src/main/resources).
 

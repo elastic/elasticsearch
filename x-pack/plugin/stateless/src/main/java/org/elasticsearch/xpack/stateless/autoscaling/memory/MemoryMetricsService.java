@@ -26,7 +26,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -72,19 +75,28 @@ public class MemoryMetricsService implements ClusterStateListener {
     }
 
     void updateIndicesMappingSize(final HeapMemoryUsage heapMemoryUsage) {
-        heapMemoryUsage.indicesMappingSize().forEach((index, indexMappingSize) -> {
-            // drop update for unknown index
-            // scenario: index created but CS applier thread is lagging behind
-            // eventually it converges to correct state since index nodes re-sending updates
-            if (indicesMemoryMetrics.containsKey(index)) {
-                IndexMemoryMetrics indexMemoryMetrics = indicesMemoryMetrics.get(index);
-                indexMemoryMetrics.update(
+        List<Index> missedUpdates = new ArrayList<>();
+        for (var entry : heapMemoryUsage.indicesMappingSize().entrySet()) {
+            Index index = entry.getKey();
+            IndexMappingSize indexMappingSize = entry.getValue();
+            boolean applied = false;
+            IndexMemoryMetrics indexMemoryMetrics = indicesMemoryMetrics.get(index);
+            if (indexMemoryMetrics != null) {
+                applied = indexMemoryMetrics.update(
                     indexMappingSize.sizeInBytes(),
                     heapMemoryUsage.publicationSeqNo(),
                     indexMappingSize.metricShardNodeId()
                 );
             }
-        });
+            if (applied == false) {
+                missedUpdates.add(index);
+            }
+        }
+        if (missedUpdates.size() > 0) {
+            throw new AutoscalingMissedIndicesUpdateException(
+                "Failed to fully apply " + heapMemoryUsage + " due to missed indices: " + missedUpdates
+            );
+        }
     }
 
     @Override
@@ -180,7 +192,7 @@ public class MemoryMetricsService implements ClusterStateListener {
             this.metricShardNodeId = metricShardNodeId;
         }
 
-        synchronized void update(long sizeInBytes, long seqNo, String metricShardNodeId) {
+        synchronized boolean update(long sizeInBytes, long seqNo, String metricShardNodeId) {
             assert metricShardNodeId != null;
             // drop messages which were sent from unknown nodes
             // e.g. message late arrival from previously allocated node (where primary 0-shard used to be)
@@ -191,7 +203,9 @@ public class MemoryMetricsService implements ClusterStateListener {
                     this.metricQuality = MetricQuality.EXACT;
                     this.metricShardNodeId = metricShardNodeId;
                 }
+                return true;
             }
+            return false;
         }
 
         private synchronized void update(MetricQuality metricQuality) {

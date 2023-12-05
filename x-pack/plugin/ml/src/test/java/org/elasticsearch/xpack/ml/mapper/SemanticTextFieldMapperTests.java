@@ -67,13 +67,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () ->  merge(
-                mapperService,
-                fieldMapping(
-                    b -> b.field("type", "semantic_text")
-                        .field("model_id", "another_model")
-                )
-            )
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", "semantic_text").field("model_id", "another_model")))
         );
         assertThat(e.getMessage(), containsString("Cannot update parameter [model_id] from [test_model] to [another_model]"));
     }
@@ -82,7 +76,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     protected Collection<? extends Plugin> getPlugins() {
         return singletonList(new MachineLearning(Settings.EMPTY));
     }
-
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
@@ -105,8 +98,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {
-    }
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {

@@ -104,7 +104,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
 import javax.net.ssl.SNIHostName;
 
 import static org.elasticsearch.core.Strings.format;
@@ -645,7 +644,10 @@ public class Node implements Closeable {
                 .stream()
                 .filter(task -> TransportSearchAction.TYPE.name().equals(task.getAction()))
                 .count();
-            if (searchTasksRemaining != 0) {
+            if (searchTasksRemaining == 0) {
+                logger.debug("all search tasks complete");
+                return;
+            } else {
                 // Let the system work on those searches for a while. We're on a dedicated thread to manage app shutdown, so we
                 // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
                 // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could

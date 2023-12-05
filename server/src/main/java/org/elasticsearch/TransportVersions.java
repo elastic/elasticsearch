@@ -184,10 +184,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PROFILE = def(8_551_00_0);
     public static final TransportVersion CLUSTER_STATS_RESCORER_USAGE_ADDED = def(8_552_00_0);
     public static final TransportVersion ML_INFERENCE_HF_SERVICE_ADDED = def(8_553_00_0);
-
-    // Placeholder for features that require the next lucene version. Its id needs to be adjusted when merging lucene_snapshot into main.
-    public static final TransportVersion UPGRADE_TO_LUCENE_9_9 = def(8_900_00_0);
-
+    public static final TransportVersion INFERENCE_USAGE_ADDED = def(8_554_00_0);
+    public static final TransportVersion UPGRADE_TO_LUCENE_9_9 = def(8_555_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -240,6 +238,9 @@ public class TransportVersions {
      *
      * In branches 8.7-8.10 see server/src/main/java/org/elasticsearch/TransportVersion.java for the equivalent definitions.
      */
+
+    // Placeholder for features that require the next lucene version. Its id needs to be adjusted when merging lucene_snapshot into main.
+    public static final TransportVersion UPGRADE_TO_LUCENE_9_10 = def(8_900_00_0);
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.

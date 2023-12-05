@@ -197,6 +197,11 @@ GET /_xpack/usage
     },
     "node_count" : 1
   },
+  "inference": {
+    "available" : true,
+    "enabled" : true,
+    "models" : []
+  },
   "logstash" : {
     "available" : true,
     "enabled" : true

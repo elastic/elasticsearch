@@ -79,7 +79,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         );
     }
 
-    static RestStatus toRestStatus(int statusCode) {
+    public static RestStatus toRestStatus(int statusCode) {
         RestStatus code = null;
         if (statusCode < 500) {
             code = RestStatus.fromCode(statusCode);

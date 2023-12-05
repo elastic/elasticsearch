@@ -57,7 +57,13 @@ public class GetStackTracesRequestTests extends ESTestCase {
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
                 GetStackTracesRequest deserialized = new GetStackTracesRequest(in);
                 assertEquals(sampleSize, deserialized.getSampleSize());
+                assertEquals(requestedDuration, deserialized.getRequestedDuration());
                 assertEquals(awsCostFactor, deserialized.getAwsCostFactor());
+                assertEquals(customCO2PerKWH, deserialized.getCustomCO2PerKWH());
+                assertEquals(datacenterPUE, deserialized.getCustomDatacenterPUE());
+                assertEquals(perCoreWattX86, deserialized.getCustomPerCoreWattX86());
+                assertEquals(perCoreWattARM64, deserialized.getCustomPerCoreWattARM64());
+                assertEquals(customCostPerCoreHour, deserialized.getCustomCostPerCoreHour());
                 assertEquals(query, deserialized.getQuery());
             }
         }

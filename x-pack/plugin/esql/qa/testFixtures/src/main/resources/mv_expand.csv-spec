@@ -306,3 +306,13 @@ a:long      | b:long      | c:long      | gender:keyword | str:keyword   | x:key
 57          |57           |57           |M               |"57,M"         |M              
 0           |10           |10           |null            |null         |null           
 ;
+
+
+//see https://github.com/elastic/elasticsearch/issues/102912
+statsDissectThatOverwritesAndMvExpand#[skip:-8.11.99]
+row  a = "a", b = 1 | stats  e = min(b) by a | dissect a "%{e}" | mv_expand e;
+
+a:keyword | e:keyword
+a         | a
+;
+

@@ -149,14 +149,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     @Override
     protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
         licenseChecker.requireSupportedLicense();
-        GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
-        responseBuilder.setRequestedDuration(request.getRequestedDuration());
-        responseBuilder.setAwsCostFactor(request.getAwsCostFactor());
-        responseBuilder.setCustomCO2PerKWH(request.getCustomCO2PerKWH());
-        responseBuilder.setCustomDatacenterPUE(request.getCustomDatacenterPUE());
-        responseBuilder.setCustomPerCoreWattX86(request.getCustomPerCoreWattX86());
-        responseBuilder.setCustomPerCoreWattARM64(request.getCustomPerCoreWattARM64());
-        responseBuilder.setCustomCostPerCoreHour(request.getCustomCostPerCoreHour());
+        GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(request);
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         if (request.getIndices() == null) {
             searchProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
@@ -413,8 +406,8 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         List<Index> indices = resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
 
         // Build a set of unique host IDs.
-        Set<String> uniqueHostIDs = new HashSet<>(responseBuilder.hostEventCounts.size());
-        for (HostEventCount hec : responseBuilder.hostEventCounts) {
+        Set<String> uniqueHostIDs = new HashSet<>(responseBuilder.getHostEventCounts().size());
+        for (HostEventCount hec : responseBuilder.getHostEventCounts()) {
             uniqueHostIDs.add(hec.hostID);
         }
 
@@ -557,21 +550,21 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 instanceTypeService,
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
-                responseBuilder.customCO2PerKWH,
-                responseBuilder.customDatacenterPUE,
-                responseBuilder.customPerCoreWattX86,
-                responseBuilder.customPerCoreWattARM64
+                responseBuilder.getCustomCO2PerKWH(),
+                responseBuilder.getCustomDatacenterPUE(),
+                responseBuilder.getCustomPerCoreWattX86(),
+                responseBuilder.getCustomPerCoreWattARM64()
             );
             CostCalculator costCalculator = new CostCalculator(
                 instanceTypeService,
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
-                responseBuilder.awsCostFactor,
-                responseBuilder.customCostPerCoreHour
+                responseBuilder.getAWSCostFactor(),
+                responseBuilder.getCustomCostPerCoreHour()
             );
-            Map<String, TraceEvent> events = responseBuilder.stackTraceEvents;
+            Map<String, TraceEvent> events = responseBuilder.getStackTraceEvents();
             List<String> missingStackTraces = new ArrayList<>();
-            for (HostEventCount hec : responseBuilder.hostEventCounts) {
+            for (HostEventCount hec : responseBuilder.getHostEventCounts()) {
                 TraceEvent event = events.get(hec.stacktraceID);
                 if (event == null) {
                     // If this happens, hostEventsCounts and events are out of sync, which indicates a bug.
@@ -765,143 +758,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 .addIds(index.getName(), slice)
                 .setRealtime(realtime)
                 .execute(new ThreadedActionListener<>(responseExecutor, listener));
-        }
-    }
-
-    private static class GetStackTracesResponseBuilder {
-        private Map<String, StackTrace> stackTraces;
-        private Instant start;
-        private Instant end;
-        private int totalFrames;
-        private Map<String, StackFrame> stackFrames;
-        private Map<String, String> executables;
-        private Map<String, TraceEvent> stackTraceEvents;
-        private List<HostEventCount> hostEventCounts;
-        private double samplingRate;
-        private long totalSamples;
-        private Double requestedDuration;
-        private Double awsCostFactor;
-        private Double customCO2PerKWH;
-        private Double customDatacenterPUE;
-        private Double customPerCoreWattX86;
-        private Double customPerCoreWattARM64;
-        private Double customCostPerCoreHour;
-
-        public void setStackTraces(Map<String, StackTrace> stackTraces) {
-            this.stackTraces = stackTraces;
-        }
-
-        public Instant getStart() {
-            return start;
-        }
-
-        public void setStart(Instant start) {
-            this.start = start;
-        }
-
-        public Instant getEnd() {
-            return end;
-        }
-
-        public void setEnd(Instant end) {
-            this.end = end;
-        }
-
-        public void setTotalFrames(int totalFrames) {
-            this.totalFrames = totalFrames;
-        }
-
-        public void setStackFrames(Map<String, StackFrame> stackFrames) {
-            this.stackFrames = stackFrames;
-        }
-
-        public void setExecutables(Map<String, String> executables) {
-            this.executables = executables;
-        }
-
-        public void setStackTraceEvents(Map<String, TraceEvent> stackTraceEvents) {
-            this.stackTraceEvents = stackTraceEvents;
-        }
-
-        public void setHostEventCounts(List<HostEventCount> hostEventCounts) {
-            this.hostEventCounts = hostEventCounts;
-        }
-
-        public Map<String, TraceEvent> getStackTraceEvents() {
-            return stackTraceEvents;
-        }
-
-        public void setSamplingRate(double rate) {
-            this.samplingRate = rate;
-        }
-
-        public double getSamplingRate() {
-            return samplingRate;
-        }
-
-        public void setRequestedDuration(Double requestedDuration) {
-            this.requestedDuration = requestedDuration;
-        }
-
-        public double getRequestedDuration() {
-            if (requestedDuration != null) {
-                return requestedDuration;
-            }
-            // If "requested_duration" wasn't specified, we use the time range from the query response.
-            return end.getEpochSecond() - start.getEpochSecond();
-        }
-
-        public void setAwsCostFactor(Double awsCostFactor) {
-            this.awsCostFactor = awsCostFactor;
-        }
-
-        public void setCustomCO2PerKWH(Double customCO2PerKWH) {
-            this.customCO2PerKWH = customCO2PerKWH;
-        }
-
-        public void setCustomDatacenterPUE(Double customDatacenterPUE) {
-            this.customDatacenterPUE = customDatacenterPUE;
-        }
-
-        public void setCustomPerCoreWattX86(Double customPerCoreWattX86) {
-            this.customPerCoreWattX86 = customPerCoreWattX86;
-        }
-
-        public void setCustomPerCoreWattARM64(Double customPerCoreWattARM64) {
-            this.customPerCoreWattARM64 = customPerCoreWattARM64;
-        }
-
-        public void setCustomCostPerCoreHour(Double customCostPerCoreHour) {
-            this.customCostPerCoreHour = customCostPerCoreHour;
-        }
-
-        public void setTotalSamples(long totalSamples) {
-            this.totalSamples = totalSamples;
-        }
-
-        public GetStackTracesResponse build() {
-            // Merge the TraceEvent data into the StackTraces.
-            if (stackTraces != null) {
-                for (Map.Entry<String, StackTrace> entry : stackTraces.entrySet()) {
-                    String stacktraceID = entry.getKey();
-                    TraceEvent event = stackTraceEvents.get(stacktraceID);
-                    if (event != null) {
-                        StackTrace stackTrace = entry.getValue();
-                        stackTrace.count = event.count;
-                        stackTrace.annualCO2Tons = event.annualCO2Tons;
-                        stackTrace.annualCostsUSD = event.annualCostsUSD;
-                    }
-                }
-            }
-            return new GetStackTracesResponse(
-                stackTraces,
-                stackFrames,
-                executables,
-                stackTraceEvents,
-                totalFrames,
-                samplingRate,
-                totalSamples
-            );
         }
     }
 

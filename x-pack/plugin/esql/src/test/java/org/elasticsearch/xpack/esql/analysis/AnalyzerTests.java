@@ -1426,6 +1426,11 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
     }
 
+    public void testUnresolvedMvExpand() {
+        var e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | mv_expand bar"));
+        assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

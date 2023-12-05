@@ -347,7 +347,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     p.source(),
                     p.child(),
                     resolved,
-                    new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), null, resolved.nullable(), null, false)
+                    resolved.resolved()
+                        ? new ReferenceAttribute(
+                            resolved.source(),
+                            resolved.name(),
+                            resolved.dataType(),
+                            null,
+                            resolved.nullable(),
+                            null,
+                            false
+                        )
+                        : resolved
                 );
             }
             return p;

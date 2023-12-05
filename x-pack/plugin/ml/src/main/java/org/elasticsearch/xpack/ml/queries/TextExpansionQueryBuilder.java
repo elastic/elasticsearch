@@ -236,7 +236,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         String fieldName = null;
         String modelText = null;
         String modelId = null;
-        TokenPruningConfig threshold = null;
+        TokenPruningConfig tokenPruningConfig = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
@@ -252,7 +252,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (PRUNING_CONFIG.match(currentFieldName, parser.getDeprecationHandler())) {
-                            threshold = TokenPruningConfig.fromXContent(parser);
+                            tokenPruningConfig = TokenPruningConfig.fromXContent(parser);
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
@@ -296,7 +296,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        TextExpansionQueryBuilder queryBuilder = new TextExpansionQueryBuilder(fieldName, modelText, modelId, threshold);
+        TextExpansionQueryBuilder queryBuilder = new TextExpansionQueryBuilder(fieldName, modelText, modelId, tokenPruningConfig);
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
         return queryBuilder;

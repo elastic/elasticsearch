@@ -47,8 +47,15 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
-        TokenPruningConfig threshold = rarely() ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean()) : null;
-        var builder = new TextExpansionQueryBuilder(RANK_FEATURES_FIELD, randomAlphaOfLength(4), randomAlphaOfLength(4), threshold);
+        TokenPruningConfig tokenPruningConfig = rarely()
+            ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean())
+            : null;
+        var builder = new TextExpansionQueryBuilder(
+            RANK_FEATURES_FIELD,
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            tokenPruningConfig
+        );
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }

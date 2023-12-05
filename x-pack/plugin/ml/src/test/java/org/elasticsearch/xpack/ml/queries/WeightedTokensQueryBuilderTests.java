@@ -60,11 +60,11 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     @Override
     protected WeightedTokensQueryBuilder doCreateTestQueryBuilder() {
-        TokenPruningConfig threshold = randomBoolean()
+        TokenPruningConfig tokenPruningConfig = randomBoolean()
             ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean())
             : null;
 
-        var builder = new WeightedTokensQueryBuilder(RANK_FEATURES_FIELD, WEIGHTED_TOKENS, threshold);
+        var builder = new WeightedTokensQueryBuilder(RANK_FEATURES_FIELD, WEIGHTED_TOKENS, tokenPruningConfig);
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }

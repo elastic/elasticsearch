@@ -43,26 +43,26 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     private final String fieldName;
     private final Set<WeightedToken> tokens;
     @Nullable
-    private final TokenPruningConfig threshold;
+    private final TokenPruningConfig tokenPruningConfig;
 
     public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens) {
         this(fieldName, tokens, null);
     }
 
-    public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens, @Nullable TokenPruningConfig threshold) {
+    public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
         if (tokens.isEmpty()) {
             throw new IllegalArgumentException("[" + NAME + "] requires at least one token");
         }
-        this.threshold = threshold;
+        this.tokenPruningConfig = tokenPruningConfig;
     }
 
     public WeightedTokensQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
         this.tokens = in.readCollectionAsSet(WeightedToken::new);
-        this.threshold = in.readOptionalWriteable(TokenPruningConfig::new);
+        this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
     }
 
     public String getFieldName() {
@@ -70,15 +70,15 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     }
 
     @Nullable
-    public TokenPruningConfig getThreshold() {
-        return threshold;
+    public TokenPruningConfig getTokenPruningConfig() {
+        return tokenPruningConfig;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeCollection(tokens);
-        out.writeOptionalWriteable(threshold);
+        out.writeOptionalWriteable(tokenPruningConfig);
     }
 
     @Override
@@ -90,8 +90,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             token.toXContent(builder, params);
         }
         builder.endObject();
-        if (threshold != null) {
-            threshold.toXContent(builder, params);
+        if (tokenPruningConfig != null) {
+            tokenPruningConfig.toXContent(builder, params);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
@@ -124,7 +124,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     }
 
     /**
-     * Returns true if the token should be queried based on the {@code ratioThreshold} and {@code weightThreshold}
+     * Returns true if the token should be queried based on the {@code tokensFreqRatioThreshold} and {@code tokensWeightThreshold}
      * set on the query.
      */
     private boolean shouldKeepToken(
@@ -134,7 +134,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         float averageTokenFreqRatio,
         float bestWeight
     ) throws IOException {
-        if (threshold == null) {
+        if (this.tokenPruningConfig == null) {
             return true;
         }
         int docFreq = reader.docFreq(new Term(fieldName, token.token()));
@@ -142,8 +142,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             return false;
         }
         float tokenFreqRatio = (float) docFreq / fieldDocCount;
-        return tokenFreqRatio < threshold.getTokensFreqRatioThreshold() * averageTokenFreqRatio
-            || token.weight() > threshold.getTokensWeightThreshold() * bestWeight;
+        return tokenFreqRatio < this.tokenPruningConfig.getTokensFreqRatioThreshold() * averageTokenFreqRatio
+            || token.weight() > this.tokenPruningConfig.getTokensWeightThreshold() * bestWeight;
     }
 
     @Override
@@ -164,8 +164,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
         for (var token : tokens) {
             boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight);
-            if (threshold != null) {
-                keep ^= threshold.isOnlyScorePrunedTokens();
+            if (this.tokenPruningConfig != null) {
+                keep ^= this.tokenPruningConfig.isOnlyScorePrunedTokens();
             }
             if (keep) {
                 qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
@@ -176,12 +176,14 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
 
     @Override
     protected boolean doEquals(WeightedTokensQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) && Objects.equals(threshold, other.threshold) && tokens.equals(other.tokens);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
+            && tokens.equals(other.tokens);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, tokens, threshold);
+        return Objects.hash(fieldName, tokens, tokenPruningConfig);
     }
 
     @Override
@@ -210,7 +212,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         String currentFieldName = null;
         String fieldName = null;
         Set<WeightedToken> tokens = new HashSet<>();
-        TokenPruningConfig threshold = null;
+        TokenPruningConfig tokenPruningConfig = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         XContentParser.Token token;
@@ -230,8 +232,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
                                 "[" + PRUNING_CONFIG.getPreferredName() + "] should be an object"
                             );
                         }
-                        // TODO may need a bool here to indicate threshold null or not
-                        threshold = TokenPruningConfig.fromXContent(parser);
+                        tokenPruningConfig = TokenPruningConfig.fromXContent(parser);
                     } else if (TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         var tokensMap = parser.map();
                         for (var e : tokensMap.entrySet()) {
@@ -254,7 +255,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        var qb = new WeightedTokensQueryBuilder(fieldName, tokens, threshold);
+        var qb = new WeightedTokensQueryBuilder(fieldName, tokens, tokenPruningConfig);
         qb.queryName(queryName);
         qb.boost(boost);
         return qb;

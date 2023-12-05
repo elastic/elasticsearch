@@ -380,7 +380,7 @@ class S3BlobStore implements BlobStore {
 
     public StorageClass getStorageClass(OperationPurpose purpose) {
         // map the ES s3 storage class to s3 sdk storage class
-        return switch(storageClassStrategy.getStorageClass(purpose)) {
+        return switch (storageClassStrategy.getStorageClass(purpose)) {
             case STANDARD -> StorageClass.Standard;
             case REDUCED_REDUNDANCY -> StorageClass.ReducedRedundancy;
             case STANDARD_IA -> StorageClass.StandardInfrequentAccess;

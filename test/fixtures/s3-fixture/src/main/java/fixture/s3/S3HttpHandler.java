@@ -21,8 +21,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
@@ -43,6 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -53,8 +52,6 @@ import static org.w3c.dom.Node.ELEMENT_NODE;
  */
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 public class S3HttpHandler implements HttpHandler {
-
-    private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
 
     private final String bucket;
     private final String path;
@@ -69,7 +66,6 @@ public class S3HttpHandler implements HttpHandler {
     public S3HttpHandler(final String bucket, @Nullable final String basePath) {
         this.bucket = Objects.requireNonNull(bucket);
         this.path = bucket + (basePath != null && basePath.isEmpty() == false ? "/" + basePath : "");
-        logger.info("HELLO!");
     }
 
     @Override
@@ -306,8 +302,6 @@ public class S3HttpHandler implements HttpHandler {
             } else {
                 exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
             }
-        } catch (Exception e) {
-            logger.error("ERROR", e);
         } finally {
             exchange.close();
         }

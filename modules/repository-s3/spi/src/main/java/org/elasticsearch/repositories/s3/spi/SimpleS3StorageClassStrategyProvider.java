@@ -21,8 +21,11 @@ public class SimpleS3StorageClassStrategyProvider implements S3StorageClassStrat
     /**
      * Sets the S3 storage class type for the objects written to S3.
      */
-    public static final Setting<S3StorageClass> STORAGE_CLASS_SETTING =
-        Setting.enumSetting(S3StorageClass.class, "storage_class", S3StorageClass.STANDARD);
+    public static final Setting<S3StorageClass> STORAGE_CLASS_SETTING = Setting.enumSetting(
+        S3StorageClass.class,
+        "storage_class",
+        S3StorageClass.STANDARD
+    );
 
     @Override
     public S3StorageClassStrategy getS3StorageClassStrategy(Settings repositorySettings) {

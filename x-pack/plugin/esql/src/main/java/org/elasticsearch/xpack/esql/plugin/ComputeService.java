@@ -32,6 +32,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
+import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeResponse;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -162,6 +163,8 @@ public class ComputeService {
 
         LOGGER.debug("Sending data node plan\n{}\n with filter [{}]", dataNodePlan, requestFilter);
 
+        final var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
+        listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
         String[] originalIndices = PlannerUtils.planOriginalIndices(physicalPlan);
         computeTargetNodes(
             rootTask,
@@ -193,6 +196,7 @@ public class ComputeService {
                         computeContext,
                         coordinatorPlan,
                         cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(driverProfiles -> {
+                            responseHeadersCollector.collect();
                             if (configuration.profile()) {
                                 collectedProfiles.addAll(driverProfiles);
                             }
@@ -208,6 +212,7 @@ public class ComputeService {
                         exchangeSource,
                         targetNodes,
                         () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(response -> {
+                            responseHeadersCollector.collect();
                             if (configuration.profile()) {
                                 collectedProfiles.addAll(response.profiles);
                             }
@@ -501,9 +506,12 @@ public class ComputeService {
                 runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(driverProfiles -> {
                     // don't return until all pages are fetched
                     exchangeSink.addCompletionListener(
-                        ActionListener.releaseAfter(
-                            listener.map(nullValue -> new DataNodeResponse(driverProfiles)),
-                            () -> exchangeService.finishSinkHandler(sessionId, null)
+                        ContextPreservingActionListener.wrapPreservingContext(
+                            ActionListener.releaseAfter(
+                                listener.map(nullValue -> new DataNodeResponse(driverProfiles)),
+                                () -> exchangeService.finishSinkHandler(sessionId, null)
+                            ),
+                            transportService.getThreadPool().getThreadContext()
                         )
                     );
                 }, e -> {

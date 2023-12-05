@@ -77,10 +77,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DROP;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.KEEP;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.RENAME;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -114,7 +111,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
-        return verify(execute(plan), gatherPartialMetrics(plan, partialMetrics));
+        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
@@ -710,23 +707,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private BitSet gatherPartialMetrics(LogicalPlan plan, BitSet b) {
+    private BitSet gatherPreAnalysisMetrics(LogicalPlan plan, BitSet b) {
         // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
         if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
             b.set(LIMIT.ordinal());
         }
-        // these commands cannot be infered after the analysis step
-        plan.forEachDown(p -> {
-            if (p instanceof Rename) {
-                // rename is not reflected at all in the post-analysis steps
-                b.set(RENAME.ordinal());
-            } else if (p instanceof Drop) {
-                // drop and keep can only be checked with String comparison on the Source itself
-                b.set(DROP.ordinal());
-            } else if (p instanceof Keep) {
-                b.set(KEEP.ordinal());
-            }
-        });
+        plan.forEachDown(p -> FeatureMetric.set(p, b));
         return b;
     }
 }

@@ -10,12 +10,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearningToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 
 import java.util.ArrayList;
@@ -34,30 +32,22 @@ public class MlLTRNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 LenientlyParsedInferenceConfig.class,
-                LearnToRankConfig.NAME,
-                LearnToRankConfig::fromXContentLenient
+                LearningToRankConfig.NAME,
+                LearningToRankConfig::fromXContentLenient
             )
         );
         // Strict Inference Config
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 StrictlyParsedInferenceConfig.class,
-                LearnToRankConfig.NAME,
-                LearnToRankConfig::fromXContentStrict
-            )
-        );
-        // Inference Config Update
-        namedXContent.add(
-            new NamedXContentRegistry.Entry(
-                InferenceConfigUpdate.class,
-                LearnToRankConfigUpdate.NAME,
-                LearnToRankConfigUpdate::fromXContentStrict
+                LearningToRankConfig.NAME,
+                LearningToRankConfig::fromXContentStrict
             )
         );
         // LTR extractors
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                LearnToRankFeatureExtractorBuilder.class,
+                LearningToRankFeatureExtractorBuilder.class,
                 QueryExtractorBuilder.NAME,
                 QueryExtractorBuilder::fromXContent
             )
@@ -69,20 +59,12 @@ public class MlLTRNamedXContentProvider implements NamedXContentProvider {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         // Inference config
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceConfig.class, LearnToRankConfig.NAME.getPreferredName(), LearnToRankConfig::new)
-        );
-        // Inference config update
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceConfigUpdate.class,
-                LearnToRankConfigUpdate.NAME.getPreferredName(),
-                LearnToRankConfigUpdate::new
-            )
+            new NamedWriteableRegistry.Entry(InferenceConfig.class, LearningToRankConfig.NAME.getPreferredName(), LearningToRankConfig::new)
         );
         // LTR Extractors
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                LearnToRankFeatureExtractorBuilder.class,
+                LearningToRankFeatureExtractorBuilder.class,
                 QueryExtractorBuilder.NAME.getPreferredName(),
                 QueryExtractorBuilder::new
             )

@@ -17,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -49,6 +48,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -152,30 +152,31 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         prepareIndex("test_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
-        SearchResponse searchResponse = prepareSearch("test_index").setQuery(termQuery("field1", "value1"))
-            .addStoredField("field1")
-            .addStoredField("field2")
-            .get();
-
-        assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
-        // field2 is not stored.
-        assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
+        assertResponse(
+            prepareSearch("test_index").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
+            searchResponse -> {
+                assertHitCount(searchResponse, 1);
+                assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
+                // field2 is not stored.
+                assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
+            }
+        );
 
         prepareIndex("text_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         // now only match on one template (template_1)
-        searchResponse = prepareSearch("text_index").setQuery(termQuery("field1", "value1"))
-            .addStoredField("field1")
-            .addStoredField("field2")
-            .get();
-        if (searchResponse.getFailedShards() > 0) {
-            logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
-        }
-        assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
-        assertThat(searchResponse.getHits().getAt(0).field("field2").getValue().toString(), equalTo("value 2"));
+        assertResponse(
+            prepareSearch("text_index").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
+            searchResponse -> {
+                if (searchResponse.getFailedShards() > 0) {
+                    logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
+                }
+                assertHitCount(searchResponse, 1);
+                assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
+                assertThat(searchResponse.getHits().getAt(0).field("field2").getValue().toString(), equalTo("value 2"));
+            }
+        );
     }
 
     public void testDeleteIndexTemplate() throws Exception {
@@ -502,20 +503,22 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertHitCount(prepareSearch("simple_alias"), 5L);
         assertHitCount(prepareSearch("templated_alias-test_index"), 5L);
 
-        SearchResponse searchResponse = prepareSearch("filtered_alias").get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("type"), equalTo("type2"));
+        assertResponse(prepareSearch("filtered_alias"), response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("type"), equalTo("type2"));
+        });
 
         // Search the complex filter alias
-        searchResponse = prepareSearch("complex_filtered_alias").get();
-        assertHitCount(searchResponse, 3L);
+        assertResponse(prepareSearch("complex_filtered_alias"), response -> {
+            assertHitCount(response, 3L);
 
-        Set<String> types = new HashSet<>();
-        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            types.add(searchHit.getSourceAsMap().get("type").toString());
-        }
-        assertThat(types.size(), equalTo(3));
-        assertThat(types, containsInAnyOrder("typeX", "typeY", "typeZ"));
+            Set<String> types = new HashSet<>();
+            for (SearchHit searchHit : response.getHits().getHits()) {
+                types.add(searchHit.getSourceAsMap().get("type").toString());
+            }
+            assertThat(types.size(), equalTo(3));
+            assertThat(types, containsInAnyOrder("typeX", "typeY", "typeZ"));
+        });
     }
 
     public void testIndexTemplateWithAliasesInSource() {
@@ -546,9 +549,10 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         assertHitCount(prepareSearch("test_index"), 2L);
 
-        SearchResponse searchResponse = prepareSearch("my_alias").get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
+        assertResponse(prepareSearch("my_alias"), response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
+        });
     }
 
     public void testIndexTemplateWithAliasesSource() {
@@ -582,9 +586,10 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertHitCount(prepareSearch("test_index"), 2L);
         assertHitCount(prepareSearch("alias1"), 2L);
 
-        SearchResponse searchResponse = prepareSearch("alias2").get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
+        assertResponse(prepareSearch("alias2"), response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
+        });
     }
 
     public void testDuplicateAlias() throws Exception {
@@ -837,24 +842,24 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         ensureGreen();
 
         // ax -> matches template
-        SearchResponse searchResponse = prepareSearch("ax").setQuery(termQuery("field1", "value1"))
-            .addStoredField("field1")
-            .addStoredField("field2")
-            .get();
-
-        assertHitCount(searchResponse, 1);
-        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").getValue().toString());
-        assertNull(searchResponse.getHits().getAt(0).field("field2"));
+        assertResponse(
+            prepareSearch("ax").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
+            response -> {
+                assertHitCount(response, 1);
+                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
+                assertNull(response.getHits().getAt(0).field("field2"));
+            }
+        );
 
         // bx -> matches template
-        searchResponse = prepareSearch("bx").setQuery(termQuery("field1", "value1"))
-            .addStoredField("field1")
-            .addStoredField("field2")
-            .get();
-
-        assertHitCount(searchResponse, 1);
-        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").getValue().toString());
-        assertNull(searchResponse.getHits().getAt(0).field("field2"));
+        assertResponse(
+            prepareSearch("bx").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
+            response -> {
+                assertHitCount(response, 1);
+                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
+                assertNull(response.getHits().getAt(0).field("field2"));
+            }
+        );
     }
 
     public void testPartitionedTemplate() throws Exception {

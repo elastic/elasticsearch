@@ -1,0 +1,33 @@
+{
+  "connector.post": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
+      "description": "Creates a connector."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.connector_api_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The connector configuration.",
+      "required": false
+    }
+  }
+}

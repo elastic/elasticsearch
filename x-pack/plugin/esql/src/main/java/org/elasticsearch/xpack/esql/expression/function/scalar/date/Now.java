@@ -73,7 +73,7 @@ public class Now extends ConfigurationFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return dvrCtx -> new NowEvaluator(now, dvrCtx);
+        return dvrCtx -> new NowEvaluator(source(), now, dvrCtx);
     }
 
     @Override

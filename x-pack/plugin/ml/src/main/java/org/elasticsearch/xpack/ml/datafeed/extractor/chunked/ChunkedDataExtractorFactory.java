@@ -23,6 +23,8 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
 
     private final Client client;
     private final DatafeedConfig datafeedConfig;
+
+    private final QueryBuilder extraFilters;
     private final Job job;
     private final DataExtractorFactory dataExtractorFactory;
     private final NamedXContentRegistry xContentRegistry;
@@ -31,6 +33,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     public ChunkedDataExtractorFactory(
         Client client,
         DatafeedConfig datafeedConfig,
+        QueryBuilder extraFilters,
         Job job,
         NamedXContentRegistry xContentRegistry,
         DataExtractorFactory dataExtractorFactory,
@@ -38,6 +41,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
+        this.extraFilters = extraFilters;
         this.job = Objects.requireNonNull(job);
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.xContentRegistry = xContentRegistry;
@@ -46,19 +50,10 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
-    }
-
-    @Override
-    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
-        return buildExtractor(
-            start,
-            end,
-            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
-        );
-    }
-
-    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
+        QueryBuilder queryBuilder = datafeedConfig.getParsedQuery(xContentRegistry);
+        if (extraFilters != null) {
+            queryBuilder = QueryBuilders.boolQuery().filter(queryBuilder).filter(extraFilters);
+        }
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),

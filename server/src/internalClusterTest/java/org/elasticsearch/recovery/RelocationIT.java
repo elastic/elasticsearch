@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,7 +43,6 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -80,6 +78,8 @@ import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachF
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -133,7 +133,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         indicesAdmin().prepareRefresh().get();
-        assertThat(prepareSearch("test").setSize(0).get().getHits().getTotalHits().value, equalTo(20L));
+        assertHitCount(prepareSearch("test").setSize(0), 20L);
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
@@ -155,7 +155,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count again...");
         indicesAdmin().prepareRefresh().get();
-        assertThat(prepareSearch("test").setSize(0).get().getHits().getTotalHits().value, equalTo(20L));
+        assertHitCount(prepareSearch("test").setSize(0), 20);
     }
 
     public void testRelocationWhileIndexingRandom() throws Exception {
@@ -229,35 +229,31 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> refreshing the index");
             indicesAdmin().prepareRefresh("test").get();
             logger.info("--> searching the index");
-            boolean ranOnce = false;
             for (int i = 0; i < 10; i++) {
+                final int idx = i;
                 logger.info("--> START search test round {}", i + 1);
-                SearchHits hits = prepareSearch("test").setQuery(matchAllQuery())
-                    .setSize((int) indexer.totalIndexedDocs())
-                    .storedFields()
-                    .get()
-                    .getHits();
-                ranOnce = true;
-                if (hits.getTotalHits().value != indexer.totalIndexedDocs()) {
-                    int[] hitIds = new int[(int) indexer.totalIndexedDocs()];
-                    for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
-                        hitIds[hit] = hit + 1;
-                    }
-                    Set<Integer> set = Arrays.stream(hitIds).boxed().collect(Collectors.toSet());
-                    for (SearchHit hit : hits.getHits()) {
-                        int id = Integer.parseInt(hit.getId());
-                        if (set.remove(id) == false) {
-                            logger.error("Extra id [{}]", id);
+                assertResponse(
+                    prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).storedFields(),
+                    response -> {
+                        var hits = response.getHits();
+                        if (hits.getTotalHits().value != indexer.totalIndexedDocs()) {
+                            int[] hitIds = new int[(int) indexer.totalIndexedDocs()];
+                            for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
+                                hitIds[hit] = hit + 1;
+                            }
+                            Set<Integer> set = Arrays.stream(hitIds).boxed().collect(Collectors.toSet());
+                            for (SearchHit hit : hits.getHits()) {
+                                int id = Integer.parseInt(hit.getId());
+                                if (set.remove(id) == false) {
+                                    logger.error("Extra id [{}]", id);
+                                }
+                            }
+                            set.forEach(value -> logger.error("Missing id [{}]", value));
                         }
+                        assertThat(hits.getTotalHits().value, equalTo(indexer.totalIndexedDocs()));
+                        logger.info("--> DONE search test round {}", idx + 1);
                     }
-                    set.forEach(value -> logger.error("Missing id [{}]", value));
-                }
-                assertThat(hits.getTotalHits().value, equalTo(indexer.totalIndexedDocs()));
-                logger.info("--> DONE search test round {}", i + 1);
-
-            }
-            if (ranOnce == false) {
-                fail();
+                );
             }
         }
     }
@@ -360,15 +356,15 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
 
             logger.debug("--> verifying all searches return the same number of docs");
-            long expectedCount = -1;
+            long[] expectedCount = new long[] { -1 };
             for (Client client : clients()) {
-                SearchResponse response = client.prepareSearch("test").setPreference("_local").setSize(0).get();
-                assertNoFailures(response);
-                if (expectedCount < 0) {
-                    expectedCount = response.getHits().getTotalHits().value;
-                } else {
-                    assertEquals(expectedCount, response.getHits().getTotalHits().value);
-                }
+                assertNoFailuresAndResponse(client.prepareSearch("test").setPreference("_local").setSize(0), response -> {
+                    if (expectedCount[0] < 0) {
+                        expectedCount[0] = response.getHits().getTotalHits().value;
+                    } else {
+                        assertEquals(expectedCount[0], response.getHits().getTotalHits().value);
+                    }
+                });
             }
 
         }
@@ -570,7 +566,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         indicesAdmin().prepareRefresh().get();
-        assertThat(prepareSearch("test").setSize(0).get().getHits().getTotalHits().value, equalTo(20L));
+        assertHitCount(prepareSearch("test").setSize(0), 20);
     }
 
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
@@ -636,7 +632,7 @@ public class RelocationIT extends ESIntegTestCase {
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
 
-        assertThat(prepareSearch("test").setSize(0).get().getHits().getTotalHits().value, equalTo(120L));
+        assertHitCount(prepareSearch("test").setSize(0), 120);
     }
 
     public void testRelocationEstablishedPeerRecoveryRetentionLeases() throws Exception {

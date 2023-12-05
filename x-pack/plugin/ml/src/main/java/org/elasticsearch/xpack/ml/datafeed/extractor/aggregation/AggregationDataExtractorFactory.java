@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
@@ -23,13 +22,14 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 public record AggregationDataExtractorFactory(
     Client client,
     DatafeedConfig datafeedConfig,
+    QueryBuilder extraFilters,
     Job job,
     NamedXContentRegistry xContentRegistry,
     DatafeedTimingStatsReporter timingStatsReporter
 ) implements DataExtractorFactory {
 
     public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices, IndicesOptions indicesOptions) {
-        return (searchSourceBuilder) -> new SearchRequestBuilder(client, SearchAction.INSTANCE).setSource(searchSourceBuilder)
+        return (searchSourceBuilder) -> new SearchRequestBuilder(client).setSource(searchSourceBuilder)
             .setIndicesOptions(indicesOptions)
             .setAllowPartialSearchResults(false)
             .setIndices(indices);
@@ -37,19 +37,10 @@ public record AggregationDataExtractorFactory(
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
-    }
-
-    @Override
-    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
-        return buildExtractor(
-            start,
-            end,
-            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
-        );
-    }
-
-    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
+        QueryBuilder queryBuilder = datafeedConfig.getParsedQuery(xContentRegistry);
+        if (extraFilters != null) {
+            queryBuilder = QueryBuilders.boolQuery().filter(queryBuilder).filter(extraFilters);
+        }
         long histogramInterval = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
         AggregationDataExtractorContext dataExtractorContext = new AggregationDataExtractorContext(
             job.getId(),

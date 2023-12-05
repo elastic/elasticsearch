@@ -420,7 +420,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
         IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
-        assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(false));
+        assertThat(inferenceProcessor.buildRequest(document).getPreviouslyLicensed(), is(false));
 
         InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
@@ -432,7 +432,7 @@ public class InferenceProcessorTests extends ESTestCase {
             assertThat(ex, is(nullValue()));
         });
 
-        assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
+        assertThat(inferenceProcessor.buildRequest(document).getPreviouslyLicensed(), is(true));
 
         response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
@@ -445,7 +445,7 @@ public class InferenceProcessorTests extends ESTestCase {
             assertThat(ex, is(nullValue()));
         });
 
-        assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
+        assertThat(inferenceProcessor.buildRequest(document).getPreviouslyLicensed(), is(true));
 
         inferenceProcessor.handleResponse(response, document, (doc, ex) -> {
             assertThat(doc, is(not(nullValue())));
@@ -608,8 +608,8 @@ public class InferenceProcessorTests extends ESTestCase {
         document.setFieldValue("unrelated", "text");
 
         var request = inferenceProcessor.buildRequest(document);
-        assertTrue(request.getObjectsToInfer().isEmpty());
-        var requestInputs = request.getTextInput();
+        assertNull(request.getObjectsToInfer());
+        var requestInputs = request.getInputs();
         assertThat(requestInputs, contains("body_text", "title_text"));
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
         assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
@@ -683,7 +683,7 @@ public class InferenceProcessorTests extends ESTestCase {
             document.setFieldValue("unrelated", 1.0);
 
             var request = inferenceProcessor.buildRequest(document);
-            var requestInputs = request.getTextInput();
+            var requestInputs = request.getInputs();
             assertThat(requestInputs, contains("body_text", ""));
         }
     }

@@ -24,11 +24,11 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateAction;
@@ -271,7 +271,7 @@ public class ProfileService {
                 () -> executeAsyncWithOrigin(
                     client,
                     getActionOrigin(),
-                    SearchAction.INSTANCE,
+                    TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
                         final SearchHits searchHits = searchResponse.getHits();
@@ -373,7 +373,7 @@ public class ProfileService {
                 () -> executeAsyncWithOrigin(
                     client,
                     getActionOrigin(),
-                    MultiSearchAction.INSTANCE,
+                    TransportMultiSearchAction.TYPE,
                     multiSearchRequest,
                     ActionListener.wrap(multiSearchResponse -> {
                         final MultiSearchResponse.Item[] items = multiSearchResponse.getResponses();
@@ -553,7 +553,7 @@ public class ProfileService {
                 executeAsyncWithOrigin(
                     client,
                     getActionOrigin(),
-                    MultiSearchAction.INSTANCE,
+                    TransportMultiSearchAction.TYPE,
                     multiSearchRequest,
                     ActionListener.wrap(
                         multiSearchResponse -> listener.onResponse(convertSubjectMultiSearchResponse(multiSearchResponse, subjects)),

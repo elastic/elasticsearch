@@ -135,9 +135,9 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
         var strFactory = toEvaluator.apply(str);
         var startFactory = toEvaluator.apply(start);
         if (length == null) {
-            return new SubstringNoLengthEvaluator.Factory(strFactory, startFactory);
+            return new SubstringNoLengthEvaluator.Factory(source(), strFactory, startFactory);
         }
         var lengthFactory = toEvaluator.apply(length);
-        return new SubstringEvaluator.Factory(strFactory, startFactory, lengthFactory);
+        return new SubstringEvaluator.Factory(source(), strFactory, startFactory, lengthFactory);
     }
 }

@@ -79,6 +79,7 @@ import java.io.InputStream;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -335,14 +336,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             return null;
         }).when(manager).setJobState(any(), eq(JobState.FAILED), any(), any());
 
+        List<JobTask> unclosedTasks = new ArrayList<>();
         JobTask jobTask = mock(JobTask.class);
+        unclosedTasks.add(jobTask);
         when(jobTask.getJobId()).thenReturn("foo");
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         jobTask = mock(JobTask.class);
+        unclosedTasks.add(jobTask);
         when(jobTask.getJobId()).thenReturn("bar");
         when(jobTask.getAllocationId()).thenReturn(1L);
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         jobTask = mock(JobTask.class);
+        unclosedTasks.add(jobTask);
         when(jobTask.getJobId()).thenReturn("baz");
         when(jobTask.getAllocationId()).thenReturn(2L);
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
@@ -350,6 +355,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         Exception[] holder = new Exception[1];
         jobTask = mock(JobTask.class);
+        unclosedTasks.add(jobTask);
         when(jobTask.getJobId()).thenReturn("foobar");
         when(jobTask.getAllocationId()).thenReturn(3L);
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> holder[0] = e);
@@ -362,7 +368,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.closeJob(jobTask, null);
         assertEquals(2, manager.numberOfOpenJobs());
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e1, b) -> {});
+        unclosedTasks.add(jobTask);
         assertEquals(3, manager.numberOfOpenJobs());
+        for (JobTask task : unclosedTasks) {
+            manager.closeJob(task, null);
+        }
     }
 
     public void testProcessData() {

@@ -91,6 +91,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(2);
         awaitJobOpenedAndAssigned(job.getId(), null);
         assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(10, ChronoUnit.SECONDS), null);
+
+        closeJobs(job.getId());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82591")
@@ -166,6 +168,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(1, statsResponse.getResponse().results().size());
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
         });
+
+        closeJobs(job.getId());
     }
 
     public void testJobAutoClose() throws Exception {
@@ -205,6 +209,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(3L, jobStats.getDataCounts().getProcessedRecordCount());
             assertEquals(JobState.CLOSED, jobStats.getState());
         });
+
+        closeJobs(job.getId());
     }
 
     public void testDedicatedMlNode() throws Exception {
@@ -259,6 +265,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             // job should be re-opened:
             assertJobTask(jobId, JobState.OPENED, true);
         });
+
+        closeJobs(job.getId());
     }
 
     public void testMaxConcurrentJobAllocations() throws Exception {
@@ -304,6 +312,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         ensureYellow(); // at least the primary shards of the indices a job uses should be started
         int numJobs = numMlNodes * 10;
+        String[] jobIds = new String[numJobs];
         for (int i = 0; i < numJobs; i++) {
             Job.Builder job = createJob(Integer.toString(i), ByteSizeValue.ofMb(2));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
@@ -311,6 +320,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
             OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
             client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
+            jobIds[i] = job.getId();
         }
 
         assertBusy(checkAllJobsAreAssignedAndOpened(numJobs));
@@ -342,6 +352,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertBusy(checkAllJobsAreAssignedAndOpened(numJobs), 30, TimeUnit.SECONDS);
 
         assertEquals("Expected no violations, but got [" + violations + "]", 0, violations.size());
+
+        closeJobs(jobIds);
     }
 
     // This test is designed to check that a job will not open when the .ml-state
@@ -444,6 +456,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureYellow(); // at least the primary shards of the indices a job uses should be started
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> assertJobTask(jobId, JobState.OPENED, true));
+
+        closeJobs(job.getId());
     }
 
     public void testCloseUnassignedLazyJobAndDatafeed() {
@@ -533,5 +547,15 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
                 assertEquals(JobState.OPENED, jobTaskState.getState());
             }
         };
+    }
+
+    /*
+     * Utility method to close any jobs that remain open at the end of a test so that we don't leave unclosed resources out there.
+     */
+    private void closeJobs(String... jobIds) {
+        for (String jobId : jobIds) {
+            CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
+            client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
+        }
     }
 }

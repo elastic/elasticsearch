@@ -239,7 +239,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
      * Jobs that are already closing continue to close.
      */
     public synchronized void vacateOpenJobsOnThisNode() {
-
         for (ProcessContext processContext : processByAllocation.values()) {
 
             // We ignore jobs that either don't have a running process yet or already closing.
@@ -795,7 +794,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autodetectExecutorService);
-            autodetectExecutorService.submit(() -> { processor.process(ActionListener.releasing(jobRenormalizedResultsPersister)); });
+            autodetectExecutorService.submit(() -> processor.process());
         } catch (EsRejectedExecutionException e) {
             // If submitting the operation to read the results from the process fails we need to close
             // the process too, so that other submitted operations to threadpool are stopped.
@@ -814,7 +813,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
             processor,
             handler,
             xContentRegistry,
-            autodetectWorkerExecutor
+            autodetectWorkerExecutor,
+            jobRenormalizedResultsPersister::close
         );
     }
 
@@ -852,7 +852,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             if (processContext != null) {
                 AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
                 if (communicator != null) {
-                    communicator.destroyCategorizationAnalyzer();
+                    communicator.releaseResources();
                 }
             }
             setJobState(jobTask, JobState.FAILED, reason);

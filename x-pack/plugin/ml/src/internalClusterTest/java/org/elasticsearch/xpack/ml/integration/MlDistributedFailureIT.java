@@ -472,6 +472,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             assertEquals(1L, bigJobNodes.stream().distinct().count());
             assertNotEquals(smallJobNodes, bigJobNodes);
         });
+
+        closeJobs("small1", "small2", "small3", "big1");
     }
 
     public void testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown() throws Exception {
@@ -540,6 +542,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         });
+
+        closeJobs(job.getId());
     }
 
     public void testClusterWithTwoMlNodes_StopsDatafeed_GivenJobFailsOnReassign() throws Exception {
@@ -747,6 +751,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         long now2 = System.currentTimeMillis();
         indexDocs(logger, "data", numDocs2, now2 + 5000, now2 + 6000);
         waitForJobToHaveProcessedExactly(jobId, numDocs1 + numDocs2);
+
+        closeJobs(jobId);
     }
 
     // Get datacounts from index instead of via job stats api,
@@ -811,5 +817,15 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         JobUpdate jobUpdate = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
         client().execute(UpdateJobAction.INSTANCE, new UpdateJobAction.Request(jobId, jobUpdate)).actionGet();
+    }
+
+    /*
+     * Utility method to close any jobs that remain open at the end of a test so that we don't leave unclosed resources out there.
+     */
+    private void closeJobs(String... jobIds) {
+        for (String jobId : jobIds) {
+            CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
+            client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
+        }
     }
 }

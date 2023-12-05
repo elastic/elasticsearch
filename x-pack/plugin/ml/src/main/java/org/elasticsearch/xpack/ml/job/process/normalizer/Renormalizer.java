@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 
 public interface Renormalizer {
@@ -21,7 +20,7 @@ public interface Renormalizer {
      * Update the anomaly score field on all previously persisted buckets
      * and all contained records
      */
-    void renormalize(Quantiles quantiles, Runnable setupStep, ActionListener<Void> listener);
+    void renormalize(Quantiles quantiles, Runnable setupStep);
 
     /**
      * Blocks until the renormalizer is idle and no further quantiles updates are pending.

@@ -64,7 +64,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST
 
 /**
  * A runnable class that reads the autodetect process output in the
- * {@link #process(ActionListener<Void>)} method and persists parsed
+ * {@link #process()} method and persists parsed
  * results via the {@linkplain JobResultsPersister} passed in the constructor.
  * <p>
  * Has methods to register and remove alert observers.
@@ -167,13 +167,12 @@ public class AutodetectResultProcessor {
         this.runningForecasts = new ConcurrentHashMap<>();
     }
 
-    public void process(ActionListener<Void> listener) {
-
+    public void process() {
         // If a function call in this throws for some reason we don't want it
         // to kill the results reader thread as autodetect will be blocked
         // trying to write its output.
         try {
-            readResults(listener);
+            readResults();
 
             try {
                 if (processKilled == false) {
@@ -188,7 +187,6 @@ public class AutodetectResultProcessor {
 
         } catch (Exception e) {
             failed = true;
-
             if (processKilled) {
                 // Don't log the stack trace in this case. Log just enough to hint
                 // that it would have been better to close jobs before shutting down,
@@ -211,14 +209,14 @@ public class AutodetectResultProcessor {
         }
     }
 
-    private void readResults(ActionListener<Void> listener) {
+    private void readResults() {
         currentRunBucketCount = 0;
         try {
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
             while (iterator.hasNext()) {
                 try {
                     AutodetectResult result = iterator.next();
-                    processResult(result, listener);
+                    processResult(result);
                     if (result.getBucket() != null) {
                         logger.trace("[{}] Bucket number {} parsed from output", jobId, currentRunBucketCount);
                     }
@@ -268,7 +266,7 @@ public class AutodetectResultProcessor {
         }
     }
 
-    void processResult(AutodetectResult result, ActionListener<Void> listener) {
+    void processResult(AutodetectResult result) {
         if (processKilled) {
             return;
         }
@@ -382,7 +380,7 @@ public class AutodetectResultProcessor {
                     // quantiles are superseded before they're used.
                     bulkResultsPersister.executeRequest();
                     persister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
-                }, listener);
+                });
             }
         }
         FlushAcknowledgement flushAcknowledgement = result.getFlushAcknowledgement();

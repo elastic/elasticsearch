@@ -242,7 +242,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         resultsBuilder.addQuantiles(quantiles);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(ActionListener.noop());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         BucketsQueryBuilder bucketsQuery = new BucketsQueryBuilder().includeInterim(true);
@@ -302,7 +302,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         ResultsBuilder resultsBuilder = new ResultsBuilder().addModelSnapshot(modelSnapshot);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(ActionListener.noop());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         QueryPage<ModelSnapshot> persistedModelSnapshot = getModelSnapshots();
@@ -335,7 +335,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addBucket(createBucket(false, 1000));
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(ActionListener.noop());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         TimingStats timingStats = resultProcessor.timingStats();
@@ -354,7 +354,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addBucket(createBucket(false, 10000));
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(ActionListener.noop());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         TimingStats timingStats = resultProcessor.timingStats();
@@ -373,13 +373,13 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         resultsBuilder.addQuantiles(quantiles);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(ActionListener.noop());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
-        verify(renormalizer).renormalize(eq(quantiles), any(Runnable.class), ActionListener.noop());
+        verify(renormalizer).renormalize(eq(quantiles), any(Runnable.class));
     }
 
     public void testParseQuantiles_GivenRenormalizationIsDisabled() throws Exception {
@@ -390,13 +390,13 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         resultsBuilder.addQuantiles(quantiles);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(ActionListener.noop());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
-        verify(renormalizer, never()).renormalize(any(), any(), ActionListener.noop());
+        verify(renormalizer, never()).renormalize(any(), any());
     }
 
     public void testDeleteInterimResults() throws Exception {
@@ -410,7 +410,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addBucket(nonInterimBucket); // and this will delete the interim results
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(ActionListener.noop());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
@@ -442,7 +442,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addBucket(finalBucket); // this deletes the previous interim and persists final bucket & records
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(ActionListener.noop());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
@@ -466,7 +466,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .addRecords(secondSetOfRecords);
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(ActionListener.noop());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));

@@ -91,6 +91,12 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
                 .indices().length,
             equalTo(1)
         );
+
+        // We need to close the remaining open jobs to free up resources (otherwise the test will fail)
+        CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
+        client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
+        closeJobRequest = new CloseJobAction.Request(jobId2);
+        client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
     }
 
     public void testForceCloseDoesNotCreateState() throws Exception {

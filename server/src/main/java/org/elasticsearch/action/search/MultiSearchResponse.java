@@ -61,7 +61,12 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         private final SearchResponse response;
         private final Exception exception;
 
-        public Item(SearchResponse response, Exception exception) {
+        /**
+         *
+         * @param response search response that is considered owned by this instance after this constructor returns or {@code null}
+         * @param exception exception in case of search failure
+         */
+        public Item(@Nullable SearchResponse response, @Nullable Exception exception) {
             this.response = response;
             this.exception = exception;
         }

@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.SearchHit;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,13 +66,19 @@ import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs
 // TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
 // from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
 // cluster response would have the fetch results.
-final class SearchResponseMerger {
+final class SearchResponseMerger implements Releasable {
     final int from;
     final int size;
     final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
+
+    private final Releasable releasable = LeakTracker.wrap(() -> {
+        for (SearchResponse searchResponse : searchResponses) {
+            searchResponse.decRef();
+        }
+    });
 
     SearchResponseMerger(
         int from,
@@ -93,6 +101,7 @@ final class SearchResponseMerger {
      */
     void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
+        searchResponse.mustIncRef();
         searchResponses.add(searchResponse);
     }
 
@@ -381,6 +390,11 @@ final class SearchResponseMerger {
             }
         }
         return new SearchHits(searchHits, topDocsStats.getTotalHits(), topDocsStats.getMaxScore(), sortFields, groupField, groupValues);
+    }
+
+    @Override
+    public void close() {
+        releasable.close();
     }
 
     private static final class FieldDocAndSearchHit extends FieldDoc {

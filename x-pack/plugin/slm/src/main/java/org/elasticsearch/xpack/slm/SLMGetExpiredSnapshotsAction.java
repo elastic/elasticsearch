@@ -18,13 +18,13 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
@@ -126,32 +126,21 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
                             perRepositoryListener -> SubscribableListener
 
                                 // Get repository data
-                                .<RepositoryData>newForked(
-                                    l -> repository.getRepositoryData(
-                                        EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO use retentionExecutor, see #101445?
-                                        l
-                                    )
-                                )
+                                .<RepositoryData>newForked(l -> repository.getRepositoryData(retentionExecutor, l))
 
                                 // Collect snapshot details by policy, and get any missing details by reading SnapshotInfo
                                 .<SnapshotDetailsByPolicy>andThen(
-                                    retentionExecutor,
-                                    threadContext,
-                                    (l, repositoryData) -> getSnapshotDetailsByPolicy(repository, repositoryData, l)
+                                    (l, repositoryData) -> getSnapshotDetailsByPolicy(retentionExecutor, repository, repositoryData, l)
                                 )
 
                                 // Compute snapshots to delete for each (relevant) policy
-                                .<Void>andThen(
-                                    retentionExecutor,
-                                    threadContext,
-                                    (l, snapshotDetailsByPolicy) -> ActionListener.completeWith(l, () -> {
-                                        resultsBuilder.addResult(
-                                            repositoryName,
-                                            getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)
-                                        );
-                                        return null;
-                                    })
-                                )
+                                .<Void>andThen((l, snapshotDetailsByPolicy) -> ActionListener.completeWith(l, () -> {
+                                    resultsBuilder.addResult(
+                                        repositoryName,
+                                        getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)
+                                    );
+                                    return null;
+                                }))
 
                                 // And notify this repository's listener on completion
                                 .addListener(perRepositoryListener.delegateResponse((l, e) -> {
@@ -184,6 +173,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
 
     // Exposed for testing
     static void getSnapshotDetailsByPolicy(
+        Executor executor,
         Repository repository,
         RepositoryData repositoryData,
         ActionListener<SnapshotDetailsByPolicy> listener
@@ -218,7 +208,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
                         snapshotInfo.snapshotId(),
                         RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshotInfo)
                     ),
-                    listener.map(ignored -> snapshotDetailsByPolicy)
+                    new ThreadedActionListener<>(executor, listener.map(ignored -> snapshotDetailsByPolicy))
                 )
             );
         }

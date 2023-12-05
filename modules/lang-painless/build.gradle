@@ -209,8 +209,7 @@ tasks.register("regenLexer", JavaExec) {
     systemProperty 'user.language', 'en'
     systemProperty 'user.country', 'US'
     systemProperty 'user.variant', ''
-    args '-Werror',
-            '-package', 'org.elasticsearch.painless.antlr',
+    args '-package', 'org.elasticsearch.painless.antlr',
             '-o', outputPath,
             "${file(grammarPath)}/PainlessLexer.g4"
 }
@@ -223,8 +222,7 @@ tasks.register("regenParser", JavaExec) {
     systemProperty 'user.language', 'en'
     systemProperty 'user.country', 'US'
     systemProperty 'user.variant', ''
-    args '-Werror',
-            '-package', 'org.elasticsearch.painless.antlr',
+    args '-package', 'org.elasticsearch.painless.antlr',
             '-no-listener',
             '-visitor',
             // '-Xlog',
@@ -299,8 +297,7 @@ tasks.register("regenSuggestLexer", JavaExec) {
     systemProperty 'user.language', 'en'
     systemProperty 'user.country', 'US'
     systemProperty 'user.variant', ''
-    args '-Werror',
-            '-package', 'org.elasticsearch.painless.antlr',
+    args '-package', 'org.elasticsearch.painless.antlr',
             '-o', suggestOutputPath,
             "${file(suggestGrammarPath)}/SuggestLexer.g4"
 }

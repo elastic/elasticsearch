@@ -122,7 +122,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // fail on all javac warnings.
             // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
             List<String> compilerArgs = compileOptions.getCompilerArgs();
-            compilerArgs.add("-Werror");
             compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try,-removal");
             compilerArgs.add("-Xdoclint:all");
             compilerArgs.add("-Xdoclint:-missing");

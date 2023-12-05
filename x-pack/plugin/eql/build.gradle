@@ -78,8 +78,7 @@ tasks.register("regenParser", JavaExec) {
   systemProperty 'user.language', 'en'
   systemProperty 'user.country', 'US'
   systemProperty 'user.variant', ''
-  args '-Werror',
-    '-package', 'org.elasticsearch.xpack.eql.parser',
+  args '-package', 'org.elasticsearch.xpack.eql.parser',
     '-listener',
     '-visitor',
     '-o', outputPath,

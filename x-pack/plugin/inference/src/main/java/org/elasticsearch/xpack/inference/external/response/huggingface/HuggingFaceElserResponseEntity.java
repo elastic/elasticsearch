@@ -13,13 +13,15 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
 public class HuggingFaceElserResponseEntity {
 
@@ -58,9 +60,7 @@ public class HuggingFaceElserResponseEntity {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            if (jsonParser.currentToken() == null) {
-                jsonParser.nextToken();
-            }
+            moveToFirstToken(jsonParser);
 
             List<SparseEmbeddingResults.Embedding> parsedEmbeddings = XContentParserUtils.parseList(
                 jsonParser,

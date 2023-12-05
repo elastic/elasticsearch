@@ -88,7 +88,9 @@ public class GetConnectorAction extends ActionType<GetConnectorAction.Response> 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CONNECTOR_ID_FIELD.getPreferredName(), connectorId);
+            {
+                builder.field(CONNECTOR_ID_FIELD.getPreferredName(), connectorId);
+            }
             builder.endObject();
             return builder;
         }
@@ -131,8 +133,8 @@ public class GetConnectorAction extends ActionType<GetConnectorAction.Response> 
             return connector.toXContent(builder, params);
         }
 
-        public static GetConnectorAction.Response fromXContent(XContentParser parser) throws IOException {
-            return new GetConnectorAction.Response(Connector.fromXContent(parser));
+        public static GetConnectorAction.Response fromXContent(XContentParser parser, String docId) throws IOException {
+            return new GetConnectorAction.Response(Connector.fromXContent(parser, docId));
         }
 
         @Override

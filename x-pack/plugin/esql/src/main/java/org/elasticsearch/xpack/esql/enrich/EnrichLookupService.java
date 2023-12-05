@@ -72,7 +72,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -262,7 +262,7 @@ public class EnrichLookupService {
             List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
             for (int i = 0; i < extractFields.size(); i++) {
                 NamedExpression extractField = extractFields.get(i);
-                final ElementType elementType = LocalExecutionPlanner.toElementType(extractField.dataType());
+                final ElementType elementType = PlannerUtils.toElementType(extractField.dataType());
                 mergingTypes[i] = elementType;
                 var loaders = BlockReaderFactories.loaders(
                     List.of(searchContext),

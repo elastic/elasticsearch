@@ -234,6 +234,7 @@ public class SourceOnlySnapshot {
                     si.name,
                     si.maxDoc(),
                     false,
+                    si.getHasBlocks(),
                     si.getCodec(),
                     si.getDiagnostics(),
                     si.getId(),

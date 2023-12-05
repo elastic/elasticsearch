@@ -9,8 +9,13 @@ package org.elasticsearch.xpack.application.connector.syncjob;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
+import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.GetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobErrorAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 
 import java.time.Instant;
 
@@ -21,6 +26,7 @@ import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomMap;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 
 public class ConnectorSyncJobTestUtils {
 
@@ -89,5 +95,55 @@ public class ConnectorSyncJobTestUtils {
 
     public static PostConnectorSyncJobAction.Response getRandomPostConnectorSyncJobActionResponse() {
         return new PostConnectorSyncJobAction.Response(randomAlphaOfLength(10));
+    }
+
+    public static CancelConnectorSyncJobAction.Request getRandomCancelConnectorSyncJobActionRequest() {
+        return new CancelConnectorSyncJobAction.Request(randomAlphaOfLength(10));
+    }
+
+    public static CheckInConnectorSyncJobAction.Request getRandomCheckInConnectorSyncJobActionRequest() {
+        return new CheckInConnectorSyncJobAction.Request(randomAlphaOfLength(10));
+    }
+
+    public static UpdateConnectorSyncJobErrorAction.Request getRandomUpdateConnectorSyncJobErrorActionRequest() {
+        return new UpdateConnectorSyncJobErrorAction.Request(randomAlphaOfLength(10), randomAlphaOfLengthBetween(5, 100));
+    }
+
+    public static UpdateConnectorSyncJobIngestionStatsAction.Request getRandomUpdateConnectorSyncJobIngestionStatsActionRequest() {
+        Instant lowerBoundInstant = Instant.ofEpochSecond(0L);
+        Instant upperBoundInstant = Instant.ofEpochSecond(3000000000L);
+
+        return new UpdateConnectorSyncJobIngestionStatsAction.Request(
+            randomAlphaOfLength(10),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomInstantBetween(lowerBoundInstant, upperBoundInstant)
+        );
+    }
+
+    public static UpdateConnectorSyncJobIngestionStatsAction.Request getRandomUpdateConnectorSyncJobIngestionStatsActionRequest(
+        String syncJobId
+    ) {
+        Instant lowerBoundInstant = Instant.ofEpochSecond(0L);
+        Instant upperBoundInstant = Instant.ofEpochSecond(3000000000L);
+
+        return new UpdateConnectorSyncJobIngestionStatsAction.Request(
+            syncJobId,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomInstantBetween(lowerBoundInstant, upperBoundInstant)
+        );
+    }
+
+    public static GetConnectorSyncJobAction.Request getRandomGetConnectorSyncJobRequest() {
+        return new GetConnectorSyncJobAction.Request(randomAlphaOfLength(10));
+    }
+
+    public static GetConnectorSyncJobAction.Response getRandomGetConnectorSyncJobResponse() {
+        return new GetConnectorSyncJobAction.Response(getRandomConnectorSyncJob());
     }
 }

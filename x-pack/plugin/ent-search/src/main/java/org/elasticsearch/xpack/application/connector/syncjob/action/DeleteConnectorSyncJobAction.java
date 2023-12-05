@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -36,8 +37,6 @@ public class DeleteConnectorSyncJobAction extends ActionType<AcknowledgedRespons
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
-        public static final String EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE =
-            "[connector_sync_job_id] of the connector sync job cannot be null or empty.";
         public static final ParseField CONNECTOR_SYNC_JOB_ID_FIELD = new ParseField("connector_sync_job_id");
 
         private final String connectorSyncJobId;
@@ -56,7 +55,10 @@ public class DeleteConnectorSyncJobAction extends ActionType<AcknowledgedRespons
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorSyncJobId)) {
-                validationException = addValidationError(EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE, validationException);
+                validationException = addValidationError(
+                    ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE,
+                    validationException
+                );
             }
 
             return validationException;

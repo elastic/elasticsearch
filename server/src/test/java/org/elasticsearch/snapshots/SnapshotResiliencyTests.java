@@ -273,7 +273,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo")
             );
             deterministicTaskQueue.runAllRunnableTasks();
-            assertNull(future.result());
+            assertTrue(future.isDone());
+            final var result = future.result();
+            if (result != null) {
+                fail(result);
+            }
         } finally {
             testClusterNodes.nodes.values().forEach(TestClusterNodes.TestClusterNode::stop);
         }
@@ -762,16 +766,22 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(
                 new SearchRequest("restored_" + index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
-                searchResponseListener
+                searchResponseListener.delegateFailure((l, r) -> {
+                    r.incRef();
+                    l.onResponse(r);
+                })
             );
         });
 
         deterministicTaskQueue.runAllRunnableTasks();
 
-        assertEquals(
-            documentsFirstSnapshot + documentsSecondSnapshot,
-            Objects.requireNonNull(safeResult(searchResponseListener).getHits().getTotalHits()).value
-        );
+        var response = safeResult(searchResponseListener);
+        try {
+            assertEquals(documentsFirstSnapshot + documentsSecondSnapshot, Objects.requireNonNull(response.getHits().getTotalHits()).value);
+        } finally {
+            response.decRef();
+        }
+
         assertThat(safeResult(deleteSnapshotStepListener).isAcknowledged(), is(true));
         assertThat(safeResult(restoreSnapshotResponseListener).getRestoreInfo().failedShards(), is(0));
 
@@ -1612,7 +1622,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     settings,
                     clusterSettings,
                     masterService,
-                    () -> (reason, priority, listener) -> listener.onResponse(null),
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
@@ -1722,6 +1731,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 snapshotsService = new SnapshotsService(
                     settings,
                     clusterService,
+                    (reason, priority, listener) -> listener.onResponse(null),
                     indexNameExpressionResolver,
                     repositoriesService,
                     transportService,

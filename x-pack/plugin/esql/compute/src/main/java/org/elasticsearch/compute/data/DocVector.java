@@ -224,6 +224,13 @@ public final class DocVector extends AbstractVector implements Vector {
     }
 
     @Override
+    public void allowPassingToDifferentDriver() {
+        shards.allowPassingToDifferentDriver();
+        segments.allowPassingToDifferentDriver();
+        docs.allowPassingToDifferentDriver();
+    }
+
+    @Override
     public void close() {
         released = true;
         Releasables.closeExpectNoException(shards.asBlock(), segments.asBlock(), docs.asBlock()); // Ugh! we always close blocks

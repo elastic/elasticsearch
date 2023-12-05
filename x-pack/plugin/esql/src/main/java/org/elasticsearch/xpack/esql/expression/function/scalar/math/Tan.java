@@ -28,7 +28,7 @@ public class Tan extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
-        return new TanEvaluator.Factory(field);
+        return new TanEvaluator.Factory(source(), field);
     }
 
     @Override

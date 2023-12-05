@@ -149,7 +149,15 @@ public class JwtRestIT extends ESRestTestCase {
         settings.put("xpack.security.authc.realms.jwt.jwt2.fallback_claims.sub", "email");
         settings.put("xpack.security.authc.realms.jwt.jwt2.fallback_claims.aud", "scope");
         settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_issuer", "my-issuer");
-        settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subjects", SERVICE_SUBJECT.get());
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subjects", SERVICE_SUBJECT.get());
+            } else {
+                settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subject_patterns", SERVICE_SUBJECT.get());
+            }
+        } else {
+            settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subject_patterns", "service_*@app?.example.com");
+        }
         settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_audiences", "es01,es02,es03");
         settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_signature_algorithms", "HS256,HS384");
         // Both email or sub works because of fallback

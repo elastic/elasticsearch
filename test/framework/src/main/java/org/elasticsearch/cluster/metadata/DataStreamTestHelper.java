@@ -120,9 +120,9 @@ public final class DataStreamTestHelper {
         String dataStreamName,
         long generation,
         long epochMillis,
-        Version minNodeVersion
+        boolean isNewIndexNameFormat
     ) {
-        if (minNodeVersion.onOrAfter(DATE_IN_BACKING_INDEX_VERSION)) {
+        if (isNewIndexNameFormat) {
             return String.format(
                 Locale.ROOT,
                 BACKING_INDEX_PREFIX + "%s-%s-%06d",

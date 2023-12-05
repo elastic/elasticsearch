@@ -109,7 +109,5 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
 
         final var response = ObjectPath.createFromResponse(assertOK(client().performRequest(request)));
         assertEquals("SUCCESS", response.evaluate("snapshot.state"));
-
-        createSnapshot(repoName, randomIdentifier(), true);
     }
 }

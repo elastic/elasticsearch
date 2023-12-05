@@ -26,7 +26,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,24 +73,6 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .build();
     }
 
-    private void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
-        if (limit != null) {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit).build()
-                    )
-            );
-        } else {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build()
-                    )
-            );
-        }
-    }
-
     @Override
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 2048)));
@@ -119,8 +100,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .get();
         int numDocs = between(1000, 5000);
         for (int i = 0; i < numDocs; i++) {
-            DocWriteResponse response = client().prepareIndex("test_breaker")
-                .setId(Integer.toString(i))
+            DocWriteResponse response = prepareIndex("test_breaker").setId(Integer.toString(i))
                 .setSource("foo", "foo-" + i, "bar", "bar-" + (i * 2))
                 .get();
             assertThat(Strings.toString(response), response.getResult(), equalTo(DocWriteResponse.Result.CREATED));

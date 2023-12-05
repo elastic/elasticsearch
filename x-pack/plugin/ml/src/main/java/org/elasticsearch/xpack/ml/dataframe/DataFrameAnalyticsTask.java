@@ -13,9 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.ml.dataframe.steps.DataFrameAnalyticsStep;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -178,7 +179,8 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.FAILED,
                 getAllocationId(),
-                reason
+                reason,
+                Instant.now()
             );
             updatePersistentTaskState(newTaskState, ActionListener.wrap(updatedTask -> {
                 String message = Messages.getMessage(
@@ -274,7 +276,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).source(
                 new SearchSourceBuilder().size(1).query(new IdsQueryBuilder().addIds(progressDocId))
             );
-            executeAsyncWithOrigin(clientToUse, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
+            executeAsyncWithOrigin(clientToUse, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, searchFormerProgressDocListener);
         }, e -> {
             LOGGER.error(
                 () -> format("[%s] cannot persist progress as an error occurred while updating task progress", taskParams.getId()),

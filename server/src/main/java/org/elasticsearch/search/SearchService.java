@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -134,7 +135,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -540,11 +540,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
             }
+            // TODO: i think it makes sense to always do a canMatch here and
+            // return an empty response (not null response) in case canMatch is false?
             ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
         }));
     }
 
-    private <T> void ensureAfterSeqNoRefreshed(
+    private <T extends RefCounted> void ensureAfterSeqNoRefreshed(
         IndexShard shard,
         ShardSearchRequest request,
         CheckedSupplier<T, Exception> executable,
@@ -648,8 +650,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private static <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
-        executor.execute(ActionRunnable.supply(listener, executable));
+    private static <T extends RefCounted> void runAsync(
+        Executor executor,
+        CheckedSupplier<T, Exception> executable,
+        ActionListener<T> listener
+    ) {
+        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
     }
 
     /**
@@ -686,6 +692,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+                // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                 context.queryResult().incRef();
                 return context.queryResult();
             }
@@ -707,15 +714,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable scope = tracer.withScope(SpanId.forTask(context.getTask()));
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            shortcutDocIdsToLoad(context);
-            fetchPhase.execute(context);
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context));
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
             executor.success();
         }
         // This will incRef the QuerySearchResult when it gets created
-        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        return QueryFetchSearchResult.of(context.queryResult(), context.fetchResult());
     }
 
     public void executeQueryPhase(
@@ -739,7 +745,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
-                processScroll(request, readerContext, searchContext);
+                processScroll(request, searchContext);
                 QueryPhase.execute(searchContext);
                 executor.success();
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
@@ -772,7 +778,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 ) {
                     searchContext.searcher().setAggregatedDfs(request.dfs());
                     QueryPhase.execute(searchContext);
-                    if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                    final QuerySearchResult queryResult = searchContext.queryResult();
+                    if (queryResult.hasSearchContext() == false && readerContext.singleSession()) {
                         // no hits, we can release the context since there will be no fetch phase
                         freeReaderContext(readerContext.id());
                     }
@@ -781,10 +788,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // and receive them back in the fetch phase.
                     // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
                     final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
-                    searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
+                    queryResult.setRescoreDocIds(rescoreDocIds);
                     readerContext.setRescoreDocIds(rescoreDocIds);
-                    searchContext.queryResult().incRef();
-                    return searchContext.queryResult();
+                    // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
+                    queryResult.incRef();
+                    return queryResult;
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                     logger.trace("Query phase failed", e);
@@ -830,7 +838,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ) {
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
-                processScroll(request, readerContext, searchContext);
+                processScroll(request, searchContext);
                 searchContext.addQueryResult();
                 QueryPhase.execute(searchContext);
                 final long afterQueryTime = executor.success();
@@ -856,17 +864,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                searchContext.docIdsToLoad(request.docIds());
                 try (
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
                 ) {
-                    fetchPhase.execute(searchContext);
+                    fetchPhase.execute(searchContext, request.docIds());
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
                     }
                     executor.success();
                 }
-                return searchContext.fetchResult();
+                var fetchResult = searchContext.fetchResult();
+                // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
+                fetchResult.incRef();
+                return fetchResult;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 // we handle the failure in the failure listener below
@@ -1078,7 +1088,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 request.getClusterAlias()
             );
             ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
-            int maximumNumberOfSlices = determineMaximumNumberOfSlices(executor, request, resultsType);
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1088,7 +1097,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 fetchPhase,
                 lowLevelCancellation,
                 executor,
-                maximumNumberOfSlices,
+                resultsType,
+                enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice
             );
             // we clone the query shard context here just for rewriting otherwise we
@@ -1107,27 +1117,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
-    }
-
-    int determineMaximumNumberOfSlices(ExecutorService executor, ShardSearchRequest request, ResultsType resultsType) {
-        return executor instanceof ThreadPoolExecutor tpe
-            && isParallelCollectionSupportedForResults(resultsType, request.source(), this.enableQueryPhaseParallelCollection)
-                ? tpe.getMaximumPoolSize()
-                : 1;
-    }
-
-    static boolean isParallelCollectionSupportedForResults(
-        ResultsType resultsType,
-        SearchSourceBuilder source,
-        boolean isQueryPhaseParallelismEnabled
-    ) {
-        if (resultsType == ResultsType.DFS) {
-            return true;
-        }
-        if (resultsType == ResultsType.QUERY && isQueryPhaseParallelismEnabled) {
-            return source == null || source.supportsParallelCollection();
-        }
-        return false;
     }
 
     private void freeAllContextForIndex(Index index) {
@@ -1321,11 +1310,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.addQuerySearchResultReleasable(aggContext);
             try {
                 final AggregatorFactories factories = source.aggregations().build(aggContext, null);
-                final Supplier<AggregationReduceContext.Builder> supplier = () -> aggReduceContextBuilder(
-                    context::isCancelled,
-                    source.aggregations()
+                context.aggregations(
+                    new SearchContextAggregations(factories, () -> aggReduceContextBuilder(context::isCancelled, source.aggregations()))
                 );
-                context.aggregations(new SearchContextAggregations(factories, supplier));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
             }
@@ -1465,7 +1452,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller
      * handles this as well since the result is always size * shards for Q_T_F
      */
-    private static void shortcutDocIdsToLoad(SearchContext context) {
+    private static int[] shortcutDocIdsToLoad(SearchContext context) {
         final int[] docIdsToLoad;
         int docsOffset = 0;
         final Suggest suggest = context.queryResult().suggest();
@@ -1503,10 +1490,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 docIdsToLoad[docsOffset++] = option.getDoc().doc;
             }
         }
-        context.docIdsToLoad(docIdsToLoad);
+        return docIdsToLoad;
     }
 
-    private static void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
+    private static void processScroll(InternalScrollSearchRequest request, SearchContext context) {
         // process scroll
         context.from(context.from() + context.size());
         context.scrollContext().scroll = request.scroll();
@@ -1582,14 +1569,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
         return indicesService.buildAliasFilter(state, index, resolvedExpressions);
-    }
-
-    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchShardResponse> listener) {
-        try {
-            listener.onResponse(canMatch(request));
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
     }
 
     public void canMatch(CanMatchNodeRequest request, ActionListener<CanMatchNodeResponse> listener) {

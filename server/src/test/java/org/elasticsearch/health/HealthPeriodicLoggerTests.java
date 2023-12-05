@@ -100,15 +100,22 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         Map<String, Object> loggerResults = HealthPeriodicLogger.convertToLoggedFields(results);
 
-        assertThat(loggerResults.size(), equalTo(results.size() + 1));
+        // verify that the number of fields is the number of indicators + 2 (for overall and for message)
+        assertThat(loggerResults.size(), equalTo(results.size() + 2));
 
         // test indicator status
         assertThat(loggerResults.get(makeHealthStatusString("network_latency")), equalTo("green"));
         assertThat(loggerResults.get(makeHealthStatusString("slow_task_assignment")), equalTo("yellow"));
-        assertThat(loggerResults.get(makeHealthStatusString("shards_availability")), equalTo("green"));
+        assertThat(loggerResults.get(makeHealthStatusString("shards_availability")), equalTo("yellow"));
 
         // test calculated overall status
         assertThat(loggerResults.get(makeHealthStatusString("overall")), equalTo(overallStatus.xContentValue()));
+
+        // test calculated message
+        assertThat(
+            loggerResults.get(HealthPeriodicLogger.MESSAGE_FIELD),
+            equalTo(String.format(Locale.ROOT, "health=%s [shards_availability,slow_task_assignment]", overallStatus.xContentValue()))
+        );
 
         // test empty results
         {
@@ -116,6 +123,19 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             Map<String, Object> emptyResults = HealthPeriodicLogger.convertToLoggedFields(empty);
 
             assertThat(emptyResults.size(), equalTo(0));
+        }
+
+        // test all-green results
+        {
+            results = getTestIndicatorResultsAllGreen();
+            loggerResults = HealthPeriodicLogger.convertToLoggedFields(results);
+            overallStatus = HealthStatus.merge(results.stream().map(HealthIndicatorResult::status));
+
+            // test calculated message
+            assertThat(
+                loggerResults.get(HealthPeriodicLogger.MESSAGE_FIELD),
+                equalTo(String.format(Locale.ROOT, "health=%s", overallStatus.xContentValue()))
+            );
         }
     }
 
@@ -425,6 +445,14 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     private List<HealthIndicatorResult> getTestIndicatorResults() {
         var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
         var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", YELLOW, null, null, null, null);
+
+        return List.of(networkLatency, slowTasks, shardsAvailable);
+    }
+
+    private List<HealthIndicatorResult> getTestIndicatorResultsAllGreen() {
+        var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
+        var slowTasks = new HealthIndicatorResult("slow_task_assignment", GREEN, null, null, null, null);
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         return List.of(networkLatency, slowTasks, shardsAvailable);
@@ -439,8 +467,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         HealthService testHealthService,
         boolean enabled
     ) {
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, this.client, testHealthService);
-        testHealthPeriodicLogger.init();
+        testHealthPeriodicLogger = HealthPeriodicLogger.create(Settings.EMPTY, clusterService, this.client, testHealthService);
         if (enabled) {
             clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
         }

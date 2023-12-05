@@ -57,6 +57,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** `completion`
 ** `dense_vector`
 ** `double_range`
+** `flattened`
 ** `float_range`
 ** `histogram`
 ** `integer_range`
@@ -71,6 +72,35 @@ Querying a column with an unsupported type returns an error. If a column with an
 unsupported type is not explicitly used in a query, it is returned with `null`
 values, with the exception of nested fields. Nested fields are not returned at
 all.
+
+[discrete]
+[[esql-limitations-full-text-search]]
+=== Full-text search is not supported
+
+Because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,
+full-text search is not yet supported. Queries on `text` fields are like queries
+on `keyword` fields: they are case-sensitive and need to match the full string.
+
+For example, after indexing a field of type `text` with the value `Elasticsearch
+query language`, the following `WHERE` clause does not match because the `LIKE`
+operator is case-sensitive:
+[source,esql]
+----
+| WHERE field LIKE "elasticsearch query language"
+----
+
+The following `WHERE` clause does not match either, because the `LIKE` operator
+tries to match the whole string:
+[source,esql]
+----
+| WHERE field LIKE "Elasticsearch"
+----
+
+As a workaround, use wildcards and regular expressions. For example:
+[source,esql]
+----
+| WHERE field RLIKE "[Ee]lasticsearch.*"
+----
 
 [discrete]
 [[esql-limitations-text-fields]]
@@ -135,6 +165,33 @@ now() - 2023-10-26
 === Enrich limitations
 
 include::esql-enrich-data.asciidoc[tag=limitations]
+
+[discrete]
+[[esql-limitations-dissect]]
+=== Dissect limitations
+
+include::esql-process-data-with-dissect-grok.asciidoc[tag=dissect-limitations]
+
+[discrete]
+[[esql-limitations-grok]]
+=== Grok limitations
+
+include::esql-process-data-with-dissect-grok.asciidoc[tag=grok-limitations]
+
+[discrete]
+[[esql-limitations-mv]]
+=== Multivalue limitations
+
+{esql} <<esql-multivalued-fields,supports multivalued fields>>, but functions
+return `null` when applied to a multivalued field, unless documented otherwise.
+Work around this limitation by converting the field to single value with one of
+the <<esql-mv-functions,multivalue functions>>.
+
+[discrete]
+[[esql-limitations-timezone]]
+=== Timezone support
+
+{esql} only supports the UTC timezone.
 
 [discrete]
 [[esql-limitations-kibana]]

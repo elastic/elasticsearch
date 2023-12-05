@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +31,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     @Nullable
     private final Map<String, String> executables;
     @Nullable
-    private final Map<String, Integer> stackTraceEvents;
+    private final Map<String, TraceEvent> stackTraceEvents;
     private final int totalFrames;
     private final double samplingRate;
     private final long totalSamples;
@@ -42,7 +43,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                     i.readCollectionAsList(StreamInput::readInt),
                     i.readCollectionAsList(StreamInput::readString),
                     i.readCollectionAsList(StreamInput::readString),
-                    i.readCollectionAsList(StreamInput::readInt)
+                    i.readCollectionAsList(StreamInput::readInt),
+                    i.readDouble(),
+                    i.readDouble(),
+                    i.readLong()
                 )
             )
             : null;
@@ -57,7 +61,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
             )
             : null;
         this.executables = in.readBoolean() ? in.readMap(StreamInput::readString) : null;
-        this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readInt) : null;
+        this.stackTraceEvents = in.readBoolean() ? in.readMap(i -> new TraceEvent(i.readString(), i.readLong())) : null;
         this.totalFrames = in.readInt();
         this.samplingRate = in.readDouble();
         this.totalSamples = in.readLong();
@@ -67,7 +71,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         Map<String, StackTrace> stackTraces,
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
-        Map<String, Integer> stackTraceEvents,
+        Map<String, TraceEvent> stackTraceEvents,
         int totalFrames,
         double samplingRate,
         long totalSamples
@@ -90,6 +94,9 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                 o.writeStringCollection(v.fileIds);
                 o.writeStringCollection(v.frameIds);
                 o.writeCollection(v.typeIds, StreamOutput::writeInt);
+                o.writeDouble(v.annualCO2Tons);
+                o.writeDouble(v.annualCostsUSD);
+                o.writeLong(v.count);
             });
         } else {
             out.writeBoolean(false);
@@ -113,7 +120,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         }
         if (stackTraceEvents != null) {
             out.writeBoolean(true);
-            out.writeMap(stackTraceEvents, StreamOutput::writeInt);
+            out.writeMap(stackTraceEvents, (o, v) -> {
+                o.writeString(v.stacktraceID);
+                o.writeLong(v.count);
+            });
         } else {
             out.writeBoolean(false);
         }
@@ -134,7 +144,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         return executables;
     }
 
-    public Map<String, Integer> getStackTraceEvents() {
+    public Map<String, TraceEvent> getStackTraceEvents() {
         return stackTraceEvents;
     }
 
@@ -157,7 +167,12 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
             optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentValuesMap),
             optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentValuesMap),
             optional("executables", executables, ChunkedToXContentHelper::map),
-            optional("stack_trace_events", stackTraceEvents, ChunkedToXContentHelper::map),
+            // render only count for backwards-compatibility
+            optional(
+                "stack_trace_events",
+                stackTraceEvents,
+                (n, v) -> ChunkedToXContentHelper.map(n, v, entry -> (b, p) -> b.field(entry.getKey(), entry.getValue().count))
+            ),
             Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
             Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
             // the following fields are intentionally not written to the XContent representation (only needed on the transport layer):
@@ -197,5 +212,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     @Override
     public int hashCode() {
         return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

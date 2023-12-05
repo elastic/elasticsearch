@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -146,7 +146,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
                 SearchRequest searchRequest = new SearchRequest(request.getIndices()).source(searchSourceBuilder);
                 useSecondaryAuthIfAvailable(
                     securityContext,
-                    () -> client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+                    () -> client.execute(TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
                         evaluation.process(searchResponse);
                         if (evaluation.hasAllResults() == false) {
                             add(nextTask());

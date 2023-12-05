@@ -10,7 +10,6 @@ package org.elasticsearch.search.source;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -22,6 +21,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -31,59 +31,66 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test").setId("1").setSource("field", "value").get();
+        prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
 
-        SearchResponse response = prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true).get();
-        assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-        assertThat(response.getHits().getAt(0).getVersion(), notNullValue());
+        assertResponse(prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true), response -> {
+            assertThat(response.getHits().getAt(0).getId(), nullValue());
+            assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+            assertThat(response.getHits().getAt(0).getVersion(), notNullValue());
+        });
 
-        response = prepareSearch("test").storedFields("_none_").get();
-        assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+        assertResponse(prepareSearch("test").storedFields("_none_"), response -> {
+            assertThat(response.getHits().getAt(0).getId(), nullValue());
+            assertThat(response.getHits().getAt(0).getId(), nullValue());
+            assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+        });
     }
 
     public void testInnerHits() {
         assertAcked(prepareCreate("test").setMapping("nested", "type=nested"));
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
+        prepareIndex("test").setId("1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
         refresh();
 
-        SearchResponse response = prepareSearch("test").storedFields("_none_")
-            .setFetchSource(false)
-            .setQuery(
-                new NestedQueryBuilder("nested", new TermQueryBuilder("nested.title", "foo"), ScoreMode.Total).innerHit(
-                    new InnerHitBuilder().setStoredFieldNames(Collections.singletonList("_none_"))
-                        .setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
-                )
-            )
-            .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
-        SearchHits hits = response.getHits().getAt(0).getInnerHits().get("nested");
-        assertThat(hits.getTotalHits().value, equalTo(1L));
-        assertThat(hits.getAt(0).getId(), nullValue());
-        assertThat(hits.getAt(0).getSourceAsString(), nullValue());
+        assertResponse(
+            prepareSearch("test").storedFields("_none_")
+                .setFetchSource(false)
+                .setQuery(
+                    new NestedQueryBuilder("nested", new TermQueryBuilder("nested.title", "foo"), ScoreMode.Total).innerHit(
+                        new InnerHitBuilder().setStoredFieldNames(Collections.singletonList("_none_"))
+                            .setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
+                    )
+                ),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getAt(0).getId(), nullValue());
+                assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+                assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+                SearchHits hits = response.getHits().getAt(0).getInnerHits().get("nested");
+                assertThat(hits.getTotalHits().value, equalTo(1L));
+                assertThat(hits.getAt(0).getId(), nullValue());
+                assertThat(hits.getAt(0).getSourceAsString(), nullValue());
+            }
+        );
     }
 
     public void testWithRouting() {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
+        prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
         refresh();
 
-        SearchResponse response = prepareSearch("test").storedFields("_none_").setFetchSource(false).get();
-        assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).field("_routing"), nullValue());
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-
-        response = prepareSearch("test").storedFields("_none_").get();
-        assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+        assertResponse(prepareSearch("test").storedFields("_none_").setFetchSource(false), response -> {
+            assertThat(response.getHits().getAt(0).getId(), nullValue());
+            assertThat(response.getHits().getAt(0).field("_routing"), nullValue());
+            assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+        });
+        assertResponse(prepareSearch("test").storedFields("_none_"), response -> {
+            assertThat(response.getHits().getAt(0).getId(), nullValue());
+            assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+        });
     }
 
     public void testInvalid() {

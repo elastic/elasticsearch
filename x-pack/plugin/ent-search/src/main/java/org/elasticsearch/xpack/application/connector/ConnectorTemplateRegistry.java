@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -32,17 +33,17 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
-    static final Version MIN_NODE_VERSION = Version.V_8_10_0;
+    public static final NodeFeature CONNECTOR_TEMPLATES_FEATURE = new NodeFeature("elastic-connectors.templates");
 
     // This number must be incremented when we make changes to built-in templates.
-    static final int REGISTRY_VERSION = 1;
+    static final int REGISTRY_VERSION = 3;
 
     // Connector indices constants
 
-    public static final String CONNECTOR_INDEX_NAME_PATTERN = ".elastic-connectors-v" + REGISTRY_VERSION;
+    public static final String CONNECTOR_INDEX_NAME_PATTERN = ".elastic-connectors-v1";
     public static final String CONNECTOR_TEMPLATE_NAME = "elastic-connectors";
 
-    public static final String CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN = ".elastic-connectors-sync-jobs-v" + REGISTRY_VERSION;
+    public static final String CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN = ".elastic-connectors-sync-jobs-v1";
     public static final String CONNECTOR_SYNC_JOBS_TEMPLATE_NAME = "elastic-connectors-sync-jobs";
 
     public static final String ACCESS_CONTROL_INDEX_NAME_PATTERN = ".search-acl-filter-*";
@@ -145,13 +146,17 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
         )
     );
 
+    private final FeatureService featureService;
+
     public ConnectorTemplateRegistry(
         ClusterService clusterService,
+        FeatureService featureService,
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
         super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        this.featureService = featureService;
     }
 
     @Override
@@ -177,8 +182,6 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected boolean isClusterReady(ClusterChangedEvent event) {
-        // Ensure templates are installed only once all nodes are updated to 8.10.0.
-        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
-        return minNodeVersion.onOrAfter(MIN_NODE_VERSION);
+        return featureService.clusterHasFeature(event.state(), CONNECTOR_TEMPLATES_FEATURE);
     }
 }

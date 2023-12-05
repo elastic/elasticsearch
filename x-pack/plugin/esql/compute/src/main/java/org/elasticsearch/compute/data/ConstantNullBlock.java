@@ -99,6 +99,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
 
     @Override
     public Block expand() {
+        incRef();
         return this;
     }
 
@@ -126,11 +127,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
     }
 
     @Override
-    public void close() {
-        if (isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 

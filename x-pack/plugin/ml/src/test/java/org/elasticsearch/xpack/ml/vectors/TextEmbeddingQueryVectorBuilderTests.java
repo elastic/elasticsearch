@@ -14,7 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.test.AbstractQueryVectorBuilderTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
@@ -33,11 +35,14 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
 
     @Override
     protected void doAssertClientRequest(ActionRequest request, TextEmbeddingQueryVectorBuilder builder) {
-        assertThat(request, instanceOf(InferModelAction.Request.class));
-        InferModelAction.Request inferRequest = (InferModelAction.Request) request;
-        assertThat(inferRequest.getTextInput(), hasSize(1));
-        assertEquals(builder.getModelText(), inferRequest.getTextInput().get(0));
-        assertEquals(builder.getModelId(), inferRequest.getId());
+        assertThat(request, instanceOf(CoordinatedInferenceAction.Request.class));
+        CoordinatedInferenceAction.Request inferRequest = (CoordinatedInferenceAction.Request) request;
+        assertThat(inferRequest.getInputs(), hasSize(1));
+        assertEquals(builder.getModelText(), inferRequest.getInputs().get(0));
+        assertEquals(builder.getModelId(), inferRequest.getModelId());
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, inferRequest.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, inferRequest.getPrefixType());
+        assertEquals(CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL, inferRequest.getRequestModelType());
     }
 
     public ActionResponse createResponse(float[] array, TextEmbeddingQueryVectorBuilder builder) {

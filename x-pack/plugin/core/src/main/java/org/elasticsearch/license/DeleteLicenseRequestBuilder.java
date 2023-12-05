@@ -17,15 +17,6 @@ public class DeleteLicenseRequestBuilder extends AcknowledgedRequestBuilder<
     DeleteLicenseRequestBuilder> {
 
     public DeleteLicenseRequestBuilder(ElasticsearchClient client) {
-        this(client, DeleteLicenseAction.INSTANCE);
-    }
-
-    /**
-     * Creates new get licenses request builder
-     *
-     * @param client elasticsearch client
-     */
-    public DeleteLicenseRequestBuilder(ElasticsearchClient client, DeleteLicenseAction action) {
-        super(client, action, new DeleteLicenseRequest());
+        super(client, DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest());
     }
 }

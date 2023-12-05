@@ -29,8 +29,8 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id 'elasticsearch.build-scan'
   id 'elasticsearch.build-complete'
+  id 'elasticsearch.build-scan'
   id 'elasticsearch.jdk-download'
   id 'elasticsearch.internal-distribution-download'
   id 'elasticsearch.runtime-jdk-provision'
@@ -161,8 +161,10 @@ tasks.register("verifyVersions") {
     String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'main' }.key
     String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
     if (versionMapping != expectedMapping) {
-      throw new GradleException("Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
-        "'${expectedMapping}'. Update .backportrc.json.")
+      throw new GradleException(
+        "Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
+          "'${expectedMapping}'. Update .backportrc.json."
+      )
     }
   }
 }
@@ -211,9 +213,9 @@ allprojects {
   project.ext {
     // for ide hacks...
     isEclipse = providers.systemProperty("eclipse.launcher").isPresent() ||   // Detects gradle launched from Eclipse's IDE
-            providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
-            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-            gradle.startParameter.taskNames.contains('cleanEclipse')
+      providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
+      gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+      gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 
   ext.bwc_tests_enabled = bwc_tests_enabled
@@ -229,10 +231,10 @@ allprojects {
     eclipse.classpath.file.whenMerged { classpath ->
       if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
         classpath.entries
-                .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
-                .each {
-                  it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
-                }
+          .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
+          .each {
+            it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
+          }
       }
     }
   }
@@ -248,6 +250,8 @@ allprojects {
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
+        tasks.register('checkPart4') { dependsOn 'check' }
+      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") ||  project.path.contains("smoke-test")) {
         tasks.register('checkPart3') { dependsOn 'check' }
       } else {
         tasks.register('checkPart2') { dependsOn 'check' }
@@ -256,7 +260,7 @@ allprojects {
       tasks.register('checkPart1') { dependsOn 'check' }
     }
 
-    tasks.register('functionalTests') { dependsOn 'check'}
+    tasks.register('functionalTests') { dependsOn 'check' }
   }
 
   /*
@@ -281,7 +285,7 @@ allprojects {
       // :test:framework:test cannot run before and after :server:test
       return
     }
-    tasks.matching { it.name.equals('integTest')}.configureEach {integTestTask ->
+    tasks.matching { it.name.equals('integTest') }.configureEach { integTestTask ->
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
 
@@ -290,7 +294,7 @@ allprojects {
         Project upstreamProject = dep.dependencyProject
         if (project.path != upstreamProject?.path) {
           for (String taskName : ['test', 'integTest']) {
-            project.tasks.matching { it.name == taskName }.configureEach {task ->
+            project.tasks.matching { it.name == taskName }.configureEach { task ->
               task.shouldRunAfter(upstreamProject.tasks.matching { upStreamTask -> upStreamTask.name == taskName })
             }
           }

@@ -130,6 +130,7 @@ public abstract class BWCCodec extends Codec {
             segmentInfo.name,
             segmentInfo.maxDoc(),
             segmentInfo.getUseCompoundFile(),
+            segmentInfo.getHasBlocks(),
             codec,
             segmentInfo.getDiagnostics(),
             segmentInfo.getId(),

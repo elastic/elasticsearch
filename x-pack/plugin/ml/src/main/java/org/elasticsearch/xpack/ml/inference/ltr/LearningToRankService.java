@@ -26,8 +26,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearningToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -51,7 +51,7 @@ import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
 
-public class LearnToRankService {
+public class LearningToRankService {
     private static final Map<String, String> SCRIPT_OPTIONS = Map.ofEntries(
         entry(MustacheScriptEngine.DETECT_MISSING_PARAMS_OPTION, Boolean.TRUE.toString())
     );
@@ -60,7 +60,7 @@ public class LearnToRankService {
     private final ScriptService scriptService;
     private final XContentParserConfiguration parserConfiguration;
 
-    public LearnToRankService(
+    public LearningToRankService(
         ModelLoadingService modelLoadingService,
         TrainedModelProvider trainedModelProvider,
         ScriptService scriptService,
@@ -69,7 +69,7 @@ public class LearnToRankService {
         this(modelLoadingService, trainedModelProvider, scriptService, XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry));
     }
 
-    LearnToRankService(
+    LearningToRankService(
         ModelLoadingService modelLoadingService,
         TrainedModelProvider trainedModelProvider,
         ScriptService scriptService,
@@ -82,30 +82,30 @@ public class LearnToRankService {
     }
 
     /**
-     * Asynchronously load a regression model to be used for learn to rank.
+     * Asynchronously load a regression model to be used for learning to rank.
      *
      * @param modelId The model id to be loaded.
      * @param listener Response listener.
      */
     public void loadLocalModel(String modelId, ActionListener<LocalModel> listener) {
-        modelLoadingService.getModelForLearnToRank(modelId, listener);
+        modelLoadingService.getModelForLearningToRank(modelId, listener);
     }
 
     /**
-     * Asynchronously load the learn to rank config by model id.
+     * Asynchronously load the learning to rank config by model id.
      * Once the model is loaded, templates are executed using params provided.
      *
      * @param modelId Id of the model.
      * @param params Templates params.
      * @param listener Response listener.
      */
-    public void loadLearnToRankConfig(String modelId, Map<String, Object> params, ActionListener<LearnToRankConfig> listener) {
+    public void loadLearningToRankConfig(String modelId, Map<String, Object> params, ActionListener<LearningToRankConfig> listener) {
         trainedModelProvider.getTrainedModel(
             modelId,
             GetTrainedModelsAction.Includes.all(),
             null,
             ActionListener.wrap(trainedModelConfig -> {
-                if (trainedModelConfig.getInferenceConfig() instanceof LearnToRankConfig retrievedInferenceConfig) {
+                if (trainedModelConfig.getInferenceConfig() instanceof LearningToRankConfig retrievedInferenceConfig) {
                     listener.onResponse(applyParams(retrievedInferenceConfig, params));
                     return;
                 }
@@ -114,7 +114,7 @@ public class LearnToRankService {
                         Messages.getMessage(
                             Messages.INFERENCE_CONFIG_INCORRECT_TYPE,
                             Optional.ofNullable(trainedModelConfig.getInferenceConfig()).map(InferenceConfig::getName).orElse("null"),
-                            LearnToRankConfig.NAME.getPreferredName()
+                            LearningToRankConfig.NAME.getPreferredName()
                         )
                     )
                 );
@@ -123,29 +123,29 @@ public class LearnToRankService {
     }
 
     /**
-     * Applies templates params to a {@link LearnToRankConfig} object.
+     * Applies templates params to a {@link LearningToRankConfig} object.
      *
      * @param config Original config.
      * @param params Templates params.
-     * @return A {@link LearnToRankConfig} object with templates applied.
+     * @return A {@link LearningToRankConfig} object with templates applied.
      *
      * @throws IOException
      */
-    private LearnToRankConfig applyParams(LearnToRankConfig config, Map<String, Object> params) throws Exception {
+    private LearningToRankConfig applyParams(LearningToRankConfig config, Map<String, Object> params) throws Exception {
         if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) == false) {
             return config;
         }
 
-        List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders = new ArrayList<>();
+        List<LearningToRankFeatureExtractorBuilder> featureExtractorBuilders = new ArrayList<>();
 
         Map<String, Object> mergedParams = new HashMap<>(Objects.requireNonNullElse(params, Map.of()));
         mergeDefaults(mergedParams, config.getParamsDefaults());
 
-        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : config.getFeatureExtractorBuilders()) {
+        for (LearningToRankFeatureExtractorBuilder featureExtractorBuilder : config.getFeatureExtractorBuilders()) {
             featureExtractorBuilders.add(applyParams(featureExtractorBuilder, mergedParams));
         }
 
-        return LearnToRankConfig.builder(config).setLearnToRankFeatureExtractorBuilders(featureExtractorBuilders).build();
+        return LearningToRankConfig.builder(config).setLearningToRankFeatureExtractorBuilders(featureExtractorBuilders).build();
     }
 
     /**
@@ -157,8 +157,8 @@ public class LearnToRankService {
      *
      * @throws IOException
      */
-    private LearnToRankFeatureExtractorBuilder applyParams(
-        LearnToRankFeatureExtractorBuilder featureExtractorBuilder,
+    private LearningToRankFeatureExtractorBuilder applyParams(
+        LearningToRankFeatureExtractorBuilder featureExtractorBuilder,
         Map<String, Object> params
     ) throws Exception {
         if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {

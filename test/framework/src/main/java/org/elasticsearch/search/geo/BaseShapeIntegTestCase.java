@@ -262,7 +262,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
 
             // Set search.allow_expensive_queries to "null"
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-            assertThat(builder.get().getHits().getTotalHits().value, equalTo(1L));
+            assertHitCount(builder, 1);
 
             // Set search.allow_expensive_queries to "true"
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));

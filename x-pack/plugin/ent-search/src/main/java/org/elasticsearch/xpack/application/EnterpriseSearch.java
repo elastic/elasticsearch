@@ -241,7 +241,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new ActionHandler<>(DeleteConnectorSyncJobAction.INSTANCE, TransportDeleteConnectorSyncJobAction.class),
                     new ActionHandler<>(CheckInConnectorSyncJobAction.INSTANCE, TransportCheckInConnectorSyncJobAction.class),
                     new ActionHandler<>(CancelConnectorSyncJobAction.INSTANCE, TransportCancelConnectorSyncJobAction.class),
-                    new ActionHandler<>(ListConnectorSyncJobsAction.INSTANCE, TransportListConnectorSyncJobsAction.class)
+                    new ActionHandler<>(ListConnectorSyncJobsAction.INSTANCE, TransportListConnectorSyncJobsAction.class),
                     new ActionHandler<>(UpdateConnectorSyncJobErrorAction.INSTANCE, TransportUpdateConnectorSyncJobErrorAction.class),
                     new ActionHandler<>(
                         UpdateConnectorSyncJobIngestionStatsAction.INSTANCE,
@@ -318,7 +318,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                     new RestDeleteConnectorSyncJobAction(),
                     new RestCancelConnectorSyncJobAction(),
                     new RestCheckInConnectorSyncJobAction(),
-                    new RestListConnectorSyncJobsAction()
+                    new RestListConnectorSyncJobsAction(),
                     new RestUpdateConnectorSyncJobErrorAction(),
                     new RestUpdateConnectorSyncJobIngestionStatsAction()
                 )

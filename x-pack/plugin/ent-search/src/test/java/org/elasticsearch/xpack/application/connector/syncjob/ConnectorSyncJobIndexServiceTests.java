@@ -377,7 +377,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateConnectorSyncJobError() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
-            connector.getConnectorId()
+            connectorOne.getConnectorId()
         );
         PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
         String syncJobId = response.getId();
@@ -406,7 +406,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateConnectorSyncJobIngestionStats() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
-            connector.getConnectorId()
+            connectorOne.getConnectorId()
         );
         PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
         String syncJobId = response.getId();
@@ -450,7 +450,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateConnectorSyncJobIngestionStats_WithoutLastSeen_ExpectUpdateOfLastSeen() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
-            connector.getConnectorId()
+            connectorOne.getConnectorId()
         );
         PostConnectorSyncJobAction.Response response = awaitPutConnectorSyncJob(syncJobRequest);
         String syncJobId = response.getId();
@@ -609,7 +609,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        
+
         assertTrue("Timeout waiting for list request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();

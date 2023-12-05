@@ -13,6 +13,13 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
+$elseif(Point)$
+import org.elasticsearch.common.geo.SpatialPoint;
+import org.apache.lucene.util.RamUsageEstimator;
+
+import java.util.Arrays;
+
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -92,7 +99,12 @@ $endif$
     }
 
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
+    $if(Point)$
+        long valuesEstimate = RamUsageEstimator.alignObjectSize((long) NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * values.length * 2);
+        return BASE_RAM_BYTES_USED + valuesEstimate;
+    $else$
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    $endif$
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -16,7 +17,9 @@ import java.util.List;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomCartesianPoint;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
@@ -36,6 +39,7 @@ public class BlockTestUtils {
             case BOOLEAN -> randomBoolean();
             case DOC -> new BlockUtils.Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
             case NULL -> null;
+            case POINT -> randomBoolean() ? randomGeoPoint() : randomCartesianPoint();
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }
@@ -59,6 +63,8 @@ public class BlockTestUtils {
             b.appendBoolean(v);
         } else if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
+        } else if (builder instanceof PointBlock.Builder b && value instanceof SpatialPoint v) {
+            b.appendPoint(v);
         } else {
             throw new IllegalArgumentException("Can't append [" + value + "/" + value.getClass() + "] to [" + builder + "]");
         }

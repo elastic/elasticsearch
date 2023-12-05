@@ -8,49 +8,45 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-$if(Point)$
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.ObjectArray;
-$else$
-import org.elasticsearch.common.util.$Array$;
-$endif$
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed $Type$Array.
+ * Vector implementation that defers to an enclosed PointArray.
  * This class is generated. Do not edit it.
  */
-public final class $Type$BigArrayVector extends AbstractVector implements $Type$Vector, Releasable {
+public final class PointBigArrayVector extends AbstractVector implements PointVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$BigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PointBigArrayVector.class);
 
-    private final $Array$ values;
+    private final ObjectArray<SpatialPoint> values;
 
-    private final $Type$Block block;
+    private final PointBlock block;
 
-    public $Type$BigArrayVector($Array$ values, int positionCount) {
+    public PointBigArrayVector(ObjectArray<SpatialPoint> values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
-    public $Type$BigArrayVector($Array$ values, int positionCount, BlockFactory blockFactory) {
+    public PointBigArrayVector(ObjectArray<SpatialPoint> values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new $Type$VectorBlock(this);
+        this.block = new PointVectorBlock(this);
     }
 
     @Override
-    public $Type$Block asBlock() {
+    public PointBlock asBlock() {
         return block;
     }
 
     @Override
-    public $type$ get$Type$(int position) {
+    public SpatialPoint getPoint(int position) {
         return values.get(position);
     }
 
     @Override
     public ElementType elementType() {
-        return ElementType.$TYPE$;
+        return ElementType.POINT;
     }
 
     @Override
@@ -64,27 +60,13 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
     }
 
     @Override
-    public $Type$Vector filter(int... positions) {
+    public PointVector filter(int... positions) {
         var blockFactory = blockFactory();
-    $if(boolean)$
-        final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
-    $elseif(Point)$
-        final $Array$ filtered = blockFactory.bigArrays().newObjectArray(positions.length);
-    $else$
-        final $Array$ filtered = blockFactory.bigArrays().new$Array$(positions.length);
-    $endif$
-    $if(boolean)$
-        for (int i = 0; i < positions.length; i++) {
-            if (values.get(positions[i])) {
-                filtered.set(i);
-            }
-        }
-    $else$
+        final ObjectArray<SpatialPoint> filtered = blockFactory.bigArrays().newObjectArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
-    $endif$
-        return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
+        return new PointBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override
@@ -98,15 +80,15 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof $Type$Vector that) {
-            return $Type$Vector.equals(this, that);
+        if (obj instanceof PointVector that) {
+            return PointVector.equals(this, that);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return $Type$Vector.hash(this);
+        return PointVector.hash(this);
     }
 
     @Override

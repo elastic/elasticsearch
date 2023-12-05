@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -28,6 +29,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -39,8 +41,10 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
@@ -162,6 +166,7 @@ public class MultivalueDedupeTests extends ESTestCase {
             case INT -> assertIntHash(Set.of(), b);
             case LONG -> assertLongHash(Set.of(), b);
             case DOUBLE -> assertDoubleHash(Set.of(), b);
+            case POINT -> assertPointHash(Set.of(), b);
             default -> throw new IllegalArgumentException();
         }
     }
@@ -210,6 +215,14 @@ public class MultivalueDedupeTests extends ESTestCase {
                     previousValues.add(randomDouble());
                 }
                 assertDoubleHash(previousValues, b);
+            }
+            case POINT -> {
+                int prevSize = between(1, 10000);
+                Set<SpatialPoint> previousValues = new HashSet<>(prevSize);
+                while (previousValues.size() < prevSize) {
+                    previousValues.add(randomBoolean() ? randomGeoPoint() : randomCartesianPoint());
+                }
+                assertPointHash(previousValues, b);
             }
             default -> throw new IllegalArgumentException();
         }
@@ -322,6 +335,16 @@ public class MultivalueDedupeTests extends ESTestCase {
         }
     }
 
+    private void assertPointHash(Set<SpatialPoint> previousValues, BasicBlockTests.RandomBlock b) {
+        LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
+        previousValues.stream().forEach(p -> hash.add(p.hashCode()));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupePoint((PointBlock) b.block()).hash(blockFactory(), hash);
+        try (IntBlock ords = hashes.ords()) {
+            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(Objects::isNull)));
+            assertHash(b, ords, hash.size(), previousValues, hash::get, p -> (long) p.hashCode());
+        }
+    }
+
     private void assertHash(
         BasicBlockTests.RandomBlock b,
         IntBlock hashes,
@@ -329,8 +352,18 @@ public class MultivalueDedupeTests extends ESTestCase {
         Set<? extends Object> previousValues,
         LongFunction<Object> lookup
     ) {
-        Set<Object> allValues = new HashSet<>();
-        allValues.addAll(previousValues);
+        assertHash(b, hashes, hashSize, previousValues, lookup, v -> v);
+    }
+
+    private void assertHash(
+        BasicBlockTests.RandomBlock b,
+        IntBlock hashes,
+        long hashSize,
+        Set<? extends Object> previousValues,
+        LongFunction<Object> lookup,
+        Function<Object, Object> valueMapper
+    ) {
+        Set<Object> allValues = new HashSet<>(previousValues.stream().map(valueMapper).toList());
         for (int p = 0; p < b.block().getPositionCount(); p++) {
             assertThat(hashes.isNull(p), equalTo(false));
             int count = hashes.getValueCount(p);
@@ -346,8 +379,9 @@ public class MultivalueDedupeTests extends ESTestCase {
             for (int i = start; i < end; i++) {
                 actualValues.add(lookup.apply(hashes.getInt(i) - 1));
             }
-            assertThat(actualValues, containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray()));
-            allValues.addAll(v);
+            List<Object> values = v.stream().map(valueMapper).toList();
+            assertThat(actualValues, containsInAnyOrder(new HashSet<>(values).stream().sorted().toArray()));
+            allValues.addAll(values);
         }
 
         Set<Object> hashedValues = new HashSet<>((int) hashSize);
@@ -389,6 +423,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                     case LONG -> assertThat(toDecode[i].length, equalTo(Long.BYTES));
                     case DOUBLE -> assertThat(toDecode[i].length, equalTo(Double.BYTES));
                     case BOOLEAN -> assertThat(toDecode[i].length, equalTo(1));
+                    case POINT -> assertThat(toDecode[i].length, equalTo(2 * Double.BYTES));
                     case BYTES_REF -> {
                         // Not a well defined length
                     }
@@ -411,6 +446,19 @@ public class MultivalueDedupeTests extends ESTestCase {
             var c = (Comparable<Object>) o;
             return c;
         })); // Sort for easier visual comparison of errors
+        // TODO: Remove this once fully debugged
+//        if (false == equalTo(expected).matches(actual)) {
+//            if (expected.size() != actual.size()) {
+//                System.out.println("Different sizes: " + expected.size() + " != " + actual.size());
+//            } else {
+//                for (int i = 0; i < actual.size(); i++) {
+//                    System.out.println(i);
+//                    System.out.println("Expected: " + expected.get(i));
+//                    System.out.println("Actual:   " + actual.get(i));
+//                    System.out.println("Equal: " + expected.get(i).equals(actual.get(i)));
+//                }
+//            }
+//        }
         assertThat(actual, equalTo(expected));
         return valueOffset;
     }

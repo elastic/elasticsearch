@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
-
 /**
  * Builder for {@link BytesRefVector}s that grows as needed.
  * This class is generated. Do not edit it.

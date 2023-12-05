@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+$elseif(Point)$
+import org.elasticsearch.common.geo.SpatialPoint;
 $else$
 $endif$
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -78,7 +80,12 @@ $endif$
                     final int valueCount = in.readVInt();
                     builder.beginPositionEntry();
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+    $if(Point)$
+                        $type$ element = new $type$(in.readDouble(), in.readDouble());
+                        builder.append$Type$(element);
+    $else$
                         builder.append$Type$(in.read$Type$());
+    $endif$
                     }
                     builder.endPositionEntry();
                 }
@@ -106,6 +113,10 @@ $endif$
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
     $if(BytesRef)$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
+    $elseif(Point)$
+                        $type$ element = get$Type$(getFirstValueIndex(pos) + valueIndex);
+                        out.writeDouble(element.getX());
+                        out.writeDouble(element.getY());
     $else$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
     $endif$
@@ -156,6 +167,9 @@ $endif$
 $if(BytesRef)$
                     if (block1.getBytesRef(b1ValueIdx + valueIndex, new BytesRef())
                         .equals(block2.getBytesRef(b2ValueIdx + valueIndex, new BytesRef())) == false) {
+$elseif(Point)$
+                    if (block1.get$Type$(b1ValueIdx + valueIndex)
+                        .equals(block2.get$Type$(b2ValueIdx + valueIndex)) == false) {
 $else$
                     if (block1.get$Type$(b1ValueIdx + valueIndex) != block2.get$Type$(b2ValueIdx + valueIndex)) {
 $endif$
@@ -195,6 +209,12 @@ $elseif(long)$
                     result = 31 * result + (int) (element ^ (element >>> 32));
 $elseif(double)$
                     long element = Double.doubleToLongBits(block.getDouble(firstValueIdx + valueIndex));
+                    result = 31 * result + (int) (element ^ (element >>> 32));
+$elseif(Point)$
+                    $type$ value = block.get$Type$(firstValueIdx + valueIndex);
+                    long element = Double.doubleToLongBits(value.getX());
+                    result = 31 * result + (int) (element ^ (element >>> 32));
+                    element = Double.doubleToLongBits(value.getY());
                     result = 31 * result + (int) (element ^ (element >>> 32));
 $endif$
                 }

@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+$if(Point)$
+import org.elasticsearch.common.geo.SpatialPoint;
+$endif$
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -69,6 +72,8 @@ $endif$
         for (int pos = 0; pos < positions; pos++) {
 $if(BytesRef)$
             if (vector1.getBytesRef(pos, new BytesRef()).equals(vector2.getBytesRef(pos, new BytesRef())) == false) {
+$elseif(Point)$
+            if (vector1.getPoint(pos).equals(vector2.getPoint(pos)) == false) {
 $else$
             if (vector1.get$Type$(pos) != vector2.get$Type$(pos)) {
 $endif$
@@ -100,6 +105,12 @@ $elseif(long)$
 $elseif(double)$
             long element = Double.doubleToLongBits(vector.getDouble(pos));
             result = 31 * result + (int) (element ^ (element >>> 32));
+$elseif(Point)$
+            SpatialPoint point = vector.getPoint(pos);
+            long element = Double.doubleToLongBits(point.getX());
+            result = 31 * result + (int) (element ^ (element >>> 32));
+            element = Double.doubleToLongBits(point.getY());
+            result = 31 * result + (int) (element ^ (element >>> 32));
 $endif$
         }
         return result;
@@ -110,11 +121,21 @@ $endif$
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
+$if(Point)$
+            $type$ element = new $type$(in.readDouble(), in.readDouble());
+            return blockFactory.newConstant$Type$Vector(element, positions);
+$else$
             return blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
+$endif$
         } else {
             try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
                 for (int i = 0; i < positions; i++) {
+$if(Point)$
+                    $type$ element = new $type$(in.readDouble(), in.readDouble());
+                    builder.append$Type$(element);
+$else$
                     builder.append$Type$(in.read$Type$());
+$endif$
                 }
                 return builder.build();
             }
@@ -129,6 +150,10 @@ $endif$
         if (isConstant() && positions > 0) {
 $if(BytesRef)$
             out.write$Type$(get$Type$(0, new BytesRef()));
+$elseif(Point)$
+            $type$ value = get$Type$(0);
+            out.writeDouble(value.getX());
+            out.writeDouble(value.getY());
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
@@ -136,6 +161,10 @@ $endif$
             for (int i = 0; i < positions; i++) {
 $if(BytesRef)$
                 out.write$Type$(get$Type$(i, new BytesRef()));
+$elseif(Point)$
+                $type$ value = get$Type$(i);
+                out.writeDouble(value.getX());
+                out.writeDouble(value.getY());
 $else$
                 out.write$Type$(get$Type$(i));
 $endif$

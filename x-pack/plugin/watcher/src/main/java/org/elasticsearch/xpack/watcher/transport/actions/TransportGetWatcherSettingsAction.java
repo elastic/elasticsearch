@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.GetWatcherSett
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction;
 
 import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_NAME;
+import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_REQUEST;
 
 public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction<
     GetWatcherSettingsAction.Request,
@@ -91,17 +92,7 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
         return state.blocks()
             .indicesBlockedException(
                 ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, new IndicesRequest() {
-                    @Override
-                    public String[] indices() {
-                        return new String[] { WATCHER_INDEX_NAME };
-                    }
-
-                    @Override
-                    public IndicesOptions indicesOptions() {
-                        return IndicesOptions.LENIENT_EXPAND_OPEN;
-                    }
-                })
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, WATCHER_INDEX_REQUEST)
             );
     }
 }

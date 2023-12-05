@@ -75,15 +75,15 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
             assertThat(getStackTracesRequest.getCustomCostPerCoreHour(), is(0.083d));
             assertThat(getStackTracesRequest.getQuery(), notNullValue(QueryBuilder.class));
             executeCalled.set(true);
-            return new GetStackTracesResponse(
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                0,
-                0.0d,
-                0L
-            );
+
+            GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(getStackTracesRequest);
+            responseBuilder.setSamplingRate(0.04d);
+            responseBuilder.setTotalFrames(523);
+
+            GetStackTracesResponse response = responseBuilder.build();
+            assertEquals(new GetStackTracesResponse(null, null, null, null, 523, 0.04d, 0L), response);
+
+            return response;
         });
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_profiling/stacktraces")

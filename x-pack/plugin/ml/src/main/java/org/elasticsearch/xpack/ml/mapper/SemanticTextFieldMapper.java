@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -17,7 +19,6 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
@@ -32,13 +33,18 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return (SemanticTextFieldMapper) in;
     }
 
+    private static Builder builder(FieldMapper in) {
+        return ((SemanticTextFieldMapper) in).builder;
+    }
+
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<String> modelId = Parameter.stringParam("model_id", false, m -> toType(m).modelId, null).addValidator(v -> {
-            if (Strings.isEmpty(v)) {
-                throw new IllegalArgumentException("field [model_id] must be specified");
-            }
-        });
+        private final Parameter<String> modelId = Parameter.stringParam("model_id", false, m -> builder(m).modelId.get(), null)
+            .addValidator(v -> {
+                if (Strings.isEmpty(v)) {
+                    throw new IllegalArgumentException("field [model_id] must be specified");
+                }
+            });
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -62,7 +68,8 @@ public class SemanticTextFieldMapper extends FieldMapper {
                 name(),
                 new SemanticTextFieldType(name(), modelId.getValue(), meta.getValue()),
                 modelId.getValue(),
-                copyTo
+                copyTo,
+                this
             );
         }
     }
@@ -71,13 +78,10 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType {
 
-        private final SparseVectorFieldMapper.SparseVectorFieldType sparseVectorFieldType;
-
         private final String modelId;
 
         public SemanticTextFieldType(String name, String modelId, Map<String, String> meta) {
-            super(name, true, false, false, TextSearchInfo.NONE, meta);
-            this.sparseVectorFieldType = new SparseVectorFieldMapper.SparseVectorFieldType(name + "." + "inference", meta);
+            super(name, false, false, false, TextSearchInfo.NONE, meta);
             this.modelId = modelId;
         }
 
@@ -93,19 +97,27 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return null;
+            throw new IllegalArgumentException("termQuery not implemented yet");
         }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            return SourceValueFetcher.toString(name(), context, format);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
     }
 
     private final String modelId;
 
-    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, String modelId, CopyTo copyTo) {
+    private final Builder builder;
+
+    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, String modelId, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
+        this.builder = builder;
         this.modelId = modelId;
     }
 

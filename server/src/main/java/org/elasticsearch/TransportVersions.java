@@ -188,7 +188,7 @@ public class TransportVersions {
     public static final TransportVersion UPGRADE_TO_LUCENE_9_9 = def(8_555_00_0);
     public static final TransportVersion HEALTH_INFO_ENRICHED_WITH_DSL_STATUS = def(8_556_00_0);
 
-    public static final TransportVersion KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS = def(8_547_00_0);
+    public static final TransportVersion KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS = def(8_993_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

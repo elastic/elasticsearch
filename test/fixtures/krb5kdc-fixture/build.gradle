@@ -52,6 +52,6 @@ artifacts {
     builtBy("postProcessFixture")
   }
   krb5KeytabsHdfsDir(file("$testFixturesDir/shared/hdfs/keytabs/")) {
-    builtBy("preProcessFixture")
+    builtBy("postProcessFixture")
   }
 }

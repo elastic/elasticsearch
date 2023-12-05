@@ -50,7 +50,7 @@ public class SnapshotFilesProvider {
             inputStream = new SlicedInputStream(fileInfo.numberOfParts()) {
                 @Override
                 protected InputStream openSlice(int slice) throws IOException {
-                    return container.readBlob(OperationPurpose.SNAPSHOT, fileInfo.partName(slice));
+                    return container.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(slice));
                 }
             };
         }

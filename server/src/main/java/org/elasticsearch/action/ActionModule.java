@@ -266,6 +266,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -516,6 +517,7 @@ public class ActionModule extends AbstractModule {
         SystemIndices systemIndices,
         Tracer tracer,
         ClusterService clusterService,
+        RerouteService rerouteService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
         RestExtension restExtension
     ) {
@@ -562,7 +564,7 @@ public class ActionModule extends AbstractModule {
         } else {
             restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
         }
-        reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+        reservedClusterStateService = new ReservedClusterStateService(clusterService, rerouteService, reservedStateHandlers);
         this.restExtension = restExtension;
     }
 

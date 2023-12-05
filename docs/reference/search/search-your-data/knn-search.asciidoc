@@ -243,6 +243,114 @@ POST byte-image-index/_search
 // TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
 [discrete]
+[[knn-search-quantized-example]]
+==== Byte quantized kNN search
+
+If you want to provide `float` vectors, but want the memory savings of `byte` vectors, you can use the
+<<dense-vector-quantization, quantization>> feature. Quantization allows you to provide `float` vectors, but
+internally they are indexed as `byte` vectors. Additionally, the original `float` vectors are still retained
+in the index.
+
+To use quantization, you can use the index type `int8_hnsw` object in the `dense_vector` mapping.
+
+[source,console]
+----
+PUT quantized-image-index
+{
+  "mappings": {
+    "properties": {
+      "image-vector": {
+        "type": "dense_vector",
+        "element_type": "float",
+        "dims": 2,
+        "index": true,
+        "index_options": {
+          "type": "int8_hnsw"
+        }
+      },
+      "title": {
+        "type": "text"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+. Index your `float` vectors.
++
+[source,console]
+----
+POST quantized-image-index/_bulk?refresh=true
+{ "index": { "_id": "1" } }
+{ "image-vector": [0.1, -2], "title": "moose family" }
+{ "index": { "_id": "2" } }
+{ "image-vector": [0.75, -1], "title": "alpine lake" }
+{ "index": { "_id": "3" } }
+{ "image-vector": [1.2, 0.1], "title": "full moon" }
+----
+//TEST[continued]
+
+. Run the search using the <<search-api-knn, `knn` option>>. When searching, the `float` vector is
+automatically quantized to a `byte` vector.
++
+[source,console]
+----
+POST quantized-image-index/_search
+{
+  "knn": {
+    "field": "image-vector",
+    "query_vector": [0.1, -2],
+    "k": 10,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ]
+}
+----
+// TEST[continued]
+// TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
+Since the original `float` vectors are still retained in the index, you can optionally use them for re-scoring. Meaning,
+you can search over all the vectors quickly using the `int8_hnsw` index and then rescore only the top `k` results. This
+provides the best of both worlds, fast search and accurate scoring.
+
+[source,console]
+----
+POST quantized-image-index/_search
+{
+  "knn": {
+    "field": "image-vector",
+    "query_vector": [0.1, -2],
+    "k": 15,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ],
+  "rescore": {
+    "window_size": 10,
+    "query": {
+      "rescore_query": {
+        "script_score": {
+          "query": {
+            "match_all": {}
+          },
+          "script": {
+            "source": "cosineSimilarity(params.query_vector, 'image-vector') + 1.0",
+            "params": {
+              "query_vector": [0.1, -2]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+// TEST[s/"k": 15/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
+[discrete]
 [[knn-search-filter-example]]
 ==== Filtered kNN search
 
@@ -903,7 +1011,7 @@ the global top `k` matches across shards. You cannot set the
 To run an exact kNN search, use a `script_score` query with a vector function.
 
 . Explicitly map one or more `dense_vector` fields. If you don't intend to use
-the field for approximate kNN, set the `index` mapping option to `false`. This 
+the field for approximate kNN, set the `index` mapping option to `false`. This
 can significantly improve indexing speed.
 +
 [source,console]

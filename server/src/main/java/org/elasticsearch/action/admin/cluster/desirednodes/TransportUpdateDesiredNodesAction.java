@@ -45,6 +45,7 @@ import static java.lang.String.format;
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
 
+    private final RerouteService rerouteService;
     private final FeatureService featureService;
     private final Consumer<List<DesiredNode>> desiredNodesValidator;
     private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
@@ -53,6 +54,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     public TransportUpdateDesiredNodesAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         FeatureService featureService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
@@ -62,6 +64,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         this(
             transportService,
             clusterService,
+            rerouteService,
             featureService,
             threadPool,
             actionFilters,
@@ -74,6 +77,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     TransportUpdateDesiredNodesAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         FeatureService featureService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
@@ -93,12 +97,13 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             UpdateDesiredNodesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         this.featureService = featureService;
         this.desiredNodesValidator = desiredNodesValidator;
         this.taskQueue = clusterService.createTaskQueue(
             "update-desired-nodes",
             Priority.URGENT,
-            new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService)
+            new UpdateDesiredNodesExecutor(rerouteService, allocationService)
         );
     }
 

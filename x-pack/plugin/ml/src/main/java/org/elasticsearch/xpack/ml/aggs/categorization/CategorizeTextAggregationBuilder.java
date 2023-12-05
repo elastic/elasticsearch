@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -123,12 +124,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         super(in);
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
         if (in.getTransportVersion().before(ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchException(
+            throw new ElasticsearchStatusException(
                 "["
                     + NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
                     + ALGORITHM_CHANGED_VERSION
-                    + "] or higher and others have a version before this"
+                    + "] or higher and others have a version before this",
+                RestStatus.BAD_REQUEST
             );
         }
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
@@ -279,12 +281,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     protected void doWriteTo(StreamOutput out) throws IOException {
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
         if (out.getTransportVersion().before(ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchException(
+            throw new ElasticsearchStatusException(
                 "["
                     + NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
                     + ALGORITHM_CHANGED_VERSION
-                    + "] or higher and others have a version before this"
+                    + "] or higher and others have a version before this",
+                RestStatus.BAD_REQUEST
             );
         }
         bucketCountThresholds.writeTo(out);

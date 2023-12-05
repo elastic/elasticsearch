@@ -86,8 +86,8 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(0).getId(), nullValue());
             assertThat(response.getHits().getAt(0).field("_routing"), nullValue());
             assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-
-            response = prepareSearch("test").storedFields("_none_").get();
+        });
+        assertResponse(prepareSearch("test").storedFields("_none_"), response -> {
             assertThat(response.getHits().getAt(0).getId(), nullValue());
             assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
         });

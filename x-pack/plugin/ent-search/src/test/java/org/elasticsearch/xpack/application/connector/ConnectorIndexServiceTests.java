@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorError
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.junit.Before;
@@ -213,6 +214,25 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
         assertThat(updateErrorRequest.getError(), equalTo(indexedConnector.getError()));
+    }
+
+    public void testUpdateConnectorNameOrDescription() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        DocWriteResponse resp = awaitPutConnector(connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        UpdateConnectorNameAction.Request updateNameDescriptionRequest = new UpdateConnectorNameAction.Request(
+            connector.getConnectorId(),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15)
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorName(updateNameDescriptionRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        assertThat(updateNameDescriptionRequest.getName(), equalTo(indexedConnector.getName()));
+        assertThat(updateNameDescriptionRequest.getDescription(), equalTo(indexedConnector.getDescription()));
     }
 
     private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
@@ -469,6 +489,31 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    private UpdateResponse awaitUpdateConnectorName(UpdateConnectorNameAction.Request updatedNameOrDescription) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorNameOrDescription(updatedNameOrDescription, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update name request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update name request", resp.get());
+        return resp.get();
+    }
+
     private UpdateResponse awaitUpdateConnectorError(UpdateConnectorErrorAction.Request updatedError) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
@@ -493,4 +538,5 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertNotNull("Received null response from update error request", resp.get());
         return resp.get();
     }
+
 }

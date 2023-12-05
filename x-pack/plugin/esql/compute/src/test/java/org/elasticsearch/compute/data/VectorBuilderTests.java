@@ -119,6 +119,7 @@ public class VectorBuilderTests extends ESTestCase {
             case DOUBLE -> DoubleVector.newVectorBuilder(estimatedSize, blockFactory);
             case INT -> IntVector.newVectorBuilder(estimatedSize, blockFactory);
             case LONG -> LongVector.newVectorBuilder(estimatedSize, blockFactory);
+            case POINT -> PointVector.newVectorBuilder(estimatedSize, blockFactory);
         };
     }
 
@@ -148,6 +149,11 @@ public class VectorBuilderTests extends ESTestCase {
             case LONG -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((LongVector.Builder) builder).appendLong(((LongVector) from).getLong(p));
+                }
+            }
+            case POINT -> {
+                for (int p = 0; p < from.getPositionCount(); p++) {
+                    ((PointVector.Builder) builder).appendPoint(((PointVector) from).getPoint(p));
                 }
             }
         }

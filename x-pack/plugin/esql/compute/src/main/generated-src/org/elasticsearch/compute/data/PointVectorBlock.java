@@ -7,43 +7,33 @@
 
 package org.elasticsearch.compute.data;
 
-$if(BytesRef)$
-import org.apache.lucene.util.BytesRef;
-$endif$
-$if(Point)$
 import org.elasticsearch.common.geo.SpatialPoint;
-$endif$
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a $Type$Vector.
+ * Block view of a PointVector.
  * This class is generated. Do not edit it.
  */
-public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
+public final class PointVectorBlock extends AbstractVectorBlock implements PointBlock {
 
-    private final $Type$Vector vector;
+    private final PointVector vector;
 
     /**
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
-    $Type$VectorBlock($Type$Vector vector) {
+    PointVectorBlock(PointVector vector) {
         super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
     @Override
-    public $Type$Vector asVector() {
+    public PointVector asVector() {
         return vector;
     }
 
     @Override
-$if(BytesRef)$
-    public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
-        return vector.getBytesRef(valueIndex, dest);
-$else$
-    public $type$ get$Type$(int valueIndex) {
-        return vector.get$Type$(valueIndex);
-$endif$
+    public SpatialPoint getPoint(int valueIndex) {
+        return vector.getPoint(valueIndex);
     }
 
     @Override
@@ -57,7 +47,7 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
+    public PointBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
     }
 
@@ -68,15 +58,15 @@ $endif$
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof $Type$Block that) {
-            return $Type$Block.equals(this, that);
+        if (obj instanceof PointBlock that) {
+            return PointBlock.equals(this, that);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return $Type$Block.hash(this);
+        return PointBlock.hash(this);
     }
 
     @Override
@@ -98,10 +88,5 @@ $endif$
     @Override
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
-    }
-
-    @Override
-    public BlockFactory blockFactory() {
-        return vector.blockFactory();
     }
 }

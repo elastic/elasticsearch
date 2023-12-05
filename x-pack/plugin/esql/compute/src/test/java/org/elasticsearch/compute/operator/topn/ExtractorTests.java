@@ -87,6 +87,9 @@ public class ExtractorTests extends ESTestCase {
                         ) }
                 );
                 case NULL -> cases.add(valueTestCase("null", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> null));
+                case POINT -> {
+                    // TODO should we support SpatialPoint in topN? Probably not, but lets think about it.
+                }
                 default -> {
                     cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> BlockTestUtils.randomValue(e)));
                     cases.add(

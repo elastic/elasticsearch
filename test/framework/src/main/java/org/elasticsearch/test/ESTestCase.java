@@ -49,6 +49,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -1196,7 +1197,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static SpatialPoint randomGeoPoint() {
         double lat = randomDoubleBetween(-90, 90, true);
         double lon = randomDoubleBetween(-180, 180, true);
-        return new SpatialPoint(lon, lat);
+        return new GeoPoint(lat, lon);
     }
 
     /**

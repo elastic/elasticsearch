@@ -7,49 +7,30 @@
 
 package org.elasticsearch.compute.data;
 
-$if(BytesRef)$
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.core.Releasables;
-
-$elseif(Point)$
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
-$else$
-import org.apache.lucene.util.RamUsageEstimator;
-
-import java.util.Arrays;
-$endif$
 import java.util.BitSet;
 
-$if(Point)$
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
-$endif$
 
 /**
- * Block implementation that stores an array of $type$.
+ * Block implementation that stores an array of SpatialPoint.
  * This class is generated. Do not edit it.
  */
-public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
+public final class PointArrayBlock extends AbstractArrayBlock implements PointBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PointArrayBlock.class);
 
-$if(BytesRef)$
-    private final BytesRefArray values;
+    private final SpatialPoint[] values;
 
-$else$
-    private final $type$[] values;
-$endif$
-
-    public $Type$ArrayBlock($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+    public PointArrayBlock(SpatialPoint[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
     }
 
-    public $Type$ArrayBlock(
-        $if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values,
+    public PointArrayBlock(
+        SpatialPoint[] values,
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,
@@ -61,26 +42,18 @@ $endif$
     }
 
     @Override
-    public $Type$Vector asVector() {
+    public PointVector asVector() {
         return null;
     }
 
     @Override
-$if(BytesRef)$
-    public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
-        return values.get(valueIndex, dest);
-$else$
-    public $type$ get$Type$(int valueIndex) {
+    public SpatialPoint getPoint(int valueIndex) {
         return values[valueIndex];
-$endif$
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
-$if(BytesRef)$
-        final BytesRef scratch = new BytesRef();
-$endif$
-        try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
+    public PointBlock filter(int... positions) {
+        try (var builder = blockFactory().newPointBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -89,11 +62,11 @@ $endif$
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.append$Type$(get$Type$(getFirstValueIndex(pos)$if(BytesRef)$, scratch$endif$));
+                    builder.appendPoint(getPoint(getFirstValueIndex(pos)));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {
-                        builder.append$Type$(get$Type$(first + c$if(BytesRef)$, scratch$endif$));
+                        builder.appendPoint(getPoint(first + c));
                     }
                     builder.endPositionEntry();
                 }
@@ -104,20 +77,17 @@ $endif$
 
     @Override
     public ElementType elementType() {
-        return ElementType.$TYPE$;
+        return ElementType.POINT;
     }
 
     @Override
-    public $Type$Block expand() {
+    public PointBlock expand() {
         if (firstValueIndexes == null) {
             incRef();
             return this;
         }
         // TODO use reference counting to share the values
-$if(BytesRef)$
-        final BytesRef scratch = new BytesRef();
-$endif$
-        try (var builder = blockFactory().new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
+        try (var builder = blockFactory().newPointBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -126,26 +96,17 @@ $endif$
                 int first = getFirstValueIndex(pos);
                 int end = first + getValueCount(pos);
                 for (int i = first; i < end; i++) {
-$if(BytesRef)$
-                    builder.append$Type$(get$Type$(i, scratch));
-$else$
-                    builder.append$Type$(get$Type$(i));
-$endif$
+                    builder.appendPoint(getPoint(i));
                 }
             }
             return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
     }
 
-    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int[] firstValueIndexes, BitSet nullsMask) {
-    $if(Point)$
+    public static long ramBytesEstimated(SpatialPoint[] values, int[] firstValueIndexes, BitSet nullsMask) {
         long valuesEstimate = RamUsageEstimator.alignObjectSize((long) NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * values.length * 2);
         return BASE_RAM_BYTES_USED + valuesEstimate + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator
             .sizeOfBitSet(nullsMask);
-    $else$
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
-    $endif$
     }
 
     @Override
@@ -155,15 +116,15 @@ $endif$
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof $Type$Block that) {
-            return $Type$Block.equals(this, that);
+        if (obj instanceof PointBlock that) {
+            return PointBlock.equals(this, that);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return $Type$Block.hash(this);
+        return PointBlock.hash(this);
     }
 
     @Override
@@ -173,23 +134,13 @@ $endif$
             + getPositionCount()
             + ", mvOrdering="
             + mvOrdering()
-$if(BytesRef)$
-            + ", values="
-            + values.size()
-$else$
             + ", values="
             + Arrays.toString(values)
-$endif$
             + ']';
     }
 
     @Override
     public void closeInternal() {
-    $if(BytesRef)$
-        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
-        Releasables.closeExpectNoException(values);
-    $else$
         blockFactory().adjustBreaker(-ramBytesUsed(), true);
-    $endif$
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
 import java.util.function.BiFunction;
@@ -35,6 +36,7 @@ public final class MultivalueDedupe {
             case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockAdaptive(blockFactory);
             case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockAdaptive(blockFactory);
             case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockAdaptive(blockFactory);
+            case POINT -> new MultivalueDedupePoint((PointBlock) block).dedupeToBlockAdaptive(blockFactory);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -52,6 +54,7 @@ public final class MultivalueDedupe {
             case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
             case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
             case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
+            case POINT -> new MultivalueDedupePoint((PointBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -71,6 +74,7 @@ public final class MultivalueDedupe {
             case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
             case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
             case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
+            case POINT -> new MultivalueDedupePoint((PointBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -101,6 +105,10 @@ public final class MultivalueDedupe {
                 field,
                 (blockFactory, block) -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockAdaptive(blockFactory)
             );
+            case POINT -> new EvaluatorFactory(
+                field,
+                (blockFactory, block) -> new MultivalueDedupePoint((PointBlock) block).dedupeToBlockAdaptive(blockFactory)
+            );
             case NULL -> field; // The page is all nulls and when you dedupe that it's still all nulls
             default -> throw new IllegalArgumentException("unsupported type [" + elementType + "]");
         };
@@ -128,6 +136,7 @@ public final class MultivalueDedupe {
                 case INT -> new BatchEncoder.DirectInts((IntBlock) block);
                 case LONG -> new BatchEncoder.DirectLongs((LongBlock) block);
                 case DOUBLE -> new BatchEncoder.DirectDoubles((DoubleBlock) block);
+                case POINT -> new BatchEncoder.DirectPoints((PointBlock) block);
                 default -> throw new IllegalArgumentException("Unknown [" + elementType + "]");
             };
         } else {
@@ -137,6 +146,7 @@ public final class MultivalueDedupe {
                 case INT -> new MultivalueDedupeInt((IntBlock) block).batchEncoder(batchSize);
                 case LONG -> new MultivalueDedupeLong((LongBlock) block).batchEncoder(batchSize);
                 case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).batchEncoder(batchSize);
+                case POINT -> new MultivalueDedupePoint((PointBlock) block).batchEncoder(batchSize);
                 default -> throw new IllegalArgumentException();
             };
         }

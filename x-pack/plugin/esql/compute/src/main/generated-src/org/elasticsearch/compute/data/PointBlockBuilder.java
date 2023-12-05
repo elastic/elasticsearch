@@ -7,33 +7,30 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
 /**
- * Block build of BytesRefBlocks.
+ * Block build of PointBlocks.
  * This class is generated. Do not edit it.
  */
 final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock.Builder {
 
-    private BytesRefArray values;
+    private SpatialPoint[] values;
 
     PointBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
-    }
-
-    PointBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
         super(blockFactory);
-        values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        values = new SpatialPoint[initialSize];
     }
 
     @Override
-    public PointBlockBuilder appendBytesRef(BytesRef value) {
+    public PointBlockBuilder appendPoint(SpatialPoint value) {
         ensureCapacity();
-        values.append(value);
+        values[valueCount] = value;
         hasNonNullValue = true;
         valueCount++;
         updatePosition();
@@ -42,17 +39,17 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
 
     @Override
     protected int elementSize() {
-        return -1;
+        return 16;
     }
 
     @Override
     protected int valuesLength() {
-        return Integer.MAX_VALUE; // allow the BytesRefArray through its own append
+        return values.length;
     }
 
     @Override
     protected void growValuesArray(int newSize) {
-        throw new AssertionError("should not reach here");
+        values = Arrays.copyOf(values, newSize);
     }
 
     @Override
@@ -73,11 +70,6 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
         return this;
     }
 
-    @Override
-    protected void writeNullValue() {
-        values.append(BytesRefBlock.NULL_VALUE);
-    }
-
     /**
      * Appends the all values of the given block into a the current position
      * in this builder.
@@ -87,7 +79,7 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
         if (block.areAllValuesNull()) {
             return appendNull();
         }
-        return appendAllValuesToCurrentPosition((BytesRefBlock) block);
+        return appendAllValuesToCurrentPosition((PointBlock) block);
     }
 
     /**
@@ -95,7 +87,7 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
      * in this builder.
      */
     @Override
-    public PointBlockBuilder appendAllValuesToCurrentPosition(BytesRefBlock block) {
+    public PointBlockBuilder appendAllValuesToCurrentPosition(PointBlock block) {
         final int positionCount = block.getPositionCount();
         if (positionCount == 0) {
             return appendNull();
@@ -107,18 +99,17 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
         if (totalValueCount > 1) {
             beginPositionEntry();
         }
-        BytesRef scratch = new BytesRef();
-        final BytesRefVector vector = block.asVector();
+        final PointVector vector = block.asVector();
         if (vector != null) {
             for (int p = 0; p < positionCount; p++) {
-                appendBytesRef(vector.getBytesRef(p, scratch));
+                appendPoint(vector.getPoint(p));
             }
         } else {
             for (int p = 0; p < positionCount; p++) {
                 int count = block.getValueCount(p);
                 int i = block.getFirstValueIndex(p);
                 for (int v = 0; v < count; v++) {
-                    appendBytesRef(block.getBytesRef(i++, scratch));
+                    appendPoint(block.getPoint(i++));
                 }
             }
         }
@@ -136,18 +127,18 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
             }
             return this;
         }
-        return copyFrom((BytesRefBlock) block, beginInclusive, endExclusive);
+        return copyFrom((PointBlock) block, beginInclusive, endExclusive);
     }
 
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
      */
-    public PointBlockBuilder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive) {
+    public PointBlockBuilder copyFrom(PointBlock block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
         }
-        BytesRefVector vector = block.asVector();
+        PointVector vector = block.asVector();
         if (vector != null) {
             copyFromVector(vector, beginInclusive, endExclusive);
         } else {
@@ -156,8 +147,7 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
         return this;
     }
 
-    private void copyFromBlock(BytesRefBlock block, int beginInclusive, int endExclusive) {
-        BytesRef scratch = new BytesRef();
+    private void copyFromBlock(PointBlock block, int beginInclusive, int endExclusive) {
         for (int p = beginInclusive; p < endExclusive; p++) {
             if (block.isNull(p)) {
                 appendNull();
@@ -169,7 +159,7 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
             }
             int i = block.getFirstValueIndex(p);
             for (int v = 0; v < count; v++) {
-                appendBytesRef(block.getBytesRef(i++, scratch));
+                appendPoint(block.getPoint(i++));
             }
             if (count > 1) {
                 endPositionEntry();
@@ -177,10 +167,9 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
         }
     }
 
-    private void copyFromVector(BytesRefVector vector, int beginInclusive, int endExclusive) {
-        BytesRef scratch = new BytesRef();
+    private void copyFromVector(PointVector vector, int beginInclusive, int endExclusive) {
         for (int p = beginInclusive; p < endExclusive; p++) {
-            appendBytesRef(vector.getBytesRef(p, scratch));
+            appendPoint(vector.getPoint(p));
         }
     }
 
@@ -191,50 +180,34 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
     }
 
     @Override
-    public BytesRefBlock build() {
+    public PointBlock build() {
         try {
             finish();
-            BytesRefBlock theBlock;
-            assert estimatedBytes == 0 || firstValueIndexes != null;
+            PointBlock theBlock;
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-                theBlock = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
-                /*
-                 * Update the breaker with the actual bytes used.
-                 * We pass false below even though we've used the bytes. That's weird,
-                 * but if we break here we will throw away the used memory, letting
-                 * it be deallocated. The exception will bubble up and the builder will
-                 * still technically be open, meaning the calling code should close it
-                 * which will return all used memory to the breaker.
-                 */
-                blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes, false);
-                Releasables.closeExpectNoException(values);
+                theBlock = blockFactory.newConstantPointBlockWith(values[0], 1, estimatedBytes);
             } else {
-                if (isDense() && singleValued()) {
-                    theBlock = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
-                } else {
-                    theBlock = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                    values = Arrays.copyOf(values, valueCount);
                 }
-                /*
-                 * Update the breaker with the actual bytes used.
-                 * We pass false below even though we've used the bytes. That's weird,
-                 * but if we break here we will throw away the used memory, letting
-                 * it be deallocated. The exception will bubble up and the builder will
-                 * still technically be open, meaning the calling code should close it
-                 * which will return all used memory to the breaker.
-                 */
-                blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed(), false);
+                if (isDense() && singleValued()) {
+                    theBlock = blockFactory.newPointArrayVector(values, positionCount, estimatedBytes).asBlock();
+                } else {
+                    theBlock = blockFactory.newPointArrayBlock(
+                        values,
+                        positionCount,
+                        firstValueIndexes,
+                        nullsMask,
+                        mvOrdering,
+                        estimatedBytes
+                    );
+                }
             }
-            values = null;
             built();
             return theBlock;
         } catch (CircuitBreakingException e) {
             close();
             throw e;
         }
-    }
-
-    @Override
-    public void extraClose() {
-        Releasables.closeExpectNoException(values);
     }
 }

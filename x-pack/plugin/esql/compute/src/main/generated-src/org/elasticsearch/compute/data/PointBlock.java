@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,34 +19,31 @@ import java.io.IOException;
  * Block that stores SpatialPoint values.
  * This class is generated. Do not edit it.
  */
-public sealed interface PointBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock {
-
-    BytesRef NULL_VALUE = new BytesRef();
+public sealed interface PointBlock extends Block permits PointArrayBlock, PointVectorBlock, ConstantNullBlock {
 
     /**
-     * Retrieves the BytesRef value stored at the given value index.
+     * Retrieves the SpatialPoint value stored at the given value index.
      *
      * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
      * getFirstValueIndex(position) + getValueCount(position) (exclusive).
      *
      * @param valueIndex the value index
-     * @param dest the destination
-     * @return the data value (as a BytesRef)
+     * @return the data value (as a SpatialPoint)
      */
-    BytesRef getBytesRef(int valueIndex, BytesRef dest);
+    SpatialPoint getPoint(int valueIndex);
 
     @Override
-    BytesRefVector asVector();
+    PointVector asVector();
 
     @Override
     PointBlock filter(int... positions);
 
     @Override
     default String getWriteableName() {
-        return "BytesRefBlock";
+        return "PointBlock";
     }
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", PointBlock::readFrom);
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "PointBlock", PointBlock::readFrom);
 
     private static PointBlock readFrom(StreamInput in) throws IOException {
         return readFrom((BlockStreamInput) in);
@@ -55,10 +52,10 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
     private static PointBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return BytesRefVector.readFrom(in.blockFactory(), in).asBlock();
+            return PointVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (PointBlock.Builder builder = in.blockFactory().newBytesRefBlockBuilder(positions)) {
+        try (PointBlock.Builder builder = in.blockFactory().newPointBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();
@@ -66,7 +63,8 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
                     final int valueCount = in.readVInt();
                     builder.beginPositionEntry();
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        builder.appendBytesRef(in.readBytesRef());
+                        SpatialPoint element = new SpatialPoint(in.readDouble(), in.readDouble());
+                        builder.appendPoint(element);
                     }
                     builder.endPositionEntry();
                 }
@@ -77,7 +75,7 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
-        BytesRefVector vector = asVector();
+        PointVector vector = asVector();
         out.writeBoolean(vector != null);
         if (vector != null) {
             vector.writeTo(out);
@@ -92,7 +90,9 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
                     final int valueCount = getValueCount(pos);
                     out.writeVInt(valueCount);
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        out.writeBytesRef(getBytesRef(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
+                        SpatialPoint element = getPoint(getFirstValueIndex(pos) + valueIndex);
+                        out.writeDouble(element.getX());
+                        out.writeDouble(element.getY());
                     }
                 }
             }
@@ -101,7 +101,7 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
 
     /**
      * Compares the given object with this block for equality. Returns {@code true} if and only if the
-     * given object is a BytesRefBlock, and both blocks are {@link #equals(PointBlock, PointBlock) equal}.
+     * given object is a PointBlock, and both blocks are {@link #equals(PointBlock, PointBlock) equal}.
      */
     @Override
     boolean equals(Object obj);
@@ -114,7 +114,7 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
      * Returns {@code true} if the given blocks are equal to each other, otherwise {@code false}.
      * Two blocks are considered equal if they have the same position count, and contain the same
      * values (including absent null values) in the same order. This definition ensures that the
-     * equals method works properly across different implementations of the BytesRefBlock interface.
+     * equals method works properly across different implementations of the PointBlock interface.
      */
     static boolean equals(PointBlock block1, PointBlock block2) {
         if (block1 == block2) {
@@ -137,8 +137,8 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
                 final int b1ValueIdx = block1.getFirstValueIndex(pos);
                 final int b2ValueIdx = block2.getFirstValueIndex(pos);
                 for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    if (block1.getBytesRef(b1ValueIdx + valueIndex, new BytesRef())
-                        .equals(block2.getBytesRef(b2ValueIdx + valueIndex, new BytesRef())) == false) {
+                    if (block1.getPoint(b1ValueIdx + valueIndex)
+                        .equals(block2.getPoint(b2ValueIdx + valueIndex)) == false) {
                         return false;
                     }
                 }
@@ -164,7 +164,11 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
                 result = 31 * result + valueCount;
                 final int firstValueIdx = block.getFirstValueIndex(pos);
                 for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    result = 31 * result + block.getBytesRef(firstValueIdx + valueIndex, new BytesRef()).hashCode();
+                    SpatialPoint value = block.getPoint(firstValueIdx + valueIndex);
+                    long element = Double.doubleToLongBits(value.getX());
+                    result = 31 * result + (int) (element ^ (element >>> 32));
+                    element = Double.doubleToLongBits(value.getY());
+                    result = 31 * result + (int) (element ^ (element >>> 32));
                 }
             }
         }
@@ -173,7 +177,7 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
 
     /**
      * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newBytesRefBlockBuilder}
+     * @deprecated use {@link BlockFactory#newPointBlockBuilder}
      */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     @Deprecated
@@ -183,41 +187,41 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
 
     /**
      * Returns a builder.
-     * @deprecated use {@link BlockFactory#newBytesRefBlockBuilder}
+     * @deprecated use {@link BlockFactory#newPointBlockBuilder}
      */
     @Deprecated
     static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newBytesRefBlockBuilder(estimatedSize);
+        return blockFactory.newPointBlockBuilder(estimatedSize);
     }
 
     /**
      * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantBytesRefBlockWith}
+     * @deprecated use {@link BlockFactory#newConstantPointBlockWith}
      */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     @Deprecated
-    static PointBlock newConstantBlockWith(BytesRef value, int positions) {
+    static PointBlock newConstantBlockWith(SpatialPoint value, int positions) {
         return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
     }
 
     /**
      * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantBytesRefBlockWith}
+     * @deprecated use {@link BlockFactory#newConstantPointBlockWith}
      */
     @Deprecated
-    static PointBlock newConstantBlockWith(BytesRef value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantBytesRefBlockWith(value, positions);
+    static PointBlock newConstantBlockWith(SpatialPoint value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantPointBlockWith(value, positions);
     }
 
     /**
      * Builder for {@link PointBlock}
      */
-    sealed interface Builder extends Block.Builder, BlockLoader.BytesRefBuilder permits BytesRefBlockBuilder {
+    sealed interface Builder extends Block.Builder, BlockLoader.PointBuilder permits PointBlockBuilder {
         /**
-         * Appends a BytesRef to the current entry.
+         * Appends a SpatialPoint to the current entry.
          */
         @Override
-        Builder appendBytesRef(BytesRef value);
+        Builder appendPoint(SpatialPoint value);
 
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to
@@ -238,7 +242,7 @@ public sealed interface PointBlock extends Block permits BytesRefArrayBlock, Byt
         Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
         @Override
-        Builder mvOrdering(MvOrdering mvOrdering);
+        Builder mvOrdering(Block.MvOrdering mvOrdering);
 
         /**
          * Appends the all values of the given block into a the current position

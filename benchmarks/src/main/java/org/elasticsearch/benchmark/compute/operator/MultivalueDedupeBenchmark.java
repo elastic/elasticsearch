@@ -10,6 +10,7 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -43,7 +45,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class MultivalueDedupeBenchmark {
-    @Param({ "BOOLEAN", "BYTES_REF", "DOUBLE", "INT", "LONG" })
+    @Param({ "BOOLEAN", "BYTES_REF", "DOUBLE", "INT", "LONG", "POINT" })
     private ElementType elementType;
 
     @Param({ "3", "5", "10", "50", "100", "1000" })
@@ -147,6 +149,25 @@ public class MultivalueDedupeBenchmark {
                     builder.beginPositionEntry();
                     for (Long v : values) {
                         builder.appendLong(v);
+                    }
+                    builder.endPositionEntry();
+                }
+                yield builder.build();
+            }
+            case POINT -> {
+                PointBlock.Builder builder = PointBlock.newBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
+                for (int p = 0; p < AggregatorBenchmark.BLOCK_LENGTH; p++) {
+                    List<SpatialPoint> values = new ArrayList<>();
+                    for (long i = 0; i < size; i++) {
+                        values.add(new SpatialPoint(-100.0 + i % 200, 80.0 - i % 160));
+                    }
+                    for (int r = 0; r < repeats; r++) {
+                        values.add(r < size ? new SpatialPoint(-100.0 + r % 200, 80.0 - r % 160) : new SpatialPoint(0, 0));
+                    }
+                    Randomness.shuffle(values);
+                    builder.beginPositionEntry();
+                    for (SpatialPoint v : values) {
+                        builder.appendPoint(v);
                     }
                     builder.endPositionEntry();
                 }

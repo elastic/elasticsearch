@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MlRescorerIT extends ESRestTestCase {
+public class MlLearningToRankRescorerIT extends ESRestTestCase {
 
     private static final String MODEL_ID = "basic-ltr-model";
     private static final String INDEX_NAME = "store";
@@ -33,7 +33,7 @@ public class MlRescorerIT extends ESRestTestCase {
               "description": "super complex model for tests",
               "input": { "field_names": ["cost", "product"] },
               "inference_config": {
-                "learn_to_rank": {
+                "learning_to_rank": {
                   "feature_extractors": [
                     {
                         "query_extractor": {
@@ -206,7 +206,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "learn_to_rank": {
+                    "learning_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }
@@ -225,7 +225,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "learn_to_rank": {
+                    "learning_to_rank": {
                         "model_id": "basic-ltr-model",
                         "params": { "keyword": "TV" }
                     }
@@ -239,7 +239,7 @@ public class MlRescorerIT extends ESRestTestCase {
             {
                 "rescore": {
                     "window_size": 10,
-                    "learn_to_rank": {
+                    "learning_to_rank": {
                         "model_id": "basic-ltr-model",
                         "params": { "keyword": "TV" }
                     }
@@ -263,7 +263,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "learn_to_rank": {
+                    "learning_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }
@@ -282,7 +282,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "learn_to_rank": {
+                    "learning_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }
@@ -301,7 +301,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "learn_to_rank": {
+                    "learning_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }
@@ -317,7 +317,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "learn_to_rank": {
+                    "learning_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }

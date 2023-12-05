@@ -26,17 +26,17 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearningToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigTests.randomLearnToRankConfig;
-import static org.elasticsearch.xpack.ml.inference.ltr.LearnToRankServiceTests.BAD_MODEL;
-import static org.elasticsearch.xpack.ml.inference.ltr.LearnToRankServiceTests.GOOD_MODEL;
-import static org.elasticsearch.xpack.ml.inference.ltr.LearnToRankServiceTests.GOOD_MODEL_CONFIG;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfigTests.randomLearningToRankConfig;
+import static org.elasticsearch.xpack.ml.inference.ltr.LearningToRankServiceTests.BAD_MODEL;
+import static org.elasticsearch.xpack.ml.inference.ltr.LearningToRankServiceTests.GOOD_MODEL;
+import static org.elasticsearch.xpack.ml.inference.ltr.LearningToRankServiceTests.GOOD_MODEL_CONFIG;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -50,19 +50,19 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestCase {
+public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTestCase {
 
     public void testMustRewrite() {
-        LearnToRankService learnToRankService = learnToRankServiceMock();
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
+        LearningToRankService learningToRankService = learningToRankServiceMock();
+        LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder(
             GOOD_MODEL,
-            randomLearnToRankConfig(),
+            randomLearningToRankConfig(),
             null,
-            learnToRankService
+            learningToRankService
         );
 
         SearchExecutionContext context = createSearchExecutionContext();
-        LearnToRankRescorerContext rescorerContext = rescorerBuilder.innerBuildContext(randomIntBetween(1, 30), context);
+        LearningToRankRescorerContext rescorerContext = rescorerBuilder.innerBuildContext(randomIntBetween(1, 30), context);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> rescorerContext.rescorer()
@@ -76,25 +76,25 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
     }
 
     public void testRewriteOnCoordinator() throws IOException {
-        LearnToRankService learnToRankService = learnToRankServiceMock();
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(GOOD_MODEL, null, learnToRankService);
+        LearningToRankService learningToRankService = learningToRankServiceMock();
+        LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder(GOOD_MODEL, null, learningToRankService);
         rescorerBuilder.windowSize(4);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
             randomIntBetween(0, 1_100_000),
             randomIntBetween(1_500_000, Integer.MAX_VALUE)
         );
-        LearnToRankRescorerBuilder rewritten = rewriteAndFetch(rescorerBuilder, context);
-        assertThat(rewritten.learnToRankConfig(), not(nullValue()));
-        assertThat(rewritten.learnToRankConfig().getNumTopFeatureImportanceValues(), equalTo(2));
+        LearningToRankRescorerBuilder rewritten = rewriteAndFetch(rescorerBuilder, context);
+        assertThat(rewritten.learningToRankConfig(), not(nullValue()));
+        assertThat(rewritten.learningToRankConfig().getNumTopFeatureImportanceValues(), equalTo(2));
         assertThat(
             "feature_1",
             is(
                 in(
-                    rewritten.learnToRankConfig()
+                    rewritten.learningToRankConfig()
                         .getFeatureExtractorBuilders()
                         .stream()
-                        .map(LearnToRankFeatureExtractorBuilder::featureName)
+                        .map(LearningToRankFeatureExtractorBuilder::featureName)
                         .toList()
                 )
             )
@@ -103,8 +103,8 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
     }
 
     public void testRewriteOnCoordinatorWithBadModel() throws IOException {
-        LearnToRankService learnToRankService = learnToRankServiceMock();
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(BAD_MODEL, null, learnToRankService);
+        LearningToRankService learningToRankService = learningToRankServiceMock();
+        LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder(BAD_MODEL, null, learningToRankService);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
             randomIntBetween(0, 1_100_000),
@@ -115,8 +115,8 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
     }
 
     public void testRewriteOnCoordinatorWithMissingModel() {
-        LearnToRankService learnToRankService = learnToRankServiceMock();
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder("missing_model", null, learnToRankService);
+        LearningToRankService learningToRankService = learningToRankServiceMock();
+        LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder("missing_model", null, learningToRankService);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
             randomIntBetween(0, 1_100_000),
@@ -129,27 +129,27 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         LocalModel localModel = mock(LocalModel.class);
         when(localModel.getModelId()).thenReturn(GOOD_MODEL);
 
-        LearnToRankService learnToRankService = learnToRankServiceMock();
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
+        LearningToRankService learningToRankService = learningToRankServiceMock();
+        LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder(
             localModel,
-            (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
+            (LearningToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
             null,
-            learnToRankService
+            learningToRankService
         );
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        LearnToRankRescorerBuilder rewritten = (LearnToRankRescorerBuilder) rescorerBuilder.rewrite(createSearchExecutionContext());
+        LearningToRankRescorerBuilder rewritten = (LearningToRankRescorerBuilder) rescorerBuilder.rewrite(createSearchExecutionContext());
         assertFalse(searchExecutionContext.hasAsyncActions());
         assertSame(localModel, rewritten.localModel());
         assertEquals(localModel.getModelId(), rewritten.modelId());
     }
 
     public void testRewriteAndFetchOnDataNode() throws IOException {
-        LearnToRankService learnToRankService = learnToRankServiceMock();
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
+        LearningToRankService learningToRankService = learningToRankServiceMock();
+        LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder(
             GOOD_MODEL,
-            randomLearnToRankConfig(),
+            randomLearningToRankConfig(),
             null,
-            learnToRankService
+            learningToRankService
         );
 
         boolean setWindowSize = randomBoolean();
@@ -157,7 +157,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
             rescorerBuilder.windowSize(42);
         }
         DataRewriteContext rewriteContext = dataRewriteContext();
-        LearnToRankRescorerBuilder rewritten = (LearnToRankRescorerBuilder) rescorerBuilder.rewrite(rewriteContext);
+        LearningToRankRescorerBuilder rewritten = (LearningToRankRescorerBuilder) rescorerBuilder.rewrite(rewriteContext);
         assertNotSame(rescorerBuilder, rewritten);
         assertTrue(rewriteContext.hasAsyncActions());
         if (setWindowSize) {
@@ -166,8 +166,8 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
     }
 
     @SuppressWarnings("unchecked")
-    private static LearnToRankService learnToRankServiceMock() {
-        LearnToRankService learnToRankService = mock(LearnToRankService.class);
+    private static LearningToRankService learningToRankServiceMock() {
+        LearningToRankService learningToRankService = mock(LearningToRankService.class);
 
         doAnswer(invocation -> {
             String modelId = invocation.getArgument(0);
@@ -180,15 +180,15 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
                 l.onFailure(new ResourceNotFoundException("missing model"));
             }
             return null;
-        }).when(learnToRankService).loadLearnToRankConfig(anyString(), any(), any());
+        }).when(learningToRankService).loadLearningToRankConfig(anyString(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<LocalModel> l = invocation.getArgument(1, ActionListener.class);
             l.onResponse(mock(LocalModel.class));
             return null;
-        }).when(learnToRankService).loadLocalModel(anyString(), any());
+        }).when(learningToRankService).loadLocalModel(anyString(), any());
 
-        return learnToRankService;
+        return learningToRankService;
     }
 
     public void testBuildContext() throws Exception {
@@ -200,14 +200,14 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         doAnswer(invocation -> invocation.getArgument(0)).when(searcher).rewrite(any(Query.class));
         SearchExecutionContext context = createSearchExecutionContext(searcher);
 
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
+        LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder(
             localModel,
-            (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
+            (LearningToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
             null,
-            mock(LearnToRankService.class)
+            mock(LearningToRankService.class)
         );
 
-        LearnToRankRescorerContext rescoreContext = rescorerBuilder.innerBuildContext(20, context);
+        LearningToRankRescorerContext rescoreContext = rescorerBuilder.innerBuildContext(20, context);
         assertNotNull(rescoreContext);
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
         List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());
@@ -218,9 +218,12 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         );
     }
 
-    private LearnToRankRescorerBuilder rewriteAndFetch(RescorerBuilder<LearnToRankRescorerBuilder> builder, QueryRewriteContext context) {
-        PlainActionFuture<RescorerBuilder<LearnToRankRescorerBuilder>> future = new PlainActionFuture<>();
+    private LearningToRankRescorerBuilder rewriteAndFetch(
+        RescorerBuilder<LearningToRankRescorerBuilder> builder,
+        QueryRewriteContext context
+    ) {
+        PlainActionFuture<RescorerBuilder<LearningToRankRescorerBuilder>> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(builder, context, future);
-        return (LearnToRankRescorerBuilder) future.actionGet();
+        return (LearningToRankRescorerBuilder) future.actionGet();
     }
 }

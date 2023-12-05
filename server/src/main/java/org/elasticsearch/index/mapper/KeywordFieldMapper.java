@@ -242,6 +242,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder indexed(boolean indexed) {
+            this.indexed.setValue(indexed);
+            return this;
+        }
+
         private FieldValues<String> scriptValues() {
             if (script.get() == null) {
                 return null;

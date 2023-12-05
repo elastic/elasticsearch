@@ -355,12 +355,12 @@ public class ConnectorSyncJobIndexService {
 
     public record ConnectorSyncJobsResult(List<ConnectorSyncJob> connectorSyncJobs, long totalResults) {}
 
-     /**
-     * Updates the ingestion stats of the {@link ConnectorSyncJob} in the underlying index.
-     *
-     * @param request                Request containing the updates to the ingestion stats.
-     * @param listener               The action listener to invoke on response/failure.
-     */
+    /**
+    * Updates the ingestion stats of the {@link ConnectorSyncJob} in the underlying index.
+    *
+    * @param request                Request containing the updates to the ingestion stats.
+    * @param listener               The action listener to invoke on response/failure.
+    */
     public void updateConnectorSyncJobIngestionStats(
         UpdateConnectorSyncJobIngestionStatsAction.Request request,
         ActionListener<UpdateResponse> listener

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -20,7 +21,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -61,15 +61,11 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<GetWatcherSettingsAction.Response> listener
     ) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        // Stashing and un-stashing the context allows warning headers about accessing a system index to be ignored.
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            IndexMetadata metadata = state.metadata().index(WATCHER_INDEX_NAME);
-            if (metadata == null) {
-                listener.onResponse(new GetWatcherSettingsAction.Response(Settings.EMPTY));
-            } else {
-                listener.onResponse(new GetWatcherSettingsAction.Response(filterSettableSettings(metadata.getSettings())));
-            }
+        IndexMetadata metadata = state.metadata().index(WATCHER_INDEX_NAME);
+        if (metadata == null) {
+            listener.onResponse(new GetWatcherSettingsAction.Response(Settings.EMPTY));
+        } else {
+            listener.onResponse(new GetWatcherSettingsAction.Response(filterSettableSettings(metadata.getSettings())));
         }
     }
 
@@ -95,7 +91,17 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
         return state.blocks()
             .indicesBlockedException(
                 ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.LENIENT_EXPAND_OPEN, WATCHER_INDEX_NAME)
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, new IndicesRequest() {
+                    @Override
+                    public String[] indices() {
+                        return new String[] { WATCHER_INDEX_NAME };
+                    }
+
+                    @Override
+                    public IndicesOptions indicesOptions() {
+                        return IndicesOptions.LENIENT_EXPAND_OPEN;
+                    }
+                })
             );
     }
 }

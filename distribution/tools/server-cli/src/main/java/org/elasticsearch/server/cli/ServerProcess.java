@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptible;
 
@@ -85,26 +86,28 @@ public class ServerProcess {
      * @throws UserException If the process failed during bootstrap
      */
     public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
-        return start(terminal, processInfo, args, JvmOptionsParser::determineJvmOptions, ProcessBuilder::start);
+        try {
+            var serverProcessOptions = ServerProcessOptions.create(processInfo, JvmOptionsParser::determineJvmOptions, args);
+            return start(terminal, serverProcessOptions, ProcessBuilder::start);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // package private so tests can mock options building and process starting
-    static ServerProcess start(
-        Terminal terminal,
-        ProcessInfo processInfo,
-        ServerArgs args,
-        OptionsBuilder optionsBuilder,
-        ProcessStarter processStarter
-    ) throws UserException {
+    static ServerProcess start(Terminal terminal, ServerProcessOptions serverProcessOptions, ProcessStarter processStarter)
+        throws UserException {
         Process jvmProcess = null;
         ErrorPumpThread errorPump;
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(args, processInfo, args.configDir(), optionsBuilder, processStarter);
+            jvmProcess = createProcess(serverProcessOptions, processStarter);
             errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
             errorPump.start();
-            sendArgs(args, jvmProcess.getOutputStream());
+            sendArgs(serverProcessOptions.getServerArgs(), jvmProcess.getOutputStream());
 
             String errorMsg = errorPump.waitUntilReady();
             if (errorMsg != null) {
@@ -192,79 +195,129 @@ public class ServerProcess {
         }
     }
 
-    private static Process createProcess(
-        ServerArgs args,
-        ProcessInfo processInfo,
-        Path configDir,
-        OptionsBuilder optionsBuilder,
-        ProcessStarter processStarter
-    ) throws InterruptedException, IOException, UserException {
-        Map<String, String> envVars = new HashMap<>(processInfo.envVars());
-        Path tempDir = setupTempDir(processInfo, envVars.remove("ES_TMPDIR"));
-        if (envVars.containsKey("LIBFFI_TMPDIR") == false) {
-            envVars.put("LIBFFI_TMPDIR", tempDir.toString());
+    static class ServerProcessOptions {
+        private final String command;
+        private final List<String> jvmOptions;
+        private final List<String> otherOptions;
+        private final Map<String, String> environment;
+        private final ServerArgs serverArgs;
+
+        private ServerProcessOptions(
+            String command,
+            List<String> jvmOptions,
+            List<String> otherOptions,
+            Map<String, String> environment,
+            ServerArgs serverArgs
+        ) {
+            this.command = command;
+            this.jvmOptions = jvmOptions;
+            this.otherOptions = otherOptions;
+            this.environment = environment;
+            this.serverArgs = serverArgs;
         }
 
-        List<String> jvmOptions = optionsBuilder.getJvmOptions(args, configDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
-        // also pass through distribution type
-        jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
+        public String getCommand() {
+            return command;
+        }
 
-        Path esHome = processInfo.workingDir();
-        Path javaHome = PathUtils.get(processInfo.sysprops().get("java.home"));
-        List<String> command = new ArrayList<>();
-        boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
-        command.add(javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString());
-        command.addAll(jvmOptions);
-        command.add("--module-path");
-        command.add(esHome.resolve("lib").toString());
-        // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
-        command.add("--add-modules=jdk.net"); // needed to reflectively set extended socket options
-        // we control the module path, which may have additional modules not required by server
-        command.add("--add-modules=ALL-MODULE-PATH");
-        command.add("-m");
-        command.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
+        public List<String> getJvmOptions() {
+            return jvmOptions;
+        }
 
-        var builder = new ProcessBuilder(command);
-        builder.environment().putAll(envVars);
+        public List<String> getOtherOptions() {
+            return otherOptions;
+        }
+
+        public Map<String, String> getEnvironment() {
+            return environment;
+        }
+
+        public ServerArgs getServerArgs() {
+            return serverArgs;
+        }
+
+        public static ServerProcessOptions create(ProcessInfo processInfo, OptionsBuilder optionsBuilder, ServerArgs args)
+            throws IOException, UserException, InterruptedException {
+            Map<String, String> envVars = new HashMap<>(processInfo.envVars());
+
+            Path tempDir = setupTempDir(processInfo, envVars.remove("ES_TMPDIR"));
+            if (envVars.containsKey("LIBFFI_TMPDIR") == false) {
+                envVars.put("LIBFFI_TMPDIR", tempDir.toString());
+            }
+
+            List<String> jvmOptions = optionsBuilder.getJvmOptions(args, args.configDir(), tempDir, envVars.remove("ES_JAVA_OPTS"));
+            // also pass through distribution type
+            jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
+
+            Path esHome = processInfo.workingDir();
+            Path javaHome = PathUtils.get(processInfo.sysprops().get("java.home"));
+
+            boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
+            String command = javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
+
+            List<String> otherOptions = new ArrayList<>();
+            otherOptions.add("--module-path");
+            otherOptions.add(esHome.resolve("lib").toString());
+            // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
+            otherOptions.add("--add-modules=jdk.net"); // needed to reflectively set extended socket options
+            // we control the module path, which may have additional modules not required by server
+            otherOptions.add("--add-modules=ALL-MODULE-PATH");
+            otherOptions.add("-m");
+            otherOptions.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
+
+            return new ServerProcessOptions(command, jvmOptions, otherOptions, envVars, args);
+        }
+
+        /**
+         * Returns the java.io.tmpdir Elasticsearch should use, creating it if necessary.
+         *
+         * <p> On non-Windows OS, this will be created as a subdirectory of the default temporary directory.
+         * Note that this causes the created temporary directory to be a private temporary directory.
+         */
+        private static Path setupTempDir(ProcessInfo processInfo, String tmpDirOverride) throws UserException, IOException {
+            final Path path;
+            if (tmpDirOverride != null) {
+                path = Paths.get(tmpDirOverride);
+                if (Files.exists(path) == false) {
+                    throw new UserException(ExitCodes.CONFIG, "Temporary directory [" + path + "] does not exist or is not accessible");
+                }
+                if (Files.isDirectory(path) == false) {
+                    throw new UserException(ExitCodes.CONFIG, "Temporary directory [" + path + "] is not a directory");
+                }
+            } else {
+                if (processInfo.sysprops().get("os.name").startsWith("Windows")) {
+                    /*
+                     * On Windows, we avoid creating a unique temporary directory per invocation lest
+                     * we pollute the temporary directory. On other operating systems, temporary directories
+                     * will be cleaned automatically via various mechanisms (e.g., systemd, or restarts).
+                     */
+                    path = Paths.get(processInfo.sysprops().get("java.io.tmpdir"), "elasticsearch");
+                    Files.createDirectories(path);
+                } else {
+                    path = createTempDirectory("elasticsearch-");
+                }
+            }
+            return path;
+        }
+
+        @SuppressForbidden(reason = "Files#createTempDirectory(String, FileAttribute...)")
+        private static Path createTempDirectory(final String prefix, final FileAttribute<?>... attrs) throws IOException {
+            return Files.createTempDirectory(prefix, attrs);
+        }
+    }
+
+    private static Process createProcess(ServerProcessOptions serverProcessOptions, ProcessStarter processStarter)
+        throws InterruptedException, IOException {
+
+        var builder = new ProcessBuilder(
+            Stream.concat(
+                Stream.of(serverProcessOptions.getCommand()),
+                Stream.concat(serverProcessOptions.getJvmOptions().stream(), serverProcessOptions.getOtherOptions().stream())
+            ).toList()
+        );
+        builder.environment().putAll(serverProcessOptions.getEnvironment());
         builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 
         return processStarter.start(builder);
-    }
-
-    /**
-     * Returns the java.io.tmpdir Elasticsearch should use, creating it if necessary.
-     *
-     * <p> On non-Windows OS, this will be created as a subdirectory of the default temporary directory.
-     * Note that this causes the created temporary directory to be a private temporary directory.
-     */
-    private static Path setupTempDir(ProcessInfo processInfo, String tmpDirOverride) throws UserException, IOException {
-        final Path path;
-        if (tmpDirOverride != null) {
-            path = Paths.get(tmpDirOverride);
-            if (Files.exists(path) == false) {
-                throw new UserException(ExitCodes.CONFIG, "Temporary directory [" + path + "] does not exist or is not accessible");
-            }
-            if (Files.isDirectory(path) == false) {
-                throw new UserException(ExitCodes.CONFIG, "Temporary directory [" + path + "] is not a directory");
-            }
-        } else {
-            if (processInfo.sysprops().get("os.name").startsWith("Windows")) {
-                /*
-                 * On Windows, we avoid creating a unique temporary directory per invocation lest
-                 * we pollute the temporary directory. On other operating systems, temporary directories
-                 * will be cleaned automatically via various mechanisms (e.g., systemd, or restarts).
-                 */
-                path = Paths.get(processInfo.sysprops().get("java.io.tmpdir"), "elasticsearch");
-                Files.createDirectories(path);
-            } else {
-                path = createTempDirectory("elasticsearch-");
-            }
-        }
-        return path;
-    }
-
-    @SuppressForbidden(reason = "Files#createTempDirectory(String, FileAttribute...)")
-    private static Path createTempDirectory(final String prefix, final FileAttribute<?>... attrs) throws IOException {
-        return Files.createTempDirectory(prefix, attrs);
     }
 }

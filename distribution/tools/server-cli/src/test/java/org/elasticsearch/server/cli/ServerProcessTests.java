@@ -211,7 +211,8 @@ public class ServerProcessTests extends ESTestCase {
             process = new MockElasticsearchProcess();
             return process;
         };
-        return ServerProcess.start(terminal, pinfo, args, optionsBuilder, starter);
+        var serverProcessOptions = ServerProcess.ServerProcessOptions.create(pinfo, optionsBuilder, args);
+        return ServerProcess.start(terminal, serverProcessOptions, starter);
     }
 
     public void testProcessBuilder() throws Exception {

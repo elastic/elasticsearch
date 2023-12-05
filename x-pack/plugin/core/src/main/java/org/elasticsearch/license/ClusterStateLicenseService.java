@@ -453,13 +453,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     }
 
     private void maybeRegisterOrUpdateLicense(ClusterState previousClusterState, ClusterState currentClusterState) {
-        if (XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState) == false) {
-            logger.debug(
-                "cannot add license to cluster as the following nodes might not understand the license metadata: {}",
-                () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState)
-            );
-            return;
-        }
         final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
         final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
         License currentLicense = null;

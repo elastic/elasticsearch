@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
+import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -34,21 +35,26 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.sear
 public class LdapMetadataResolver {
     private final String[] attributeNames;
     private final boolean ignoreReferralErrors;
+    private final String fullNameAttributeName;
+    private final String emailAttributeName;
 
     public LdapMetadataResolver(RealmConfig realmConfig, boolean ignoreReferralErrors) {
         this(
-            Stream.concat(
-                realmConfig.getSetting(LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING).stream(),
-                Stream.of(
-                    realmConfig.getSetting(LdapMetadataResolverSettings.FULL_NAME_SETTING),
-                    realmConfig.getSetting(LdapMetadataResolverSettings.EMAIL_SETTING)
-                )
-            ).collect(Collectors.toSet()),
+            realmConfig.getSetting(LdapMetadataResolverSettings.FULL_NAME_SETTING),
+            realmConfig.getSetting(LdapMetadataResolverSettings.EMAIL_SETTING),
+            realmConfig.getSetting(LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING),
             ignoreReferralErrors
         );
     }
 
-    LdapMetadataResolver(Collection<String> attributeNames, boolean ignoreReferralErrors) {
+    LdapMetadataResolver(
+        String fullNameAttributeName,
+        String emailAttributeName,
+        Collection<String> attributeNames,
+        boolean ignoreReferralErrors
+    ) {
+        this.fullNameAttributeName = fullNameAttributeName;
+        this.emailAttributeName = emailAttributeName;
         this.attributeNames = attributeNames.toArray(new String[attributeNames.size()]);
         this.ignoreReferralErrors = ignoreReferralErrors;
     }
@@ -63,12 +69,10 @@ public class LdapMetadataResolver {
         TimeValue timeout,
         Logger logger,
         Collection<Attribute> attributes,
-        ActionListener<Map<String, Object>> listener
+        ActionListener<LdapMetadataResult> listener
     ) {
-        if (this.attributeNames.length == 0) {
-            listener.onResponse(Map.of());
-        } else if (attributes != null) {
-            listener.onResponse(toMap(name -> findAttribute(attributes, name)));
+        if (attributes != null) {
+            listener.onResponse(toLdapMetadataResult(name -> findAttribute(attributes, name)));
         } else {
             searchForEntry(
                 connection,
@@ -79,12 +83,14 @@ public class LdapMetadataResolver {
                 ignoreReferralErrors,
                 ActionListener.wrap((SearchResultEntry entry) -> {
                     if (entry == null) {
-                        listener.onResponse(Map.of());
+                        listener.onResponse(new LdapMetadataResult(null, null, Map.of()));
                     } else {
-                        listener.onResponse(toMap(entry::getAttribute));
+                        listener.onResponse(toLdapMetadataResult(entry::getAttribute));
                     }
                 }, listener::onFailure),
-                this.attributeNames
+                Stream.concat(Stream.of(this.attributeNames), Stream.of(this.fullNameAttributeName, this.emailAttributeName))
+                    .distinct()
+                    .toArray(String[]::new)
             );
         }
     }
@@ -93,21 +99,55 @@ public class LdapMetadataResolver {
         return attributes.stream().filter(attr -> attr.getName().equals(name)).findFirst().orElse(null);
     }
 
-    private Map<String, Object> toMap(Function<String, Attribute> attributes) {
-        return Arrays.stream(this.attributeNames)
-            .map(attributes)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toUnmodifiableMap(attr -> attr.getName(), attr -> {
-                final String[] values = attr.getValues();
-                if (attr.getName().equals(TOKEN_GROUPS)) {
-                    return values.length == 1
-                        ? convertToString(attr.getValueByteArrays()[0])
-                        : Arrays.stream(attr.getValueByteArrays())
-                            .map((sidBytes) -> convertToString(sidBytes))
-                            .collect(Collectors.toList());
-                }
-                return values.length == 1 ? values[0] : List.of(values);
-            }));
+    public static class LdapMetadataResult {
+        private final String fullName;
+        private final String email;
+
+        private final Map<String, Object> metaData;
+
+        public LdapMetadataResult(String fullName, String email, Map<String, Object> metaData) {
+            this.fullName = fullName;
+            this.email = email;
+            this.metaData = metaData;
+        }
+
+        public String getFullName() {
+            return fullName;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public Map<String, Object> getMetaData() {
+            return metaData;
+        }
     }
 
+    private static Object parseLdapAttributeValue(Attribute attr) {
+        final String[] values = attr.getValues();
+        if (attr.getName().equals(TOKEN_GROUPS)) {
+            return values.length == 1
+                ? convertToString(attr.getValueByteArrays()[0])
+                : Arrays.stream(attr.getValueByteArrays()).map(ActiveDirectorySIDUtil::convertToString).collect(Collectors.toList());
+        }
+        return values.length == 1 ? values[0] : List.of(values);
+
+    }
+
+    private LdapMetadataResult toLdapMetadataResult(Function<String, Attribute> attributes) {
+        Attribute emailAttribute = attributes.apply(this.emailAttributeName);
+        Attribute fullNameAttribute = attributes.apply(this.fullNameAttributeName);
+
+        Map<String, Object> metaData = Arrays.stream(this.attributeNames)
+            .map(attributes)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toUnmodifiableMap(Attribute::getName, LdapMetadataResolver::parseLdapAttributeValue));
+
+        return new LdapMetadataResult(
+            fullNameAttribute == null ? null : LdapMetadataResolver.parseLdapAttributeValue(fullNameAttribute).toString(),
+            emailAttribute == null ? null : LdapMetadataResolver.parseLdapAttributeValue(emailAttribute).toString(),
+            metaData
+        );
+    }
 }

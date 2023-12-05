@@ -244,7 +244,8 @@ public class OpenLdapTests extends ESTestCase {
             .putList(
                 getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply("ldap")),
                 "cn",
-                "sn"
+                "sn",
+                "mail"
             )
             .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
@@ -282,7 +283,7 @@ public class OpenLdapTests extends ESTestCase {
         LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
-            assertThat(map.size(), equalTo(3));
+            assertThat(map.size(), equalTo(1));
             assertThat(map.get("objectClass"), instanceOf(List.class));
             assertThat((List<?>) map.get("objectClass"), contains("top", "posixAccount", "inetOrgPerson"));
         }
@@ -303,7 +304,7 @@ public class OpenLdapTests extends ESTestCase {
         LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
-            assertThat(map.size(), equalTo(2));
+            assertThat(map.size(), equalTo(0));
         }
     }
 
@@ -344,9 +345,9 @@ public class OpenLdapTests extends ESTestCase {
     }
 
     private Map<String, Object> resolve(LDAPConnection connection, LdapMetadataResolver resolver) throws Exception {
-        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        final PlainActionFuture<LdapMetadataResolver.LdapMetadataResult> future = new PlainActionFuture<>();
         resolver.resolve(connection, HAWKEYE_DN, TimeValue.timeValueSeconds(1), logger, null, future);
-        return future.get();
+        return future.get().getMetaData();
     }
 
     private static String getFromProperty(String port) {

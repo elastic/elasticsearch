@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 
 import java.util.Collection;
 import java.util.List;
@@ -103,7 +102,7 @@ public class LdapSession implements Releasable {
         groupsResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
-    public void metadata(ActionListener<Map<String, Object>> listener) {
+    public void metadata(ActionListener<LdapMetadataResolver.LdapMetadataResult> listener) {
         metadataResolver.resolve(connection, userDn, timeout, logger, attributes, listener);
     }
 
@@ -112,12 +111,8 @@ public class LdapSession implements Releasable {
         groups(ActionListener.wrap(groups -> {
             logger.debug("Resolved {} LDAP groups [{}] for user [{}]", groups.size(), groups, userDn);
             metadata(ActionListener.wrap(meta -> {
-                logger.debug("Resolved {} meta-data fields [{}] for user [{}]", meta.size(), meta, userDn);
-                Object fullName = meta.get(realm.getSetting(LdapMetadataResolverSettings.FULL_NAME_SETTING));
-                Object email = meta.get(realm.getSetting(LdapMetadataResolverSettings.EMAIL_SETTING));
-                listener.onResponse(
-                    new LdapUserData(fullName == null ? null : fullName.toString(), email == null ? null : email.toString(), groups, meta)
-                );
+                logger.debug("Resolved {} meta-data fields [{}] for user [{}]", meta.getMetaData().size(), meta, userDn);
+                listener.onResponse(new LdapUserData(meta.getFullName(), meta.getEmail(), groups, meta.getMetaData()));
             }, listener::onFailure));
         }, listener::onFailure));
     }

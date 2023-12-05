@@ -9,6 +9,8 @@ package org.elasticsearch.repositories.s3.advancedstoragetiering;
 
 import fixture.s3.S3HttpFixture;
 
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +19,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -36,8 +39,7 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, ACCESS_KEY) {
         @Override
         protected void validateStorageClass(String path, String storageClass) {
-            logger.info("validateStorageClass: {} -- {}", storageClass, path);
-            assertEquals(path, storageClass, getLeafBlobName(path).startsWith("__") ? "ONEZONE_IA" : "STANDARD_IA");
+            assertEquals(path, getLeafBlobName(path).startsWith("__") ? "ONEZONE_IA" : "STANDARD_IA", storageClass);
         }
 
         private String getLeafBlobName(String path) {
@@ -69,24 +71,9 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
     }
 
     public void testAdvancedTiering() throws IOException {
-        final var repoName = randomIdentifier();
-
-        registerRepository(
-            repoName,
-            "s3",
-            true,
-            Settings.builder()
-                .put("client", CLIENT_NAME)
-                .put("bucket", BUCKET)
-                .put("base_path", BASE_PATH)
-                .put("storage_class", "onezone_ia")
-                .put("metadata_storage_class", "standard_ia")
-                .build()
-        );
-
         createIndex("testindex");
 
-        final var indexRequest = new Request("POST", "/testindex/_bulk");
+        final var indexRequest = new Request(HttpPost.METHOD_NAME, "/testindex/_bulk");
         try (var bodyStream = new BytesStreamOutput()) {
             for (int i = 0; i < 10; i++) {
                 try (var metaLine = XContentFactory.jsonBuilder(bodyStream)) {
@@ -101,6 +88,27 @@ public class S3AdvancedStorageTieringRestTestIT extends ESRestTestCase {
             indexRequest.setJsonEntity(bodyStream.bytes().utf8ToString());
         }
         client().performRequest(indexRequest);
+
+        final var repoName = randomIdentifier();
+
+        registerRepository(
+            repoName,
+            "s3",
+            true,
+            Settings.builder()
+                .put("client", CLIENT_NAME)
+                .put("bucket", BUCKET)
+                .put("base_path", BASE_PATH)
+                .put("storage_class", "standard_ia")
+                .put("metadata_storage_class", "standard_ia")
+                .build()
+        );
+
+        final var request = new Request(HttpPut.METHOD_NAME, "/_snapshot/" + repoName + '/' + randomIdentifier());
+        request.addParameter("wait_for_completion", null);
+
+        final var response = ObjectPath.createFromResponse(assertOK(client().performRequest(request)));
+        assertEquals("SUCCESS", response.evaluate("snapshot.state"));
 
         createSnapshot(repoName, randomIdentifier(), true);
     }

@@ -298,7 +298,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId  the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
-    public void getModelForLearnToRank(String modelId, ActionListener<LocalModel> modelActionListener) {
+    public void getModelForLearningToRank(String modelId, ActionListener<LocalModel> modelActionListener) {
         getModel(modelId, Consumer.SEARCH_RESCORER, null, modelActionListener);
     }
 

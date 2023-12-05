@@ -27,6 +27,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction WATCHER = new XPackUsageFeatureAction(XPackField.WATCHER);
     public static final XPackUsageFeatureAction GRAPH = new XPackUsageFeatureAction(XPackField.GRAPH);
     public static final XPackUsageFeatureAction MACHINE_LEARNING = new XPackUsageFeatureAction(XPackField.MACHINE_LEARNING);
+    public static final XPackUsageFeatureAction INFERENCE = new XPackUsageFeatureAction(XPackField.INFERENCE);
     public static final XPackUsageFeatureAction LOGSTASH = new XPackUsageFeatureAction(XPackField.LOGSTASH);
     public static final XPackUsageFeatureAction EQL = new XPackUsageFeatureAction(XPackField.EQL);
     public static final XPackUsageFeatureAction ESQL = new XPackUsageFeatureAction(XPackField.ESQL);
@@ -64,6 +65,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         FROZEN_INDICES,
         GRAPH,
         INDEX_LIFECYCLE,
+        INFERENCE,
         LOGSTASH,
         MACHINE_LEARNING,
         MONITORING,

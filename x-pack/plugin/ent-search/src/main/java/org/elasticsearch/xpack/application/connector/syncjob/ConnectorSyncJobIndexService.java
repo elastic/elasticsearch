@@ -108,13 +108,12 @@ public class ConnectorSyncJobIndexService {
 
                     clientWithOrigin.index(
                         indexRequest,
-                        ActionListener.wrap(
-                            indexResponse -> listener.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId())),
-                            listener::onFailure
+                        l.delegateFailureAndWrap(
+                            (ll, indexResponse) -> ll.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId()))
                         )
                     );
                 } catch (IOException e) {
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
             }));
         } catch (Exception e) {

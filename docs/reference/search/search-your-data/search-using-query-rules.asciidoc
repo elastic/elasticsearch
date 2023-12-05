@@ -221,7 +221,7 @@ GET /my-index-000001/_search
 This rule query will match against `rule1` in the defined query ruleset, and will convert the organic query into a pinned query with `id1` and `id2` pinned as the top hits.
 Any other matches from the organic query will be returned below the pinned results.
 
-It's possible to have multiple rules in a ruleset match a single `rule_query`. In this case, the pinned document are returned in the following order:
+It's possible to have multiple rules in a ruleset match a single `rule_query`. In this case, the pinned documents are returned in the following order:
 
 - Where the matching rule appears in the ruleset
 - If multiple documents are specified in a single rule, in the order they are specified

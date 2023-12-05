@@ -36,7 +36,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * @return returns an {@link IdLoader} instance that syn synthesizes _id from routing, _tsid and @timestamp fields.
      */
-    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+    static IdLoader createTsIdLoader(IndexRouting.RoutingPathMatching indexRouting, List<String> routingPaths) {
         return new TsIdLoader(indexRouting, routingPaths);
     }
 
@@ -57,16 +57,16 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     final class TsIdLoader implements IdLoader {
 
-        private final IndexRouting.ExtractFromSource indexRouting;
+        private final IndexRouting.RoutingPathMatching indexRouting;
         private final List<String> routingPaths;
 
-        TsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+        TsIdLoader(IndexRouting.RoutingPathMatching indexRouting, List<String> routingPaths) {
             this.routingPaths = routingPaths;
             this.indexRouting = indexRouting;
         }
 
         public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            IndexRouting.ExtractFromSource.Builder[] builders = new IndexRouting.ExtractFromSource.Builder[docIdsInLeaf.length];
+            IndexRouting.RoutingPathMatching.Builder[] builders = new IndexRouting.RoutingPathMatching.Builder[docIdsInLeaf.length];
             for (int i = 0; i < builders.length; i++) {
                 builders[i] = indexRouting.builder();
             }

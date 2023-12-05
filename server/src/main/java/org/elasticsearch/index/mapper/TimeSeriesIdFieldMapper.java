@@ -201,9 +201,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * Builds the routing. Used for building {@code _id}. If null then skipped.
          */
         @Nullable
-        private final IndexRouting.ExtractFromSource.Builder routingBuilder;
+        private final IndexRouting.RoutingPathMatching.Builder routingBuilder;
 
-        public TimeSeriesIdBuilder(@Nullable IndexRouting.ExtractFromSource.Builder routingBuilder) {
+        public TimeSeriesIdBuilder(@Nullable IndexRouting.RoutingPathMatching.Builder routingBuilder) {
             this.routingBuilder = routingBuilder;
         }
 

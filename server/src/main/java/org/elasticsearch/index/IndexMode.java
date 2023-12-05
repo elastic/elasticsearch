@@ -53,6 +53,7 @@ public enum IndexMode {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            settingRequiresTimeSeries(settings, IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES);
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
@@ -103,7 +104,7 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings, Map<String, String> dynamicTemplates) {
             return new DocumentDimensions.OnlySingleValueAllowed();
         }
 
@@ -131,7 +132,9 @@ public enum IndexMode {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            if (settings.getOrDefault(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES, Boolean.FALSE) == Boolean.FALSE) {
+                checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            }
         }
 
         private static void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
@@ -196,8 +199,11 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings, Map<String, String> dynamicTemplates) {
+            var routing = (IndexRouting.RoutingPathMatching) IndexRouting.fromIndexMetadataAndDynamicTemplates(
+                settings.getIndexMetadata(),
+                dynamicTemplates
+            );
             return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
         }
 
@@ -255,6 +261,7 @@ public enum IndexMode {
     static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.copyOf(
         Stream.concat(
             Stream.of(
+                IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_ROUTING_PATH,
                 IndexSettings.TIME_SERIES_START_TIME,
@@ -325,7 +332,7 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings);
+    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings, Map<String, String> dynamicTemplates);
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.

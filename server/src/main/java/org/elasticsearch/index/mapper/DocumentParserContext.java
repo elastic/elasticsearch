@@ -173,7 +173,7 @@ public abstract class DocumentParserContext {
             null,
             null,
             null,
-            DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
+            DocumentDimensions.from(mappingParserContext.getIndexSettings(), (source == null) ? Map.of() : source.dynamicTemplates()),
             parent,
             dynamic,
             new HashSet<>(),

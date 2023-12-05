@@ -15,6 +15,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
@@ -104,7 +105,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
+    public static void createField(DocumentParserContext context, IndexRouting.RoutingPathMatching.Builder routingBuilder, BytesRef tsid) {
         List<IndexableField> timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampFields.isEmpty()) {
             throw new IllegalArgumentException(
@@ -113,23 +114,23 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
         long timestamp = timestampFields.get(0).numericValue().longValue();
         byte[] suffix = new byte[16];
-        String id = createId(context.getDynamicMappers().isEmpty(), routingBuilder, tsid, timestamp, suffix);
-        /*
-         * Make sure that _id from extracting the tsid matches that _id
-         * from extracting the _source. This should be true for all valid
-         * documents with valid mappings. *But* some invalid mappings
-         * will not parse the field but be rejected later by the dynamic
-         * mappings machinery. So if there are any dynamic mappings
-         * at all we just skip the assertion because we can't be sure
-         * it always must pass.
-         */
-        IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
-        assert context.getDynamicMappers().isEmpty() == false
-            || context.getDynamicRuntimeFields().isEmpty() == false
-            || id.equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
-        assert context.getDynamicMappers().isEmpty() == false
-            || context.getDynamicRuntimeFields().isEmpty() == false
-            || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+        String id = createId(context.getDynamicMappers().isEmpty() == false, routingBuilder, tsid, timestamp, suffix);
+        if (context.indexSettings().getValue(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES) == false
+            && context.getDynamicMappers().isEmpty()
+            && context.getDynamicRuntimeFields().isEmpty()) {
+            /*
+             * Make sure that _id from extracting the tsid matches that _id
+             * from extracting the _source. This should be true for all valid
+             * documents with valid mappings. *But* some invalid mappings
+             * will not parse the field but be rejected later by the dynamic
+             * mappings machinery. So if there are any dynamic mappings
+             * at all we just skip the assertion because we can't be sure
+             * it always must pass.
+             */
+            IndexRouting.RoutingPathMatching indexRouting = (IndexRouting.RoutingPathMatching) context.indexSettings().getIndexRouting();
+            assert id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+            assert id.equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
+        }
 
         if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
             throw new IllegalArgumentException(
@@ -150,7 +151,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     public static String createId(
         boolean dynamicMappersExists,
-        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        IndexRouting.RoutingPathMatching.Builder routingBuilder,
         BytesRef tsid,
         long timestamp,
         byte[] suffix

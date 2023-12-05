@@ -253,7 +253,7 @@ public class VersionsTests extends ESTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         IndexMetadata indexMetadata = IndexMetadata.builder("idx").settings(b).numberOfShards(1).numberOfReplicas(0).build();
-        IndexRouting.ExtractFromSource.Builder routingBuilder = ((IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(
+        IndexRouting.RoutingPathMatching.Builder routingBuilder = ((IndexRouting.RoutingPathMatching) IndexRouting.fromIndexMetadata(
             indexMetadata
         )).builder();
         routingBuilder.addMatching("field", new BytesRef("value"));

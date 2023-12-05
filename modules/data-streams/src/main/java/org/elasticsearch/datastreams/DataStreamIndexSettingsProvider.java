@@ -15,6 +15,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,8 +36,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
 /**
  * An {@link IndexSettingProvider} implementation that adds the index.time_series.start_time,
@@ -113,11 +113,23 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
-                    if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
+                    boolean useDynamicDimensions = allSettings.getAsBoolean(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), false);
+                    if ((allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false || useDynamicDimensions)
                         && combinedTemplateMappings.isEmpty() == false) {
-                        List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
+                        List<String> routingPaths = new ArrayList<>();
+                        List<String> dynamicDimensions = new ArrayList<>();
+                        findRoutingPathsAndDimensions(
+                            indexName,
+                            allSettings,
+                            combinedTemplateMappings,
+                            routingPaths,
+                            useDynamicDimensions ? dynamicDimensions : null
+                        );
                         if (routingPaths.isEmpty() == false) {
-                            builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
+                            builder.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths);
+                        }
+                        if (dynamicDimensions.isEmpty() == false) {
+                            builder.putList(IndexMetadata.DYNAMIC_DIMENSION_NAMES.getKey(), dynamicDimensions);
                         }
                     }
                     return builder.build();
@@ -136,8 +148,17 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
      * Alternatively this method can instead parse mappings into map of maps and merge that and
      * iterate over all values to find the field that can serve as routing value. But this requires
      * mapping specific logic to exist here.
+     *
+     * In addition to static mappings, dynamic templates can also contain fields annotated as
+     * time_series_dimension. These fields are identified and added to a separate list, if one is provided.
      */
-    private List<String> findRoutingPaths(String indexName, Settings allSettings, List<CompressedXContent> combinedTemplateMappings) {
+    private void findRoutingPathsAndDimensions(
+        String indexName,
+        Settings allSettings,
+        List<CompressedXContent> combinedTemplateMappings,
+        List<String> routingPaths,
+        @Nullable List<String> dynamicDimensions
+    ) {
         var tmpIndexMetadata = IndexMetadata.builder(indexName);
 
         int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(allSettings);
@@ -152,23 +173,19 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            // Avoid failing because index.routing_path is missing
-            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            // Avoid failing in case index.routing_path is empty.
+            .put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true)
             .build();
 
         tmpIndexMetadata.settings(finalResolvedSettings);
         // Create MapperService just to extract keyword dimension fields:
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
-            List<String> routingPaths = new ArrayList<>();
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
                 extractPath(routingPaths, fieldMapper);
             }
             for (var template : mapperService.getAllDynamicTemplates()) {
-                if (template.pathMatch().isEmpty()) {
-                    continue;
-                }
-
                 var templateName = "__dynamic__" + template.name();
                 var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
                 String mappingSnippetType = (String) mappingSnippet.get("type");
@@ -186,8 +203,14 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         .build(MapperBuilderContext.root(false, false));
                     extractPath(routingPaths, mapper);
                 }
+
+                if (dynamicDimensions != null) {
+                    Boolean isDimension = (Boolean) mappingSnippet.get(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM);
+                    if (isDimension != null && isDimension) {
+                        dynamicDimensions.add(template.name());
+                    }
+                }
             }
-            return routingPaths;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -184,7 +184,7 @@ public class IdLoaderTests extends ESTestCase {
         assertThat(expectedIDs, empty());
     }
 
-    private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(IndexRouting.ExtractFromSource routing, List<Doc> docs) {
+    private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(IndexRouting.RoutingPathMatching routing, List<Doc> docs) {
         return writer -> {
             for (Doc doc : docs) {
                 indexDoc(routing, writer, doc);
@@ -219,7 +219,7 @@ public class IdLoaderTests extends ESTestCase {
         }
     }
 
-    private static void indexDoc(IndexRouting.ExtractFromSource routing, IndexWriter iw, Doc doc) throws IOException {
+    private static void indexDoc(IndexRouting.RoutingPathMatching routing, IndexWriter iw, Doc doc) throws IOException {
         final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
 
         final List<IndexableField> fields = new ArrayList<>();
@@ -239,7 +239,7 @@ public class IdLoaderTests extends ESTestCase {
         iw.addDocument(fields);
     }
 
-    private static String expectedId(IndexRouting.ExtractFromSource routing, Doc doc) throws IOException {
+    private static String expectedId(IndexRouting.RoutingPathMatching routing, Doc doc) throws IOException {
         var routingBuilder = routing.builder();
         var timeSeriesIdBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routingBuilder);
         for (Dimension dimension : doc.dimensions) {
@@ -258,14 +258,14 @@ public class IdLoaderTests extends ESTestCase {
         );
     }
 
-    private static IndexRouting.ExtractFromSource createRouting(List<String> routingPaths) {
+    private static IndexRouting.RoutingPathMatching createRouting(List<String> routingPaths) {
         var settings = indexSettings(IndexVersion.current(), 2, 1).put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2001-01-01T00:00:00.000Z")
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths)
             .build();
         var indexMetadata = IndexMetadata.builder("index").settings(settings).build();
-        return (IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(indexMetadata);
+        return (IndexRouting.RoutingPathMatching) IndexRouting.fromIndexMetadata(indexMetadata);
     }
 
     record Doc(long timestamp, List<Dimension> dimensions) {}

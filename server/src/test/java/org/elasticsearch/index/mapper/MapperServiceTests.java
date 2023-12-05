@@ -1301,8 +1301,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         DocumentMapper mapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_AUTO_UPDATE);
-        assertNotNull(mapper.mappers().getMapper("parent.child1"));
-        assertNull(mapper.mappers().getMapper("parent.child2"));
+        assertEquals(0, mapper.mappers().remainingFieldsUntilLimit(2));
+        assertNotNull(mapper.mappers().objectMappers().get("parent"));
+        // the order is not deterministic, but we expect one to be null and the other to be non-null
+        assertTrue(mapper.mappers().getMapper("parent.child1") == null ^ mapper.mappers().getMapper("parent.child2") == null);
     }
 
     public void testUpdateMappingWhenAtLimit() throws IOException {
@@ -1436,8 +1438,8 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         final MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         DocumentMapper mapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_AUTO_UPDATE);
-        assertNotNull(mapper.mappers().getMapper("field1"));
-        assertNull(mapper.mappers().getMapper("field2"));
+        // the order is not deterministic, but we expect one to be null and the other to be non-null
+        assertTrue(mapper.mappers().getMapper("field1") == null ^ mapper.mappers().getMapper("field2") == null);
     }
 
     public void testMergeUntilLimitCapacityOnlyForParent() throws IOException {

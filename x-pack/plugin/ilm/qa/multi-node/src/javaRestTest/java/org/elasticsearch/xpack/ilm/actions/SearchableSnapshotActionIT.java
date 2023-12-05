@@ -670,7 +670,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             ),
             new Phase(
                 "delete",
-                TimeValue.ZERO, // give time for the checks to happen
+                TimeValue.ZERO,
                 singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)
             )
         );

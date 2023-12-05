@@ -122,7 +122,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                     indexName
                 );
             } else {
-                indexName = searchableSnapshotMetadata.indexName();
+                indexName = searchableSnapshotMetadata.sourceIndex();
             }
         } else {
             // Use the name of the snapshot as specified in the metadata, because the current index

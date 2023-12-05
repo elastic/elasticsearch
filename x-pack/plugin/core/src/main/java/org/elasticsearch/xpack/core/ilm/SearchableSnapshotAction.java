@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -245,7 +246,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     snapshotName = lifecycleExecutionState.snapshotName();
                     repoName = lifecycleExecutionState.snapshotRepository();
                 } else {
-                    snapshotIndexName = searchableSnapshotMetadata.indexName;
+                    snapshotIndexName = searchableSnapshotMetadata.sourceIndex;
                     snapshotName = searchableSnapshotMetadata.snapshotName;
                     repoName = searchableSnapshotMetadata.repositoryName;
                 }
@@ -258,13 +259,15 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
                 // We can skip the generate, initial cleanup, and snapshot taking for this index, as we already have a generated snapshot.
                 // This will jump ahead directly to the "mount snapshot" step
-                logger.debug(
-                    "an existing snapshot [{}] in repository [{}] (index name: [{}]) "
-                        + "will be used for mounting [{}] as a searchable snapshot",
+                logger.info(
+                    "Policy [{}] will use an existing snapshot [{}] in repository [{}] (index name: [{}]) "
+                        + "to mount [{}] as a searchable snapshot. This snapshot was found in the {}.",
+                    policyName,
                     snapshotName,
                     snapshotRepository,
                     snapshotIndexName,
-                    index.getName()
+                    index.getName(),
+                    lifecycleExecutionState.snapshotName() != null ? "lifecycle execution state" : "metadata of " + index.getName()
                 );
                 return true;
             }
@@ -427,6 +430,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         return Objects.hash(snapshotRepository, forceMergeIndex);
     }
 
+    @Nullable
     static SearchableSnapshotMetadata extractSearchableSnapshotFromSettings(IndexMetadata indexMetadata) {
         String indexName = indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME);
         if (indexName == null) {
@@ -438,5 +442,5 @@ public class SearchableSnapshotAction implements LifecycleAction {
         return new SearchableSnapshotMetadata(indexName, repo, snapshotName, partial);
     }
 
-    record SearchableSnapshotMetadata(String indexName, String repositoryName, String snapshotName, boolean partial) {};
+    record SearchableSnapshotMetadata(String sourceIndex, String repositoryName, String snapshotName, boolean partial) {};
 }

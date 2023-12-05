@@ -159,7 +159,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
-                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);
+                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, SnapshotShardSizeInfo.EMPTY, metadata, routingTable);
                 }
             }
         }

@@ -170,7 +170,11 @@ public class AnalyticsProcessManager {
                 .setFetchSource(false)
                 .setQuery(QueryBuilders.idsQuery().addIds(config.getAnalysis().getStateDocIdPrefix(config.getId()) + "1"))
                 .get();
-            return searchResponse.getHits().getHits().length == 1;
+            try {
+                return searchResponse.getHits().getHits().length == 1;
+            } finally {
+                searchResponse.decRef();
+            }
         }
     }
 

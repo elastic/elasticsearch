@@ -756,7 +756,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         SearchRequest search = new SearchRequest(index);
         search.source().aggregation(termsAgg);
-        client().search(search).actionGet();
+        client().search(search).actionGet().decRef();
 
         // Pick a license that does not allow machine learning
         License.OperationMode mode = randomInvalidLicenseType();

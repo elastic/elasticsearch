@@ -122,12 +122,12 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var str = toEvaluator.apply(left());
         if (right().foldable() == false) {
-            return new SplitVariableEvaluator.Factory(str, toEvaluator.apply(right()), context -> new BytesRef());
+            return new SplitVariableEvaluator.Factory(source(), str, toEvaluator.apply(right()), context -> new BytesRef());
         }
         BytesRef delim = (BytesRef) right().fold();
         if (delim.length != 1) {
             throw new QlIllegalArgumentException("for now delimiter must be a single byte");
         }
-        return new SplitSingleByteEvaluator.Factory(str, delim.bytes[delim.offset], context -> new BytesRef());
+        return new SplitSingleByteEvaluator.Factory(source(), str, delim.bytes[delim.offset], context -> new BytesRef());
     }
 }

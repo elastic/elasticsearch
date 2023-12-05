@@ -51,7 +51,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
         indexRandom(true, reqs);
 
         // A cardinality aggregation uses BigArrays and thus the REQUEST breaker
-        client.prepareSearch("cb-test").setQuery(matchAllQuery()).addAggregation(cardinality("card").field("test")).get();
+        client.prepareSearch("cb-test").setQuery(matchAllQuery()).addAggregation(cardinality("card").field("test")).get().decRef();
         // no exception because the breaker is a noop
     }
 
@@ -68,7 +68,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
         indexRandom(true, reqs);
 
         // Sorting using fielddata and thus the FIELDDATA breaker
-        client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
+        client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get().decRef();
         // no exception because the breaker is a noop
     }
 }

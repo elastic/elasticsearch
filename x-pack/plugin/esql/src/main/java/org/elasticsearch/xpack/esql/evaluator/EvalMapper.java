@@ -154,6 +154,7 @@ public final class EvalMapper {
         public ExpressionEvaluator.Factory map(Not not, Layout layout) {
             var expEval = toEvaluator(not.field(), layout);
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
+                not.source(),
                 expEval.get(dvrCtx),
                 dvrCtx
             );

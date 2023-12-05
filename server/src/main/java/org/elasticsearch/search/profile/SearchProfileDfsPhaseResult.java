@@ -148,7 +148,8 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
         return new QueryProfileShardResult(
             profileResults,
             totalRewriteTime,
-            new CollectorResult("KnnQueryCollector", CollectorResult.REASON_SEARCH_MULTI, totalCollectionTime, subCollectorResults)
+            new CollectorResult("KnnQueryCollector", CollectorResult.REASON_SEARCH_MULTI, totalCollectionTime, subCollectorResults),
+            null
         );
     }
 }

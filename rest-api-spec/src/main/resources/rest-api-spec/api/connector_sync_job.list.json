@@ -1,8 +1,8 @@
 {
-  "connector.list": {
+  "connector_sync_job.list": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
-      "description": "Lists all connectors."
+      "description": "Lists all connector sync jobs."
     },
     "stability": "experimental",
     "visibility": "public",
@@ -14,7 +14,7 @@
     "url": {
       "paths": [
         {
-          "path": "/_connector",
+          "path": "/_connector/_sync_job",
           "methods": [
             "GET"
           ]
@@ -31,6 +31,14 @@
         "type": "int",
         "default": 100,
         "description": "specifies a max number of results to get (default: 100)"
+      },
+      "status": {
+        "type": "string",
+        "description": "Sync job status, which sync jobs are fetched for"
+      },
+      "connector_id": {
+        "type": "string",
+        "description": "Id of the connector to fetch the sync jobs for"
       }
     }
   }

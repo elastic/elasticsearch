@@ -28,6 +28,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.truncateInput;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class HuggingFaceAction implements ExecutableAction {
@@ -65,7 +66,12 @@ public class HuggingFaceAction implements ExecutableAction {
     @Override
     public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
-            HuggingFaceInferenceRequest request = new HuggingFaceInferenceRequest(account, new HuggingFaceInferenceRequestEntity(input));
+            var truncatedInput = truncateInput(input, 200);
+
+            HuggingFaceInferenceRequest request = new HuggingFaceInferenceRequest(
+                account,
+                new HuggingFaceInferenceRequestEntity(truncatedInput)
+            );
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
             sender.send(request.createRequest(), responseHandler, wrappedListener);

@@ -26,6 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.truncateInput;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class OpenAiEmbeddingsAction implements ExecutableAction {
@@ -57,9 +58,11 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
     @Override
     public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
+            var truncatedInput = truncateInput(input, 4000);
+
             OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(
                 account,
-                new OpenAiEmbeddingsRequestEntity(input, model.getTaskSettings().model(), model.getTaskSettings().user())
+                new OpenAiEmbeddingsRequestEntity(truncatedInput, model.getTaskSettings().model(), model.getTaskSettings().user())
             );
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 

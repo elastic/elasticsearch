@@ -158,7 +158,7 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
                         CheckedConsumer<OutputStream, IOException> writer
                     ) throws IOException {
                         trackUpload(blobName);
-                        super.writeMetadataBlob(randomFrom(OperationPurpose.values()), blobName, failIfAlreadyExists, atomic, writer);
+                        super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer);
                     }
 
                     private void trackUpload(String blobName) {

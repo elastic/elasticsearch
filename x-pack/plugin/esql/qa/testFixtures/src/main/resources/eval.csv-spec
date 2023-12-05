@@ -215,3 +215,25 @@ emp_no:integer  | foldable:keyword | folded_mv:keyword
 10001           | "foo,bar"        | [foo, bar]
 10002           | "foo,bar"        | [foo, bar]
 ;
+
+docsGettingStartedEval
+// tag::gs-eval[]
+FROM sample_data
+| EVAL duration_ms = event_duration / 1000000.0
+// end::gs-eval[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword |  duration_ms:double
+;
+
+docsGettingStartedRound
+// tag::gs-round[]
+FROM sample_data
+| EVAL duration_ms = ROUND(event_duration / 1000000.0, 1)
+// end::gs-round[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword |  duration_ms:double
+;

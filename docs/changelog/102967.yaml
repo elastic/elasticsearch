@@ -1,0 +1,6 @@
+pr: 102967
+summary: "ES|QL: Improve resolution error management in `mv_expand`"
+area: ES|QL
+type: bug
+issues:
+ - 102964

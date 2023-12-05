@@ -29,14 +29,13 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref vRef = v.eval(page)) {
-      BooleanBlock vBlock = (BooleanBlock) vRef.block();
+  public Block eval(Page page) {
+    try (BooleanBlock vBlock = (BooleanBlock) v.eval(page)) {
       BooleanVector vVector = vBlock.asVector();
       if (vVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+        return eval(page.getPositionCount(), vBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 

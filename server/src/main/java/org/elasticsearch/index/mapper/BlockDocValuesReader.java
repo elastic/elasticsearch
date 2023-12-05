@@ -541,6 +541,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
             return DocValues.getSortedSet(context.reader(), fieldName);
         }
+
+        @Override
+        public String toString() {
+            return "BytesRefsFromOrds[" + fieldName + "]";
+        }
     }
 
     private static class SingletonOrdinals extends BlockDocValuesReader {

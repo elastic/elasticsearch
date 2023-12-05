@@ -17,8 +17,16 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExchangeSinkOperatorStatusTests extends AbstractWireSerializingTestCase<ExchangeSinkOperator.Status> {
     public void testToXContent() {
-        assertThat(Strings.toString(new ExchangeSinkOperator.Status(10)), equalTo("""
-            {"pages_accepted":10}"""));
+        assertThat(Strings.toString(simple()), equalTo(simpleToJson()));
+    }
+
+    public static ExchangeSinkOperator.Status simple() {
+        return new ExchangeSinkOperator.Status(10);
+    }
+
+    public static String simpleToJson() {
+        return """
+            {"pages_accepted":10}""";
     }
 
     @Override
@@ -27,7 +35,7 @@ public class ExchangeSinkOperatorStatusTests extends AbstractWireSerializingTest
     }
 
     @Override
-    protected ExchangeSinkOperator.Status createTestInstance() {
+    public ExchangeSinkOperator.Status createTestInstance() {
         return new ExchangeSinkOperator.Status(between(0, Integer.MAX_VALUE));
     }
 

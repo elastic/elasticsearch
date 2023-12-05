@@ -39,20 +39,18 @@ public final class SubLongsEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      LongBlock lhsBlock = (LongBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        LongBlock rhsBlock = (LongBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (LongBlock lhsBlock = (LongBlock) lhs.eval(page)) {
+      try (LongBlock rhsBlock = (LongBlock) rhs.eval(page)) {
         LongVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         LongVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector));
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
       }
     }
   }

@@ -52,35 +52,34 @@ public class HealthServiceIT extends ESIntegTestCase {
     }
 
     public void testThatHealthNodeDataIsFetchedAndPassedToIndicators() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster()) {
-            ensureStableCluster(internalCluster.getNodeNames().length);
-            waitForAllNodesToReportHealth();
-            for (String node : internalCluster.getNodeNames()) {
-                HealthService healthService = internalCluster.getInstance(HealthService.class, node);
-                AtomicBoolean onResponseCalled = new AtomicBoolean(false);
-                ActionListener<List<HealthIndicatorResult>> listener = new ActionListener<>() {
-                    @Override
-                    public void onResponse(List<HealthIndicatorResult> resultList) {
-                        /*
-                         * The following is really just asserting that the TestHealthIndicatorService's calculate method was called. The
-                         * assertions that it actually got the HealthInfo data are in the calculate method of TestHealthIndicatorService.
-                         */
-                        assertNotNull(resultList);
-                        assertThat(resultList.size(), equalTo(1));
-                        HealthIndicatorResult testIndicatorResult = resultList.get(0);
-                        assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
-                        assertThat(testIndicatorResult.symptom(), equalTo(TestHealthIndicatorService.SYMPTOM));
-                        onResponseCalled.set(true);
-                    }
+        final InternalTestCluster internalCluster = internalCluster();
+        ensureStableCluster(internalCluster.getNodeNames().length);
+        waitForAllNodesToReportHealth();
+        for (String node : internalCluster.getNodeNames()) {
+            HealthService healthService = internalCluster.getInstance(HealthService.class, node);
+            AtomicBoolean onResponseCalled = new AtomicBoolean(false);
+            ActionListener<List<HealthIndicatorResult>> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(List<HealthIndicatorResult> resultList) {
+                    /*
+                     * The following is really just asserting that the TestHealthIndicatorService's calculate method was called. The
+                     * assertions that it actually got the HealthInfo data are in the calculate method of TestHealthIndicatorService.
+                     */
+                    assertNotNull(resultList);
+                    assertThat(resultList.size(), equalTo(1));
+                    HealthIndicatorResult testIndicatorResult = resultList.get(0);
+                    assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
+                    assertThat(testIndicatorResult.symptom(), equalTo(TestHealthIndicatorService.SYMPTOM));
+                    onResponseCalled.set(true);
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                };
-                healthService.getHealth(internalCluster.client(node), TestHealthIndicatorService.NAME, true, 1000, listener);
-                assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException(e);
+                }
+            };
+            healthService.getHealth(internalCluster.client(node), TestHealthIndicatorService.NAME, true, 1000, listener);
+            assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
         }
     }
 

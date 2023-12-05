@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -118,9 +117,9 @@ final class HllStates {
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset) {
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            blocks[offset] = new ConstantBytesRefVector(serializeHLL(SINGLE_BUCKET_ORD, hll), 1).asBlock();
+            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serializeHLL(SINGLE_BUCKET_ORD, hll), 1);
         }
 
         @Override

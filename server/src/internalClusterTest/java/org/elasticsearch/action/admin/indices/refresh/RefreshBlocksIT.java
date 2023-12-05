@@ -39,7 +39,7 @@ public class RefreshBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test", blockSetting);
-                RefreshResponse response = indicesAdmin().prepareRefresh("test").execute().actionGet();
+                RefreshResponse response = indicesAdmin().prepareRefresh("test").get();
                 assertNoFailures(response);
                 assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {

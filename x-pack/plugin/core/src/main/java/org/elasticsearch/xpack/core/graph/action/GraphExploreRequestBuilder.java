@@ -26,8 +26,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
  */
 public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExploreRequest, GraphExploreResponse> {
 
-    public GraphExploreRequestBuilder(ElasticsearchClient client, GraphExploreAction action) {
-        super(client, action, new GraphExploreRequest());
+    public GraphExploreRequestBuilder(ElasticsearchClient client) {
+        super(client, GraphExploreAction.INSTANCE, new GraphExploreRequest());
     }
 
     public GraphExploreRequestBuilder setIndices(String... indices) {

@@ -40,7 +40,7 @@ import java.util.Map;
  */
 public class NodeInfo extends BaseNodeResponse {
 
-    private final Version version;
+    private final String version;
     private final TransportVersion transportVersion;
     private final IndexVersion indexVersion;
     private final Map<String, Integer> componentVersions;
@@ -61,16 +61,23 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
-        version = Version.readVersion(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_VERSION_AS_STRING)) {
+            version = in.readString();
             transportVersion = TransportVersion.readVersion(in);
-        } else {
-            transportVersion = TransportVersion.fromId(version.id);
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_INDEX_VERSION_ADDED)) {
             indexVersion = IndexVersion.readVersion(in);
         } else {
-            indexVersion = IndexVersion.fromId(version.id);
+            Version legacyVersion = Version.readVersion(in);
+            version = legacyVersion.toString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+                transportVersion = TransportVersion.readVersion(in);
+            } else {
+                transportVersion = TransportVersion.fromId(legacyVersion.id);
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_INDEX_VERSION_ADDED)) {
+                indexVersion = IndexVersion.readVersion(in);
+            } else {
+                indexVersion = IndexVersion.fromId(legacyVersion.id);
+            }
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_COMPONENT_VERSIONS_ADDED)) {
             componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
@@ -105,7 +112,7 @@ public class NodeInfo extends BaseNodeResponse {
     }
 
     public NodeInfo(
-        Version version,
+        String version,
         TransportVersion transportVersion,
         IndexVersion indexVersion,
         Map<String, Integer> componentVersions,
@@ -156,7 +163,7 @@ public class NodeInfo extends BaseNodeResponse {
      * The current ES version
      */
     public String getVersion() {
-        return version.toString();
+        return version;
     }
 
     /**
@@ -227,7 +234,11 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        Version.writeVersion(version, out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_VERSION_AS_STRING)) {
+            out.writeString(version);
+        } else {
+            Version.writeVersion(Version.fromString(version), out);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             TransportVersion.writeVersion(transportVersion, out);
         }

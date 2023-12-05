@@ -10,8 +10,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -102,13 +100,13 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             Query knnQuery = ((VectorSimilarityQuery) query).getInnerKnnQuery();
             assertThat(((VectorSimilarityQuery) query).getSimilarity(), equalTo(queryBuilder.getVectorSimilarity()));
             switch (elementType()) {
-                case FLOAT -> assertTrue(knnQuery instanceof KnnFloatVectorQuery);
-                case BYTE -> assertTrue(knnQuery instanceof KnnByteVectorQuery);
+                case FLOAT -> assertTrue(knnQuery instanceof ProfilingKnnFloatVectorQuery);
+                case BYTE -> assertTrue(knnQuery instanceof ProfilingKnnByteVectorQuery);
             }
         } else {
             switch (elementType()) {
-                case FLOAT -> assertTrue(query instanceof KnnFloatVectorQuery);
-                case BYTE -> assertTrue(query instanceof KnnByteVectorQuery);
+                case FLOAT -> assertTrue(query instanceof ProfilingKnnFloatVectorQuery);
+                case BYTE -> assertTrue(query instanceof ProfilingKnnByteVectorQuery);
             }
         }
 
@@ -120,13 +118,13 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         // The field should always be resolved to the concrete field
         Query knnVectorQueryBuilt = switch (elementType()) {
-            case BYTE -> new KnnByteVectorQuery(
+            case BYTE -> new ProfilingKnnByteVectorQuery(
                 VECTOR_FIELD,
                 getByteQueryVector(queryBuilder.queryVector()),
                 queryBuilder.numCands(),
                 filterQuery
             );
-            case FLOAT -> new KnnFloatVectorQuery(VECTOR_FIELD, queryBuilder.queryVector(), queryBuilder.numCands(), filterQuery);
+            case FLOAT -> new ProfilingKnnFloatVectorQuery(VECTOR_FIELD, queryBuilder.queryVector(), queryBuilder.numCands(), filterQuery);
         };
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
             query = vectorSimilarityQuery.getInnerKnnQuery();

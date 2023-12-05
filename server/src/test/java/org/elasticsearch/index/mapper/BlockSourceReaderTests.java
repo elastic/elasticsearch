@@ -64,7 +64,7 @@ public class BlockSourceReaderTests extends ESTestCase {
             StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
             loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
         );
-        BlockLoader.Builder builder = loader.builder(TestBlock.FACTORY, 1);
+        BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), 1);
         storedFields.advanceTo(0);
         reader.read(0, storedFields, builder);
         TestBlock block = (TestBlock) builder.build();

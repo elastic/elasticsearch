@@ -18,7 +18,7 @@ public interface AggregatorFunction extends Releasable {
 
     void addIntermediateInput(Page page);
 
-    void evaluateIntermediate(Block[] blocks, int offset);
+    void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext);
 
     void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext);
 

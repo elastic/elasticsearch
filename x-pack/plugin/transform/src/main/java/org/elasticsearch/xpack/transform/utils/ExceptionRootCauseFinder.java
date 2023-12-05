@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.utils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.Collection;
@@ -80,6 +81,10 @@ public final class ExceptionRootCauseFinder {
             // A TaskCancelledException occurs if a sub-action of a search encounters a circuit
             // breaker exception. In this case the overall search task is cancelled.
             if (elasticsearchException instanceof TaskCancelledException) {
+                return false;
+            }
+            // We can safely retry SearchContextMissingException instead of failing the transform.
+            if (elasticsearchException instanceof SearchContextMissingException) {
                 return false;
             }
             return true;

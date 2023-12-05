@@ -43,7 +43,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         );
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
         assertAcked(indicesAdmin().prepareClose("test"));
@@ -54,7 +54,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
+            prepareIndex("test").setId("1").setSource("field1", "value1").get();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -76,7 +76,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         );
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").get();
     }
 
     public void testFastCloseAfterCreateContinuesCreateAfterOpen() {
@@ -111,7 +111,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         );
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").get();
     }
 
     public void testConsistencyAfterIndexCreationFailure() {

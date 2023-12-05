@@ -80,6 +80,7 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
     @Override
     public BooleanBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values

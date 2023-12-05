@@ -105,7 +105,8 @@ public final class EsqlTestUtils {
             pragmas,
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            query
+            query,
+            false
         );
     }
 

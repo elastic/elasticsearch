@@ -113,4 +113,12 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertThat(requestMap.get("user"), is("overridden_user"));
         }
     }
+
+    public void testContentTooLarge_413() {
+        fail("TODO");
+    }
+
+    public void testContentTooLarge_400() {
+        fail("TODO");
+    }
 }

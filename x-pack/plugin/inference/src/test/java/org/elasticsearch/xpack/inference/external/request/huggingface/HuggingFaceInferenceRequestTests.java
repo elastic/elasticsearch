@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class HuggingFaceElserRequestTests extends ESTestCase {
+public class HuggingFaceInferenceRequestTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testCreateRequest() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abc");
@@ -42,6 +42,10 @@ public class HuggingFaceElserRequestTests extends ESTestCase {
         assertThat(requestMap.get("inputs"), instanceOf(List.class));
         var inputList = (List<String>) requestMap.get("inputs");
         assertThat(inputList, contains("abc"));
+    }
+
+    public void testTruncate() {
+        fail("TODO");
     }
 
     public static HuggingFaceInferenceRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {

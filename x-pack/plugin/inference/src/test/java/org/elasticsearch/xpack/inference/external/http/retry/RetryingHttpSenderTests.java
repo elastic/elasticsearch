@@ -21,6 +21,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -28,6 +29,7 @@ import org.mockito.stubbing.Answer;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.createDefaultRetrySettings;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -76,7 +78,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
         verify(sender, times(2)).send(any(), any());
@@ -113,7 +115,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
         verify(sender, times(2)).send(any(), any());
@@ -147,7 +149,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
         verify(sender, times(2)).send(any(), any());
@@ -181,7 +183,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 0);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 0);
 
         var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("failed"));
@@ -222,7 +224,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
         verify(sender, times(2)).send(any(), any());
@@ -261,7 +263,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
         verify(sender, times(2)).send(any(), any());
@@ -300,7 +302,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 1);
 
         var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("failed again"));
@@ -343,7 +345,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 1);
 
         var thrownException = expectThrows(RetryException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("failed again"));
@@ -384,7 +386,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 1);
 
         var thrownException = expectThrows(RetryException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("failed again"));
@@ -419,12 +421,16 @@ public class RetryingHttpSenderTests extends ESTestCase {
         );
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 0);
+        executeTasks(() -> retrier.send(mockRequest(), handler, listener), 0);
 
         var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("failed"));
         assertThat(thrownException.getSuppressed().length, is(0));
         verify(sender, times(1)).send(any(), any());
+    }
+
+    public void testTruncate() {
+        fail("TODO");
     }
 
     private static HttpResponse mockHttpResponse() {
@@ -447,5 +453,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
         }
+    }
+
+    private static Request mockRequest() {
+        var request = mock(Request.class);
+        when(request.truncate(anyDouble())).thenReturn(request);
+        when(request.createRequest()).thenReturn(mock(HttpRequestBase.class));
+
+        return request;
     }
 }

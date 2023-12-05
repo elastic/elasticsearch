@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.openai;
 import org.apache.http.Header;
 import org.apache.http.HeaderElement;
 import org.apache.http.HttpResponse;
-import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.message.BasicHeader;
@@ -89,10 +88,8 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         int statusCode = 429;
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
-        var requestLine = mock(RequestLine.class);
         var response = mock(HttpResponse.class);
         when(response.getStatusLine()).thenReturn(statusLine);
-        var request = mock(HttpRequestBase.class);
         var httpResult = new HttpResult(response, new byte[] {});
 
         {
@@ -109,7 +106,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
                 new BasicHeader(OpenAiResponseHandler.REMAINING_TOKENS, "99800")
             );
 
-            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [10000], remaining tokens [99800]. Request limit [3000], remaining requests [2999]")
@@ -119,7 +116,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         {
             when(response.getFirstHeader(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(null);
             when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [unknown], remaining tokens [unknown]. Request limit [3000], remaining requests [2999]")
@@ -133,7 +130,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
             );
             when(response.getFirstHeader(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(null);
             when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [unknown], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")
@@ -149,7 +146,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
                 new BasicHeader(OpenAiResponseHandler.TOKENS_LIMIT, "10000")
             );
             when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [10000], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")

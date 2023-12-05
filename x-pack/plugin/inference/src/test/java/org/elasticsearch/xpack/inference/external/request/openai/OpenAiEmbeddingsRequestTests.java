@@ -84,6 +84,10 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get("model"), is("model"));
     }
 
+    public void testTruncate() {
+        fail("TODO");
+    }
+
     public static OpenAiEmbeddingsRequest createRequest(
         @Nullable String url,
         @Nullable String org,

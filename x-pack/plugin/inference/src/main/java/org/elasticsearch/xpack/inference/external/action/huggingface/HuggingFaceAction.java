@@ -68,7 +68,7 @@ public class HuggingFaceAction implements ExecutableAction {
             HuggingFaceInferenceRequest request = new HuggingFaceInferenceRequest(account, new HuggingFaceInferenceRequestEntity(input));
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
-            sender.send(request.createRequest(), responseHandler, wrappedListener);
+            sender.send(request, responseHandler, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

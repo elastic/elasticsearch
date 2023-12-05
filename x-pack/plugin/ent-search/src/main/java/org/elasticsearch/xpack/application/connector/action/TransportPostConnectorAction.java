@@ -21,29 +21,29 @@ import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
 import java.util.Objects;
 
-public class TransportPutConnectorAction extends HandledTransportAction<PutConnectorAction.Request, PutConnectorAction.Response> {
+public class TransportPostConnectorAction extends HandledTransportAction<PostConnectorAction.Request, PostConnectorAction.Response> {
 
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportPutConnectorAction(
+    public TransportPostConnectorAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
         Client client
     ) {
         super(
-            PutConnectorAction.NAME,
+            PostConnectorAction.NAME,
             transportService,
             actionFilters,
-            PutConnectorAction.Request::new,
+            PostConnectorAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.connectorIndexService = new ConnectorIndexService(client);
     }
 
     @Override
-    protected void doExecute(Task task, PutConnectorAction.Request request, ActionListener<PutConnectorAction.Response> listener) {
+    protected void doExecute(Task task, PostConnectorAction.Request request, ActionListener<PostConnectorAction.Response> listener) {
 
         Boolean isNative = Objects.requireNonNullElse(request.getIsNative(), false);
 
@@ -55,10 +55,6 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
             .setServiceType(request.getServiceType())
             .build();
 
-        connectorIndexService.putConnector(
-            request.getConnectorId(),
-            connector,
-            listener.map(r -> new PutConnectorAction.Response(r.getResult()))
-        );
+        connectorIndexService.postConnector(connector, listener);
     }
 }

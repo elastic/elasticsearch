@@ -94,17 +94,18 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return dvrCtx -> new DateFormatConstantEvaluator(fieldEvaluator.get(dvrCtx), UTC_DATE_TIME_FORMATTER, dvrCtx);
+            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), UTC_DATE_TIME_FORMATTER, dvrCtx);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
             DateFormatter formatter = toFormatter(format.fold(), ((EsqlConfiguration) configuration()).locale());
-            return dvrCtx -> new DateFormatConstantEvaluator(fieldEvaluator.get(dvrCtx), formatter, dvrCtx);
+            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), formatter, dvrCtx);
         }
         var formatEvaluator = toEvaluator.apply(format);
         return dvrCtx -> new DateFormatEvaluator(
+            source(),
             fieldEvaluator.get(dvrCtx),
             formatEvaluator.get(dvrCtx),
             ((EsqlConfiguration) configuration()).locale(),

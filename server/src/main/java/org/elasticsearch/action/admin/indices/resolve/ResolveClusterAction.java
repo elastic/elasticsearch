@@ -55,6 +55,24 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
+/**
+ * Action to provide information about clusters to help with cross-cluster search scenarios.
+ *
+ * The action accepts an index expression that can include remote clusters. Exclusion notation
+ * for clusters is also permitted. For example: logs*,*:logs*,-remote7:*, will query
+ * the local cluster ("logs*"), all configured remote clusters except for the cluster with
+ * alias "remote7".
+ *
+ * The response will indicate for each cluster whether it is connected to the querying cluster,
+ * what the skip_unavailable setting is for that cluster, version info about each cluster
+ * and whether it has any indices, aliases or datastreams that match the index expression passed in.
+ *
+ * To determine whether any indices, aliases or datastreams match the index expression passed in
+ * on each cluster, the ResolveIndexAction functionality is used. ResolveIndexAction provides a
+ * complete listing of all matching indices, aliases or datastreams, whereas this endpoint only
+ * provides a boolean value about whether anything matches at all. For detailed information
+ * about which indices, aliases and/or datastreams match the _resolve/index endpoint should be used.
+ */
 public class ResolveClusterAction extends ActionType<ResolveClusterAction.Response> {
 
     public static final ResolveClusterAction INSTANCE = new ResolveClusterAction();
@@ -136,8 +154,8 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
     public static class ResolveClusterInfo implements Writeable {
 
         private final boolean connected;
-        private final Boolean skipUnavailable;  // null for the local cluster
-        private final Boolean matchingIndices;  // null means 'unknown' since we are not connected
+        private final Boolean skipUnavailable;  // remote clusters don't know their setting, so they put null and querying cluster fills in
+        private final Boolean matchingIndices;  // null means 'unknown' when not connected
         private final Build build;
         private final String error;
 
@@ -268,7 +286,7 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                     // TODO Lucene version is not part of build - do we want that as well?
                     builder.startObject(ES_VERSION_FIELD.getPreferredName())
                         .field("number", build.qualifiedVersion())
-                        .field("build_flavor", build.flavor())
+                        .field("build_flavor", build.flavor())  // is "stateless" for stateless projects
                         .field("minimum_wire_compatibility_version", build.minWireCompatVersion())
                         .field("minimum_index_compatibility_version", build.minIndexCompatVersion())
                         .endObject();
@@ -395,6 +413,10 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
             }
         }
 
+        /**
+         * Checks the exception against a known list of exceptions that indicate a remote cluster
+         * cannot be connected to.
+         */
         private boolean notConnectedError(Exception e) {
             if (e instanceof ConnectTransportException || e instanceof NoSuchRemoteClusterException) {
                 return true;

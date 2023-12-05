@@ -37,8 +37,8 @@ public class RestResolveClusterAction extends BaseRestHandler {
 
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String[] indices = Strings.splitStringByCommaToArray(request.param("name"));
-        ResolveClusterAction.Request resolveRequest = new ResolveClusterAction.Request(indices);
+        String[] indexExpressions = Strings.splitStringByCommaToArray(request.param("name"));
+        ResolveClusterAction.Request resolveRequest = new ResolveClusterAction.Request(indexExpressions);
         return channel -> client.admin().indices().resolveCluster(resolveRequest, new RestToXContentListener<>(channel));
     }
 }

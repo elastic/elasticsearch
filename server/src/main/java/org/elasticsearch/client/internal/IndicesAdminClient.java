@@ -644,14 +644,16 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request);
 
     /**
-     * Resolves names and wildcard expressions determine if there are any matching indices, aliases, or data streams
-     * as well as additional metadata about the cluster (e.g., Elasticsearch version) useful for cross-cluster search
+     * Resolves clusters, index names and wildcard expressions determine if there are any matching indices, aliases,
+     * or data streams as well as additional metadata about the cluster (e.g., Elasticsearch version) useful for
+     * cross-cluster search
      */
     void resolveCluster(ResolveClusterAction.Request request, ActionListener<ResolveClusterAction.Response> listener);
 
     /**
-     * Resolves names and wildcard expressions determine if there are any matching indices, aliases, or data streams
-     * as well as additional metadata about the cluster (e.g., Elasticsearch version) useful for cross-cluster search
+     * Resolves clusters, index names and wildcard expressions determine if there are any matching indices, aliases,
+     * or data streams as well as additional metadata about the cluster (e.g., Elasticsearch version) useful for
+     * cross-cluster search
      */
     ActionFuture<ResolveClusterAction.Response> resolveCluster(ResolveClusterAction.Request request);
 

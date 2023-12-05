@@ -25,11 +25,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -62,6 +60,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+/**
+ * Tests the ResolveClusterAction around matching data streams.
+ * ResolveClusterIT is a sibling IT test that does additional testing
+ * not related to data streams.
+ */
 public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
 
     private static final String REMOTE_CLUSTER_1 = "remote1";
@@ -308,7 +311,7 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 aliases = new HashMap<>();
                 aliases.put(dataStreamLocalAlias, AliasMetadata.builder(dataStreamLocalAlias).writeIndex(randomBoolean()).build());
             }
-            putComposableIndexTemplate(client, "id1", null, List.of(dataStreamLocal + "*"), null, null, aliases, null);
+            putComposableIndexTemplate(client, "id1", List.of(dataStreamLocal + "*"), aliases);
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
             assertAcked(client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
 
@@ -339,7 +342,7 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 aliases = new HashMap<>();
                 aliases.put(dataStreamRemote1Alias, AliasMetadata.builder(dataStreamRemote1Alias).writeIndex(randomBoolean()).build());
             }
-            putComposableIndexTemplate(client, "id2", null, List.of(dataStreamRemote1 + "*"), null, null, aliases, null);
+            putComposableIndexTemplate(client, "id2", List.of(dataStreamRemote1 + "*"), aliases);
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
             assertAcked(client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
 
@@ -420,22 +423,13 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
         return numDocs;
     }
 
-    void putComposableIndexTemplate(
-        Client client,
-        String id,
-        @Nullable String mappings,
-        List<String> patterns,
-        @Nullable Settings settings,
-        @Nullable Map<String, Object> metadata,
-        @Nullable Map<String, AliasMetadata> aliases,
-        @Nullable DataStreamLifecycle lifecycle
-    ) throws IOException {
+    void putComposableIndexTemplate(Client client, String id, List<String> patterns, @Nullable Map<String, AliasMetadata> aliases)
+        throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases, lifecycle))
-                .metadata(metadata)
+                .template(new Template(null, null, aliases, null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );

@@ -36,6 +36,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests the ResolveClusterAction around all features except data streams
+ * (since those are not reachable from this package/module).
+ * ResolveClusterDataStreamIT is a sibling IT test that does additional testing
+ * related to data streams.
+ */
 public class ResolveClusterIT extends AbstractMultiClustersTestCase {
 
     private static final String REMOTE_CLUSTER_1 = "remote1";

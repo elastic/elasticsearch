@@ -803,7 +803,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         request.setSize(4);
         request.addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50);
 
-        assertEquals(4, request.get().getHits().getHits().length);
+        assertResponse(request, response -> assertEquals(4, response.getHits().getHits().length));
     }
 
     public void testRescorePhaseWithInvalidSort() throws Exception {

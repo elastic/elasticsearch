@@ -1,0 +1,5 @@
+pr: 102844
+summary: Skip global ordinals loading if query does not match after rewrite
+area: Aggregations
+type: bug
+issues: []

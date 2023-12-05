@@ -197,6 +197,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
                 // Fleet publishes Agent metrics in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-fleet_server*").privileges("all").build(),
+                // Fleet reads output health from this index pattern
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-fleet_server*").privileges("read").build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),
@@ -363,7 +365,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Kibana system user uses them to read / write slo data.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for endpoints.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build(),
+                // For connectors telemetry. Will be removed once we switched to connectors API
+                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

@@ -181,6 +181,11 @@ public class TransportVersions {
     public static final TransportVersion GET_API_KEY_INVALIDATION_TIME_ADDED = def(8_548_00_0);
     public static final TransportVersion ML_INFERENCE_GET_MULTIPLE_MODELS = def(8_549_00_0);
     public static final TransportVersion INFERENCE_SERVICE_RESULTS_ADDED = def(8_550_00_0);
+    public static final TransportVersion ESQL_PROFILE = def(8_551_00_0);
+    public static final TransportVersion CLUSTER_STATS_RESCORER_USAGE_ADDED = def(8_552_00_0);
+    public static final TransportVersion ML_INFERENCE_HF_SERVICE_ADDED = def(8_553_00_0);
+    public static final TransportVersion INFERENCE_USAGE_ADDED = def(8_554_00_0);
+    public static final TransportVersion UPGRADE_TO_LUCENE_9_9 = def(8_555_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -88,36 +88,40 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             client,
             () -> client.search(searchRequest).actionGet(timeout)
         );
+        try {
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value);
-        }
-
-        final Payload payload;
-        final Params params;
-        if (request.isRestTotalHitsAsint()) {
-            params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
-        } else {
-            params = EMPTY_PARAMS;
-        }
-        if (input.getExtractKeys() != null) {
-            BytesReference bytes = XContentHelper.toXContent(response, XContentType.SMILE, params, false);
-            // EMPTY is safe here because we never use namedObject
-            try (
-                XContentParser parser = XContentHelper.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    bytes,
-                    XContentType.SMILE
-                )
-            ) {
-                Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
-                payload = new Payload.Simple(filteredKeys);
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value);
             }
-        } else {
-            payload = new Payload.XContent(response, params);
-        }
 
-        return new SearchInput.Result(request, payload);
+            final Payload payload;
+            final Params params;
+            if (request.isRestTotalHitsAsint()) {
+                params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
+            } else {
+                params = EMPTY_PARAMS;
+            }
+            if (input.getExtractKeys() != null) {
+                BytesReference bytes = XContentHelper.toXContent(response, XContentType.SMILE, params, false);
+                // EMPTY is safe here because we never use namedObject
+                try (
+                    XContentParser parser = XContentHelper.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        LoggingDeprecationHandler.INSTANCE,
+                        bytes,
+                        XContentType.SMILE
+                    )
+                ) {
+                    Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
+                    payload = new Payload.Simple(filteredKeys);
+                }
+            } else {
+                payload = new Payload.XContent(response, params);
+            }
+
+            return new SearchInput.Result(request, payload);
+        } finally {
+            response.decRef();
+        }
     }
 }

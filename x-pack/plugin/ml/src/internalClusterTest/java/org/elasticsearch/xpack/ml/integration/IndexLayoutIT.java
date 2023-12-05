@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,10 +141,7 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
             arrayContaining(".ml-state-000001")
         );
 
-        assertThat(
-            client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setTrackTotalHits(true).get().getHits().getTotalHits().value,
-            equalTo(0L)
-        );
+        assertHitCount(client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setTrackTotalHits(true), 0);
     }
 
 }

@@ -10,24 +10,23 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.core.RefCounted;
 
 import java.util.concurrent.Executor;
 
 /**
- * An action listener that wraps another action listener and dispatches its completion to an executor.
+ * Same as {@link ThreadedActionListener} but for {@link RefCounted} types. Makes sure to increment ref-count by one before forking
+ * to another thread and decrementing after the forked task completes.
  */
-public final class ThreadedActionListener<Response> extends AbstractThreadedActionListener<Response> {
+public final class RefCountAwareThreadedActionListener<Response extends RefCounted> extends AbstractThreadedActionListener<Response> {
 
-    public ThreadedActionListener(Executor executor, ActionListener<Response> delegate) {
-        this(executor, false, delegate);
-    }
-
-    public ThreadedActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
-        super(executor, forceExecution, delegate);
+    public RefCountAwareThreadedActionListener(Executor executor, ActionListener<Response> delegate) {
+        super(executor, false, delegate);
     }
 
     @Override
     public void onResponse(final Response response) {
+        response.mustIncRef();
         executor.execute(new ActionRunnable<>(delegate) {
             @Override
             public boolean isForceExecution() {
@@ -41,7 +40,12 @@ public final class ThreadedActionListener<Response> extends AbstractThreadedActi
 
             @Override
             public String toString() {
-                return ThreadedActionListener.this + "/onResponse";
+                return RefCountAwareThreadedActionListener.this + "/onResponse";
+            }
+
+            @Override
+            public void onAfter() {
+                response.decRef();
             }
         });
     }

@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
@@ -29,9 +30,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     public static final int MAX_DEPTH = 10;
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
-        "is ambiguous (to disambiguate use quotes or qualifiers)",
-        "due to ambiguities being mapped as"
+        "Reference \\[.*\\] is ambiguous",
+        "Cannot use field \\[.*\\] due to ambiguities"
     );
+
+    public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
+        .map(x -> ".*" + x + ".*")
+        .map(x -> Pattern.compile(x, Pattern.DOTALL))
+        .collect(Collectors.toSet());
 
     @Before
     public void setup() throws IOException {
@@ -65,8 +71,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {
-        for (String allowedError : ALLOWED_ERRORS) {
-            if (query.exception().getMessage().contains(allowedError)) {
+        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+            if (allowedError.matcher(query.exception().getMessage()).matches()) {
                 return;
             }
         }

@@ -69,7 +69,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
 
     @Override
     public ConstantNullBlock filter(int... positions) {
-        return (ConstantNullBlock) blockFactory.newConstantNullBlock(positions.length);
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -128,7 +128,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
 
     @Override
     public void closeInternal() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 
     static class Builder implements Block.Builder {

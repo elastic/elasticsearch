@@ -48,12 +48,12 @@ import java.util.function.Supplier;
  */
 public class APMMeterRegistry implements MeterRegistry {
     private final Registrar<DoubleCounterAdapter> doubleCounters = new Registrar<>();
+    private final Registrar<DoubleAsyncCounterAdapter> doubleAsynchronousCounters = new Registrar<>();
     private final Registrar<DoubleUpDownCounterAdapter> doubleUpDownCounters = new Registrar<>();
     private final Registrar<DoubleGaugeAdapter> doubleGauges = new Registrar<>();
     private final Registrar<DoubleHistogramAdapter> doubleHistograms = new Registrar<>();
     private final Registrar<LongCounterAdapter> longCounters = new Registrar<>();
     private final Registrar<LongAsyncCounterAdapter> longAsynchronousCounters = new Registrar<>();
-    private final Registrar<DoubleAsyncCounterAdapter> doubleAsynchronousCounters = new Registrar<>();
     private final Registrar<LongUpDownCounterAdapter> longUpDownCounters = new Registrar<>();
     private final Registrar<LongGaugeAdapter> longGauges = new Registrar<>();
     private final Registrar<LongHistogramAdapter> longHistograms = new Registrar<>();
@@ -66,10 +66,12 @@ public class APMMeterRegistry implements MeterRegistry {
 
     private final List<Registrar<?>> registrars = List.of(
         doubleCounters,
+        doubleAsynchronousCounters,
         doubleUpDownCounters,
         doubleGauges,
         doubleHistograms,
         longCounters,
+        longAsynchronousCounters,
         longUpDownCounters,
         longGauges,
         longHistograms
@@ -88,6 +90,23 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public DoubleCounter getDoubleCounter(String name) {
         return doubleCounters.get(name);
+    }
+
+    @Override
+    public DoubleAsyncCounter registerDoubleAsyncCounter(
+        String name,
+        String description,
+        String unit,
+        Supplier<DoubleWithAttributes> observer
+    ) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return doubleAsynchronousCounters.register(new DoubleAsyncCounterAdapter(meter, name, description, unit, observer));
+        }
+    }
+
+    @Override
+    public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
+        return doubleAsynchronousCounters.get(name);
     }
 
     @Override
@@ -143,23 +162,6 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public LongAsyncCounter getLongAsyncCounter(String name) {
         return longAsynchronousCounters.get(name);
-    }
-
-    @Override
-    public DoubleAsyncCounter registerDoubleAsyncCounter(
-        String name,
-        String description,
-        String unit,
-        Supplier<DoubleWithAttributes> observer
-    ) {
-        try (ReleasableLock lock = registerLock.acquire()) {
-            return doubleAsynchronousCounters.register(new DoubleAsyncCounterAdapter(meter, name, description, unit, observer));
-        }
-    }
-
-    @Override
-    public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
-        return doubleAsynchronousCounters.get(name);
     }
 
     @Override

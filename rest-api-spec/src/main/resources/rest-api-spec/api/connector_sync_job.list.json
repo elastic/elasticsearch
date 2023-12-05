@@ -5,9 +5,7 @@
       "description": "Lists all connector sync jobs."
     },
     "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "es.connector_api_feature_flag_enabled",
-    "headers": {
+    "visibility": "public",
       "accept": [
         "application/json"
       ]

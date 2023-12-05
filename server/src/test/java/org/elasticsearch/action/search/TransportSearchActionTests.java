@@ -77,6 +77,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -146,6 +147,10 @@ public class TransportSearchActionTests extends ESTestCase {
         List<ShardRouting> shardRoutings = GroupShardsIteratorTests.randomShardRoutings(shardId);
         return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices);
     }
+
+    public static SearchTransportAPMMetrics testSearchTransportAPMMetrics = new SearchTransportAPMMetrics(
+        TelemetryProvider.NOOP.getMeterRegistry()
+    );
 
     public void testMergeShardsIterators() {
         Index[] indices = new Index[randomIntBetween(1, 10)];
@@ -1546,7 +1551,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                SearchTransportAPMMetrics.NOOP
+                new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             );
 
             CountDownLatch latch = new CountDownLatch(1);

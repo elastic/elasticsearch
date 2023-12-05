@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -28,8 +27,6 @@ public class SearchTransportAPMMetrics {
     private SearchTransportAPMMetrics(LongHistogram actionLatencies) {
         this.actionLatencies = actionLatencies;
     }
-
-    public static SearchTransportAPMMetrics NOOP = new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
     public LongHistogram getActionLatencies() {
         return actionLatencies;

@@ -222,9 +222,9 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     public void testMergeWithLimitObjectField() {
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(false, false));
         RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
-            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_FALSE)
-                .add(new KeywordFieldMapper.Builder("child1", IndexVersion.current()))
-                .add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_FALSE).add(
+                new KeywordFieldMapper.Builder("child1", IndexVersion.current())
+            ).add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
         ).build(MapperBuilderContext.root(false, false));
 
         ObjectMapper mergedAdd1 = root.merge(mergeWith, MapperMergeContext.root(false, false, 1));

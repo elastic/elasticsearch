@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,7 +32,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
-    @Test
+
     public void testSettingsProviderIsOverridden() throws Exception {
         String matchingTemplate = "test_template";
         String indexName = "test_index_name";
@@ -56,8 +55,8 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             .build();
 
         IndicesService indicesService = mock(IndicesService.class);
-        when(indicesService.withTempIndexService(any(IndexMetadata.class), any()))
-            .thenReturn(List.of()) // First call is mocked to return aliases
+        when(indicesService.withTempIndexService(any(IndexMetadata.class), any())).thenReturn(List.of()) // First call is mocked to return
+                                                                                                         // aliases
             .thenReturn(expectedMockMapping); // Second call is mocked to return the merged mappings
 
         // This is not actually called in this test

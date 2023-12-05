@@ -15,8 +15,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
 
 /**
- * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
- * all the nodes have acknowledged a cluster state update request
+ * An extension interface to {@link ClusterStateUpdateTask} that allows the caller to be notified after the master has
+ * accepted, processed, committed, and published the cluster state update AND after the rest of the nodes
+ * (or a specified subset) have also accepted, processed, and acknowledged the cluster state update.
  */
 public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements ClusterStateAckListener {
 

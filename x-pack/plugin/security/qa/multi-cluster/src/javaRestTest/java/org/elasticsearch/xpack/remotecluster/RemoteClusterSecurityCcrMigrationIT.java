@@ -241,7 +241,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
 
     // Second migrate back to RCS 1.0
     @Order(50)
-    public void testFollowerClusterRestartAgainForRcs1() throws IOException {
+    public void testFollowerClusterRestartAgainForRcs1() throws IOException, InterruptedException {
         // Remove the RCS 2.0 remote cluster
         removeRemoteCluster();
 
@@ -271,8 +271,6 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
         keystoreSettings.remove("cluster.remote.my_remote_cluster.credentials");
         queryCluster.writeToKeystore();
         assertOK(adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
-        // queryCluster.restart(false);
-        // closeClients();
     }
 
     @Order(60)

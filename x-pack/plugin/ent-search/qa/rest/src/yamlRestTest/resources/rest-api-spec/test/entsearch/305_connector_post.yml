@@ -7,8 +7,7 @@ setup:
 ---
 'Create Connector':
   - do:
-      connector.put:
-        connector_id: test-connector
+      connector.post:
         body:
           index_name: search-test
           name: my-connector
@@ -16,13 +15,14 @@ setup:
           is_native: false
           service_type: super-connector
 
-  - match: { result: 'created' }
+  - set:  { id: id }
+  - match: { id: $id }
 
   - do:
       connector.get:
-        connector_id: test-connector
+        connector_id: $id
 
-  - match: { id: test-connector }
+  - match: { id: $id }
   - match: { index_name: search-test }
   - match: { name: my-connector }
   - match: { language: pl }
@@ -32,18 +32,18 @@ setup:
 ---
 'Create Connector - Default values are initialized correctly':
   - do:
-      connector.put:
-        connector_id: test-connector-with-defaults
+      connector.post:
         body:
           index_name: search-test
 
-  - match: { result: 'created' }
+  - set:  { id: id }
+  - match: { id: $id }
 
   - do:
       connector.get:
-        connector_id: test-connector-with-defaults
+        connector_id: $id
 
-  - match: { id: test-connector-with-defaults }
+  - match: { id: $id }
   - match: { index_name: search-test }
   - match: { is_native: false }
   - match: { sync_now: false }
@@ -55,19 +55,19 @@ setup:
 ---
 'Create Connector - Native connector is initialized correctly':
   - do:
-      connector.put:
-        connector_id: test-connector-native
+      connector.post:
         body:
           index_name: search-test
           is_native: true
 
-  - match: { result: 'created' }
+  - set:  { id: id }
+  - match: { id: $id }
 
   - do:
       connector.get:
-        connector_id: test-connector-native
+        connector_id: $id
 
-  - match: { id: test-connector-native }
+  - match: { id: $id }
   - match: { index_name: search-test }
   - match: { is_native: true }
   - match: { sync_now: false }
@@ -76,28 +76,3 @@ setup:
   - match: { custom_scheduling: {} }
   - match: { filtering.0.domain: DEFAULT }
 
----
-'Create Connector - Resource already exists':
-  - do:
-      connector.put:
-        connector_id: test-connector-recreating
-        body:
-          index_name: search-test
-          name: my-connector
-          language: pl
-          is_native: false
-          service_type: super-connector
-
-  - match: { result: 'created' }
-
-  - do:
-      connector.put:
-        connector_id: test-connector-recreating
-        body:
-          index_name: search-test
-          name: my-connector
-          language: pl
-          is_native: false
-          service_type: super-connector
-
-  - match: { result: 'updated' }

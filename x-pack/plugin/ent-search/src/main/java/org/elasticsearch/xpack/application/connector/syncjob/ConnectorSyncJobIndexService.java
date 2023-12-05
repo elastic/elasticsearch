@@ -330,9 +330,7 @@ public class ConnectorSyncJobIndexService {
                     Map<String, Object> source = response.getSource();
 
                     @SuppressWarnings("unchecked")
-                    final Connector syncJobConnectorInfo = new Connector.Builder().setConnectorId(
-                        (String) source.get(Connector.ID_FIELD.getPreferredName())
-                    )
+                    final Connector syncJobConnectorInfo = new Connector.Builder().setConnectorId(connectorId)
                         .setFiltering((List<ConnectorFiltering>) source.get(Connector.FILTERING_FIELD.getPreferredName()))
                         .setIndexName((String) source.get(Connector.INDEX_NAME_FIELD.getPreferredName()))
                         .setLanguage((String) source.get(Connector.LANGUAGE_FIELD.getPreferredName()))

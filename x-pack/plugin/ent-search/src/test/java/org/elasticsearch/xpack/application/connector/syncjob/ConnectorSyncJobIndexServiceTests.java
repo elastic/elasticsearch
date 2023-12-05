@@ -340,6 +340,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(idOfReturnedSyncJob, equalTo(syncJobOneId));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
     public void testListConnectorSyncJobs_WithConnectorOneId_GivenTwoOverallOneFromConnectorOne_ExpectOne() throws Exception {
         String connectorOneId = connectorOne.getConnectorId();
         String connectorTwoId = connectorTwo.getConnectorId();

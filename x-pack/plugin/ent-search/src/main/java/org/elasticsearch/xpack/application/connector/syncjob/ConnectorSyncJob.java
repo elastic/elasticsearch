@@ -77,7 +77,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     public static final ParseField DELETED_DOCUMENT_COUNT_FIELD = new ParseField("deleted_document_count");
 
-    static final ParseField ERROR_FIELD = new ParseField("error");
+    public static final ParseField ERROR_FIELD = new ParseField("error");
 
     public static final ParseField ID_FIELD = new ParseField("id");
 

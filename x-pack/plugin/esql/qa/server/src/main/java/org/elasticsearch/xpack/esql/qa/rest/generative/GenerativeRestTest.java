@@ -36,7 +36,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
         .map(x -> ".*" + x + ".*")
-        .map(Pattern::compile)
+        .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
 
     @Before

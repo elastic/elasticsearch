@@ -305,7 +305,8 @@ public class RemoteClusterService extends RemoteClusterAware implements Closeabl
     }
 
     public synchronized void updateRemoteClusterCredentials(Settings newSettings) {
-        final var result = remoteClusterCredentialsManager.updateClusterCredentials(newSettings);
+        final RemoteClusterCredentialsManager.UpdateResult result = remoteClusterCredentialsManager.updateClusterCredentials(newSettings);
+        // probably can just use a single `Set`, instead of `UpdateResult`
         for (var added : result.added()) {
             updateRemoteCluster(added, newSettings, true);
         }

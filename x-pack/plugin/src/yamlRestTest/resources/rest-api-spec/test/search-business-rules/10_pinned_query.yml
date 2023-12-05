@@ -178,11 +178,11 @@ setup:
           - '{"index": {"_id": "7"}}'
           - '{"my_vector": [1, 1, 1, 7], "my_name": "v1"}'
           - '{"index": {"_id": "8"}}'
-          - '{"my_name": "v2"}'
+          - '{"my_vector": [1, 1, 1, 8], "my_name": "v2"}'
           - '{"index": {"_id": "9"}}'
-          - '{"my_name": "v1"}'
+          - '{"my_vector": [1, 1, 1, 9], "my_name": "v1"}'
           - '{"index": {"_id": "10"}}'
-          - '{"my_name": "v2"}'
+          - '{"my_vector": [1, 1, 1, 10], "my_name": "v2"}'
   - do:
       search:
         index: my_index
@@ -193,8 +193,8 @@ setup:
             pinned:
               ids: [ 8, 9, 10 ]
               organic:
-                knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], num_candidates: 10 }
-  - match: { hits.total.value: 10 } # 7 knn results + extra results from pinned query
+                knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], num_candidates: 5 }
+  - match: { hits.total.value: 8 } # 5 knn results + extra results from pinned query
   - match: { hits.hits.0._id: "8" }
   - match: { hits.hits.1._id: "9" }
   - match: { hits.hits.2._id: "10" }
@@ -208,7 +208,7 @@ setup:
       search:
         index: my_index
         body:
-          size: 5
+          size: 10
           fields: [ my_name ]
           query:
             pinned:

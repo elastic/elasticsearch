@@ -56,7 +56,7 @@ setup:
           - '{"index": {"_id": "9"}}'
           - '{"my_vector": [1, 1, 1, 9], "my_name": "v1"}'
           - '{"index": {"_id": "10"}}'
-          - '{"my_name": "v2"}'
+          - '{"my_vector": [1, 1, 1, 10], "my_name": "v2"}'
 
 ---
 "Function score query with knn query":
@@ -104,11 +104,11 @@ setup:
           query:
             dis_max:
               queries:
-                - knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], num_candidates: 10 }
+                - knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], num_candidates: 5 }
                 - match: { my_name: v2 }
               tie_breaker: 0.8
 
-  - match: { hits.total.value: 10 } #  9 knn results + extra 1 result from match query
+  - match: { hits.total.value: 8 } # 5 knn results + extra results from match query
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.0.fields.my_name.0: v2 }
   - match: { hits.hits.1._id: "1" }

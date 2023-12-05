@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: ' - 8.11.99'
-      reason: '[k] and [num_candidates] were made optional for kNN search in 8.12'
+      version: ' - 8.12.99'
+      reason: '[k] and [num_candidates] were made optional for kNN search in 8.13'
   - do:
       indices.create:
         index: knn_search_test_index

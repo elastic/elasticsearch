@@ -262,9 +262,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         int requestSize = context.requestSize() == null ? DEFAULT_SIZE : context.requestSize();
         int adjustedSize = neighbors == null ? requestSize : neighbors;
         int adjustedNumCands = numCands == null ? Math.min(Math.max(100, adjustedSize), NUM_CANDS_LIMIT) : numCands;
-        if (adjustedNumCands < adjustedSize) {
-            throw new IllegalArgumentException("field [" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than [size]");
-        }
         if (fieldType == null) {
             throw new IllegalArgumentException("field [" + fieldName + "] does not exist in the mapping");
         }

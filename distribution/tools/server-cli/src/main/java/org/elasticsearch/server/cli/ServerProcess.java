@@ -10,7 +10,6 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.bootstrap.ServerArgs;
-import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -28,7 +27,7 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptible;
 /**
  * A helper to control a {@link Process} running the main Elasticsearch server.
  *
- * <p> The process can be started by calling {@link #start(Terminal, ProcessInfo, ServerArgs)}.
+ * <p> The process can be started by calling {@link #start(Terminal, ServerProcessOptions)}.
  * The process is controlled by internally sending arguments and control signals on stdin,
  * and receiving control signals on stderr. The start method does not return until the
  * server is ready to process requests and has exited the bootstrap thread.
@@ -70,25 +69,12 @@ public class ServerProcess {
     /**
      * Start a server in a new process.
      *
-     * @param terminal        A terminal to connect the standard inputs and outputs to for the new process.
-     * @param processInfo     Info about the current process, for passing through to the subprocess.
-     * @param args            Arguments to the server process.
+     * @param terminal              A terminal to connect the standard inputs and outputs to for the new process.
+     * @param serverProcessOptions  Arguments, options, command and environment to create and start the server process.
      * @return A running server process that is ready for requests
-     * @throws UserException If the process failed during bootstrap
+     * @throws UserException        If the process failed during bootstrap
      */
-    public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
-        try {
-            var serverProcessOptions = ServerProcessOptions.builder(processInfo, args).build();
-            return start(terminal, serverProcessOptions);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    // package private so tests can mock options building and process starting
-    static ServerProcess start(Terminal terminal, ServerProcessOptions serverProcessOptions) throws UserException {
+    public static ServerProcess start(Terminal terminal, ServerProcessOptions serverProcessOptions) throws UserException {
         Process jvmProcess = null;
         ErrorPumpThread errorPump;
 

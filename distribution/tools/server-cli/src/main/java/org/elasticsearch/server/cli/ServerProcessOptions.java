@@ -16,6 +16,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -25,7 +26,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class ServerProcessOptions {
+/**
+ * Holds options and arguments needed to start a server process
+ */
+public class ServerProcessOptions {
     private final String command;
     private final List<String> jvmOptions;
     private final List<String> otherOptions;
@@ -49,31 +53,34 @@ class ServerProcessOptions {
         this.processStarter = processStarter;
     }
 
-    public String getCommand() {
+    String getCommand() {
         return command;
     }
 
-    public List<String> getJvmOptions() {
+    List<String> getJvmOptions() {
         return jvmOptions;
     }
 
-    public List<String> getOtherOptions() {
+    List<String> getOtherOptions() {
         return otherOptions;
     }
 
-    public Map<String, String> getEnvironment() {
+    Map<String, String> getEnvironment() {
         return environment;
     }
 
-    public ServerArgs getServerArgs() {
+    ServerArgs getServerArgs() {
         return serverArgs;
     }
 
-    public ServerProcess.ProcessStarter getProcessStarter() {
+    ServerProcess.ProcessStarter getProcessStarter() {
         return processStarter;
     }
 
-    static class Builder {
+    /**
+     * A Builder to assemble, check and create options and arguments needed to start a server process
+     */
+    public static class Builder {
         private final ProcessInfo processInfo;
         private final ServerArgs serverArgs;
 
@@ -95,40 +102,54 @@ class ServerProcessOptions {
             return this;
         }
 
-        public ServerProcessOptions build() throws IOException, UserException, InterruptedException {
-            Map<String, String> envVars = new HashMap<>(processInfo.envVars());
+        /**
+         * Builds the ServerProcessOptions by using the provided arguments, process info, environment and options builder.
+         * The environment and temp directories are checked and, if needed, adjusted/created to be compliant with what the
+         * server process is expecting.
+         *
+         * @return ServerProcessOptions
+         * @throws UserException    if there is a problem with the configuration (e.g. files or directory permissions)
+         */
+        public ServerProcessOptions build() throws UserException {
+            try {
+                Map<String, String> envVars = new HashMap<>(processInfo.envVars());
 
-            Path tempDir = setupTempDir(processInfo, envVars.remove("ES_TMPDIR"));
-            if (envVars.containsKey("LIBFFI_TMPDIR") == false) {
-                envVars.put("LIBFFI_TMPDIR", tempDir.toString());
+                Path tempDir = setupTempDir(processInfo, envVars.remove("ES_TMPDIR"));
+                if (envVars.containsKey("LIBFFI_TMPDIR") == false) {
+                    envVars.put("LIBFFI_TMPDIR", tempDir.toString());
+                }
+
+                List<String> jvmOptions = optionsBuilder.getJvmOptions(
+                    serverArgs,
+                    serverArgs.configDir(),
+                    tempDir,
+                    envVars.remove("ES_JAVA_OPTS")
+                );
+                // also pass through distribution type
+                jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
+
+                Path esHome = processInfo.workingDir();
+                Path javaHome = PathUtils.get(processInfo.sysprops().get("java.home"));
+
+                boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
+                String command = javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
+
+                List<String> otherOptions = new ArrayList<>();
+                otherOptions.add("--module-path");
+                otherOptions.add(esHome.resolve("lib").toString());
+                // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
+                otherOptions.add("--add-modules=jdk.net"); // needed to reflectively set extended socket options
+                // we control the module path, which may have additional modules not required by server
+                otherOptions.add("--add-modules=ALL-MODULE-PATH");
+                otherOptions.add("-m");
+                otherOptions.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
+
+                return new ServerProcessOptions(command, jvmOptions, otherOptions, envVars, serverArgs, processStarter);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
-
-            List<String> jvmOptions = optionsBuilder.getJvmOptions(
-                serverArgs,
-                serverArgs.configDir(),
-                tempDir,
-                envVars.remove("ES_JAVA_OPTS")
-            );
-            // also pass through distribution type
-            jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
-
-            Path esHome = processInfo.workingDir();
-            Path javaHome = PathUtils.get(processInfo.sysprops().get("java.home"));
-
-            boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
-            String command = javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
-
-            List<String> otherOptions = new ArrayList<>();
-            otherOptions.add("--module-path");
-            otherOptions.add(esHome.resolve("lib").toString());
-            // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
-            otherOptions.add("--add-modules=jdk.net"); // needed to reflectively set extended socket options
-            // we control the module path, which may have additional modules not required by server
-            otherOptions.add("--add-modules=ALL-MODULE-PATH");
-            otherOptions.add("-m");
-            otherOptions.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
-
-            return new ServerProcessOptions(command, jvmOptions, otherOptions, envVars, serverArgs, processStarter);
         }
 
         /**
@@ -169,6 +190,13 @@ class ServerProcessOptions {
         }
     }
 
+    /**
+     * Returns a Builder instance
+     *
+     * @param processInfo     Info about the current process, for passing through to the subprocess.
+     * @param serverArgs      Arguments to the server process.
+     * @return A builder to construct a ServerProcessOptions object
+     */
     public static ServerProcessOptions.Builder builder(ProcessInfo processInfo, ServerArgs serverArgs) {
         return new Builder(processInfo, serverArgs);
     }

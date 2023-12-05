@@ -14,16 +14,19 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorConfigurationAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorErrorAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilteringAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -66,6 +69,29 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
 
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete));
+    }
+
+    public void testUpdateConnectorConfiguration() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+
+        DocWriteResponse resp = awaitPutConnector(connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        Map<String, ConnectorConfiguration> connectorConfiguration = connector.getConfiguration()
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> ConnectorTestUtils.getRandomConnectorConfigurationField()));
+
+        UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
+            connector.getConnectorId(),
+            connectorConfiguration
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorConfiguration(updateConfigurationRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        assertThat(connectorConfiguration, equalTo(indexedConnector.getConfiguration()));
+        assertThat(indexedConnector.getStatus(), equalTo(ConnectorStatus.CONFIGURED));
     }
 
     public void testUpdateConnectorPipeline() throws Exception {
@@ -190,6 +216,25 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateErrorRequest.getError(), equalTo(indexedConnector.getError()));
     }
 
+    public void testUpdateConnectorNameOrDescription() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        DocWriteResponse resp = awaitPutConnector(connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        UpdateConnectorNameAction.Request updateNameDescriptionRequest = new UpdateConnectorNameAction.Request(
+            connector.getConnectorId(),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15)
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorName(updateNameDescriptionRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connector.getConnectorId());
+        assertThat(updateNameDescriptionRequest.getName(), equalTo(indexedConnector.getName()));
+        assertThat(updateNameDescriptionRequest.getDescription(), equalTo(indexedConnector.getDescription()));
+    }
+
     private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
@@ -287,6 +332,32 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from list request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorConfiguration(UpdateConnectorConfigurationAction.Request updateConfiguration)
+        throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorConfiguration(updateConfiguration, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update configuration request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update configuration request", resp.get());
         return resp.get();
     }
 
@@ -418,6 +489,31 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    private UpdateResponse awaitUpdateConnectorName(UpdateConnectorNameAction.Request updatedNameOrDescription) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorNameOrDescription(updatedNameOrDescription, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update name request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update name request", resp.get());
+        return resp.get();
+    }
+
     private UpdateResponse awaitUpdateConnectorError(UpdateConnectorErrorAction.Request updatedError) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
@@ -442,4 +538,5 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertNotNull("Received null response from update error request", resp.get());
         return resp.get();
     }
+
 }

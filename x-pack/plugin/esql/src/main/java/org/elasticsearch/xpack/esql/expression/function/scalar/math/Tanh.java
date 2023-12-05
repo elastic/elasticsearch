@@ -28,7 +28,7 @@ public class Tanh extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
-        return new TanhEvaluator.Factory(field);
+        return new TanhEvaluator.Factory(source(), field);
     }
 
     @Override

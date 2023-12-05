@@ -17,8 +17,10 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,23 +30,24 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
@@ -53,20 +56,21 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     private static final int SENDING_PRIMARY_SHARD_ID = 0;
     public static final Setting<TimeValue> PUBLISHING_FREQUENCY_SETTING = Setting.timeSetting(
         "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.frequency",
-        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     private static final Logger logger = LogManager.getLogger(IndicesMappingSizeCollector.class);
+    private static final org.apache.logging.log4j.Logger log4jLogger = org.apache.logging.log4j.LogManager.getLogger(
+        IndicesMappingSizeCollector.class
+    );
     private final boolean isIndexNode;
     private final IndicesService indicesService;
     private final IndicesMappingSizePublisher publisher;
     private final ThreadPool threadPool;
     private final Executor executor;
     private final TimeValue publicationFrequency;
-    private final Map<Index, IndexMappingSize> indexToMappingSizeMetrics = new ConcurrentHashMap<>();
     private final AtomicLong seqNo = new AtomicLong();
-    private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
     private volatile PublishTask publishTask;
 
     public IndicesMappingSizeCollector(
@@ -124,36 +128,44 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         return instance;
     }
 
-    public void publishIndicesMappingSize() {
+    public void publishIndicesMappingSize(Map<Index, IndexMappingSize> indicesMappingSize) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
-        if (indexToMappingSizeMetrics.isEmpty()) {
-            return;
-        }
+        final HeapMemoryUsage heapMemoryUsage = new HeapMemoryUsage(seqNo.incrementAndGet(), indicesMappingSize);
 
-        final HeapMemoryUsage heapMemoryUsage = new HeapMemoryUsage(seqNo.incrementAndGet(), Map.copyOf(indexToMappingSizeMetrics));
-
-        final Object ticket = new Object();
-        if (inFlightPublicationTicket.compareAndSet(null, ticket)) {
-            publisher.publishIndicesMappingSize(heapMemoryUsage, ActionListener.runAfter(new ActionListener<>() {
+        new RetryableAction<>(
+            log4jLogger,
+            threadPool,
+            TimeValue.timeValueMillis(50),
+            // Safe timeout value, all mappings will eventually be synced by the periodic task
+            TimeValue.timeValueSeconds(2),
+            new ActionListener<ActionResponse.Empty>() {
                 @Override
-                public void onResponse(final ActionResponse.Empty ignore) {}
+                public void onResponse(ActionResponse.Empty empty) {}
 
                 @Override
-                public void onFailure(final Exception e) {
+                public void onFailure(Exception e) {
                     logger.log(getExceptionLogLevel(e), () -> "Unable to publish indices mapping size", e);
                 }
-            }, () -> inFlightPublicationTicket.compareAndSet(ticket, null)));
-        }
-    }
+            },
+            threadPool.generic()
+        ) {
 
-    private void clearInFlightPublicationTicket() {
-        inFlightPublicationTicket.set(null);
-    }
+            @Override
+            public void tryAction(ActionListener<ActionResponse.Empty> listener) {
+                publisher.publishIndicesMappingSize(heapMemoryUsage, listener);
+            }
 
-    // Visible for testing
-    Map<Index, IndexMappingSize> getIndexToMappingSizeMetrics() {
-        return indexToMappingSizeMetrics;
+            @Override
+            public boolean shouldRetry(Exception e) {
+                logger.trace("Retrying " + heapMemoryUsage, e);
+                if (e instanceof RemoteTransportException) {
+                    var cause = ExceptionsHelper.unwrapCause(e);
+                    return cause instanceof AutoscalingMissedIndicesUpdateException;
+                }
+                return false;
+            }
+        }.run();
     }
 
     @Override
@@ -163,9 +175,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         }
         if (event.nodesDelta().masterNodeChanged()) {
             // new master does not have any mapping size estimation data
-            // therefore each index node pushes it explicitly not waiting for the next scheduled publish task run
-            clearInFlightPublicationTicket();
-            threadPool.generic().execute(this::publishIndicesMappingSize);
+            updateMappingSizeMetricsForAllIndices();
         }
         if (event.metadataChanged()) {
             // handle index metadata mapping updates
@@ -196,42 +206,46 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         updateMappingSizeMetrics(indexService.getMetadata());
     }
 
-    @Override
-    public void beforeIndexShardClosed(final ShardId shardId, final IndexShard indexShard, final Settings indexSettings) {
-        if (isIndexNode == false) {
-            return;
+    void updateMappingSizeMetricsForAllIndices() {
+        Map<Index, IndexMappingSize> indexMappingSizeMap = new HashMap<>();
+        for (IndexService indexService : indicesService) {
+            var indexMetadata = indexService.getMetadata();
+            var indexMappingSize = indexMappingSizeMetrics(indexMetadata);
+            if (indexMappingSize != null) {
+                indexMappingSizeMap.put(indexMetadata.getIndex(), indexMappingSize);
+            }
         }
-        if (shardId.id() != SENDING_PRIMARY_SHARD_ID) {
-            return;
-        }
-        removeMappingSizeMetrics(shardId.getIndex());
+        threadPool.generic().execute(() -> publishIndicesMappingSize(indexMappingSizeMap));
     }
 
-    private void updateMappingSizeMetrics(final IndexMetadata indexMetadata) {
+    void updateMappingSizeMetrics(IndexMetadata indexMetadata) {
+        IndexMappingSize indexMappingSize = indexMappingSizeMetrics(indexMetadata);
+        if (indexMappingSize != null) {
+            Map<Index, IndexMappingSize> indexMappingSizeMap = Map.of(indexMetadata.getIndex(), indexMappingSize);
+            threadPool.generic().execute(() -> publishIndicesMappingSize(indexMappingSizeMap));
+        }
+    }
+
+    @Nullable
+    IndexMappingSize indexMappingSizeMetrics(final IndexMetadata indexMetadata) {
         if (isIndexNode == false) {
-            return;
+            return null;
         }
         final Index index = indexMetadata.getIndex();
         final IndexService indexService = indicesService.indexServiceSafe(index);
         final IndexShard indexShard = indexService.getShardOrNull(SENDING_PRIMARY_SHARD_ID);
         if (indexShard == null) {
-            return;
+            return null;
         }
-        updateMappingSizeMetrics(index, indexService, indexShard.routingEntry().currentNodeId());
-    }
-
-    private void updateMappingSizeMetrics(final Index index, final IndexService indexService, final String shardNodeId) {
         final NodeMappingStats nodeMappingStats = indexService.getNodeMappingStats();
         if (nodeMappingStats != null) {
             final ByteSizeValue estimatedSizeInBytes = nodeMappingStats.getTotalEstimatedOverhead();
             final long newValue = estimatedSizeInBytes.getBytes();
+            final String shardNodeId = indexShard.routingEntry().currentNodeId();
             assert shardNodeId != null : "Publishing index mapping size metrics only from allocated shard";
-            indexToMappingSizeMetrics.put(index, new IndexMappingSize(newValue, shardNodeId));
+            return new IndexMappingSize(newValue, shardNodeId);
         }
-    }
-
-    private void removeMappingSizeMetrics(final Index index) {
-        indexToMappingSizeMetrics.remove(index);
+        return null;
     }
 
     void start() {
@@ -249,7 +263,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         publishTask = null;
     }
 
-    // TODO: send updates only if there is a change in metrics
+    // Run a periodic task at long intervals just as a safeguard in case individual updates get lost
     class PublishTask extends AbstractRunnable {
 
         @Override
@@ -257,12 +271,11 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
             if (publishTask != PublishTask.this) {
                 return;
             }
-            publishIndicesMappingSize();
+            updateMappingSizeMetricsForAllIndices();
         }
 
         @Override
         public void onFailure(Exception e) {
-            clearInFlightPublicationTicket();
             logger.error("Unexpected error during publishing indices memory mapping size metric", e);
         }
 

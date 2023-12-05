@@ -8,44 +8,45 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed LongArray.
+ * Vector implementation that defers to an enclosed PointArray.
  * This class is generated. Do not edit it.
  */
-public final class LongBigArrayVector extends AbstractVector implements LongVector, Releasable {
+public final class PointBigArrayVector extends AbstractVector implements PointVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PointBigArrayVector.class);
 
-    private final LongArray values;
+    private final ObjectArray<SpatialPoint> values;
 
-    private final LongBlock block;
+    private final PointBlock block;
 
-    public LongBigArrayVector(LongArray values, int positionCount) {
+    public PointBigArrayVector(ObjectArray<SpatialPoint> values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
-    public LongBigArrayVector(LongArray values, int positionCount, BlockFactory blockFactory) {
+    public PointBigArrayVector(ObjectArray<SpatialPoint> values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new LongVectorBlock(this);
+        this.block = new PointVectorBlock(this);
     }
 
     @Override
-    public LongBlock asBlock() {
+    public PointBlock asBlock() {
         return block;
     }
 
     @Override
-    public long getLong(int position) {
+    public SpatialPoint getPoint(int position) {
         return values.get(position);
     }
 
     @Override
     public ElementType elementType() {
-        return ElementType.LONG;
+        return ElementType.POINT;
     }
 
     @Override
@@ -59,13 +60,13 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
-    public LongVector filter(int... positions) {
+    public PointVector filter(int... positions) {
         var blockFactory = blockFactory();
-        final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length);
+        final ObjectArray<SpatialPoint> filtered = blockFactory.bigArrays().newObjectArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
-        return new LongBigArrayVector(filtered, positions.length, blockFactory);
+        return new PointBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override
@@ -79,15 +80,15 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof LongVector that) {
-            return LongVector.equals(this, that);
+        if (obj instanceof PointVector that) {
+            return PointVector.equals(this, that);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return LongVector.hash(this);
+        return PointVector.hash(this);
     }
 
     @Override

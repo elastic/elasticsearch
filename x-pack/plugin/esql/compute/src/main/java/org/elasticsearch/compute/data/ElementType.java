@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 /**
  * The type of elements in {@link Block} and {@link Vector}
@@ -23,6 +24,11 @@ public enum ElementType {
     NULL((estimatedSize, blockFactory) -> new ConstantNullBlock.Builder(blockFactory)),
 
     BYTES_REF(BytesRefBlock::newBlockBuilder),
+
+    /**
+     * geo_point and cartesian_point
+     */
+    POINT(PointBlock::newBlockBuilder),
 
     /**
      * Blocks that reference individual lucene documents.
@@ -70,6 +76,8 @@ public enum ElementType {
             elementType = DOUBLE;
         } else if (type == String.class || type == BytesRef.class) {
             elementType = BYTES_REF;
+        } else if (type.isAssignableFrom(SpatialPoint.class)) {
+            elementType = POINT;
         } else if (type == Boolean.class) {
             elementType = BOOLEAN;
         } else if (type == null || type == Void.class) {

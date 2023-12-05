@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+$elseif(Point)$
+import org.elasticsearch.common.geo.SpatialPoint;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 

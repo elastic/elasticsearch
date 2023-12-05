@@ -8,89 +8,53 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
-$if(BytesRef)$
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BytesRefHash;
-$elseif(Point)$
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.LongHash;
-$else$
-import org.elasticsearch.common.util.LongHash;
-$endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-$if(int)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.data.IntBlock;
 
-$elseif(long)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
-
-$else$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.$Type$Block;
-import org.elasticsearch.compute.data.IntBlock;
-
-$endif$
 import java.util.Arrays;
 
 /**
  * Removes duplicate values from multivalued positions.
  * This class is generated. Edit {@code X-MultivalueDedupe.java.st} instead.
  */
-public class MultivalueDedupe$Type$ {
+public class MultivalueDedupePoint {
     /**
      * The number of entries before we switch from and {@code n^2} strategy
      * with low overhead to an {@code n*log(n)} strategy with higher overhead.
      * The choice of number has been experimentally derived.
      */
-$if(BytesRef)$
-    private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
-$elseif(double)$
-    private static final int ALWAYS_COPY_MISSING = 110;
-$elseif(int)$
     private static final int ALWAYS_COPY_MISSING = 300;
-$else$
-    private static final int ALWAYS_COPY_MISSING = 300;
-$endif$
 
-    private final $Type$Block block;
-    private $type$[] work = new $type$[ArrayUtil.oversize(2, $BYTES$)];
+    private final PointBlock block;
+    private SpatialPoint[] work = new SpatialPoint[ArrayUtil.oversize(2, 16)];
     private int w;
 
-    public MultivalueDedupe$Type$($Type$Block block) {
+    public MultivalueDedupePoint(PointBlock block) {
         this.block = block;
-$if(BytesRef)$
-        // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
-        fillWork(0, work.length);
-$endif$
     }
 
     /**
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public $Type$Block dedupeToBlockAdaptive(BlockFactory blockFactory) {
+    public PointBlock dedupeToBlockAdaptive(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (PointBlock.Builder builder = PointBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+                    case 1 -> builder.appendPoint(block.getPoint(first));
                     default -> {
                         /*
                          * It's better to copyMissing when there are few unique values
@@ -129,22 +93,18 @@ $endif$
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public $Type$Block dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
+    public PointBlock dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (PointBlock.Builder builder = PointBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+                    case 1 -> builder.appendPoint(block.getPoint(first));
                     default -> {
                         copyAndSort(first, count);
                         writeSortedWork(builder);
@@ -163,22 +123,18 @@ $endif$
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public $Type$Block dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
+    public PointBlock dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (PointBlock.Builder builder = PointBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-    $if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-    $else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-    $endif$
+                    case 1 -> builder.appendPoint(block.getPoint(first));
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
@@ -193,11 +149,7 @@ $endif$
      * Dedupe values and build a {@link IntBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-$if(BytesRef)$
-    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, BytesRefHash hash) {
-$else$
     public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, LongHash hash) {
-$endif$
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -209,11 +161,7 @@ $endif$
                         builder.appendInt(0);
                     }
                     case 1 -> {
-$if(BytesRef)$
-                        BytesRef v = block.getBytesRef(first, work[0]);
-$else$
-                        $type$ v = block.get$Type$(first);
-$endif$
+                        SpatialPoint v = block.getPoint(first);
                         hash(builder, hash, v);
                     }
                     default -> {
@@ -237,17 +185,13 @@ $endif$
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
-        return new BatchEncoder.$Type$s(batchSize) {
+        return new BatchEncoder.Points(batchSize) {
             @Override
             protected void readNextBatch() {
                 int position = firstPosition();
                 if (w > 0) {
                     // The last block didn't fit so we have to *make* it fit
-$if(BytesRef)$
-                    ensureCapacity(workSize(), w);
-$else$
                     ensureCapacity(w);
-$endif$
                     startPosition();
                     encodeUniquedWork(this);
                     endPosition();
@@ -259,13 +203,8 @@ $endif$
                     switch (count) {
                         case 0 -> encodeNull();
                         case 1 -> {
-$if(BytesRef)$
-                            BytesRef v = block.getBytesRef(first, work[0]);
-                            if (hasCapacity(v.length, 1)) {
-$else$
-                            $type$ v = block.get$Type$(first);
+                            SpatialPoint v = block.getPoint(first);
                             if (hasCapacity(1)) {
-$endif$
                                 startPosition();
                                 encode(v);
                                 endPosition();
@@ -282,11 +221,7 @@ $endif$
                                 copyAndSort(first, count);
                                 convertSortedWorkToUnique();
                             }
-$if(BytesRef)$
-                            if (hasCapacity(workSize(), w)) {
-$else$
                             if (hasCapacity(w)) {
-$endif$
                                 startPosition();
                                 encodeUniquedWork(this);
                                 endPosition();
@@ -298,15 +233,6 @@ $endif$
                 }
             }
 
-$if(BytesRef)$
-            private int workSize() {
-                int size = 0;
-                for (int i = 0; i < w; i++) {
-                    size += work[i].length;
-                }
-                return size;
-            }
-$endif$
         };
     }
 
@@ -320,12 +246,7 @@ $endif$
 
         w = 0;
         for (int i = first; i < end; i++) {
-$if(BytesRef)$
-            work[w] = block.getBytesRef(i, work[w]);
-            w++;
-$else$
-            work[w++] = block.get$Type$(i);
-$endif$
+            work[w++] = block.getPoint(i);
         }
 
         Arrays.sort(work, 0, w);
@@ -339,26 +260,12 @@ $endif$
         grow(count);
         int end = first + count;
 
-$if(BytesRef)$
-        work[0] = block.getBytesRef(first, work[0]);
-$else$
-        work[0] = block.get$Type$(first);
-$endif$
+        work[0] = block.getPoint(first);
         w = 1;
         i: for (int i = first + 1; i < end; i++) {
-$if(BytesRef)$
-            $type$ v = block.getBytesRef(i, work[w]);
-$else$
-            $type$ v = block.get$Type$(i);
-$endif$
+            SpatialPoint v = block.getPoint(i);
             for (int j = 0; j < w; j++) {
-$if(BytesRef)$
                 if (v.equals(work[j])) {
-$elseif(Point)$
-                if (v.equals(work[j])) {
-$else$
-                if (v == work[j]) {
-$endif$
                     continue i;
                 }
             }
@@ -367,41 +274,35 @@ $endif$
     }
 
     /**
-     * Writes an already deduplicated {@link #work} to a {@link $Type$Block.Builder}.
+     * Writes an already deduplicated {@link #work} to a {@link PointBlock.Builder}.
      */
-    private void writeUniquedWork($Type$Block.Builder builder) {
+    private void writeUniquedWork(PointBlock.Builder builder) {
         if (w == 1) {
-            builder.append$Type$(work[0]);
+            builder.appendPoint(work[0]);
             return;
         }
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
-            builder.append$Type$(work[i]);
+            builder.appendPoint(work[i]);
         }
         builder.endPositionEntry();
     }
 
     /**
-     * Writes a sorted {@link #work} to a {@link $Type$Block.Builder}, skipping duplicates.
+     * Writes a sorted {@link #work} to a {@link PointBlock.Builder}, skipping duplicates.
      */
-    private void writeSortedWork($Type$Block.Builder builder) {
+    private void writeSortedWork(PointBlock.Builder builder) {
         if (w == 1) {
-            builder.append$Type$(work[0]);
+            builder.appendPoint(work[0]);
             return;
         }
         builder.beginPositionEntry();
-        $type$ prev = work[0];
-        builder.append$Type$(prev);
+        SpatialPoint prev = work[0];
+        builder.appendPoint(prev);
         for (int i = 1; i < w; i++) {
-$if(BytesRef)$
             if (false == prev.equals(work[i])) {
-$elseif(Point)$
-            if (false == prev.equals(work[i])) {
-$else$
-            if (prev != work[i]) {
-$endif$
                 prev = work[i];
-                builder.append$Type$(prev);
+                builder.appendPoint(prev);
             }
         }
         builder.endPositionEntry();
@@ -410,11 +311,7 @@ $endif$
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-$if(BytesRef)$
-    private void hashUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
     private void hashUniquedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
         if (w == 1) {
             hash(builder, hash, work[0]);
             return;
@@ -429,26 +326,16 @@ $endif$
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-$if(BytesRef)$
-    private void hashSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
-$else$
     private void hashSortedWork(LongHash hash, IntBlock.Builder builder) {
-$endif$
         if (w == 1) {
             hash(builder, hash, work[0]);
             return;
         }
         builder.beginPositionEntry();
-        $type$ prev = work[0];
+        SpatialPoint prev = work[0];
         hash(builder, hash, prev);
         for (int i = 1; i < w; i++) {
-$if(BytesRef)$
             if (false == prev.equals(work[i])) {
-$elseif(Point)$
-            if (false == prev.equals(work[i])) {
-$else$
-            if (prev != work[i]) {
-$endif$
                 prev = work[i];
                 hash(builder, hash, prev);
             }
@@ -457,9 +344,9 @@ $endif$
     }
 
     /**
-     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.$Type$s}.
+     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.Points}.
      */
-    private void encodeUniquedWork(BatchEncoder.$Type$s encoder) {
+    private void encodeUniquedWork(BatchEncoder.Points encoder) {
         for (int i = 0; i < w; i++) {
             encoder.encode(work[i]);
         }
@@ -469,61 +356,22 @@ $endif$
      * Converts {@link #work} from sorted array to a deduplicated array.
      */
     private void convertSortedWorkToUnique() {
-        $type$ prev = work[0];
+        SpatialPoint prev = work[0];
         int end = w;
         w = 1;
         for (int i = 1; i < end; i++) {
-$if(BytesRef)$
-            if (false == prev.equals(work[i])) {
-                prev = work[i];
-                work[w].bytes = prev.bytes;
-                work[w].offset = prev.offset;
-                work[w].length = prev.length;
-                w++;
-            }
-$elseif(Point)$
             if (false == prev.equals(work[i])) {
                 prev = work[i];
                 work[w++] = prev;
             }
-$else$
-            if (prev != work[i]) {
-                prev = work[i];
-                work[w++] = prev;
-            }
-$endif$
         }
     }
 
     private void grow(int size) {
-$if(BytesRef)$
-        int prev = work.length;
         work = ArrayUtil.grow(work, size);
-        fillWork(prev, work.length);
-$else$
-        work = ArrayUtil.grow(work, size);
-$endif$
     }
 
-$if(BytesRef)$
-    private void fillWork(int from, int to) {
-        for (int i = from; i < to; i++) {
-            work[i] = new BytesRef();
-        }
-    }
-$endif$
-
-$if(BytesRef)$
-    private void hash(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-$else$
-    private void hash(IntBlock.Builder builder, LongHash hash, $type$ v) {
-$endif$
-$if(double)$
-        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(Double.doubleToLongBits(v)))));
-$elseif(Point)$
+    private void hash(IntBlock.Builder builder, LongHash hash, SpatialPoint v) {
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v.hashCode()))));
-$else$
-        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v))));
-$endif$
     }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -15,7 +16,14 @@ import java.io.IOException;
 /**
  * This vector is never instantiated. This class serves as a type holder for {@link ConstantNullBlock#asVector()}.
  */
-public final class ConstantNullVector extends AbstractVector implements BooleanVector, IntVector, LongVector, DoubleVector, BytesRefVector {
+public final class ConstantNullVector extends AbstractVector
+    implements
+        BooleanVector,
+        IntVector,
+        LongVector,
+        DoubleVector,
+        BytesRefVector,
+        PointVector {
 
     private ConstantNullVector(int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
@@ -53,6 +61,12 @@ public final class ConstantNullVector extends AbstractVector implements BooleanV
 
     @Override
     public double getDouble(int position) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public SpatialPoint getPoint(int position) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
     }

@@ -88,6 +88,17 @@ public interface InferenceService extends Closeable {
     void start(Model model, ActionListener<Boolean> listener);
 
     /**
+     * Optionally test the new model configuration in the inference service.
+     * This function should be called when the model is first created, the
+     * default action is to do nothing.
+     * @param model The new model
+     * @param listener The listener
+     */
+    default void checkModelConfig(Model model, ActionListener<Model> listener) {
+        listener.onResponse(model);
+    };
+
+    /**
      * Return true if this model is hosted in the local Elasticsearch cluster
      * @return True if in cluster
      */

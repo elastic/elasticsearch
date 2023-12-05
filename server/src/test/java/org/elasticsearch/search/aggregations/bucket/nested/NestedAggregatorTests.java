@@ -502,6 +502,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102974")
     public void testNestedOrdering_random() throws IOException {
         int numBooks = randomIntBetween(32, 512);
         List<Tuple<String, int[]>> books = new ArrayList<>();

@@ -219,38 +219,6 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertEquals(4, mergedAdd1.mapperSize());
     }
 
-    public void testMergeWithLimitPreserveOrder() {
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
-            new KeywordFieldMapper.Builder("field1", IndexVersion.current())
-        )
-            .add(new KeywordFieldMapper.Builder("field2", IndexVersion.current()))
-            .add(new KeywordFieldMapper.Builder("field3", IndexVersion.current()))
-            .add(new KeywordFieldMapper.Builder("field4", IndexVersion.current()))
-            .add(new KeywordFieldMapper.Builder("field5", IndexVersion.current()))
-            .add(new KeywordFieldMapper.Builder("field6", IndexVersion.current()))
-            .add(new KeywordFieldMapper.Builder("field7", IndexVersion.current()))
-            .add(new KeywordFieldMapper.Builder("field8", IndexVersion.current()))
-            .add(new KeywordFieldMapper.Builder("field9", IndexVersion.current()))
-            .add(new KeywordFieldMapper.Builder("field10", IndexVersion.current()))
-            .build(MapperBuilderContext.root(false, false));
-
-        ObjectMapper merged = root.merge(mergeWith, MapperMergeContext.root(false, false, 5));
-        assertEquals(0, root.mapperSize());
-        assertEquals(5, merged.mapperSize());
-
-        assertNotNull(merged.getMapper("field1"));
-        assertNotNull(merged.getMapper("field2"));
-        assertNotNull(merged.getMapper("field3"));
-        assertNotNull(merged.getMapper("field4"));
-        assertNotNull(merged.getMapper("field5"));
-        assertNull(merged.getMapper("field6"));
-        assertNull(merged.getMapper("field7"));
-        assertNull(merged.getMapper("field8"));
-        assertNull(merged.getMapper("field9"));
-        assertNull(merged.getMapper("field10"));
-    }
-
     public void testMergeWithLimitObjectField() {
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(false, false));
         RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
@@ -271,8 +239,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertNull(parent1.getMapper("child2"));
 
         ObjectMapper parent2 = (ObjectMapper) mergedAdd2.getMapper("parent");
-        assertNotNull(parent2.getMapper("child1"));
-        assertNull(parent2.getMapper("child2"));
+        // the order is not deterministic, but we expect one to be null and the other to be non-null
+        assertTrue(parent2.getMapper("child1") == null ^ parent2.getMapper("child2") == null);
 
         ObjectMapper parent3 = (ObjectMapper) mergedAdd3.getMapper("parent");
         assertNotNull(parent3.getMapper("child1"));

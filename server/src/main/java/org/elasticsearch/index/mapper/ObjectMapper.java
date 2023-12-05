@@ -24,11 +24,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -157,7 +156,7 @@ public class ObjectMapper extends Mapper {
         }
 
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
-            Map<String, Mapper> mappers = new LinkedHashMap<>();
+            Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
@@ -400,7 +399,7 @@ public class ObjectMapper extends Mapper {
         if (mappers == null) {
             this.mappers = Map.of();
         } else {
-            this.mappers = Collections.unmodifiableMap(mappers);
+            this.mappers = Map.copyOf(mappers);
         }
     }
 
@@ -549,7 +548,7 @@ public class ObjectMapper extends Mapper {
             MapperMergeContext objectMergeContext
         ) {
             // need to preserve order to make it deterministic which fields are ignored
-            Map<String, Mapper> mergedMappers = new LinkedHashMap<>(existing.mappers);
+            Map<String, Mapper> mergedMappers = new HashMap<>(existing.mappers);
             for (Mapper mergeWithMapper : mergeWith) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
 
@@ -582,7 +581,7 @@ public class ObjectMapper extends Mapper {
                     }
                 }
             }
-            return Collections.unmodifiableMap(mergedMappers);
+            return Map.copyOf(mergedMappers);
         }
     }
 

@@ -14,7 +14,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.List;
+
 public class ActionUtils {
+
+    public static List<String> truncateInput(List<String> input, int length) {
+        return input.stream().map(text -> text.substring(0, Math.min(text.length(), length))).toList();
+    }
 
     public static ActionListener<InferenceServiceResults> wrapFailuresInElasticsearchException(
         String errorMessage,

@@ -1,6 +1,4 @@
----
-"Test enrich crud apis":
-
+setup:
   - do:
       indices.create:
         index: bar
@@ -13,8 +11,9 @@
                 type: keyword
               b:
                 type: keyword
-  - is_true: acknowledged
 
+---
+"Test enrich crud apis":
   - do:
       enrich.put_policy:
         name: policy-crud

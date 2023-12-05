@@ -139,7 +139,7 @@ public class OpenAiService extends SenderService {
     /**
      * For text embedding models get the embedding size and
      * update the service settings.
-     * 
+     *
      * @param model The new model
      * @param listener The listener
      */

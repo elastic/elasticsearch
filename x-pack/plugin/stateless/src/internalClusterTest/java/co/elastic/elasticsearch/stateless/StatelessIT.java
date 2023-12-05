@@ -651,6 +651,34 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         });
     }
 
+    public void testAutoExpandReplicasSettingsAreIgnored() {
+        startMasterOnlyNode();
+        startIndexNodes(2);
+        startSearchNodes(2);
+        ensureStableCluster(5);
+
+        final String indexName = randomIdentifier();
+        var autoExpandConfiguration = randomFrom("0-all", "0-20", "0-3", "0-1");
+        var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, autoExpandConfiguration);
+
+        if (randomBoolean()) {
+            indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomBoolean() ? 0 : 1);
+        }
+
+        createIndex(indexName, indexSettings.build());
+
+        assertThat(
+            indicesAdmin().prepareGetSettings(indexName)
+                .setNames("index.number_of_replicas")
+                .get()
+                .getSetting(indexName, "index.number_of_replicas"),
+            is(equalTo("1"))
+        );
+        ensureGreen(indexName);
+    }
+
     protected static TimeValue getRefreshIntervalSetting(String index, boolean includeDefaults) throws Exception {
         var request = new GetSettingsRequest();
         request = request.indices(index).includeDefaults(includeDefaults);

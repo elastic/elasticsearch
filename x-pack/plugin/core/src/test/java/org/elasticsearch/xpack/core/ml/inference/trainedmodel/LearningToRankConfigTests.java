@@ -22,7 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearningToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilderTests;
 import org.elasticsearch.xpack.core.ml.ltr.MlLTRNamedXContentProvider;
 import org.junit.Before;
@@ -37,11 +37,11 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToRankConfig> {
+public class LearningToRankConfigTests extends InferenceConfigItemTestCase<LearningToRankConfig> {
     private boolean lenient;
 
-    public static LearnToRankConfig randomLearnToRankConfig() {
-        return new LearnToRankConfig(
+    public static LearningToRankConfig randomLearningToRankConfig() {
+        return new LearningToRankConfig(
             randomBoolean() ? null : randomIntBetween(0, 10),
             randomBoolean()
                 ? null
@@ -56,15 +56,15 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
     }
 
     @Override
-    protected LearnToRankConfig createTestInstance() {
-        return randomLearnToRankConfig();
+    protected LearningToRankConfig createTestInstance() {
+        return randomLearningToRankConfig();
     }
 
     @Override
-    protected LearnToRankConfig mutateInstance(LearnToRankConfig instance) {
+    protected LearningToRankConfig mutateInstance(LearningToRankConfig instance) {
         int i = randomInt(2);
 
-        LearnToRankConfig.Builder builder = LearnToRankConfig.builder(instance);
+        LearningToRankConfig.Builder builder = LearningToRankConfig.builder(instance);
 
         switch (i) {
             case 0 -> {
@@ -76,7 +76,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
                 );
             }
             case 1 -> {
-                builder.setLearnToRankFeatureExtractorBuilders(
+                builder.setLearningToRankFeatureExtractorBuilders(
                     randomValueOtherThan(
                         instance.getFeatureExtractorBuilders(),
                         () -> randomBoolean() || instance.getFeatureExtractorBuilders().isEmpty()
@@ -109,13 +109,13 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
     }
 
     @Override
-    protected Writeable.Reader<LearnToRankConfig> instanceReader() {
-        return LearnToRankConfig::new;
+    protected Writeable.Reader<LearningToRankConfig> instanceReader() {
+        return LearningToRankConfig::new;
     }
 
     @Override
-    protected LearnToRankConfig doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? LearnToRankConfig.fromXContentLenient(parser) : LearnToRankConfig.fromXContentStrict(parser);
+    protected LearningToRankConfig doParseInstance(XContentParser parser) throws IOException {
+        return lenient ? LearningToRankConfig.fromXContentLenient(parser) : LearningToRankConfig.fromXContentStrict(parser);
     }
 
     @Override
@@ -124,18 +124,18 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
     }
 
     @Override
-    protected LearnToRankConfig mutateInstanceForVersion(LearnToRankConfig instance, TransportVersion version) {
+    protected LearningToRankConfig mutateInstanceForVersion(LearningToRankConfig instance, TransportVersion version) {
         return instance;
     }
 
     public void testDuplicateFeatureNames() {
-        List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilderList = List.of(
+        List<LearningToRankFeatureExtractorBuilder> featureExtractorBuilderList = List.of(
             new TestValueExtractor("foo"),
             new TestValueExtractor("foo")
         );
 
-        LearnToRankConfig.Builder builder = LearnToRankConfig.builder(randomLearnToRankConfig())
-            .setLearnToRankFeatureExtractorBuilders(featureExtractorBuilderList);
+        LearningToRankConfig.Builder builder = LearningToRankConfig.builder(randomLearningToRankConfig())
+            .setLearningToRankFeatureExtractorBuilders(featureExtractorBuilderList);
 
         expectThrows(IllegalArgumentException.class, () -> builder.build());
     }
@@ -148,7 +148,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         namedXContent.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                LearnToRankFeatureExtractorBuilder.class,
+                LearningToRankFeatureExtractorBuilder.class,
                 TestValueExtractor.NAME,
                 TestValueExtractor::fromXContent
             )
@@ -163,7 +163,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                LearnToRankFeatureExtractorBuilder.class,
+                LearningToRankFeatureExtractorBuilder.class,
                 TestValueExtractor.NAME.getPreferredName(),
                 TestValueExtractor::new
             )
@@ -171,7 +171,7 @@ public class LearnToRankConfigTests extends InferenceConfigItemTestCase<LearnToR
         return new NamedWriteableRegistry(namedWriteables);
     }
 
-    private static class TestValueExtractor implements LearnToRankFeatureExtractorBuilder {
+    private static class TestValueExtractor implements LearningToRankFeatureExtractorBuilder {
         public static final ParseField NAME = new ParseField("test");
         private final String featureName;
 

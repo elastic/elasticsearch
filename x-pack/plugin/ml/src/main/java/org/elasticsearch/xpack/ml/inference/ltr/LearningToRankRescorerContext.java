@@ -15,8 +15,8 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearningToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
@@ -24,34 +24,34 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class LearnToRankRescorerContext extends RescoreContext {
+public class LearningToRankRescorerContext extends RescoreContext {
 
     final SearchExecutionContext executionContext;
     final LocalModel regressionModelDefinition;
-    final LearnToRankConfig learnToRankConfig;
+    final LearningToRankConfig learningToRankConfig;
 
     /**
      * @param windowSize how many documents to rescore
      * @param rescorer The rescorer to apply
-     * @param learnToRankConfig The inference config containing updated and rewritten parameters
+     * @param learningToRankConfig The inference config containing updated and rewritten parameters
      * @param regressionModelDefinition The local model inference definition, may be null during certain search phases.
      * @param executionContext The local shard search context
      */
-    public LearnToRankRescorerContext(
+    public LearningToRankRescorerContext(
         int windowSize,
         Rescorer rescorer,
-        LearnToRankConfig learnToRankConfig,
+        LearningToRankConfig learningToRankConfig,
         LocalModel regressionModelDefinition,
         SearchExecutionContext executionContext
     ) {
         super(windowSize, rescorer);
         this.executionContext = executionContext;
         this.regressionModelDefinition = regressionModelDefinition;
-        this.learnToRankConfig = learnToRankConfig;
+        this.learningToRankConfig = learningToRankConfig;
     }
 
     List<FeatureExtractor> buildFeatureExtractors(IndexSearcher searcher) throws IOException {
-        assert this.regressionModelDefinition != null && this.learnToRankConfig != null;
+        assert this.regressionModelDefinition != null && this.learningToRankConfig != null;
         List<FeatureExtractor> featureExtractors = new ArrayList<>();
         if (this.regressionModelDefinition.inputFields().isEmpty() == false) {
             featureExtractors.add(
@@ -60,7 +60,7 @@ public class LearnToRankRescorerContext extends RescoreContext {
         }
         List<Weight> weights = new ArrayList<>();
         List<String> queryFeatureNames = new ArrayList<>();
-        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : learnToRankConfig.getFeatureExtractorBuilders()) {
+        for (LearningToRankFeatureExtractorBuilder featureExtractorBuilder : learningToRankConfig.getFeatureExtractorBuilders()) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
                 Query query = executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()).query();
                 Weight weight = searcher.rewrite(query).createWeight(searcher, ScoreMode.COMPLETE, 1f);
@@ -77,11 +77,11 @@ public class LearnToRankRescorerContext extends RescoreContext {
 
     @Override
     public List<ParsedQuery> getParsedQueries() {
-        if (this.learnToRankConfig == null) {
+        if (this.learningToRankConfig == null) {
             return List.of();
         }
         List<ParsedQuery> parsedQueries = new ArrayList<>();
-        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : learnToRankConfig.getFeatureExtractorBuilders()) {
+        for (LearningToRankFeatureExtractorBuilder featureExtractorBuilder : learningToRankConfig.getFeatureExtractorBuilders()) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
                 parsedQueries.add(executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()));
             }

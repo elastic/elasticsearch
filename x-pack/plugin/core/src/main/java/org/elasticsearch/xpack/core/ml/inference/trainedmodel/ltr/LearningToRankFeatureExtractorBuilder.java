@@ -12,11 +12,11 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-public interface LearnToRankFeatureExtractorBuilder
+public interface LearningToRankFeatureExtractorBuilder
     extends
         NamedXContentObject,
         NamedWriteable,
-        Rewriteable<LearnToRankFeatureExtractorBuilder> {
+        Rewriteable<LearningToRankFeatureExtractorBuilder> {
 
     ParseField FEATURE_NAME = new ParseField("feature_name");
 

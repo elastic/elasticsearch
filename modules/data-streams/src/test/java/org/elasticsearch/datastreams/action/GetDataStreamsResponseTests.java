@@ -165,17 +165,22 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.LIFECYCLE.displayValue)
                 );
 
-                List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
-                    DataStream.FAILURE_INDICES_FIELD.getPreferredName()
-                );
-                Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
-                assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
-                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
-                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
-                assertThat(
-                    failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
-                    is(ManagedBy.LIFECYCLE.displayValue)
-                );
+                if (DataStream.isFailureStoreEnabled()) {
+                    List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
+                        DataStream.FAILURE_INDICES_FIELD.getPreferredName()
+                    );
+                    Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
+                    assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
+                    assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
+                    assertThat(
+                        failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()),
+                        is(nullValue())
+                    );
+                    assertThat(
+                        failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                        is(ManagedBy.LIFECYCLE.displayValue)
+                    );
+                }
             }
         }
 
@@ -258,17 +263,22 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.UNMANAGED.displayValue)
                 );
 
-                List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
-                    DataStream.FAILURE_INDICES_FIELD.getPreferredName()
-                );
-                Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
-                assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
-                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
-                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
-                assertThat(
-                    failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
-                    is(ManagedBy.UNMANAGED.displayValue)
-                );
+                if (DataStream.isFailureStoreEnabled()) {
+                    List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
+                        DataStream.FAILURE_INDICES_FIELD.getPreferredName()
+                    );
+                    Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
+                    assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
+                    assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
+                    assertThat(
+                        failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()),
+                        is(nullValue())
+                    );
+                    assertThat(
+                        failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                        is(ManagedBy.UNMANAGED.displayValue)
+                    );
+                }
             }
         }
     }

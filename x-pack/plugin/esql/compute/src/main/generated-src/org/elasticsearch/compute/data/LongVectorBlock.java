@@ -83,4 +83,9 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
         assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
     }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
 }

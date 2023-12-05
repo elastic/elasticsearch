@@ -119,12 +119,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                         null
                     );
                 }
-                var response = new MultiSearchResponse(responses, randomNonNegativeLong());
-                try {
-                    listener.onResponse(response);
-                } finally {
-                    response.decRef();
-                }
+                ActionListener.respondAndRelease(listener, new MultiSearchResponse(responses, randomNonNegativeLong()));
             }
         };
 

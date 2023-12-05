@@ -26,8 +26,10 @@ public class WeightedTokensThreshold implements Writeable, ToXContentObject {
     public static final ParseField WEIGHT_THRESHOLD_FIELD = new ParseField("weight_threshold");
     public static final ParseField ONLY_SCORE_PRUNED_TOKENS_FIELD = new ParseField("only_score_pruned_tokens");
 
+    // Tokens whose frequency is more than 5 times the average frequency of all tokens in the specified field are considered outliers.
     public static final float DEFAULT_RATIO_THRESHOLD = 5;
     public static final float MAX_RATIO_THRESHOLD = 100;
+    // A token's weight should be > 40% of the best weight in the query to be considered significant.
     public static final float DEFAULT_WEIGHT_THRESHOLD = 0.4f;
 
     private final float ratioThreshold;

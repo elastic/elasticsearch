@@ -14,12 +14,17 @@ public class RetrieverParserContext {
 
     protected Consumer<String> trackSectionUsage;
     protected Consumer<String> trackQueryUsage;
+    protected Consumer<String> trackRescorerUsage;
 
     public RetrieverParserContext() {
 
     }
 
-    public RetrieverParserContext(Consumer<String> trackSectionUsage, Consumer<String> trackQueryUsage) {
+    public RetrieverParserContext(
+        Consumer<String> trackSectionUsage,
+        Consumer<String> trackQueryUsage,
+        Consumer<String> trackRescorerUsage
+    ) {
         this.trackSectionUsage = trackSectionUsage;
         this.trackQueryUsage = trackQueryUsage;
     }
@@ -33,6 +38,12 @@ public class RetrieverParserContext {
     public void trackQueryUsage(String query) {
         if (trackQueryUsage != null) {
             trackQueryUsage.accept(query);
+        }
+    }
+
+    public void trackRescorerUsage(String name) {
+        if (trackRescorerUsage != null) {
+            trackRescorerUsage.accept(name);
         }
     }
 }

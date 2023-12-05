@@ -2,10 +2,9 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
-//dependencies {
-//  testImplementation project(":x-pack:plugin:core")
-//  testImplementation project(path: xpackModule('ml'))
-//}
+dependencies {
+  javaRestTestImplementation(project(':modules:lang-mustache'))
+}
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'

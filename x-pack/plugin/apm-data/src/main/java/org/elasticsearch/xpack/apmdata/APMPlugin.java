@@ -33,7 +33,7 @@ public class APMPlugin extends Plugin implements ActionPlugin {
             )
         );
         APMIndexTemplateRegistry registryInstance = registry.get();
-        logger.info("APM is {}", registryInstance.isEnabled() ? "enabled" : "disabled");
+        logger.info("APM ingest plugin is {}", registryInstance.isEnabled() ? "enabled" : "disabled");
         registryInstance.initialize();
         return List.of(registryInstance);
     }

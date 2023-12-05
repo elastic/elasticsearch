@@ -311,9 +311,11 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         RefreshResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
 
-        SearchRequest searchRequest = new SearchRequestBuilder(client(), TransportSearchAction.TYPE).setIndices(
-            NotificationsIndex.NOTIFICATIONS_INDEX
-        ).addSort("timestamp", SortOrder.ASC).setQuery(QueryBuilders.termQuery("job_id", jobId)).setSize(100).request();
+        SearchRequest searchRequest = new SearchRequestBuilder(client()).setIndices(NotificationsIndex.NOTIFICATIONS_INDEX)
+            .addSort("timestamp", SortOrder.ASC)
+            .setQuery(QueryBuilders.termQuery("job_id", jobId))
+            .setSize(100)
+            .request();
         List<String> messages = new ArrayList<>();
         assertResponse(
             client().execute(TransportSearchAction.TYPE, searchRequest),

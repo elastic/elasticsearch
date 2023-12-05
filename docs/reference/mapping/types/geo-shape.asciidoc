@@ -30,6 +30,15 @@ The `geo_shape` mapping maps GeoJSON or WKT geometry objects to the `geo_shape`
 type. To enable it, users must explicitly map fields to the `geo_shape`
 type.
 
+[NOTE]
+=============================================
+In https://datatracker.ietf.org/doc/html/rfc7946[GeoJSON]
+and https://www.ogc.org/standard/sfa/[WKT], and therefore Elasticsearch,
+the correct *coordinate order is longitude, latitude (X, Y)* within coordinate
+arrays. This differs from many Geospatial APIs (e.g., Google Maps) that generally
+use the colloquial latitude, longitude (Y, X).
+=============================================
+
 [cols="<,<,<",options="header",]
 |=======================================================================
 |Option |Description| Default
@@ -142,11 +151,6 @@ specifying only the top left and bottom right points.
 =============================================
 For all types, both the inner `type` and `coordinates` fields are
 required.
-
-In GeoJSON and WKT, and therefore Elasticsearch, the correct *coordinate
-order is longitude, latitude (X, Y)* within coordinate arrays. This
-differs from many Geospatial APIs (e.g., Google Maps) that generally
-use the colloquial latitude, longitude (Y, X).
 =============================================
 
 [[geo-point-type]]

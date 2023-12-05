@@ -87,10 +87,10 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
             List<RescorerBuilder> rescorerBuilders = new ArrayList<>();
             if (p.currentToken() == XContentParser.Token.START_ARRAY) {
                 while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    rescorerBuilders.add(RescorerBuilder.parseFromXContent(p));
+                    rescorerBuilders.add(RescorerBuilder.parseFromXContent(p, c::trackRescorerUsage));
                 }
             } else {
-                rescorerBuilders.add(RescorerBuilder.parseFromXContent(p));
+                rescorerBuilders.add(RescorerBuilder.parseFromXContent(p, c::trackRescorerUsage));
             }
             c.trackSectionUsage(NAME + ":" + RESCORE_FIELD.getPreferredName());
             return rescorerBuilders;

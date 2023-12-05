@@ -58,6 +58,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
@@ -945,10 +946,11 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ensureGreen();
         // load the fst index into ram
         prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion("foo", SuggestBuilders.completionSuggestion(FIELD).prefix("f")))
-            .get();
+            .get()
+            .decRef();
         prepareSearch(INDEX).suggest(
             new SuggestBuilder().addSuggestion("foo", SuggestBuilders.completionSuggestion(otherField).prefix("f"))
-        ).get();
+        ).get().decRef();
 
         // Get all stats
         IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).get();
@@ -1278,7 +1280,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         assertSuggestions("b");
-        assertThat(2L, equalTo(prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits().value));
+        assertHitCount(prepareSearch(INDEX).setSize(0), 2);
         for (IndexShardSegments seg : indicesAdmin().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.shards();
             for (ShardSegments shardSegments : shards) {

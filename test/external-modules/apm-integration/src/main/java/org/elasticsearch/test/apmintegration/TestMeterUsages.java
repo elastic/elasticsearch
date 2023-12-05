@@ -37,7 +37,7 @@ public class TestMeterUsages {
         meterRegistry.registerLongGauge("testLongGauge", "test", "unit", longWithAttributes::get);
 
         meterRegistry.registerLongAsyncCounter("testAsyncLongCounter", "test", "unit", longWithAttributes::get);
-        meterRegistry.registerDoubleGauge("testAsyncDoubleCounter", "test", "unit", doubleWithAttributes::get);
+        meterRegistry.registerDoubleAsyncCounter("testAsyncDoubleCounter", "test", "unit", doubleWithAttributes::get);
     }
 
     public void testUponRequest() {

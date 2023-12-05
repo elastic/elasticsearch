@@ -30,4 +30,13 @@ public enum ConnectorStatus {
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
     }
+
+    public static ConnectorStatus connectorStatus(String status) {
+        for (ConnectorStatus connectorStatus : ConnectorStatus.values()) {
+            if (connectorStatus.name().equalsIgnoreCase(status)) {
+                return connectorStatus;
+            }
+        }
+        throw new IllegalArgumentException("Unknown ConnectorStatus: " + status);
+    }
 }

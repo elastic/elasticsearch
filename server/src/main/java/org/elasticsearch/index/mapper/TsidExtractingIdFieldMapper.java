@@ -114,18 +114,14 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
         long timestamp = timestampFields.get(0).numericValue().longValue();
         byte[] suffix = new byte[16];
-        String id = createId(context.getDynamicMappers().isEmpty() == false, routingBuilder, tsid, timestamp, suffix);
-        if (context.indexSettings().getValue(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES) == false
-            && context.getDynamicMappers().isEmpty()
-            && context.getDynamicRuntimeFields().isEmpty()) {
+        boolean withDynamicMappers = context.getDynamicMappers().isEmpty() == false || context.getDynamicRuntimeFields().isEmpty() == false;
+
+        String id = createId(withDynamicMappers, routingBuilder, tsid, timestamp, suffix);
+        if (context.indexSettings().getValue(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES) == false && withDynamicMappers == false) {
             /*
-             * Make sure that _id from extracting the tsid matches that _id
-             * from extracting the _source. This should be true for all valid
-             * documents with valid mappings. *But* some invalid mappings
-             * will not parse the field but be rejected later by the dynamic
-             * mappings machinery. So if there are any dynamic mappings
-             * at all we just skip the assertion because we can't be sure
-             * it always must pass.
+             * Make sure that _id from extracting the tsid matches that _id from extracting the _source. This should be true for all valid
+             * documents with valid mappings. *But* some invalid mappings will not parse the field but be rejected later by the dynamic
+             * mappings machinery. So if there are any dynamic mappings or runtime fields we skip the assertion.
              */
             IndexRouting.RoutingPathMatching indexRouting = (IndexRouting.RoutingPathMatching) context.indexSettings().getIndexRouting();
             assert id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));

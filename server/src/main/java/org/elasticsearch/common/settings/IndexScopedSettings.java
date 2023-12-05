@@ -76,8 +76,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME,
         IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID,
         IndexMetadata.INDEX_DOWNSAMPLE_STATUS,
-        IndexMetadata.DYNAMIC_DIMENSION_NAMES,
-        IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -194,6 +192,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         // TSDB index settings
         IndexSettings.MODE,
         IndexMetadata.INDEX_ROUTING_PATH,
+        IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES,
+        IndexMetadata.DYNAMIC_DIMENSION_NAMES,
         IndexSettings.TIME_SERIES_START_TIME,
         IndexSettings.TIME_SERIES_END_TIME,
 

@@ -194,9 +194,12 @@ index without timestamp with pipeline:
 
 ---
 dynamic dimensions:
+  - skip:
+      version: " - 8.11.99"
+      reason: "Support for dynamic dimensions was added in 8.12"
   - do:
       indices.put_index_template:
-        name: my-template2
+        name: my-dynamic-template
         body:
           index_patterns: [k9s*]
           data_stream: {}

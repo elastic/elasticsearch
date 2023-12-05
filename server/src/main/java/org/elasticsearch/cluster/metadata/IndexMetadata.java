@@ -501,15 +501,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<List<String>> DYNAMIC_DIMENSION_NAMES = Setting.stringListSetting(
         "index._dynamic_dimension_names",
         Setting.Property.IndexScope,
-        Setting.Property.Dynamic,
+        Property.Final,
         Property.ServerlessPublic
     );
 
     public static final Setting<Boolean> TIME_SERIES_DYNAMIC_TEMPLATES = Setting.boolSetting(
         "index.time_series_dynamic_templates",
         false,
-        Property.Dynamic,
         Property.IndexScope,
+        Property.Final,
         Property.ServerlessPublic
     );
 

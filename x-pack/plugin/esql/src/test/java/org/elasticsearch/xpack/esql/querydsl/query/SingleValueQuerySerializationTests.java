@@ -12,13 +12,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
 public class SingleValueQuerySerializationTests extends AbstractWireSerializingTestCase<SingleValueQuery.Builder> {
     @Override
     protected SingleValueQuery.Builder createTestInstance() {
-        return new SingleValueQuery.Builder(randomQuery(), randomFieldName(), new SingleValueQuery.Stats());
+        return new SingleValueQuery.Builder(randomQuery(), randomFieldName(), new SingleValueQuery.Stats(), Source.EMPTY);
     }
 
     private QueryBuilder randomQuery() {
@@ -35,12 +36,14 @@ public class SingleValueQuerySerializationTests extends AbstractWireSerializingT
             case 0 -> new SingleValueQuery.Builder(
                 randomValueOtherThan(instance.next(), this::randomQuery),
                 instance.field(),
-                new SingleValueQuery.Stats()
+                new SingleValueQuery.Stats(),
+                Source.EMPTY
             );
             case 1 -> new SingleValueQuery.Builder(
                 instance.next(),
                 randomValueOtherThan(instance.field(), this::randomFieldName),
-                new SingleValueQuery.Stats()
+                new SingleValueQuery.Stats(),
+                Source.EMPTY
             );
             default -> throw new IllegalArgumentException();
         };

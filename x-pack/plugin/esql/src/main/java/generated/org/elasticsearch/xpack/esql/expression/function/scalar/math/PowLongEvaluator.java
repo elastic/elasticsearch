@@ -11,6 +11,7 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Pow}.
  * This class is generated. Do not edit it.
  */
-public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class PowLongEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator base;
@@ -31,7 +32,7 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final DriverContext driverContext;
 
-  public PowEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
+  public PowLongEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
       EvalOperator.ExpressionEvaluator exponent, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.base = base;
@@ -40,24 +41,26 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block eval(Page page) {
-    try (DoubleBlock baseBlock = (DoubleBlock) base.eval(page)) {
-      try (DoubleBlock exponentBlock = (DoubleBlock) exponent.eval(page)) {
+  public Block.Ref eval(Page page) {
+    try (Block.Ref baseRef = base.eval(page)) {
+      DoubleBlock baseBlock = (DoubleBlock) baseRef.block();
+      try (Block.Ref exponentRef = exponent.eval(page)) {
+        DoubleBlock exponentBlock = (DoubleBlock) exponentRef.block();
         DoubleVector baseVector = baseBlock.asVector();
         if (baseVector == null) {
-          return eval(page.getPositionCount(), baseBlock, exponentBlock);
+          return Block.Ref.floating(eval(page.getPositionCount(), baseBlock, exponentBlock));
         }
         DoubleVector exponentVector = exponentBlock.asVector();
         if (exponentVector == null) {
-          return eval(page.getPositionCount(), baseBlock, exponentBlock);
+          return Block.Ref.floating(eval(page.getPositionCount(), baseBlock, exponentBlock));
         }
-        return eval(page.getPositionCount(), baseVector, exponentVector);
+        return Block.Ref.floating(eval(page.getPositionCount(), baseVector, exponentVector));
       }
     }
   }
 
-  public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (baseBlock.isNull(p)) {
           result.appendNull();
@@ -82,7 +85,7 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
           continue position;
         }
         try {
-          result.appendDouble(Pow.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
+          result.appendLong(Pow.processLong(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -92,11 +95,11 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
-  public DoubleBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));
+          result.appendLong(Pow.processLong(baseVector.getDouble(p), exponentVector.getDouble(p)));
         } catch (ArithmeticException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -108,7 +111,7 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "PowEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+    return "PowLongEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
   }
 
   @Override
@@ -131,13 +134,13 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public PowEvaluator get(DriverContext context) {
-      return new PowEvaluator(source, base.get(context), exponent.get(context), context);
+    public PowLongEvaluator get(DriverContext context) {
+      return new PowLongEvaluator(source, base.get(context), exponent.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "PowEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+      return "PowLongEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
     }
   }
 }

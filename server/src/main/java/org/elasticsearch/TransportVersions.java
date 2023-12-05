@@ -187,6 +187,7 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_USAGE_ADDED = def(8_554_00_0);
     public static final TransportVersion UPGRADE_TO_LUCENE_9_9 = def(8_555_00_0);
     public static final TransportVersion HEALTH_INFO_ENRICHED_WITH_DSL_STATUS = def(8_556_00_0);
+    public static final TransportVersion SOURCE_IN_SINGLE_VALUE_QUERY_ADDED = def(8_557_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

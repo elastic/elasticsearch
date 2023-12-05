@@ -38,7 +38,7 @@ public class OpenAiClient {
     }
 
     public void send(OpenAiEmbeddingsRequest request, ActionListener<InferenceServiceResults> listener) throws IOException {
-        sender.send(request.createRequest(), EMBEDDINGS_HANDLER, listener);
+        sender.send(request, EMBEDDINGS_HANDLER, listener);
     }
 
     private static ResponseHandler createEmbeddingsHandler() {

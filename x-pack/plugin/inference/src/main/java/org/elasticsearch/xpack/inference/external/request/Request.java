@@ -9,6 +9,17 @@ package org.elasticsearch.xpack.inference.external.request;
 
 import org.apache.http.client.methods.HttpRequestBase;
 
+import java.net.URI;
+
 public interface Request {
     HttpRequestBase createRequest();
+
+    URI getURI();
+
+    /**
+     * Create a new request with less input text.
+     * @param reductionPercentage the percent to reduce the input text by (e.g. 0.5)
+     * @return a new {@link Request} with the truncated input text
+     */
+    Request truncate(double reductionPercentage);
 }

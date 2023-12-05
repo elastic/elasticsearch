@@ -13,9 +13,11 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
@@ -40,5 +42,16 @@ public class HuggingFaceInferenceRequest implements Request {
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
         return httpPost;
+    }
+
+    public URI getURI() {
+        return account.url();
+    }
+
+    public Request truncate(double reductionPercentage) {
+        var input = Truncator.truncate(entity.inputs(), reductionPercentage);
+        var truncatedEntity = new HuggingFaceInferenceRequestEntity(input);
+
+        return new HuggingFaceInferenceRequest(account, truncatedEntity);
     }
 }

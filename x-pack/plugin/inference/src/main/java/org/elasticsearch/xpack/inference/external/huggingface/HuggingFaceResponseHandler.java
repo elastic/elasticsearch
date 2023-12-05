@@ -13,6 +13,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceErrorResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -52,6 +53,8 @@ public class HuggingFaceResponseHandler extends BaseResponseHandler {
             throw new RetryException(true, buildError(RATE_LIMIT, request, result));
         } else if (statusCode >= 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
+        } else if (statusCode == 413) {
+            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {

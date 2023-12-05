@@ -15,6 +15,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -35,6 +36,8 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     static final String REMAINING_REQUESTS = "x-ratelimit-remaining-requests";
     // The remaining number of tokens that are permitted before exhausting the rate limit.
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
+
+    static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
 
     public OpenAiResponseHandler(String requestType, CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
@@ -65,7 +68,9 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         if (statusCode >= 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(buildRateLimitErrorMessage(request, result), request, result));
+            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+        } else if (isContentTooLarge(result)) {
+            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {
@@ -75,9 +80,20 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
     }
 
-    static String buildRateLimitErrorMessage(HttpRequestBase request, HttpResult result) {
-        var response = result.response();
+    private static boolean isContentTooLarge(HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
+
+        if (statusCode == 413) {
+            return true;
+        }
+
+        var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
+
+        return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
+    }
+
+    static String buildRateLimitErrorMessage(HttpResult result) {
+        var response = result.response();
         var tokenLimit = getFirstHeaderOrUnknown(response, TOKENS_LIMIT);
         var remainingTokens = getFirstHeaderOrUnknown(response, REMAINING_TOKENS);
         var requestLimit = getFirstHeaderOrUnknown(response, REQUESTS_LIMIT);

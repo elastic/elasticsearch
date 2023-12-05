@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
-public interface Retrier {
-    void send(Request request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener);
+// TODO rename?
+public interface Retryable {
+    Request initialize(Request original);
+
+    boolean shouldRetry();
 }

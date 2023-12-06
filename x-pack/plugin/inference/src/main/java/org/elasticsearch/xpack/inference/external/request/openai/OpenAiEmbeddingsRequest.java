@@ -33,11 +33,17 @@ public class OpenAiEmbeddingsRequest implements Request {
     private final OpenAiAccount account;
     private final OpenAiEmbeddingsRequestEntity entity;
     private final URI uri;
+    private final boolean isTruncated;
 
     public OpenAiEmbeddingsRequest(OpenAiAccount account, OpenAiEmbeddingsRequestEntity entity) {
+        this(account, entity, false);
+    }
+
+    private OpenAiEmbeddingsRequest(OpenAiAccount account, OpenAiEmbeddingsRequestEntity entity, boolean hasBeenTruncated) {
         this.account = Objects.requireNonNull(account);
         this.entity = Objects.requireNonNull(entity);
         this.uri = buildUri(this.account.url());
+        this.isTruncated = hasBeenTruncated;
     }
 
     private static URI buildUri(URI accountUri) {
@@ -71,11 +77,16 @@ public class OpenAiEmbeddingsRequest implements Request {
     }
 
     @Override
-    public Request truncate(double reductionPercentage) {
-        var input = Truncator.truncate(entity.input(), reductionPercentage);
+    public Request truncate() {
+        var input = Truncator.truncate(entity.input(), 0.5);
         var truncatedEntity = new OpenAiEmbeddingsRequestEntity(input, entity.model(), entity.user());
 
-        return new OpenAiEmbeddingsRequest(account, truncatedEntity);
+        return new OpenAiEmbeddingsRequest(account, truncatedEntity, true);
+    }
+
+    @Override
+    public boolean isTruncated() {
+        return isTruncated;
     }
 
     // default for testing

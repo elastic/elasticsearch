@@ -46,16 +46,24 @@ public class HuggingFaceInferenceRequestTests extends ESTestCase {
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abcd");
-        var rebuiltRequest = huggingFaceRequest.truncate(0.5);
-        assertThat(rebuiltRequest.getURI().toString(), is(new URI("www.google.com").toString()));
+        var truncatedRequest = huggingFaceRequest.truncate();
+        assertThat(truncatedRequest.getURI().toString(), is(new URI("www.google.com").toString()));
 
-        var httpRequest = rebuiltRequest.createRequest();
+        var httpRequest = truncatedRequest.createRequest();
         assertThat(httpRequest, instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest;
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.get("inputs"), instanceOf(List.class));
         assertThat(requestMap.get("inputs"), is(List.of("ab")));
+    }
+
+    public void testIsTruncated_ReturnsTrue() throws URISyntaxException, IOException {
+        var huggingFaceRequest = createRequest("www.google.com", "secret", "abcd");
+        assertFalse(huggingFaceRequest.isTruncated());
+
+        var truncatedRequest = huggingFaceRequest.truncate();
+        assertTrue(truncatedRequest.isTruncated());
     }
 
     public static HuggingFaceInferenceRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {

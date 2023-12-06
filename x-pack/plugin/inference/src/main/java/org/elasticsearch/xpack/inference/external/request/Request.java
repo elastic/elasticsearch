@@ -18,8 +18,9 @@ public interface Request {
 
     /**
      * Create a new request with less input text.
-     * @param reductionPercentage the percent to reduce the input text by (e.g. 0.5)
      * @return a new {@link Request} with the truncated input text
      */
-    Request truncate(double reductionPercentage);
+    Request truncate();
+
+    boolean isTruncated();
 }

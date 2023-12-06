@@ -86,10 +86,10 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "secret", "abcd", "model", null);
-        var rebuiltRequest = request.truncate(0.5);
+        var truncatedRequest = request.truncate();
         assertThat(request.getURI().toString(), is(buildDefaultUri().toString()));
 
-        var httpRequest = rebuiltRequest.createRequest();
+        var httpRequest = truncatedRequest.createRequest();
         assertThat(httpRequest, instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest;
@@ -97,6 +97,14 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("input"), is(List.of("ab")));
         assertThat(requestMap.get("model"), is("model"));
+    }
+
+    public void testIsTruncated_ReturnsTrue() throws URISyntaxException, IOException {
+        var request = createRequest(null, null, "secret", "abcd", "model", null);
+        assertFalse(request.isTruncated());
+
+        var truncatedRequest = request.truncate();
+        assertTrue(truncatedRequest.isTruncated());
     }
 
     public static OpenAiEmbeddingsRequest createRequest(

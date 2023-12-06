@@ -27,10 +27,16 @@ public class HuggingFaceInferenceRequest implements Request {
 
     private final HuggingFaceAccount account;
     private final HuggingFaceInferenceRequestEntity entity;
+    private final boolean isTruncated;
 
     public HuggingFaceInferenceRequest(HuggingFaceAccount account, HuggingFaceInferenceRequestEntity entity) {
+        this(account, entity, false);
+    }
+
+    private HuggingFaceInferenceRequest(HuggingFaceAccount account, HuggingFaceInferenceRequestEntity entity, boolean isTruncated) {
         this.account = Objects.requireNonNull(account);
         this.entity = Objects.requireNonNull(entity);
+        this.isTruncated = isTruncated;
     }
 
     public HttpRequestBase createRequest() {
@@ -48,10 +54,16 @@ public class HuggingFaceInferenceRequest implements Request {
         return account.url();
     }
 
-    public Request truncate(double reductionPercentage) {
-        var input = Truncator.truncate(entity.inputs(), reductionPercentage);
+    @Override
+    public Request truncate() {
+        var input = Truncator.truncate(entity.inputs(), 0.5);
         var truncatedEntity = new HuggingFaceInferenceRequestEntity(input);
 
-        return new HuggingFaceInferenceRequest(account, truncatedEntity);
+        return new HuggingFaceInferenceRequest(account, truncatedEntity, true);
+    }
+
+    @Override
+    public boolean isTruncated() {
+        return isTruncated;
     }
 }

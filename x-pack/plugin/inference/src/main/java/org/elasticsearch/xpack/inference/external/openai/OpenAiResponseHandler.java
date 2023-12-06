@@ -11,16 +11,13 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-
-import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
@@ -39,7 +36,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
 
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
 
-    public OpenAiResponseHandler(String requestType, CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction) {
+    public OpenAiResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
     }
 

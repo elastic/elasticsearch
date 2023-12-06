@@ -34,7 +34,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
 
         var httpResult = new HttpResult(httpResponse, new byte[] {});
 
-        var handler = new HuggingFaceResponseHandler("", result -> null);
+        var handler = new HuggingFaceResponseHandler("", (request, result) -> null);
 
         // 200 ok
         when(statusLine.getStatusCode()).thenReturn(200);

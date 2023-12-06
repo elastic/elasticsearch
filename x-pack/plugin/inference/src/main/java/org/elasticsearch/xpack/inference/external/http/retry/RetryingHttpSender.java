@@ -89,7 +89,7 @@ public class RetryingHttpSender implements Retrier {
             ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
                 try {
                     responseHandler.validateResponse(throttlerManager, logger, httpRequest, result);
-                    InferenceServiceResults inferenceResults = responseHandler.parseResult(result);
+                    InferenceServiceResults inferenceResults = responseHandler.parseResult(request, result);
 
                     listener.onResponse(inferenceResults);
                 } catch (Exception e) {

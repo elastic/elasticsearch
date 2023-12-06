@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 
 import java.io.IOException;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTe
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class HuggingFaceElserResponseEntityTests extends ESTestCase {
     public void testFromResponse_CreatesTextExpansionResults() throws IOException {
@@ -37,6 +39,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             ]""";
 
         SparseEmbeddingResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -45,6 +48,33 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             is(
                 buildExpectation(
                     List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), false))
+                )
+            )
+        );
+    }
+
+    public void testFromResponse_CreatesTextExpansionResults_ThatAreTruncated() throws IOException {
+        var request = mock(Request.class);
+        when(request.isTruncated()).thenReturn(true);
+
+        String responseJson = """
+            [
+                {
+                    ".": 0.133155956864357,
+                    "the": 0.6747211217880249
+                }
+            ]""";
+
+        SparseEmbeddingResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+            request,
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(
+            parsedResults.asMap(),
+            is(
+                buildExpectation(
+                    List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), true))
                 )
             )
         );
@@ -64,6 +94,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             ]""";
 
         SparseEmbeddingResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -90,6 +121,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> HuggingFaceElserResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -112,6 +144,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> HuggingFaceElserResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -132,6 +165,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             """;
 
         SparseEmbeddingResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -151,6 +185,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             """;
 
         SparseEmbeddingResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -172,6 +207,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> HuggingFaceElserResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -193,6 +229,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             XContentEOFException.class,
             () -> HuggingFaceElserResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -212,6 +249,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             XContentParseException.class,
             () -> HuggingFaceElserResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );

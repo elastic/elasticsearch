@@ -9,22 +9,19 @@ package org.elasticsearch.xpack.inference.external.huggingface;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceErrorResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-
-import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 public class HuggingFaceResponseHandler extends BaseResponseHandler {
 
-    public HuggingFaceResponseHandler(String requestType, CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction) {
+    public HuggingFaceResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, HuggingFaceErrorResponseEntity::fromResponse);
     }
 

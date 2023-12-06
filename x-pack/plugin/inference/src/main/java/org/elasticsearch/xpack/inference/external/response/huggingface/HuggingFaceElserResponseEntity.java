@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +57,7 @@ public class HuggingFaceElserResponseEntity {
      *   </code>
      * </pre>
      */
-    public static SparseEmbeddingResults fromResponse(HttpResult response) throws IOException {
+    public static SparseEmbeddingResults fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -64,7 +65,7 @@ public class HuggingFaceElserResponseEntity {
 
             List<SparseEmbeddingResults.Embedding> parsedEmbeddings = XContentParserUtils.parseList(
                 jsonParser,
-                HuggingFaceElserResponseEntity::parseExpansionResult
+                parser -> HuggingFaceElserResponseEntity.parseExpansionResult(request, parser)
             );
 
             if (parsedEmbeddings.isEmpty()) {
@@ -75,7 +76,7 @@ public class HuggingFaceElserResponseEntity {
         }
     }
 
-    private static SparseEmbeddingResults.Embedding parseExpansionResult(XContentParser parser) throws IOException {
+    private static SparseEmbeddingResults.Embedding parseExpansionResult(Request request, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
@@ -89,9 +90,7 @@ public class HuggingFaceElserResponseEntity {
             weightedTokens.add(new SparseEmbeddingResults.WeightedToken(parser.currentName(), parser.floatValue()));
         }
 
-        // TODO how do we know if the tokens were truncated so we can set this appropriately?
-        // This will depend on whether we handle the tokenization or hugging face
-        return new SparseEmbeddingResults.Embedding(weightedTokens, false);
+        return new SparseEmbeddingResults.Embedding(weightedTokens, request.isTruncated());
     }
 
     private HuggingFaceElserResponseEntity() {}

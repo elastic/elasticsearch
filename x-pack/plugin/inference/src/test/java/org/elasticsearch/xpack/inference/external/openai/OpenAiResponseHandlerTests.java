@@ -42,7 +42,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
 
         var httpRequest = mock(HttpRequestBase.class);
         var httpResult = new HttpResult(httpResponse, new byte[] {});
-        var handler = new OpenAiResponseHandler("", result -> null);
+        var handler = new OpenAiResponseHandler("", (request, result) -> null);
 
         // 200 ok
         when(statusLine.getStatusCode()).thenReturn(200);

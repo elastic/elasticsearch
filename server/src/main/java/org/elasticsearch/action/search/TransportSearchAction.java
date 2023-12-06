@@ -608,6 +608,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     clusters,
+                    progressListener,
                     listener
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
@@ -625,6 +626,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     clusters,
+                    progressListener,
                     listener
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
@@ -765,6 +767,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AtomicReference<Exception> exceptions,
         SearchResponseMerger searchResponseMerger,
         SearchResponse.Clusters clusters,
+        SearchProgressListener progressListener,
         ActionListener<SearchResponse> originalListener
     ) {
         return new CCSActionListener<>(
@@ -777,9 +780,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
-                // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
                 ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, skipUnavailable);
                 searchResponseMerger.add(searchResponse);
+                if (progressListener != null && progressListener != SearchProgressListener.NOOP) {
+                    // do an incremental merge of all SearchResponses received so far for async-search with CCS MRT=true
+                    // (sync search uses SearchProgressListener.NOOP, so this path will not execute)
+                    progressListener.notifyCcsReduce(searchResponseMerger.getMergedResponse(clusters));
+                }
             }
 
             @Override

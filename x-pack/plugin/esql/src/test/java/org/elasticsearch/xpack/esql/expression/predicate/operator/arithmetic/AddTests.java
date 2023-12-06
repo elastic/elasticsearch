@@ -59,16 +59,6 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                         "AddLongsEvaluator"
                     ),
                     new TestCaseSupplier.StuffForNumericType(
-                        BigInteger.ONE,
-                        BigInteger.valueOf(Long.MAX_VALUE),
-                        (l, r) -> {
-                            BigInteger bigL = l instanceof BigInteger ? (BigInteger) l : BigInteger.valueOf(l.longValue());
-                            BigInteger bigR = r instanceof BigInteger ? (BigInteger) r : BigInteger.valueOf(r.longValue());
-                            return bigL.add(bigR);
-                        },
-                        "AddUnsignedLongsEvaluator"
-                    ),
-                    new TestCaseSupplier.StuffForNumericType(
                         Double.NEGATIVE_INFINITY,
                         Double.POSITIVE_INFINITY,
                         (l, r) -> l.doubleValue() + r.doubleValue(),

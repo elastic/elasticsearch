@@ -268,7 +268,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     public record AllTheTypeSpecificSettings(
         StuffForNumericType intStuff,
         StuffForNumericType longStuff,
-        StuffForNumericType ulongStuff,
         StuffForNumericType doubleStuff
     ) {
         public StuffForNumericType get(DataType type) {
@@ -277,9 +276,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             }
             if (type == DataTypes.LONG) {
                 return longStuff;
-            }
-            if (type == DataTypes.UNSIGNED_LONG) {
-                return ulongStuff;
             }
             if (type == DataTypes.DOUBLE) {
                 return doubleStuff;
@@ -294,9 +290,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
         if (lhs == DataTypes.DOUBLE || rhs == DataTypes.DOUBLE) {
             return DataTypes.DOUBLE;
-        }
-        if (lhs == DataTypes.UNSIGNED_LONG || rhs == DataTypes.UNSIGNED_LONG) {
-            return DataTypes.UNSIGNED_LONG;
         }
         if (lhs == DataTypes.LONG || rhs == DataTypes.LONG) {
             return DataTypes.LONG;

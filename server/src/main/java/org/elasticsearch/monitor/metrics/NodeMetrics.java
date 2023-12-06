@@ -62,7 +62,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1));
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.get.total",
+                "es.indices.get.total",
                 "Total number of get operations",
                 "operation",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getCount())
@@ -71,7 +71,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.get.time",
+                "es.indices.get.time",
                 "Time in milliseconds spent performing get operations.",
                 "milliseconds",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getTimeInMillis())
@@ -80,7 +80,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.search.fetch.total",
+                "es.indices.search.fetch.total",
                 "Total number of fetch operations.",
                 "operation",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchCount())
@@ -89,7 +89,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.search.fetch.time",
+                "es.indices.search.fetch.time",
                 "Time in milliseconds spent performing fetch operations.",
                 "milliseconds",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchTimeInMillis())
@@ -98,7 +98,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.merge.total",
+                "es.indices.merge.total",
                 "Total number of merge operations.",
                 "operation",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotal())
@@ -107,7 +107,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.merge.time",
+                "es.indices.merge.time",
                 "Time in milliseconds spent performing merge operations.",
                 "milliseconds",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotalTimeInMillis())
@@ -116,7 +116,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.translog.operations",
+                "es.indices.translog.operations",
                 "Number of transaction log operations.",
                 "operation",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations())
@@ -125,7 +125,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.translog.size",
+                "es.indices.translog.size",
                 "Size, in bytes, of the transaction log.",
                 "bytes",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getTranslogSizeInBytes())
@@ -134,7 +134,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.translog.uncommitted_operations",
+                "es.indices.translog.uncommitted_operations",
                 "Number of uncommitted transaction log operations.",
                 "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedOperations())
@@ -143,7 +143,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.translog.uncommitted_size",
+                "es.indices.translog.uncommitted_size",
                 "Size, in bytes, of uncommitted transaction log operations.",
                 "bytes",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedSizeInBytes())
@@ -152,7 +152,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.translog.earliest_last_modified_age",
+                "es.indices.translog.earliest_last_modified_age",
                 "Earliest last modified age for the transaction log.",
                 "time",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge())
@@ -161,7 +161,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.transport.rx_size",
+                "es.transport.rx_size",
                 "Size, in bytes, of RX packets received by the node during internal cluster communication.",
                 "bytes",
                 () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getRxSize().getBytes())
@@ -170,7 +170,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.transport.tx_size",
+                "es.transport.tx_size",
                 "Size, in bytes, of TX packets sent by the node during internal cluster communication.",
                 "bytes",
                 () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getTxSize().getBytes())
@@ -179,7 +179,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.jvm.mem.pools.young.used",
+                "es.jvm.mem.pools.young.used",
                 "Memory, in bytes, used by the young generation heap.",
                 "bytes",
                 () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.YOUNG))
@@ -188,7 +188,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.jvm.mem.pools.survivor.used",
+                "es.jvm.mem.pools.survivor.used",
                 "Memory, in bytes, used by the survivor space.",
                 "bytes",
                 () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.SURVIVOR))
@@ -197,7 +197,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.jvm.mem.pools.old.used",
+                "es.jvm.mem.pools.old.used",
                 "Memory, in bytes, used by the old generation heap.",
                 "bytes",
                 () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.OLD))
@@ -206,7 +206,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.fs.io_stats.io_time.total",
+                "es.fs.io_stats.io_time.total",
                 "The total time in millis spent performing I/O operations across all devices used by Elasticsearch.",
                 "milliseconds",
                 () -> new LongWithAttributes(stats.getOrRefresh().getFs().getIoStats().getTotalIOTimeMillis())

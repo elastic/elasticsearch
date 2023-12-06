@@ -454,7 +454,8 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 "time",
                 nowMillis - TimeValue.timeValueHours(7).millis(),
                 "msg",
-                "2015-10-18 18:01:52,728 INFO [main] org.mortbay.log: Started HttpServer2$SelectChannelConnectorWithSafeStartup@0.0.0.0:62267"
+                "2015-10-18 18:01:52,728 INFO [main] org.mortbay.log: "
+                    + "Started HttpServer2$SelectChannelConnectorWithSafeStartup@0.0.0.0:62267"
             );
             bulkRequestBuilder.add(indexRequest);
             indexRequest = new IndexRequest(index);

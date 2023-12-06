@@ -215,6 +215,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                 byteBufferReference.finish(bytesRead);
             } catch (Exception e) {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
+                    assert bytesRead == 0 : "expecting bytes read to be 0 but got: " + bytesRead + " for " + cacheFile.getCacheKey();
                     int len = length - bytesRead;
                     try (
                         InputStream in = blobContainer.readBlob(

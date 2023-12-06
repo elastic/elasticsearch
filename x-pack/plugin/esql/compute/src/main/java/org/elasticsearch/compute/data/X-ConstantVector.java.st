@@ -9,10 +9,15 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$elseif(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
-$endif$
 import org.apache.lucene.util.RamUsageEstimator;
+
+$elseif(Point)$
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.geo.SpatialPoint;
+
+$else$
+import org.apache.lucene.util.RamUsageEstimator;
+$endif$
 
 /**
  * Vector implementation that stores a constant $type$ value.

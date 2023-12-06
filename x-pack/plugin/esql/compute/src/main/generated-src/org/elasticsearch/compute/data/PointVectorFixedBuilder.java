@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.SpatialPoint;
 
-
 /**
  * Builder for {@link PointVector}s that never grows. Prefer this to
  * {@link PointVectorBuilder} if you know the precise size up front because

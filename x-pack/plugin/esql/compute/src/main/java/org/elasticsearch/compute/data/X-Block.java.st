@@ -168,8 +168,7 @@ $if(BytesRef)$
                     if (block1.getBytesRef(b1ValueIdx + valueIndex, new BytesRef())
                         .equals(block2.getBytesRef(b2ValueIdx + valueIndex, new BytesRef())) == false) {
 $elseif(Point)$
-                    if (block1.get$Type$(b1ValueIdx + valueIndex)
-                        .equals(block2.get$Type$(b2ValueIdx + valueIndex)) == false) {
+                    if (block1.get$Type$(b1ValueIdx + valueIndex).equals(block2.get$Type$(b2ValueIdx + valueIndex)) == false) {
 $else$
                     if (block1.get$Type$(b1ValueIdx + valueIndex) != block2.get$Type$(b2ValueIdx + valueIndex)) {
 $endif$

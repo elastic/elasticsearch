@@ -7,11 +7,13 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.RamUsageEstimator;
 $if(Point)$
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.SpatialPoint;
-$endif$
 
+$else$
+import org.apache.lucene.util.RamUsageEstimator;
+$endif$
 
 /**
  * Builder for {@link $Type$Vector}s that never grows. Prefer this to

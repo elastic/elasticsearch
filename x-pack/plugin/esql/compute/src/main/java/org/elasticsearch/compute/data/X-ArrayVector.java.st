@@ -14,12 +14,13 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
 $elseif(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.util.Arrays;
 
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
 

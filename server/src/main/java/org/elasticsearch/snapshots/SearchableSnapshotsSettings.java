@@ -30,6 +30,8 @@ public final class SearchableSnapshotsSettings {
     public static final String SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY = "index.store.snapshot.repository_name";
     public static final String SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY = "index.store.snapshot.repository_uuid";
 
+    public static final String SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY = "index.store.snapshot.snapshot_name";
+
     private SearchableSnapshotsSettings() {}
 
     public static boolean isSearchableSnapshotStore(Settings indexSettings) {

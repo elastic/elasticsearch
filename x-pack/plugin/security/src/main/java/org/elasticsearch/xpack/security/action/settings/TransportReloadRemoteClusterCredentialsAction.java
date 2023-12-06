@@ -35,6 +35,7 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         ReloadRemoteClusterCredentialsAction.Request request,
         ActionListener<ActionResponse.Empty> listener
     ) {
+        // We could stash and mark context as system, but avoiding this to keep action as minimal as possible (i.e., avoid copying context)
         remoteClusterService.updateRemoteClusterCredentials(request.getSettings());
         listener.onResponse(ActionResponse.Empty.INSTANCE);
     }

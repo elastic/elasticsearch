@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 
 public class ReloadRemoteClusterCredentialsAction extends ActionType<ActionResponse.Empty> {
-    public static final String NAME = "cluster:admin/xpack/security/reload_remote_cluster_credentials";
+    public static final String NAME = "cluster:admin/xpack/security/remote_cluster_credentials/reload";
     public static final ReloadRemoteClusterCredentialsAction INSTANCE = new ReloadRemoteClusterCredentialsAction();
 
     private ReloadRemoteClusterCredentialsAction() {

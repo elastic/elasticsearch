@@ -110,7 +110,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         final RemoteClusterCredentialsManager clusterCredentialsManager = getInstanceFromNode(TransportService.class)
             .getRemoteClusterService()
             .getRemoteClusterCredentialsManager();
-        // Until we reload, credentials written to key store are not loaded into the credentials manager
+        // Until we reload, credentials written to keystore are not loaded into the credentials manager
         assertThat(clusterCredentialsManager.hasCredentials(CLUSTER_ALIAS), is(false));
         reloadSecureSettings();
         assertThat(clusterCredentialsManager.resolveCredentials(CLUSTER_ALIAS), equalTo(credentials));
@@ -128,7 +128,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             // Run search to trigger header capturing on the receiving side
             client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
 
-            assertHeadersContainCredentialsAndClear(credentials, capturedHeaders);
+            assertHeadersContainCredentialsThenClear(credentials, capturedHeaders);
 
             // Update credentials and ensure they are used
             final String updatedCredentials = randomAlphaOfLength(41);
@@ -137,11 +137,11 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
 
             client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
 
-            assertHeadersContainCredentialsAndClear(updatedCredentials, capturedHeaders);
+            assertHeadersContainCredentialsThenClear(updatedCredentials, capturedHeaders);
         }
     }
 
-    private void assertHeadersContainCredentialsAndClear(String credentials, BlockingQueue<Map<String, String>> capturedHeaders) {
+    private void assertHeadersContainCredentialsThenClear(String credentials, BlockingQueue<Map<String, String>> capturedHeaders) {
         assertThat(capturedHeaders, is(not(empty())));
         for (Map<String, String> actualHeaders : capturedHeaders) {
             assertThat(actualHeaders, hasKey(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));

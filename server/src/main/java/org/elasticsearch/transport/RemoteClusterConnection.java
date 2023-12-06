@@ -57,7 +57,9 @@ final class RemoteClusterConnection implements Closeable {
      * @param settings the nodes settings object
      * @param clusterAlias the configured alias of the cluster to connect to
      * @param transportService the local nodes transport service
-     * @param credentialsManager object to lookup remote cluster credentials
+     * @param credentialsManager object to lookup remote cluster credentials by cluster alias. If a cluster is protected by a credential,
+     *                           i.e. it has a credentials configured via secure setting.
+     *                           This means the remote cluster uses the advances RCS model (as opposed to the basic model).
      */
     RemoteClusterConnection(
         Settings settings,

@@ -101,9 +101,7 @@ public class RemoteConnectionManager implements ConnectionManager {
             node,
             profile,
             listener.delegateFailureAndWrap(
-                (l, connection) -> l.onResponse(
-                    new InternalRemoteConnection(connection, clusterAlias, credentialsManager.resolveCredentials(clusterAlias))
-                )
+                (l, connection) -> l.onResponse(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager))
             )
         );
     }
@@ -212,7 +210,7 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
         Transport.Connection connection = delegate.getConnection(node);
-        return new InternalRemoteConnection(connection, clusterAlias, credentialsManager.resolveCredentials(clusterAlias));
+        return wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager);
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
@@ -321,7 +319,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         @Nullable
         private final SecureString clusterCredentials;
 
-        InternalRemoteConnection(Transport.Connection connection, String clusterAlias, @Nullable SecureString clusterCredentials) {
+        private InternalRemoteConnection(Transport.Connection connection, String clusterAlias, @Nullable SecureString clusterCredentials) {
             assert false == connection instanceof InternalRemoteConnection : "should not double wrap";
             assert false == connection instanceof ProxyConnection
                 : "proxy connection should wrap internal remote connection, not the other way around";

@@ -1928,6 +1928,8 @@ public class Security extends Plugin
     }
 
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
+        // Accepting a blocking call here since the underlying action is local-only and only performs fast in-memory ops
+        // (extracts a subset of passed in `settingsWithKeystore` and stores them in a map)
         client.get()
             .execute(ReloadRemoteClusterCredentialsAction.INSTANCE, new ReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore))
             .actionGet();

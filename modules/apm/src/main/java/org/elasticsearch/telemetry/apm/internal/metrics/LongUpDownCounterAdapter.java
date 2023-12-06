@@ -25,11 +25,7 @@ public class LongUpDownCounterAdapter extends AbstractInstrument<LongUpDownCount
         org.elasticsearch.telemetry.metric.LongUpDownCounter {
 
     public LongUpDownCounterAdapter(Meter meter, String name, String description, String unit) {
-        super(
-            meter,
-            name,
-            instrumentBuilder(Objects.requireNonNull(name), Objects.requireNonNull(description), Objects.requireNonNull(unit))
-        );
+        super(meter, new Builder(name, description, unit));
     }
 
     protected static Function<Meter, LongUpDownCounter> instrumentBuilder(String name, String description, String unit) {
@@ -44,5 +40,16 @@ public class LongUpDownCounterAdapter extends AbstractInstrument<LongUpDownCount
     @Override
     public void add(long inc, Map<String, Object> attributes) {
         getInstrument().add(inc, OtelHelper.fromMap(attributes));
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<LongUpDownCounter> {
+        private Builder(String name, String description, String unit) {
+            super(name, description, unit);
+        }
+
+        @Override
+        public LongUpDownCounter build(Meter meter) {
+            return Objects.requireNonNull(meter).upDownCounterBuilder(name).setDescription(description).setUnit(unit).build();
+        }
     }
 }

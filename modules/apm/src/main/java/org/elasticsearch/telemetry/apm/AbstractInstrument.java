@@ -31,19 +31,10 @@ public abstract class AbstractInstrument<T> implements Instrument {
     private final String name;
     private final Function<Meter, T> instrumentBuilder;
 
-    public AbstractInstrument(Meter meter, String name, Function<Meter, T> instrumentBuilder) {
-        checkMaxLength(name);
-        this.name = Objects.requireNonNull(name);
-        this.instrumentBuilder = m -> AccessController.doPrivileged((PrivilegedAction<T>) () -> instrumentBuilder.apply(m));
+    public AbstractInstrument(Meter meter, Builder<T> builder) {
+        this.name = builder.getName();
+        this.instrumentBuilder = m -> AccessController.doPrivileged((PrivilegedAction<T>) () -> builder.build(m));
         this.delegate.set(this.instrumentBuilder.apply(meter));
-    }
-
-    protected static void checkMaxLength(String name) {
-        if (name.length() > MAX_NAME_LENGTH) {
-            throw new IllegalArgumentException(
-                "Instrument name [" + name + "] with length [" + name.length() + "] exceeds maximum length [" + MAX_NAME_LENGTH + "]"
-            );
-        }
     }
 
     @Override
@@ -57,5 +48,28 @@ public abstract class AbstractInstrument<T> implements Instrument {
 
     void setProvider(@Nullable Meter meter) {
         delegate.set(instrumentBuilder.apply(Objects.requireNonNull(meter)));
+    }
+
+    protected abstract static class Builder<T> {
+        protected final String name;
+        protected final String description;
+        protected final String unit;
+
+        public Builder(String name, String description, String unit) {
+            if (name.length() > MAX_NAME_LENGTH) {
+                throw new IllegalArgumentException(
+                    "Instrument name [" + name + "] with length [" + name.length() + "] exceeds maximum length [" + MAX_NAME_LENGTH + "]"
+                );
+            }
+            this.name = Objects.requireNonNull(name);
+            this.description = Objects.requireNonNull(description);
+            this.unit = Objects.requireNonNull(unit);
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public abstract T build(Meter meter);
     }
 }

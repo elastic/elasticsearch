@@ -15,22 +15,13 @@ import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * LongHistogramAdapter wraps an otel LongHistogram
  */
 public class LongHistogramAdapter extends AbstractInstrument<LongHistogram> implements org.elasticsearch.telemetry.metric.LongHistogram {
     public LongHistogramAdapter(Meter meter, String name, String description, String unit) {
-        super(
-            meter,
-            name,
-            instrumentBuilder(Objects.requireNonNull(name), Objects.requireNonNull(description), Objects.requireNonNull(unit))
-        );
-    }
-
-    protected static Function<Meter, LongHistogram> instrumentBuilder(String name, String description, String unit) {
-        return meter -> Objects.requireNonNull(meter).histogramBuilder(name).ofLongs().setDescription(description).setUnit(unit).build();
+        super(meter, new Builder(name, description, unit));
     }
 
     @Override
@@ -41,5 +32,16 @@ public class LongHistogramAdapter extends AbstractInstrument<LongHistogram> impl
     @Override
     public void record(long value, Map<String, Object> attributes) {
         getInstrument().record(value, OtelHelper.fromMap(attributes));
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<LongHistogram> {
+        private Builder(String name, String description, String unit) {
+            super(name, description, unit);
+        }
+
+        @Override
+        public LongHistogram build(Meter meter) {
+            return Objects.requireNonNull(meter).histogramBuilder(name).ofLongs().setDescription(description).setUnit(unit).build();
+        }
     }
 }

@@ -16,39 +16,34 @@ import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class LongAsyncCounterAdapter extends AbstractInstrument<ObservableLongCounter> implements LongAsyncCounter {
 
     public LongAsyncCounterAdapter(Meter meter, String name, String description, String unit, Supplier<LongWithAttributes> observer) {
-        super(
-            meter,
-            name,
-            instrumentBuilder(
-                Objects.requireNonNull(name),
-                Objects.requireNonNull(description),
-                Objects.requireNonNull(unit),
-                Objects.requireNonNull(observer)
-            )
-        );
-    }
-
-    protected static Function<Meter, ObservableLongCounter> instrumentBuilder(
-        String name,
-        String description,
-        String unit,
-        Supplier<LongWithAttributes> observer
-    ) {
-        return meter -> Objects.requireNonNull(meter)
-            .counterBuilder(name)
-            .setDescription(description)
-            .setUnit(unit)
-            .buildWithCallback(OtelHelper.longMeasurementCallback(observer));
+        super(meter, new Builder(name, description, unit, observer));
     }
 
     @Override
     public void close() throws Exception {
         getInstrument().close();
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<ObservableLongCounter> {
+        private final Supplier<LongWithAttributes> observer;
+
+        private Builder(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+            super(name, description, unit);
+            this.observer = Objects.requireNonNull(observer);
+        }
+
+        @Override
+        public ObservableLongCounter build(Meter meter) {
+            return Objects.requireNonNull(meter)
+                .counterBuilder(name)
+                .setDescription(description)
+                .setUnit(unit)
+                .buildWithCallback(OtelHelper.longMeasurementCallback(observer));
+        }
     }
 }

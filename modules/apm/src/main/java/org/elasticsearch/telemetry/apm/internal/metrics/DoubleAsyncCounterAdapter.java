@@ -16,40 +16,35 @@ import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class DoubleAsyncCounterAdapter extends AbstractInstrument<ObservableDoubleCounter> implements DoubleAsyncCounter {
 
     public DoubleAsyncCounterAdapter(Meter meter, String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
-        super(
-            meter,
-            name,
-            instrumentBuilder(
-                Objects.requireNonNull(name),
-                Objects.requireNonNull(description),
-                Objects.requireNonNull(unit),
-                Objects.requireNonNull(observer)
-            )
-        );
-    }
-
-    protected static Function<Meter, ObservableDoubleCounter> instrumentBuilder(
-        String name,
-        String description,
-        String unit,
-        Supplier<DoubleWithAttributes> observer
-    ) {
-        return meter -> Objects.requireNonNull(meter)
-            .counterBuilder(name)
-            .setDescription(description)
-            .setUnit(unit)
-            .ofDoubles()
-            .buildWithCallback(OtelHelper.doubleMeasurementCallback(observer));
+        super(meter, new Builder(name, description, unit, observer));
     }
 
     @Override
     public void close() throws Exception {
         getInstrument().close();
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<ObservableDoubleCounter> {
+        private final Supplier<DoubleWithAttributes> observer;
+
+        private Builder(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
+            super(name, description, unit);
+            this.observer = Objects.requireNonNull(observer);
+        }
+
+        @Override
+        public ObservableDoubleCounter build(Meter meter) {
+            return Objects.requireNonNull(meter)
+                .counterBuilder(name)
+                .setDescription(description)
+                .setUnit(unit)
+                .ofDoubles()
+                .buildWithCallback(OtelHelper.doubleMeasurementCallback(observer));
+        }
     }
 }

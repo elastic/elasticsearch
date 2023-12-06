@@ -15,7 +15,6 @@ import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * DoubleHistogramAdapter wraps an otel DoubleHistogram
@@ -25,15 +24,7 @@ public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
         org.elasticsearch.telemetry.metric.DoubleHistogram {
 
     public DoubleHistogramAdapter(Meter meter, String name, String description, String unit) {
-        super(
-            meter,
-            name,
-            instrumentBuilder(Objects.requireNonNull(name), Objects.requireNonNull(description), Objects.requireNonNull(unit))
-        );
-    }
-
-    protected static Function<Meter, DoubleHistogram> instrumentBuilder(String name, String description, String unit) {
-        return meter -> Objects.requireNonNull(meter).histogramBuilder(name).setDescription(description).setUnit(unit).build();
+        super(meter, new Builder(name, description, unit));
     }
 
     @Override
@@ -44,5 +35,16 @@ public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
     @Override
     public void record(double value, Map<String, Object> attributes) {
         getInstrument().record(value, OtelHelper.fromMap(attributes));
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<DoubleHistogram> {
+        private Builder(String name, String description, String unit) {
+            super(name, description, unit);
+        }
+
+        @Override
+        public DoubleHistogram build(Meter meter) {
+            return Objects.requireNonNull(meter).histogramBuilder(name).setDescription(description).setUnit(unit).build();
+        }
     }
 }

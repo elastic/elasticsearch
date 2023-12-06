@@ -594,11 +594,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
-    private static final AlreadyClosedException ALREADY_CLOSED_EXCEPTION = new AlreadyClosedException(
-        "Cache file channel has been released and closed. This instance of exception is created once and used to control the execution "
-            + "flow, so its stacktrace is not reliable and cannot be trusted."
-    );
-
     class CacheFileRegion extends EvictableRefCounted {
 
         final RegionKey<KeyType> regionKey;
@@ -713,18 +708,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private void fillGaps(Executor executor, RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
+            final var cacheFileRegion = CacheFileRegion.this;
             for (SparseFileTracker.Gap gap : gaps) {
-                final var cacheFileRegion = CacheFileRegion.this;
                 executor.execute(new AbstractRunnable() {
 
                     @Override
                     protected void doRun() throws Exception {
                         ensureOpen();
                         if (cacheFileRegion.tryIncRef() == false) {
-                            // This exception is used to control the execution flow, it is always caught and ignored (not even logged) and
-                            // bytes are read directly from the blob store. Since capturing the stack trace is costly and not useful here,
-                            // we rethrow the same instance of AlreadyClosedException
-                            throw ALREADY_CLOSED_EXCEPTION;
+                            throw new AlreadyClosedException("File chunk [" + cacheFileRegion.regionKey + "] has been released");
                         }
                         try {
                             final int start = Math.toIntExact(gap.start());

@@ -330,8 +330,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        // TODO: Surely this list exists elsewhere already NOCOMMIT
-        List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE);
+        List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
 
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {

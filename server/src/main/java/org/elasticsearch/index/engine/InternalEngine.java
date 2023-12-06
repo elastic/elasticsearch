@@ -248,13 +248,12 @@ public class InternalEngine extends Engine {
             throttle = new IndexThrottle();
             try {
                 store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
-                translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(), seqNo -> {
-                    final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
-                    assert tracker != null || getTranslog().isOpen() == false;
-                    if (tracker != null) {
-                        tracker.markSeqNoAsPersisted(seqNo);
-                    }
-                });
+                translog = openTranslog(
+                    engineConfig,
+                    translogDeletionPolicy,
+                    engineConfig.getGlobalCheckpointSupplier(),
+                    translogPersistedSeqNoConsumer()
+                );
                 assert translog.getGeneration() != null;
                 this.translog = translog;
                 this.totalDiskSpace = new ByteSizeValue(Environment.getFileStore(translog.location()).getTotalSpace(), ByteSizeUnit.BYTES);
@@ -344,6 +343,16 @@ public class InternalEngine extends Engine {
         localCheckpoint = seqNoStats.localCheckpoint;
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
         return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
+    }
+
+    protected LongConsumer translogPersistedSeqNoConsumer() {
+        return seqNo -> {
+            final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
+            assert tracker != null || getTranslog().isOpen() == false;
+            if (tracker != null) {
+                tracker.markSeqNoAsPersisted(seqNo);
+            }
+        };
     }
 
     private SoftDeletesPolicy newSoftDeletesPolicy() throws IOException {
@@ -2951,7 +2960,7 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
-    LocalCheckpointTracker getLocalCheckpointTracker() {
+    protected LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
     }
 

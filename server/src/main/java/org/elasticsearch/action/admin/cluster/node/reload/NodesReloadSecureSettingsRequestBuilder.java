@@ -20,8 +20,8 @@ public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationReque
     NodesReloadSecureSettingsResponse,
     NodesReloadSecureSettingsRequestBuilder> {
 
-    public NodesReloadSecureSettingsRequestBuilder(ElasticsearchClient client, NodesReloadSecureSettingsAction action) {
-        super(client, action, new NodesReloadSecureSettingsRequest());
+    public NodesReloadSecureSettingsRequestBuilder(ElasticsearchClient client) {
+        super(client, NodesReloadSecureSettingsAction.INSTANCE, new NodesReloadSecureSettingsRequest());
     }
 
     public NodesReloadSecureSettingsRequestBuilder setSecureStorePassword(SecureString secureStorePassword) {

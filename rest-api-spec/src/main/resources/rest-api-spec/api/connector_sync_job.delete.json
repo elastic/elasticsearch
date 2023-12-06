@@ -1,0 +1,31 @@
+{
+  "connector_sync_job.delete": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
+      "description": "Deletes a connector sync job."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/_sync_job/{connector_sync_job_id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "connector_sync_job_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector sync job to be deleted."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

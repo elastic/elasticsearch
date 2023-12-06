@@ -149,10 +149,14 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
                 "Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "]. " + e.getMessage()
             );
         }
-        return evaluator(fieldEvaluator, DateTrunc.createRounding(foldedInterval, zoneId()));
+        return evaluator(source(), fieldEvaluator, DateTrunc.createRounding(foldedInterval, zoneId()));
     }
 
-    public static ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEvaluator, Rounding.Prepared rounding) {
-        return new DateTruncEvaluator.Factory(fieldEvaluator, rounding);
+    public static ExpressionEvaluator.Factory evaluator(
+        Source source,
+        ExpressionEvaluator.Factory fieldEvaluator,
+        Rounding.Prepared rounding
+    ) {
+        return new DateTruncEvaluator.Factory(source, fieldEvaluator, rounding);
     }
 }

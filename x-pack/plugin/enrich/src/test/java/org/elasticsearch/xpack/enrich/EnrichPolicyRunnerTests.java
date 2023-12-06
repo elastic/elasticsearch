@@ -313,7 +313,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
         );
         List<String> enrichFields = List.of("zipcode");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "range", enrichFields, null);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "range", enrichFields);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -2145,13 +2145,12 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testEnrichFieldsConflictMappingTypes() throws Exception {
         createIndex("source-1", Settings.EMPTY, "_doc", "user", "type=keyword", "name", "type=text", "zipcode", "type=long");
-        client().prepareIndex("source-1")
-            .setSource("user", "u1", "name", "n", "zipcode", 90000)
+        prepareIndex("source-1").setSource("user", "u1", "name", "n", "zipcode", 90000)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         createIndex("source-2", Settings.EMPTY, "_doc", "user", "type=keyword", "zipcode", "type=long");
 
-        client().prepareIndex("source-2").setSource("""
+        prepareIndex("source-2").setSource("""
             {
               "user": "u2",
               "name": {
@@ -2204,13 +2203,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testEnrichMappingConflictFormats() throws ExecutionException, InterruptedException {
         createIndex("source-1", Settings.EMPTY, "_doc", "user", "type=keyword", "date", "type=date,format=yyyy");
-        client().prepareIndex("source-1")
-            .setSource("user", "u1", "date", "2023")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        prepareIndex("source-1").setSource("user", "u1", "date", "2023").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         createIndex("source-2", Settings.EMPTY, "_doc", "user", "type=keyword", "date", "type=date,format=yyyy-MM");
 
-        client().prepareIndex("source-2").setSource("""
+        prepareIndex("source-2").setSource("""
             {
               "user": "u2",
               "date": "2023-05"
@@ -2249,8 +2245,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testEnrichObjectField() throws ExecutionException, InterruptedException {
         createIndex("source-1", Settings.EMPTY, "_doc", "id", "type=keyword", "name.first", "type=keyword", "name.last", "type=keyword");
-        client().prepareIndex("source-1")
-            .setSource("user", "u1", "name.first", "F1", "name.last", "L1")
+        prepareIndex("source-1").setSource("user", "u1", "name.first", "F1", "name.last", "L1")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source-1"), "user", List.of("name"));

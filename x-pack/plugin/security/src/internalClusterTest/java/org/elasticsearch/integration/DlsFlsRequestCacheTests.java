@@ -48,7 +48,6 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_U
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -482,7 +481,4 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         );
     }
 
-    private void clearCache() {
-        assertNoFailures(client().admin().indices().prepareClearCache(DLS_INDEX, FLS_INDEX, INDEX).setRequestCache(true).get());
-    }
 }

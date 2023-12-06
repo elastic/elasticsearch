@@ -20,6 +20,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -35,6 +37,8 @@ import java.util.Iterator;
  * instead serialize only as much of the response as can be flushed to the network right away.
  */
 public interface ChunkedRestResponseBody extends Releasable {
+
+    Logger logger = LogManager.getLogger(ChunkedRestResponseBody.class);
 
     /**
      * @return true once this response has been written fully.
@@ -126,6 +130,9 @@ public interface ChunkedRestResponseBody extends Releasable {
                     );
                     target = null;
                     return result;
+                } catch (Exception e) {
+                    logger.error("failure encoding chunk", e);
+                    throw e;
                 } finally {
                     if (target != null) {
                         assert false : "failure encoding chunk";
@@ -212,6 +219,9 @@ public interface ChunkedRestResponseBody extends Releasable {
                     );
                     currentOutput = null;
                     return result;
+                } catch (Exception e) {
+                    logger.error("failure encoding text chunk", e);
+                    throw e;
                 } finally {
                     if (currentOutput != null) {
                         assert false : "failure encoding text chunk";

@@ -300,7 +300,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             TopBucketBuilder<B> top = TopBucketBuilder.build(
                 getRequiredSize(),
                 getOrder(),
-                removed -> { otherDocCount[0] += removed.getDocCount(); }
+                removed -> otherDocCount[0] += removed.getDocCount()
             );
             thisReduceOrder = reduceBuckets(aggregations, reduceContext, bucket -> {
                 if (bucket.getDocCount() >= getMinDocCount()) {

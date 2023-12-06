@@ -37,11 +37,11 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
-    private final QueryPhaseResultConsumer queryResult;
+    private final SearchPhaseResults<SearchPhaseResult> queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
     private final List<DfsKnnResults> knnResults;
-    private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
@@ -50,8 +50,8 @@ final class DfsQueryPhase extends SearchPhase {
         List<DfsSearchResult> searchResults,
         AggregatedDfs dfs,
         List<DfsKnnResults> knnResults,
-        QueryPhaseResultConsumer queryResult,
-        Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
+        SearchPhaseResults<SearchPhaseResult> queryResult,
+        Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
         SearchPhaseContext context
     ) {
         super("dfs_query");

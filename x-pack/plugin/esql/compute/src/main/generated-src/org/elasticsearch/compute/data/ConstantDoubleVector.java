@@ -84,6 +84,6 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
             throw new IllegalStateException("can't release already released vector [" + this + "]");
         }
         released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

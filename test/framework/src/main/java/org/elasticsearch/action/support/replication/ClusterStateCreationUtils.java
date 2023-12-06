@@ -89,6 +89,25 @@ public class ClusterStateCreationUtils {
         ShardRoutingState primaryState,
         List<Tuple<ShardRoutingState, ShardRouting.Role>> replicaStates
     ) {
+        return state(index, activePrimaryLocal, primaryState, ShardRouting.Role.DEFAULT, replicaStates);
+    }
+
+    /**
+     * Creates cluster state with and index that has one shard and #(replicaStates) replicas with given roles
+     *
+     * @param index              name of the index
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
+     * @param primaryState       state of primary
+     * @param primaryRole        role of primary
+     * @param replicaStates      states and roles of the replicas. length of this collection determines also the number of replicas
+     */
+    public static ClusterState state(
+        String index,
+        boolean activePrimaryLocal,
+        ShardRoutingState primaryState,
+        ShardRouting.Role primaryRole,
+        List<Tuple<ShardRoutingState, ShardRouting.Role>> replicaStates
+    ) {
         assert primaryState == ShardRoutingState.STARTED
             || primaryState == ShardRoutingState.RELOCATING
             || replicaStates.stream().allMatch(s -> s.v1() == ShardRoutingState.UNASSIGNED)
@@ -155,7 +174,7 @@ public class ClusterStateCreationUtils {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         }
         indexShardRoutingBuilder.addShard(
-            TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, true, primaryState, unassignedInfo)
+            TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, true, primaryState, unassignedInfo, primaryRole)
         );
 
         for (var replicaState : replicaStates) {

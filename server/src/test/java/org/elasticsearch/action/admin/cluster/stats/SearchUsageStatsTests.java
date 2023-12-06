@@ -8,15 +8,19 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102920") // failing test is final, mute whole suite
 public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<SearchUsageStats> {
 
     private static final List<String> QUERY_TYPES = List.of(
@@ -29,6 +33,8 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         "range",
         "script_score"
     );
+
+    private static final List<String> RESCORER_TYPES = List.of("query", "learning_to_rank");
 
     private static final List<String> SECTIONS = List.of(
         "highlight",
@@ -62,59 +68,105 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         return queryUsage;
     }
 
+    private static Map<String, Long> randomRescorerUsage(int size) {
+        Map<String, Long> rescorerUsage = new HashMap<>();
+        while (rescorerUsage.size() < size) {
+            rescorerUsage.put(randomFrom(RESCORER_TYPES), randomLongBetween(1, Long.MAX_VALUE));
+        }
+        return rescorerUsage;
+    }
+
     @Override
     protected SearchUsageStats createTestInstance() {
         if (randomBoolean()) {
             return new SearchUsageStats();
         }
         return new SearchUsageStats(
-            randomQueryUsage(randomIntBetween(0, 4)),
-            randomSectionsUsage(randomIntBetween(0, 4)),
+            randomQueryUsage(randomIntBetween(0, QUERY_TYPES.size())),
+            randomRescorerUsage(randomIntBetween(0, RESCORER_TYPES.size())),
+            randomSectionsUsage(randomIntBetween(0, SECTIONS.size())),
             randomLongBetween(10, Long.MAX_VALUE)
         );
     }
 
     @Override
     protected SearchUsageStats mutateInstance(SearchUsageStats instance) {
-        if (randomBoolean()) {
-            return new SearchUsageStats(
-                randomQueryUsage(instance.getQueryUsage().size() + 1),
+        int i = randomInt(4);
+        return switch (i) {
+            case 0 -> new SearchUsageStats(
+                randomValueOtherThan(instance.getQueryUsage(), () -> randomQueryUsage(randomIntBetween(0, QUERY_TYPES.size()))),
+                instance.getRescorerUsage(),
                 instance.getSectionsUsage(),
                 instance.getTotalSearchCount()
             );
-        }
-        if (randomBoolean()) {
-            return new SearchUsageStats(
+            case 1 -> new SearchUsageStats(
                 instance.getQueryUsage(),
-                randomSectionsUsage(instance.getSectionsUsage().size() + 1),
+                randomValueOtherThan(instance.getRescorerUsage(), () -> randomRescorerUsage(randomIntBetween(0, RESCORER_TYPES.size()))),
+                instance.getSectionsUsage(),
                 instance.getTotalSearchCount()
             );
-        }
-        return new SearchUsageStats(instance.getQueryUsage(), instance.getSectionsUsage(), randomLongBetween(10, Long.MAX_VALUE));
+            case 2 -> new SearchUsageStats(
+                instance.getQueryUsage(),
+                instance.getRescorerUsage(),
+                randomValueOtherThan(instance.getRescorerUsage(), () -> randomSectionsUsage(randomIntBetween(0, SECTIONS.size()))),
+                instance.getTotalSearchCount()
+            );
+            default -> new SearchUsageStats(
+                instance.getQueryUsage(),
+                instance.getRescorerUsage(),
+                instance.getSectionsUsage(),
+                randomLongBetween(10, Long.MAX_VALUE)
+            );
+        };
     }
 
     public void testAdd() {
         SearchUsageStats searchUsageStats = new SearchUsageStats();
         assertEquals(Map.of(), searchUsageStats.getQueryUsage());
+        assertEquals(Map.of(), searchUsageStats.getRescorerUsage());
         assertEquals(Map.of(), searchUsageStats.getSectionsUsage());
         assertEquals(0, searchUsageStats.getTotalSearchCount());
 
-        searchUsageStats.add(new SearchUsageStats(Map.of("match", 10L), Map.of("query", 10L), 10L));
+        searchUsageStats.add(new SearchUsageStats(Map.of("match", 10L), Map.of("query", 5L), Map.of("query", 10L), 10L));
         assertEquals(Map.of("match", 10L), searchUsageStats.getQueryUsage());
         assertEquals(Map.of("query", 10L), searchUsageStats.getSectionsUsage());
+        assertEquals(Map.of("query", 5L), searchUsageStats.getRescorerUsage());
         assertEquals(10L, searchUsageStats.getTotalSearchCount());
 
-        searchUsageStats.add(new SearchUsageStats(Map.of("term", 1L, "match", 1L), Map.of("query", 10L, "knn", 1L), 10L));
+        searchUsageStats.add(
+            new SearchUsageStats(
+                Map.of("term", 1L, "match", 1L),
+                Map.of("query", 5L, "learning_to_rank", 2L),
+                Map.of("query", 10L, "knn", 1L),
+                10L
+            )
+        );
         assertEquals(Map.of("match", 11L, "term", 1L), searchUsageStats.getQueryUsage());
         assertEquals(Map.of("query", 20L, "knn", 1L), searchUsageStats.getSectionsUsage());
+        assertEquals(Map.of("query", 10L, "learning_to_rank", 2L), searchUsageStats.getRescorerUsage());
         assertEquals(20L, searchUsageStats.getTotalSearchCount());
     }
 
     public void testToXContent() throws IOException {
-        SearchUsageStats searchUsageStats = new SearchUsageStats(Map.of("term", 1L), Map.of("query", 10L), 10L);
+        SearchUsageStats searchUsageStats = new SearchUsageStats(Map.of("term", 1L), Map.of("query", 2L), Map.of("query", 10L), 10L);
         assertEquals(
-            "{\"search\":{\"total\":10,\"queries\":{\"term\":1},\"sections\":{\"query\":10}}}",
+            "{\"search\":{\"total\":10,\"queries\":{\"term\":1},\"rescorers\":{\"query\":2},\"sections\":{\"query\":10}}}",
             Strings.toString(searchUsageStats)
         );
+    }
+
+    /**
+     * Test (de)serialization on all previous released versions
+     */
+    public void testSerializationBWC() throws IOException {
+        for (TransportVersion version : TransportVersionUtils.allReleasedVersions()) {
+            SearchUsageStats testInstance = new SearchUsageStats(
+                randomQueryUsage(QUERY_TYPES.size()),
+                Map.of(),
+                randomSectionsUsage(SECTIONS.size()),
+                randomLongBetween(0, Long.MAX_VALUE)
+            );
+            assertSerialization(testInstance, version);
+        }
     }
 }

@@ -27,6 +27,14 @@ public class Model {
         this(configurations, new ModelSecrets());
     }
 
+    public String getModelId() {
+        return configurations.getModelId();
+    }
+
+    public TaskType getTaskType() {
+        return configurations.getTaskType();
+    }
+
     /**
      * Returns the model's non-sensitive configurations (e.g. service name).
      */

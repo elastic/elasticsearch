@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.ZoneId;
@@ -15,12 +16,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateExtract}.
  * This class is generated. Do not edit it.
  */
 public final class DateExtractConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator value;
 
   private final ChronoField chronoField;
@@ -29,8 +34,9 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
 
   private final DriverContext driverContext;
 
-  public DateExtractConstantEvaluator(EvalOperator.ExpressionEvaluator value,
+  public DateExtractConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
       ChronoField chronoField, ZoneId zone, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.value = value;
     this.chronoField = chronoField;
     this.zone = zone;
@@ -38,21 +44,27 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valueRef = value.eval(page)) {
-      LongBlock valueBlock = (LongBlock) valueRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valueBlock = (LongBlock) value.eval(page)) {
       LongVector valueVector = valueBlock.asVector();
       if (valueVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), valueBlock));
+        return eval(page.getPositionCount(), valueBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valueVector).asBlock());
+      return eval(page.getPositionCount(), valueVector).asBlock();
     }
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (valueBlock.getValueCount(p) != 1) {
+          if (valueBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -82,14 +94,17 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final EvalOperator.ExpressionEvaluator.Factory value;
 
     private final ChronoField chronoField;
 
     private final ZoneId zone;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory value, ChronoField chronoField,
-        ZoneId zone) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
+        ChronoField chronoField, ZoneId zone) {
+      this.source = source;
       this.value = value;
       this.chronoField = chronoField;
       this.zone = zone;
@@ -97,7 +112,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
 
     @Override
     public DateExtractConstantEvaluator get(DriverContext context) {
-      return new DateExtractConstantEvaluator(value.get(context), chronoField, zone, context);
+      return new DateExtractConstantEvaluator(source, value.get(context), chronoField, zone, context);
     }
 
     @Override

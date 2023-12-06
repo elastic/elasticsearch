@@ -223,9 +223,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
         InternalAggregations[] results = buildSubAggsForBuckets(bucketOrdsToCollect);
         s = 0;
-        for (int r = 0; r < buckets.length; r++) {
-            for (int b = 0; b < buckets[r].length; b++) {
-                setAggs.accept(buckets[r][b], results[s++]);
+        for (B[] bucket : buckets) {
+            for (int b = 0; b < bucket.length; b++) {
+                setAggs.accept(bucket[b], results[s++]);
             }
         }
     }
@@ -330,8 +330,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
         long[] bucketOrdsToCollect = new long[(int) totalOrdsToCollect];
         int b = 0;
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+        for (long owningBucketOrd : owningBucketOrds) {
+            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
             while (ordsEnum.next()) {
                 bucketOrdsToCollect[b++] = ordsEnum.ord();
             }

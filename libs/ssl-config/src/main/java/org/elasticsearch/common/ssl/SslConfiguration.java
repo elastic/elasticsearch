@@ -10,7 +10,6 @@ package org.elasticsearch.common.ssl;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -53,12 +52,7 @@ public record SslConfiguration(
 
     static {
         LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
-        } catch (NoSuchAlgorithmException e) {
-            // ignore since we support JVMs using BCJSSE in FIPS mode which doesn't support TLSv1.3
-        }
+        protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
         protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
         protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
         protocolAlgorithmMap.put("TLSv1", "TLSv1");

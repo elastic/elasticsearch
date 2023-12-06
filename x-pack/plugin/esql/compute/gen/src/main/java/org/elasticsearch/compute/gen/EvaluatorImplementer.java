@@ -35,7 +35,7 @@ import javax.lang.model.util.Elements;
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
-import static org.elasticsearch.compute.gen.Types.BLOCK_REF;
+import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
@@ -86,12 +86,9 @@ public class EvaluatorImplementer {
         builder.addJavadoc("This class is generated. Do not edit it.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
-
         builder.addType(factory());
 
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
-        }
+        builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         processFunction.args.stream().forEach(a -> a.declareField(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
@@ -108,10 +105,8 @@ public class EvaluatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            builder.addParameter(SOURCE, "source");
-            builder.addStatement("this.warnings = new Warnings(source)");
-        }
+        builder.addParameter(SOURCE, "source");
+        builder.addStatement("this.warnings = new Warnings(source)");
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
 
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
@@ -121,7 +116,7 @@ public class EvaluatorImplementer {
 
     private MethodSpec eval() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("eval").addAnnotation(Override.class);
-        builder.addModifiers(Modifier.PUBLIC).returns(BLOCK_REF).addParameter(PAGE, "page");
+        builder.addModifiers(Modifier.PUBLIC).returns(BLOCK).addParameter(PAGE, "page");
 
         processFunction.args.stream().forEach(a -> a.evalToBlock(builder));
         String invokeBlockEval = invokeRealEval(true);
@@ -132,7 +127,7 @@ public class EvaluatorImplementer {
     }
 
     private String invokeRealEval(boolean blockStyle) {
-        StringBuilder builder = new StringBuilder("return Block.Ref.floating(eval(page.getPositionCount()");
+        StringBuilder builder = new StringBuilder("return eval(page.getPositionCount()");
         String params = processFunction.args.stream()
             .map(a -> a.paramName(blockStyle))
             .filter(a -> a != null)
@@ -145,7 +140,6 @@ public class EvaluatorImplementer {
         if (processFunction.resultDataType(blockStyle).simpleName().endsWith("Vector")) {
             builder.append(".asBlock()");
         }
-        builder.append(")");
         return builder.toString();
     }
 
@@ -218,8 +212,23 @@ public class EvaluatorImplementer {
     }
 
     private static void skipNull(MethodSpec.Builder builder, String value) {
-        builder.beginControlFlow("if ($N.isNull(p) || $N.getValueCount(p) != 1)", value, value);
+        builder.beginControlFlow("if ($N.isNull(p))", value);
         {
+            builder.addStatement("result.appendNull()");
+            builder.addStatement("continue position");
+        }
+        builder.endControlFlow();
+        builder.beginControlFlow("if ($N.getValueCount(p) != 1)", value);
+        {
+            builder.beginControlFlow("if ($N.getValueCount(p) > 1)", value);
+            {
+                builder.addStatement(
+                    // TODO: reflection on SingleValueQuery.MULTI_VALUE_WARNING?
+                    "warnings.registerException(new $T(\"single-value function encountered multi-value\"))",
+                    IllegalArgumentException.class
+                );
+            }
+            builder.endControlFlow();
             builder.addStatement("result.appendNull()");
             builder.addStatement("continue position");
         }
@@ -260,9 +269,7 @@ public class EvaluatorImplementer {
         builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
         builder.addModifiers(Modifier.STATIC);
 
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
-        }
+        builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
         processFunction.args.stream().forEach(a -> a.declareFactoryField(builder));
 
         builder.addMethod(factoryCtor());
@@ -274,10 +281,8 @@ public class EvaluatorImplementer {
 
     private MethodSpec factoryCtor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            builder.addParameter(SOURCE, "source");
-            builder.addStatement("this.source = source");
-        }
+        builder.addParameter(SOURCE, "source");
+        builder.addStatement("this.source = source");
         processFunction.args.stream().forEach(a -> a.implementFactoryCtor(builder));
 
         return builder.build();
@@ -290,9 +295,7 @@ public class EvaluatorImplementer {
         builder.returns(implementation);
 
         List<String> args = new ArrayList<>();
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            args.add("source");
-        }
+        args.add("source");
         for (ProcessFunctionArg arg : processFunction.args) {
             String invocation = arg.factoryInvocation(builder);
             if (invocation != null) {
@@ -346,7 +349,7 @@ public class EvaluatorImplementer {
         String factoryInvocation(MethodSpec.Builder factoryMethodBuilder);
 
         /**
-         * Emits code to evaluate this parameter to a Block.Ref or array of Block.Refs
+         * Emits code to evaluate this parameter to a Block or array of Blocks
          * and begins a {@code try} block for those refs. Noop if the parameter is {@link Fixed}.
          */
         void evalToBlock(MethodSpec.Builder builder);
@@ -440,8 +443,7 @@ public class EvaluatorImplementer {
         @Override
         public void evalToBlock(MethodSpec.Builder builder) {
             TypeName blockType = blockType(type);
-            builder.beginControlFlow("try (Block.Ref $LRef = $L.eval(page))", name, name);
-            builder.addStatement("$T $LBlock = ($T) $LRef.block()", blockType, name, blockType, name);
+            builder.beginControlFlow("try ($T $LBlock = ($T) $L.eval(page))", blockType, name, blockType, name);
         }
 
         @Override
@@ -561,13 +563,11 @@ public class EvaluatorImplementer {
         @Override
         public void evalToBlock(MethodSpec.Builder builder) {
             TypeName blockType = blockType(componentType);
-            builder.addStatement("Block.Ref[] $LRefs = new Block.Ref[$L.length]", name, name);
-            builder.beginControlFlow("try ($T $LRelease = $T.wrap($LRefs))", RELEASABLE, name, RELEASABLES, name);
             builder.addStatement("$T[] $LBlocks = new $T[$L.length]", blockType, name, blockType, name);
+            builder.beginControlFlow("try ($T $LRelease = $T.wrap($LBlocks))", RELEASABLE, name, RELEASABLES, name);
             builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
             {
-                builder.addStatement("$LRefs[i] = $L[i].eval(page)", name, name);
-                builder.addStatement("$LBlocks[i] = ($T) $LRefs[i].block()", name, blockType, name);
+                builder.addStatement("$LBlocks[i] = ($T)$L[i].eval(page)", name, blockType, name);
             }
             builder.endControlFlow();
         }

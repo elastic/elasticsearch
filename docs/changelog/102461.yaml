@@ -1,0 +1,5 @@
+pr: 102461
+summary: Enable concurrency for scripted metric agg
+area: Aggregations
+type: enhancement
+issues: []

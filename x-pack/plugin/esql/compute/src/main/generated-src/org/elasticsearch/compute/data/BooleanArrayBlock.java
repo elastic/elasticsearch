@@ -50,7 +50,7 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
 
     @Override
     public BooleanBlock filter(int... positions) {
-        try (var builder = blockFactory.newBooleanBlockBuilder(positions.length)) {
+        try (var builder = blockFactory().newBooleanBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -80,10 +80,11 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
     @Override
     public BooleanBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values
-        try (var builder = blockFactory.newBooleanBlockBuilder(firstValueIndexes[getPositionCount()])) {
+        try (var builder = blockFactory().newBooleanBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -136,6 +137,6 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
 
     @Override
     public void closeInternal() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

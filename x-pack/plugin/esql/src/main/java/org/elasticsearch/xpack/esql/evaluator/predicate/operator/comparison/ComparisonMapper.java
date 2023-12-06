@@ -7,18 +7,19 @@
 
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 
@@ -73,18 +74,18 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
     ) {
     };
 
-    private final BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> ints;
-    private final BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> longs;
-    private final BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> doubles;
-    private final BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> keywords;
-    private final BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> bools;
+    private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> ints;
+    private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> longs;
+    private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> doubles;
+    private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> keywords;
+    private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> bools;
 
     private ComparisonMapper(
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> ints,
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> longs,
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> doubles,
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> keywords,
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> bools
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> ints,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> longs,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> doubles,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> keywords,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> bools
     ) {
         this.ints = ints;
         this.longs = longs;
@@ -94,16 +95,16 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
     }
 
     ComparisonMapper(
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> ints,
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> longs,
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> doubles,
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> keywords
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> ints,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> longs,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> doubles,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> keywords
     ) {
         this.ints = ints;
         this.longs = longs;
         this.doubles = doubles;
         this.keywords = keywords;
-        this.bools = (lhs, rhs) -> { throw EsqlIllegalArgumentException.illegalDataType(DataTypes.BOOLEAN); };
+        this.bools = (source, lhs, rhs) -> { throw EsqlIllegalArgumentException.illegalDataType(DataTypes.BOOLEAN); };
     }
 
     @Override
@@ -128,13 +129,20 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         var leftEval = toEvaluator(bc.left(), layout);
         var rightEval = toEvaluator(bc.right(), layout);
         if (leftType == DataTypes.KEYWORD || leftType == DataTypes.TEXT || leftType == DataTypes.IP || leftType == DataTypes.VERSION) {
-            return keywords.apply(leftEval, rightEval);
+            return keywords.apply(bc.source(), leftEval, rightEval);
         }
         if (leftType == DataTypes.BOOLEAN) {
-            return bools.apply(leftEval, rightEval);
+            return bools.apply(bc.source(), leftEval, rightEval);
         }
         if (leftType == DataTypes.DATETIME) {
-            return longs.apply(leftEval, rightEval);
+            return longs.apply(bc.source(), leftEval, rightEval);
+        }
+        if (leftType == EsqlDataTypes.GEO_POINT) {
+            return longs.apply(bc.source(), leftEval, rightEval);
+        }
+        // TODO: Perhaps neithger geo_point, not cartesian_point should support comparisons?
+        if (leftType == EsqlDataTypes.CARTESIAN_POINT) {
+            return longs.apply(bc.source(), leftEval, rightEval);
         }
         throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");
     }
@@ -143,10 +151,10 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         BinaryOperator<?, ?, ?, ?> op,
         Layout layout,
         DataType required,
-        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> factory
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> factory
     ) {
-        var lhs = Cast.cast(op.left().dataType(), required, toEvaluator(op.left(), layout));
-        var rhs = Cast.cast(op.right().dataType(), required, toEvaluator(op.right(), layout));
-        return factory.apply(lhs, rhs);
+        var lhs = Cast.cast(op.source(), op.left().dataType(), required, toEvaluator(op.left(), layout));
+        var rhs = Cast.cast(op.source(), op.right().dataType(), required, toEvaluator(op.right(), layout));
+        return factory.apply(op.source(), lhs, rhs);
     }
 }

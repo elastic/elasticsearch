@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 
 public class JdbcFrozenCsvSpecIT extends CsvSpecTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(true);
 
     @Override
     protected String getTestRestCluster() {

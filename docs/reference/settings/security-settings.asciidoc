@@ -431,6 +431,16 @@ Specifies the attribute to examine on the user for group membership.
 If any `group_search` settings are specified, this setting is ignored. Defaults
 to `memberOf`.
 
+`user_full_name_attribute`::
+(<<static-cluster-setting,Static>>)
+Specifies the attribute to examine on the user for the full name of the user.
+Defaults to `cn`.
+
+`user_email_attribute`::
+(<<static-cluster-setting,Static>>)
+Specifies the attribute to examine on the user for the email address of the user.
+Defaults to `mail`.
+
 `user_search.base_dn`::
 (<<static-cluster-setting,Static>>)
 Specifies a container DN to search for users. Required

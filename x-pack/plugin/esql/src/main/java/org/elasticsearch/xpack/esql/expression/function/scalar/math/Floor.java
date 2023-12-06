@@ -39,7 +39,7 @@ public class Floor extends UnaryScalarFunction implements EvaluatorMapper {
         if (dataType().isInteger()) {
             return toEvaluator.apply(field());
         }
-        return new FloorDoubleEvaluator.Factory(toEvaluator.apply(field()));
+        return new FloorDoubleEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

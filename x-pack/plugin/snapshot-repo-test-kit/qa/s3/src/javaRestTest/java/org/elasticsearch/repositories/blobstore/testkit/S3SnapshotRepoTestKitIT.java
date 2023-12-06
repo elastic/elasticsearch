@@ -63,6 +63,7 @@ public class S3SnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTest
     }
 
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103012")
     public void testRepositoryAnalysis() throws Exception {
         super.testRepositoryAnalysis();
     }

@@ -55,7 +55,7 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
 
     @Override
     public BooleanVector filter(int... positions) {
-        try (BooleanVector.Builder builder = blockFactory.newBooleanVectorBuilder(positions.length)) {
+        try (BooleanVector.Builder builder = blockFactory().newBooleanVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendBoolean(values[pos]);
             }

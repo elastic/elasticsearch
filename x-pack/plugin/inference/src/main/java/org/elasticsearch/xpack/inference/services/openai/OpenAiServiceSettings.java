@@ -16,24 +16,30 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
+import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 /**
  * Defines the base settings for interacting with OpenAI.
- * @param uri an optional uri to override the openai url. This should only be used for testing.
  */
-public record OpenAiServiceSettings(@Nullable URI uri, @Nullable String organizationId) implements ServiceSettings {
+public class OpenAiServiceSettings implements ServiceSettings {
 
     public static final String NAME = "openai_service_settings";
 
-    public static final String URL = "url";
     public static final String ORGANIZATION = "organization_id";
 
     public static OpenAiServiceSettings fromMap(Map<String, Object> map) {
@@ -41,15 +47,18 @@ public record OpenAiServiceSettings(@Nullable URI uri, @Nullable String organiza
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
+        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        // Throw if any of the settings were empty strings
+        // Throw if any of the settings were empty strings or invalid
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
         // the url is optional and only for testing
         if (url == null) {
-            return new OpenAiServiceSettings((URI) null, organizationId);
+            return new OpenAiServiceSettings((URI) null, organizationId, similarity, dims, maxInputTokens);
         }
 
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -58,11 +67,37 @@ public record OpenAiServiceSettings(@Nullable URI uri, @Nullable String organiza
             throw validationException;
         }
 
-        return new OpenAiServiceSettings(uri, organizationId);
+        return new OpenAiServiceSettings(uri, organizationId, similarity, dims, maxInputTokens);
     }
 
-    public OpenAiServiceSettings(@Nullable String url, @Nullable String organizationId) {
-        this(createOptionalUri(url), organizationId);
+    private final URI uri;
+    private final String organizationId;
+    private final SimilarityMeasure similarity;
+    private final Integer dimensions;
+    private final Integer maxInputTokens;
+
+    public OpenAiServiceSettings(
+        @Nullable URI uri,
+        @Nullable String organizationId,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens
+    ) {
+        this.uri = uri;
+        this.organizationId = organizationId;
+        this.similarity = similarity;
+        this.dimensions = dimensions;
+        this.maxInputTokens = maxInputTokens;
+    }
+
+    public OpenAiServiceSettings(
+        @Nullable String uri,
+        @Nullable String organizationId,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens
+    ) {
+        this(createOptionalUri(uri), organizationId, similarity, dimensions, maxInputTokens);
     }
 
     private static URI createOptionalUri(String url) {
@@ -74,7 +109,37 @@ public record OpenAiServiceSettings(@Nullable URI uri, @Nullable String organiza
     }
 
     public OpenAiServiceSettings(StreamInput in) throws IOException {
-        this(in.readOptionalString(), in.readOptionalString());
+        uri = createOptionalUri(in.readOptionalString());
+        organizationId = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
+            similarity = in.readOptionalEnum(SimilarityMeasure.class);
+            dimensions = in.readOptionalVInt();
+            maxInputTokens = in.readOptionalVInt();
+        } else {
+            similarity = null;
+            dimensions = null;
+            maxInputTokens = null;
+        }
+    }
+
+    public URI uri() {
+        return uri;
+    }
+
+    public String organizationId() {
+        return organizationId;
+    }
+
+    public SimilarityMeasure similarity() {
+        return similarity;
+    }
+
+    public Integer dimensions() {
+        return dimensions;
+    }
+
+    public Integer maxInputTokens() {
+        return maxInputTokens;
     }
 
     @Override
@@ -89,9 +154,17 @@ public record OpenAiServiceSettings(@Nullable URI uri, @Nullable String organiza
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
-
         if (organizationId != null) {
             builder.field(ORGANIZATION, organizationId);
+        }
+        if (similarity != null) {
+            builder.field(SIMILARITY, similarity);
+        }
+        if (dimensions != null) {
+            builder.field(DIMENSIONS, dimensions);
+        }
+        if (maxInputTokens != null) {
+            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
 
         builder.endObject();
@@ -108,5 +181,27 @@ public record OpenAiServiceSettings(@Nullable URI uri, @Nullable String organiza
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
         out.writeOptionalString(organizationId);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
+            out.writeOptionalEnum(similarity);
+            out.writeOptionalVInt(dimensions);
+            out.writeOptionalVInt(maxInputTokens);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        OpenAiServiceSettings that = (OpenAiServiceSettings) o;
+        return Objects.equals(uri, that.uri)
+            && Objects.equals(organizationId, that.organizationId)
+            && Objects.equals(similarity, that.similarity)
+            && Objects.equals(dimensions, that.dimensions)
+            && Objects.equals(maxInputTokens, that.maxInputTokens);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(uri, organizationId, similarity, dimensions, maxInputTokens);
     }
 }

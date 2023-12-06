@@ -50,7 +50,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public DoubleBlock filter(int... positions) {
-        try (var builder = blockFactory.newDoubleBlockBuilder(positions.length)) {
+        try (var builder = blockFactory().newDoubleBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -84,7 +84,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
             return this;
         }
         // TODO use reference counting to share the values
-        try (var builder = blockFactory.newDoubleBlockBuilder(firstValueIndexes[getPositionCount()])) {
+        try (var builder = blockFactory().newDoubleBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -137,6 +137,6 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public void closeInternal() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

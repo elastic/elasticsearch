@@ -36,10 +36,7 @@ public class TransportPostSecretAction extends HandledTransportAction<PostSecret
             client.prepareIndex(FLEET_SECRETS_INDEX_NAME)
                 .setSource(request.toXContent(jsonBuilder()))
                 .execute(
-                    ActionListener.wrap(
-                        indexResponse -> listener.onResponse(new PostSecretResponse(indexResponse.getId())),
-                        listener::onFailure
-                    )
+                    listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(new PostSecretResponse(indexResponse.getId())))
                 );
         } catch (Exception e) {
             listener.onFailure(e);

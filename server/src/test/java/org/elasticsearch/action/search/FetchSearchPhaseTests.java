@@ -20,6 +20,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
@@ -49,7 +50,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testShortcutQueryAndFetchOptimization() {
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -139,7 +140,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFetchTwoDocument() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -256,7 +257,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFailFetchOneDoc() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -384,7 +385,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         boolean profiled = randomBoolean();
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -495,7 +496,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testExceptionFailsPhase() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -606,7 +607,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testCleanupIrrelevantContexts() { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,

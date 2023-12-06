@@ -60,6 +60,7 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     @Override
     public $Type$Vector filter(int... positions) {
+        var blockFactory = blockFactory();
    $if(boolean)$
         final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
         for (int i = 0; i < positions.length; i++) {

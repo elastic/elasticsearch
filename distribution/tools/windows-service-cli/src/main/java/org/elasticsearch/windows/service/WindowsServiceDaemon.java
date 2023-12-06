@@ -39,7 +39,7 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
         // the Windows service daemon doesn't support secure settings implementations other than the keystore
         try (var loadedSecrets = KeyStoreWrapper.bootstrap(env.configFile(), () -> new SecureString(new char[0]))) {
             var args = new ServerArgs(false, true, null, loadedSecrets, env.settings(), env.configFile(), env.logsFile());
-            this.server = ServerProcessBuilder.create(terminal, processInfo, args).start();
+            this.server = new ServerProcessBuilder(terminal, processInfo, args).start();
             // start does not return until the server is ready, and we do not wait for the process
         }
     }

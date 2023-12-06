@@ -211,12 +211,8 @@ public class ServerProcessTests extends ESTestCase {
             process = new MockElasticsearchProcess();
             return process;
         };
-        var serverProcessBuilder = ServerProcessBuilder.create(
-            terminal,
-            pinfo,
-            args,
-            options -> options.withOptionsBuilder(optionsBuilder).withProcessStarter(starter)
-        );
+        var serverProcessBuilder = new ServerProcessBuilder(terminal, pinfo, args).withOptionsBuilder(optionsBuilder)
+            .withProcessStarter(starter);
         return serverProcessBuilder.start();
     }
 

@@ -28,49 +28,209 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
  * Holds options and arguments needed to start a server process
  */
 public class ServerProcessBuilder {
+
+    private interface ServerProcessBuilderImpl {
+        List<String> jvmOptions();
+
+        List<String> jvmArgs();
+
+        Map<String, String> environment();
+
+        ServerProcess start() throws UserException;
+    }
+
+    private static class InitialServerProcessBuilderImpl implements ServerProcessBuilderImpl {
+        @Override
+        public List<String> jvmOptions() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<String> jvmArgs() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<String, String> environment() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ServerProcess start() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class FinalServerProcessBuilderImpl implements ServerProcessBuilderImpl {
+        private final Terminal terminal;
+        private final String command;
+        private final List<String> jvmOptions;
+        private final List<String> jvmArgs;
+        private final Map<String, String> environment;
+        private final ServerArgs serverArgs;
+        private final ServerProcess.ProcessStarter processStarter;
+
+        private FinalServerProcessBuilderImpl(
+            Terminal terminal,
+            String command,
+            List<String> jvmOptions,
+            List<String> otherOptions,
+            Map<String, String> environment,
+            ServerArgs serverArgs,
+            ServerProcess.ProcessStarter processStarter
+        ) {
+            this.terminal = terminal;
+            this.command = command;
+            this.jvmOptions = jvmOptions;
+            this.jvmArgs = otherOptions;
+            this.environment = environment;
+            this.serverArgs = serverArgs;
+            this.processStarter = processStarter;
+        }
+
+        @Override
+        public List<String> jvmOptions() {
+            return jvmOptions;
+        }
+
+        @Override
+        public List<String> jvmArgs() {
+            return jvmArgs;
+        }
+
+        @Override
+        public Map<String, String> environment() {
+            return environment;
+        }
+
+        @Override
+        public ServerProcess start() throws UserException {
+            Process jvmProcess = null;
+            ErrorPumpThread errorPump;
+
+            boolean success = false;
+            try {
+                jvmProcess = createProcess();
+                errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
+                errorPump.start();
+                sendArgs(serverArgs, jvmProcess.getOutputStream());
+
+                String errorMsg = errorPump.waitUntilReady();
+                if (errorMsg != null) {
+                    // something bad happened, wait for the process to exit then rethrow
+                    int exitCode = jvmProcess.waitFor();
+                    throw new UserException(exitCode, errorMsg);
+                }
+                success = true;
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                if (success == false && jvmProcess != null && jvmProcess.isAlive()) {
+                    jvmProcess.destroyForcibly();
+                }
+            }
+
+            return new ServerProcess(jvmProcess, errorPump);
+        }
+
+        private Process createProcess() throws InterruptedException, IOException {
+
+            var builder = new ProcessBuilder(
+                Stream.concat(Stream.of(command), Stream.concat(jvmOptions.stream(), jvmArgs.stream())).toList()
+            );
+            builder.environment().putAll(environment);
+            builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+
+            return processStarter.start(builder);
+        }
+
+        private static void sendArgs(ServerArgs args, OutputStream processStdin) {
+            // DO NOT close the underlying process stdin, since we need to be able to write to it to signal exit
+            var out = new OutputStreamStreamOutput(processStdin);
+            try {
+                args.writeTo(out);
+                out.flush();
+            } catch (IOException ignore) {
+                // A failure to write here means the process has problems, and it will die anyway. We let this fall through
+                // so the pump thread can complete, writing out the actual error. All we get here is the failure to write to
+                // the process pipe, which isn't helpful to print.
+            }
+        }
+    }
+
+    private ServerProcessBuilderImpl builderImpl = new InitialServerProcessBuilderImpl();
+    private ServerProcess.OptionsBuilder optionsBuilder = JvmOptionsParser::determineJvmOptions;
+    private ServerProcess.ProcessStarter processStarter = ProcessBuilder::start;
+
     private final Terminal terminal;
-    private final String command;
-    private final List<String> jvmOptions;
-    private final List<String> jvmArgs;
-    private final Map<String, String> environment;
+    private final ProcessInfo processInfo;
     private final ServerArgs serverArgs;
-    private final ServerProcess.ProcessStarter processStarter;
 
-    private ServerProcessBuilder(
-        Terminal terminal,
-        String command,
-        List<String> jvmOptions,
-        List<String> otherOptions,
-        Map<String, String> environment,
-        ServerArgs serverArgs,
-        ServerProcess.ProcessStarter processStarter
-    ) {
+    /**
+     * Returns a ServerProcessBuilder instance by using the provided arguments, process info, environment and options builder.
+     * The environment and temp directories are checked and, if needed, adjusted/created to be compliant with what the
+     * server process is expecting.
+     *
+     * @param terminal        A terminal to connect the standard inputs and outputs to for the new process.
+     * @param processInfo     Info about the current process, for passing through to the subprocess.
+     * @param serverArgs      Arguments to the server process.
+     */
+    public ServerProcessBuilder(Terminal terminal, ProcessInfo processInfo, ServerArgs serverArgs) {
         this.terminal = terminal;
-        this.command = command;
-        this.jvmOptions = jvmOptions;
-        this.jvmArgs = otherOptions;
-        this.environment = environment;
+        this.processInfo = processInfo;
         this.serverArgs = serverArgs;
+    }
+
+    ServerProcessBuilder withOptionsBuilder(ServerProcess.OptionsBuilder optionsBuilder) {
+        this.optionsBuilder = optionsBuilder;
+        return this;
+    }
+
+    ServerProcessBuilder withProcessStarter(ServerProcess.ProcessStarter processStarter) {
         this.processStarter = processStarter;
+        return this;
     }
 
-    List<String> jvmOptions() {
-        return jvmOptions;
+    public List<String> jvmOptions() throws UserException {
+        if (builderImpl instanceof InitialServerProcessBuilderImpl) {
+            builderImpl = create();
+        }
+        return builderImpl.jvmOptions();
     }
 
-    List<String> jvmArgs() {
-        return jvmArgs;
+    public List<String> jvmArgs() throws UserException {
+        if (builderImpl instanceof InitialServerProcessBuilderImpl) {
+            builderImpl = create();
+        }
+        return builderImpl.jvmArgs();
     }
 
-    Map<String, String> environment() {
-        return environment;
+    public Map<String, String> environment() throws UserException {
+        if (builderImpl instanceof InitialServerProcessBuilderImpl) {
+            builderImpl = create();
+        }
+        return builderImpl.environment();
+    }
+
+    /**
+     * Start a server in a new process.
+     *
+     * @return A running server process that is ready for requests
+     * @throws UserException        If the process failed during bootstrap
+     */
+    public ServerProcess start() throws UserException {
+        if (builderImpl instanceof InitialServerProcessBuilderImpl) {
+            builderImpl = create();
+        }
+        return builderImpl.start();
     }
 
     /**
@@ -110,51 +270,7 @@ public class ServerProcessBuilder {
         return Files.createTempDirectory(prefix, attrs);
     }
 
-    interface ServerProcessBuilderOptions {
-        ServerProcessBuilderOptions withOptionsBuilder(ServerProcess.OptionsBuilder optionsBuilder);
-
-        ServerProcessBuilderOptions withProcessStarter(ServerProcess.ProcessStarter processStarter);
-    }
-
-    /**
-     * Returns a ServerProcessBuilder instance by using the provided arguments, process info, environment and options builder.
-     * The environment and temp directories are checked and, if needed, adjusted/created to be compliant with what the
-     * server process is expecting.
-     *
-     * @param terminal        A terminal to connect the standard inputs and outputs to for the new process.
-     * @param processInfo     Info about the current process, for passing through to the subprocess.
-     * @param serverArgs      Arguments to the server process.
-     * @return A builder to construct a ServerProcess
-     * @throws UserException    if there is a problem with the configuration (e.g. files or directory permissions)
-     */
-    public static ServerProcessBuilder create(Terminal terminal, ProcessInfo processInfo, ServerArgs serverArgs) throws UserException {
-        return create(terminal, processInfo, serverArgs, options -> {});
-    }
-
-    static ServerProcessBuilder create(
-        Terminal terminal,
-        ProcessInfo processInfo,
-        ServerArgs serverArgs,
-        Consumer<ServerProcessBuilderOptions> additionalOptionsSupplier
-    ) throws UserException {
-        var serverProcessBuilderOptions = new ServerProcessBuilderOptions() {
-            private ServerProcess.OptionsBuilder optionsBuilder = JvmOptionsParser::determineJvmOptions;
-            private ServerProcess.ProcessStarter processStarter = ProcessBuilder::start;
-
-            @Override
-            public ServerProcessBuilderOptions withOptionsBuilder(ServerProcess.OptionsBuilder optionsBuilder) {
-                this.optionsBuilder = optionsBuilder;
-                return this;
-            }
-
-            @Override
-            public ServerProcessBuilderOptions withProcessStarter(ServerProcess.ProcessStarter processStarter) {
-                this.processStarter = processStarter;
-                return this;
-            }
-        };
-        additionalOptionsSupplier.accept(serverProcessBuilderOptions);
-
+    private FinalServerProcessBuilderImpl create() throws UserException {
         try {
             Map<String, String> envVars = new HashMap<>(processInfo.envVars());
 
@@ -163,7 +279,7 @@ public class ServerProcessBuilder {
                 envVars.put("LIBFFI_TMPDIR", tempDir.toString());
             }
 
-            List<String> jvmOptions = serverProcessBuilderOptions.optionsBuilder.getJvmOptions(
+            List<String> jvmOptions = optionsBuilder.getJvmOptions(
                 serverArgs,
                 serverArgs.configDir(),
                 tempDir,
@@ -179,87 +295,29 @@ public class ServerProcessBuilder {
             String command = javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
 
             var jvmArgs = List.of(
-                "--module-path", esHome.resolve("lib").toString(),
+                "--module-path",
+                esHome.resolve("lib").toString(),
                 // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
                 "--add-modules=jdk.net", // needed to reflectively set extended socket options
                 // we control the module path, which may have additional modules not required by server
-                "--add-modules=ALL-MODULE-PATH", "-m", "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch"
+                "--add-modules=ALL-MODULE-PATH",
+                "-m",
+                "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch"
             );
 
-            return new ServerProcessBuilder(
+            return new FinalServerProcessBuilderImpl(
                 terminal,
                 command,
                 Collections.unmodifiableList(jvmOptions),
                 jvmArgs,
                 Collections.unmodifiableMap(envVars),
                 serverArgs,
-                serverProcessBuilderOptions.processStarter
+                processStarter
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Start a server in a new process.
-     *
-     * @return A running server process that is ready for requests
-     * @throws UserException        If the process failed during bootstrap
-     */
-    public ServerProcess start() throws UserException {
-        Process jvmProcess = null;
-        ErrorPumpThread errorPump;
-
-        boolean success = false;
-        try {
-            jvmProcess = createProcess();
-            errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
-            errorPump.start();
-            sendArgs(serverArgs, jvmProcess.getOutputStream());
-
-            String errorMsg = errorPump.waitUntilReady();
-            if (errorMsg != null) {
-                // something bad happened, wait for the process to exit then rethrow
-                int exitCode = jvmProcess.waitFor();
-                throw new UserException(exitCode, errorMsg);
-            }
-            success = true;
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } finally {
-            if (success == false && jvmProcess != null && jvmProcess.isAlive()) {
-                jvmProcess.destroyForcibly();
-            }
-        }
-
-        return new ServerProcess(jvmProcess, errorPump);
-    }
-
-    private Process createProcess() throws InterruptedException, IOException {
-
-        var builder = new ProcessBuilder(
-            Stream.concat(Stream.of(command), Stream.concat(jvmOptions.stream(), jvmArgs.stream())).toList()
-        );
-        builder.environment().putAll(environment);
-        builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-
-        return processStarter.start(builder);
-    }
-
-    private static void sendArgs(ServerArgs args, OutputStream processStdin) {
-        // DO NOT close the underlying process stdin, since we need to be able to write to it to signal exit
-        var out = new OutputStreamStreamOutput(processStdin);
-        try {
-            args.writeTo(out);
-            out.flush();
-        } catch (IOException ignore) {
-            // A failure to write here means the process has problems, and it will die anyway. We let this fall through
-            // so the pump thread can complete, writing out the actual error. All we get here is the failure to write to
-            // the process pipe, which isn't helpful to print.
         }
     }
 }

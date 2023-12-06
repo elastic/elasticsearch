@@ -244,7 +244,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
     // protected to allow tests to override
     protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
-        return ServerProcessBuilder.create(terminal, processInfo, args).start();
+        return new ServerProcessBuilder(terminal, processInfo, args).start();
     }
 
     // protected to allow tests to override

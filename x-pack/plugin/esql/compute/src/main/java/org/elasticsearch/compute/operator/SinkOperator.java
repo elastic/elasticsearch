@@ -23,6 +23,15 @@ public abstract class SinkOperator implements Operator {
         throw new UnsupportedOperationException();
     }
 
+    protected abstract void doAddInput(Page page);
+
+    @Override
+    public final void addInput(Page page) {
+        // We need to change the ownership of the blocks of the input page before passing them to another driver.
+        page.allowPassingToDifferentDriver();
+        doAddInput(page);
+    }
+
     /**
      * A factory for creating sink operators.
      */

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -78,7 +77,7 @@ public abstract class AsyncOperator implements Operator {
                 buffers.put(seqNo, output);
                 onSeqNoCompleted(seqNo);
             }, e -> {
-                input.releaseBlocks();
+                releasePageOnAnyThread(input);
                 onFailure(e);
                 onSeqNoCompleted(seqNo);
             });
@@ -89,6 +88,11 @@ public abstract class AsyncOperator implements Operator {
                 driverContext.removeAsyncAction();
             }
         }
+    }
+
+    private void releasePageOnAnyThread(Page page) {
+        page.allowPassingToDifferentDriver();
+        page.releaseBlocks();
     }
 
     /**
@@ -157,7 +161,7 @@ public abstract class AsyncOperator implements Operator {
             Page page = buffers.remove(nextCheckpoint);
             checkpoint.markSeqNoAsPersisted(nextCheckpoint);
             if (page != null) {
-                Releasables.closeExpectNoException(page::releaseBlocks);
+                releasePageOnAnyThread(page);
             }
         }
     }

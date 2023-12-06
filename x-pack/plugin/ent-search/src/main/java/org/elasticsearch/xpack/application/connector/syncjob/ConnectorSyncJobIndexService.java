@@ -18,6 +18,8 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -26,6 +28,13 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
@@ -40,11 +49,14 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnec
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
@@ -108,13 +120,12 @@ public class ConnectorSyncJobIndexService {
 
                     clientWithOrigin.index(
                         indexRequest,
-                        ActionListener.wrap(
-                            indexResponse -> listener.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId())),
-                            listener::onFailure
+                        l.delegateFailureAndWrap(
+                            (ll, indexResponse) -> ll.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId()))
                         )
                     );
                 } catch (IOException e) {
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
             }));
         } catch (Exception e) {
@@ -252,11 +263,103 @@ public class ConnectorSyncJobIndexService {
     }
 
     /**
-     * Updates the ingestion stats of the {@link ConnectorSyncJob} in the underlying index.
+     * List the {@link ConnectorSyncJob} in ascending order of their 'created_at'.
      *
-     * @param request                Request containing the updates to the ingestion stats.
-     * @param listener               The action listener to invoke on response/failure.
+     * @param from          From index to start the search from.
+     * @param size          The maximum number of {@link Connector}s to return.
+     * @param connectorId   The id of a {@link Connector} to return sync jobs from.
+     * @param syncStatus    The status to filter the sync jobs on.
+     * @param listener      The action listener to invoke on response/failure.
      */
+    public void listConnectorSyncJobs(
+        int from,
+        int size,
+        String connectorId,
+        ConnectorSyncStatus syncStatus,
+        ActionListener<ConnectorSyncJobIndexService.ConnectorSyncJobsResult> listener
+    ) {
+        try {
+            QueryBuilder query = buildListQuery(connectorId, syncStatus);
+
+            final SearchSourceBuilder searchSource = new SearchSourceBuilder().from(from)
+                .size(size)
+                .query(query)
+                .fetchSource(true)
+                .sort(ConnectorSyncJob.CREATED_AT_FIELD.getPreferredName(), SortOrder.ASC);
+
+            final SearchRequest searchRequest = new SearchRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).source(searchSource);
+
+            clientWithOrigin.search(searchRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    try {
+                        listener.onResponse(mapSearchResponseToConnectorSyncJobsList(searchResponse));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onResponse(new ConnectorSyncJobIndexService.ConnectorSyncJobsResult(Collections.emptyList(), 0L));
+                        return;
+                    }
+                    listener.onFailure(e);
+                }
+            });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static QueryBuilder buildListQuery(String connectorId, ConnectorSyncStatus syncStatus) {
+        boolean usesFilter = Stream.of(connectorId, syncStatus).anyMatch(Objects::nonNull);
+        BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
+
+        if (usesFilter) {
+            if (Objects.nonNull(connectorId)) {
+                TermQueryBuilder connectorIdQuery = new TermQueryBuilder(
+                    ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName() + "." + Connector.ID_FIELD.getPreferredName(),
+                    connectorId
+                );
+                boolFilterQueryBuilder.must().add(connectorIdQuery);
+            }
+
+            if (Objects.nonNull(syncStatus)) {
+                TermQueryBuilder syncStatusQuery = new TermQueryBuilder(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), syncStatus);
+                boolFilterQueryBuilder.must().add(syncStatusQuery);
+            }
+        }
+
+        return usesFilter ? boolFilterQueryBuilder : new MatchAllQueryBuilder();
+    }
+
+    private ConnectorSyncJobsResult mapSearchResponseToConnectorSyncJobsList(SearchResponse searchResponse) {
+        final List<ConnectorSyncJob> connectorSyncJobs = Arrays.stream(searchResponse.getHits().getHits())
+            .map(ConnectorSyncJobIndexService::hitToConnectorSyncJob)
+            .toList();
+
+        return new ConnectorSyncJobIndexService.ConnectorSyncJobsResult(
+            connectorSyncJobs,
+            (int) searchResponse.getHits().getTotalHits().value
+        );
+    }
+
+    private static ConnectorSyncJob hitToConnectorSyncJob(SearchHit searchHit) {
+        // TODO: don't return sensitive data from configuration inside connector in list endpoint
+
+        return ConnectorSyncJob.fromXContentBytes(searchHit.getSourceRef(), XContentType.JSON);
+    }
+
+    public record ConnectorSyncJobsResult(List<ConnectorSyncJob> connectorSyncJobs, long totalResults) {}
+
+    /**
+    * Updates the ingestion stats of the {@link ConnectorSyncJob} in the underlying index.
+    *
+    * @param request                Request containing the updates to the ingestion stats.
+    * @param listener               The action listener to invoke on response/failure.
+    */
     public void updateConnectorSyncJobIngestionStats(
         UpdateConnectorSyncJobIngestionStatsAction.Request request,
         ActionListener<UpdateResponse> listener
@@ -330,9 +433,7 @@ public class ConnectorSyncJobIndexService {
                     Map<String, Object> source = response.getSource();
 
                     @SuppressWarnings("unchecked")
-                    final Connector syncJobConnectorInfo = new Connector.Builder().setConnectorId(
-                        (String) source.get(Connector.ID_FIELD.getPreferredName())
-                    )
+                    final Connector syncJobConnectorInfo = new Connector.Builder().setConnectorId(connectorId)
                         .setFiltering((List<ConnectorFiltering>) source.get(Connector.FILTERING_FIELD.getPreferredName()))
                         .setIndexName((String) source.get(Connector.INDEX_NAME_FIELD.getPreferredName()))
                         .setLanguage((String) source.get(Connector.LANGUAGE_FIELD.getPreferredName()))

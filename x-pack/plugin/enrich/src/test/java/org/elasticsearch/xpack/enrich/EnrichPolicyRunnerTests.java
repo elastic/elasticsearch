@@ -313,7 +313,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
         );
         List<String> enrichFields = List.of("zipcode");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "range", enrichFields, null);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "range", enrichFields);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();

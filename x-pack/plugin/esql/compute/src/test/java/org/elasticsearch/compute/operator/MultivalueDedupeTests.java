@@ -59,7 +59,8 @@ public class MultivalueDedupeTests extends ESTestCase {
     public static List<ElementType> supportedTypes() {
         List<ElementType> supported = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+            // TODO: get working for POINT (also BlockHashRandomizedTests)
+            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC, ElementType.POINT)) {
                 continue;
             }
             supported.add(elementType);
@@ -67,11 +68,21 @@ public class MultivalueDedupeTests extends ESTestCase {
         return supported;
     }
 
+    private static boolean oneOf(ElementType elementType, ElementType... others) {
+        for (ElementType other : others) {
+            if (elementType == other) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : supportedTypes()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+            // TODO: get working for POINT (also BlockHashRandomizedTests)
+            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC, ElementType.POINT)) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {

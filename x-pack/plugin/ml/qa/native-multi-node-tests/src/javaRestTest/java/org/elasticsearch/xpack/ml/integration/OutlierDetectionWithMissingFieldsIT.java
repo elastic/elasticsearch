@@ -38,33 +38,34 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
 
         client().admin().indices().prepareCreate(sourceIndex).setMapping("numeric", "type=double", "categorical", "type=keyword").get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        // 5 docs with valid numeric value and missing categorical field (which should be ignored as it's not analyzed)
-        for (int i = 0; i < 5; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            indexRequest.source("numeric", 42.0);
-            bulkRequestBuilder.add(indexRequest);
-        }
+            // 5 docs with valid numeric value and missing categorical field (which should be ignored as it's not analyzed)
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                indexRequest.source("numeric", 42.0);
+                bulkRequestBuilder.add(indexRequest);
+            }
 
-        // Add a doc with missing field
-        {
-            IndexRequest missingIndexRequest = new IndexRequest(sourceIndex);
-            missingIndexRequest.source("categorical", "foo");
-            bulkRequestBuilder.add(missingIndexRequest);
-        }
+            // Add a doc with missing field
+            {
+                IndexRequest missingIndexRequest = new IndexRequest(sourceIndex);
+                missingIndexRequest.source("categorical", "foo");
+                bulkRequestBuilder.add(missingIndexRequest);
+            }
 
-        // Add a doc with numeric being array which is also treated as missing
-        {
-            IndexRequest arrayIndexRequest = new IndexRequest(sourceIndex);
-            arrayIndexRequest.source("numeric", new double[] { 1.0, 2.0 }, "categorical", "foo");
-            bulkRequestBuilder.add(arrayIndexRequest);
-        }
+            // Add a doc with numeric being array which is also treated as missing
+            {
+                IndexRequest arrayIndexRequest = new IndexRequest(sourceIndex);
+                arrayIndexRequest.source("numeric", new double[] { 1.0, 2.0 }, "categorical", "foo");
+                bulkRequestBuilder.add(arrayIndexRequest);
+            }
 
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_outlier_detection_with_missing_fields";

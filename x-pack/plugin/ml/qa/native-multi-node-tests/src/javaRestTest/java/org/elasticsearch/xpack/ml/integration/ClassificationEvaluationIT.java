@@ -717,66 +717,68 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     static void indexAnimalsData(String indexName) {
         List<String> animalNames = List.of("dog", "cat", "mouse", "ant", "fox");
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < animalNames.size(); i++) {
-            for (int j = 0; j < animalNames.size(); j++) {
-                for (int k = 0; k < j + 1; k++) {
-                    List<?> topClasses = IntStream.range(0, 5).mapToObj(ix -> new HashMap<String, Object>() {
-                        {
-                            put("class_name", animalNames.get(ix));
-                            put("class_probability", 0.4 - 0.1 * ix);
-                        }
-                    }).collect(toList());
-                    bulkRequestBuilder.add(
-                        new IndexRequest(indexName).source(
-                            ANIMAL_NAME_KEYWORD_FIELD,
-                            animalNames.get(i),
-                            ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                            animalNames.get((i + j) % animalNames.size()),
-                            ANIMAL_NAME_PREDICTION_PROB_FIELD,
-                            animalNames.get((i + j) % animalNames.size()),
-                            NO_LEGS_KEYWORD_FIELD,
-                            String.valueOf(i + 1),
-                            NO_LEGS_INTEGER_FIELD,
-                            i + 1,
-                            NO_LEGS_PREDICTION_INTEGER_FIELD,
-                            j + 1,
-                            IS_PREDATOR_KEYWORD_FIELD,
-                            String.valueOf(i % 2 == 0),
-                            IS_PREDATOR_BOOLEAN_FIELD,
-                            i % 2 == 0,
-                            IS_PREDATOR_PREDICTION_BOOLEAN_FIELD,
-                            (i + j) % 2 == 0,
-                            IS_PREDATOR_PREDICTION_PROBABILITY_FIELD,
-                            i % 2 == 0 ? 1.0 - 0.1 * i : 0.1 * i,
-                            ML_TOP_CLASSES_FIELD,
-                            topClasses
-                        )
-                    );
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < animalNames.size(); i++) {
+                for (int j = 0; j < animalNames.size(); j++) {
+                    for (int k = 0; k < j + 1; k++) {
+                        List<?> topClasses = IntStream.range(0, 5).mapToObj(ix -> new HashMap<String, Object>() {
+                            {
+                                put("class_name", animalNames.get(ix));
+                                put("class_probability", 0.4 - 0.1 * ix);
+                            }
+                        }).collect(toList());
+                        bulkRequestBuilder.add(
+                            new IndexRequest(indexName).source(
+                                ANIMAL_NAME_KEYWORD_FIELD,
+                                animalNames.get(i),
+                                ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                                animalNames.get((i + j) % animalNames.size()),
+                                ANIMAL_NAME_PREDICTION_PROB_FIELD,
+                                animalNames.get((i + j) % animalNames.size()),
+                                NO_LEGS_KEYWORD_FIELD,
+                                String.valueOf(i + 1),
+                                NO_LEGS_INTEGER_FIELD,
+                                i + 1,
+                                NO_LEGS_PREDICTION_INTEGER_FIELD,
+                                j + 1,
+                                IS_PREDATOR_KEYWORD_FIELD,
+                                String.valueOf(i % 2 == 0),
+                                IS_PREDATOR_BOOLEAN_FIELD,
+                                i % 2 == 0,
+                                IS_PREDATOR_PREDICTION_BOOLEAN_FIELD,
+                                (i + j) % 2 == 0,
+                                IS_PREDATOR_PREDICTION_PROBABILITY_FIELD,
+                                i % 2 == 0 ? 1.0 - 0.1 * i : 0.1 * i,
+                                ML_TOP_CLASSES_FIELD,
+                                topClasses
+                            )
+                        );
+                    }
                 }
             }
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
     }
 
     private static void indexDistinctAnimals(String indexName, int distinctAnimalCount) {
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < distinctAnimalCount; i++) {
-            bulkRequestBuilder.add(
-                new IndexRequest(indexName).source(
-                    ANIMAL_NAME_KEYWORD_FIELD,
-                    "animal_" + i,
-                    ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                    randomAlphaOfLength(5)
-                )
-            );
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < distinctAnimalCount; i++) {
+                bulkRequestBuilder.add(
+                    new IndexRequest(indexName).source(
+                        ANIMAL_NAME_KEYWORD_FIELD,
+                        "animal_" + i,
+                        ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                        randomAlphaOfLength(5)
+                    )
+                );
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
     }
 

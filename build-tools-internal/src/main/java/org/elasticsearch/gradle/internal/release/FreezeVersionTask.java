@@ -14,8 +14,6 @@ import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
-import com.github.javaparser.ast.expr.Expression;
-import com.github.javaparser.ast.expr.IntegerLiteralExpr;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 import com.google.common.annotations.VisibleForTesting;
@@ -90,13 +88,13 @@ public class FreezeVersionTask extends DefaultTask {
             nextVersion.getRevision()
         );
 
-        for (int i = 0; i<version.getMembers().size(); i++) {
+        for (int i = 0; i < version.getMembers().size(); i++) {
             var member = version.getMember(i);
             if (member.isFieldDeclaration() && member.asFieldDeclaration().getVariable(0).getName().getIdentifier().equals("CURRENT")) {
                 // found CURRENT - copy the previous variable
                 var current = member.asFieldDeclaration();
                 // copy the last version field constant
-                var lastVersion = version.getMember(i-1).asFieldDeclaration();
+                var lastVersion = version.getMember(i - 1).asFieldDeclaration();
                 FieldDeclaration newVersion = createNewConstant(lastVersion, newFieldName, newFieldConstant);
 
                 // add a new field
@@ -112,8 +110,14 @@ public class FreezeVersionTask extends DefaultTask {
     }
 
     private static FieldDeclaration createNewConstant(FieldDeclaration lastVersion, String newName, String newExpr) {
-        return new FieldDeclaration(new NodeList<>(lastVersion.getModifiers()), new VariableDeclarator(
-            lastVersion.getCommonType(), newName, StaticJavaParser.parseExpression(String.format("new Version(%s)", newExpr))));
+        return new FieldDeclaration(
+            new NodeList<>(lastVersion.getModifiers()),
+            new VariableDeclarator(
+                lastVersion.getCommonType(),
+                newName,
+                StaticJavaParser.parseExpression(String.format("new Version(%s)", newExpr))
+            )
+        );
     }
 
     private static void writeOutNewContents(Path file, CompilationUnit unit) throws IOException {

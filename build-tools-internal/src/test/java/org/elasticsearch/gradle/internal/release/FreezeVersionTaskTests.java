@@ -12,7 +12,6 @@ import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.FieldDeclaration;
-
 import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 
 import org.elasticsearch.gradle.Version;

@@ -210,6 +210,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
+        boolQuery.boost(this.boost);
+        boolQuery.queryName(this.queryName);
         return boolQuery;
     }
 

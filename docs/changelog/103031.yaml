@@ -4,5 +4,6 @@ area: ES|QL
 type: bug
 issues:
  - 100163
+ - 103028
  - 102871
  - 102982

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -27,6 +28,7 @@ import java.util.function.Function;
  */
 public class Random extends ScalarFunction implements EvaluatorMapper {
 
+    @FunctionInfo(returnType = "double", description = "Returns a random double between 0 (included) and 1 (excluded)")
     public Random(Source source) {
         super(source, List.of());
     }

@@ -157,7 +157,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         client.search(request.request, new ActionListener<>() {
             @Override
             public void onResponse(final SearchResponse searchResponse) {
-                searchResponse.incRef();
+                searchResponse.mustIncRef(); // acquire reference on behalf of MultiSearchResponse.Item below
                 handleResponse(request.responseSlot, new MultiSearchResponse.Item(searchResponse, null));
             }
 

@@ -51,7 +51,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -787,6 +786,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchResponse createFinalResponse() {
                 return searchResponseMerger.getMergedResponse(clusters);
             }
+
+            @Override
+            protected void releaseResponse(SearchResponse searchResponse) {
+                searchResponse.decRef();
+            }
         };
     }
 
@@ -1506,16 +1510,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     try {
                         originalListener.onResponse(response);
                     } finally {
-                        // TODO: can we do this nicer?
-                        if (response instanceof RefCounted refCounted) {
-                            refCounted.decRef();
-                        }
+                        releaseResponse(response);
                     }
                 } else {
                     originalListener.onFailure(exceptions.get());
                 }
             }
         }
+
+        protected void releaseResponse(FinalResponse response) {}
 
         abstract FinalResponse createFinalResponse();
     }

@@ -21,14 +21,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -523,24 +521,15 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         }
     }
 
-    static class TestWriter implements HealthPeriodicLogger.Writer {
+    public void testMetricsMode() {
         List<String> logs = new ArrayList<>();
         List<Long> metrics = new ArrayList<>();
 
-        public void write(ESLogMessage msg) {
-            logs.add(msg.asString());
-        }
-
-        public void write(LongGaugeMetric metric, long value) {
-            metrics.add(value);
-        }
-    }
-
-    public void testMetricsMode() {
-        TestWriter writer = new TestWriter();
-
         HealthService testHealthService = this.getMockedHealthService();
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true, writer);
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+
+        testHealthPeriodicLogger.metricWriter = (metric, value) -> metrics.add(value);
+        testHealthPeriodicLogger.logWriter = msg -> logs.add(msg.asString());
 
         // switch to Metrics only mode
         this.clusterSettings.applySettings(
@@ -559,13 +548,13 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             return null;
         }).when(spyHealthPeriodicLogger).tryToLogHealth();
 
-        assertEquals(0, writer.metrics.size());
+        assertEquals(0, metrics.size());
 
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
         spyHealthPeriodicLogger.triggered(event);
 
-        assertEquals(4, writer.metrics.size());
-
+        assertEquals(0, logs.size());
+        assertEquals(4, metrics.size());
     }
 
     private List<HealthIndicatorResult> getTestIndicatorResults() {
@@ -601,36 +590,10 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         HealthService testHealthService,
         boolean enabled
     ) {
-        return createAndInitHealthPeriodicLogger(clusterService, testHealthService, enabled, null);
-    }
-
-    private HealthPeriodicLogger createAndInitHealthPeriodicLogger(
-        ClusterService clusterService,
-        HealthService testHealthService,
-        boolean enabled,
-        HealthPeriodicLogger.Writer writer
-    ) {
         var provider = getMockedTelemetryProvider();
         var registry = getMockedMeterRegistry();
         doReturn(registry).when(provider).getMeterRegistry();
-        if (writer != null) {
-            testHealthPeriodicLogger = HealthPeriodicLogger.create(
-                Settings.EMPTY,
-                clusterService,
-                this.client,
-                testHealthService,
-                provider,
-                writer
-            );
-        } else {
-            testHealthPeriodicLogger = HealthPeriodicLogger.create(
-                Settings.EMPTY,
-                clusterService,
-                this.client,
-                testHealthService,
-                provider
-            );
-        }
+        testHealthPeriodicLogger = HealthPeriodicLogger.create(Settings.EMPTY, clusterService, this.client, testHealthService, provider);
         if (enabled) {
             clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
         }

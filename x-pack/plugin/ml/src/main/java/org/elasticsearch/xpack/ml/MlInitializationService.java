@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -202,7 +202,7 @@ public final class MlInitializationService implements ClusterStateListener {
                 .map(aliasAction -> aliasAction.indices()[0] + ": " + String.join(",", aliasAction.aliases()))
                 .collect(Collectors.joining("; "));
             logger.debug("The following ML internal aliases will now be made hidden: [{}]", indicesWithNonHiddenAliasesString);
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndicesAliasesAction.INSTANCE, indicesAliasesRequest, finalListener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndicesAliasesAction.TYPE, indicesAliasesRequest, finalListener);
         }, finalListener::onFailure);
 
         // Step 3: Once indices are hidden, fetch ML internal aliases to find out whether the aliases are hidden or not.

@@ -8,21 +8,21 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -838,7 +838,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.add().alias("alias1").indices("foo", "foofoo"));
         request.addAliasAction(AliasActions.add().alias("alias2").indices("foo", "foobar"));
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)).getLocal();
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME)).getLocal();
         // the union of all indices and aliases gets returned
         String[] expectedIndices = new String[] { "alias1", "alias2", "foo", "foofoo", "foobar" };
         assertSameValues(indices, expectedIndices);
@@ -852,7 +852,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.add().alias("alias1").indices("foo", "foofoo"));
         request.addAliasAction(AliasActions.add().alias("foofoobar").indices("foo", "foobar"));
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)).getLocal();
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME)).getLocal();
         // the union of all indices and aliases gets returned, foofoobar is an existing alias but that doesn't make any difference
         String[] expectedIndices = new String[] { "alias1", "foofoobar", "foo", "foofoo", "foobar" };
         assertSameValues(indices, expectedIndices);
@@ -866,7 +866,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.add().alias("alias1").indices("foo", "foofoo"));
         request.addAliasAction(AliasActions.add().alias("alias2").index("missing"));
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)).getLocal();
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME)).getLocal();
         // the union of all indices and aliases gets returned, missing is not an existing index/alias but that doesn't make any difference
         String[] expectedIndices = new String[] { "alias1", "alias2", "foo", "foofoo", "missing" };
         assertThat(indices, hasSize(expectedIndices.length));
@@ -881,7 +881,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.add().alias("foo-alias").index("foo*"));
         request.addAliasAction(AliasActions.add().alias("alias2").index("bar*"));
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)).getLocal();
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME)).getLocal();
         // the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
         String[] expectedIndices = new String[] { "foo-alias", "alias2", "foofoo", "bar" };
         assertThat(indices, hasSize(expectedIndices.length));
@@ -899,14 +899,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.addAliasAction(AliasActions.add().alias("alias2").index("bar*"));
         request.addAliasAction(AliasActions.add().alias("alias3").index("non_matching_*"));
         // if a single operation contains wildcards and ends up being resolved to no indices, it makes the whole request fail
-        expectThrows(IndexNotFoundException.class, () -> resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)));
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> resolveIndices(request, buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME))
+        );
     }
 
     public void testResolveAllIndicesAliasesRequest() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.add().alias("alias1").index("_all"));
         request.addAliasAction(AliasActions.add().alias("alias2").index("_all"));
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)).getLocal();
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME)).getLocal();
         // the union of all resolved indices and aliases gets returned
         String[] expectedIndices = new String[] { "bar", "foofoo", "alias1", "alias2" };
         assertSameValues(indices, expectedIndices);
@@ -924,7 +927,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // current user is not authorized for any index, _all resolves to no indices, the request fails
         expectThrows(
             IndexNotFoundException.class,
-            () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, IndicesAliasesAction.NAME))
+            () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, TransportIndicesAliasesAction.NAME))
         );
     }
 
@@ -934,7 +937,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // current user is not authorized for any index, foo* resolves to no indices, the request fails
         expectThrows(
             IndexNotFoundException.class,
-            () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, IndicesAliasesAction.NAME))
+            () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, TransportIndicesAliasesAction.NAME))
         );
     }
 
@@ -942,7 +945,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo").alias("foofoobar"));
         request.addAliasAction(AliasActions.remove().index("foofoo").alias("barbaz"));
-        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, IndicesAliasesAction.NAME);
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         // the union of all indices and aliases gets returned
         String[] expectedIndices = new String[] { "foo", "foofoobar", "foofoo", "barbaz" };
@@ -958,7 +961,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo").alias("foofoobar"));
         request.addAliasAction(AliasActions.remove().index("missing_index").alias("missing_alias"));
-        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, IndicesAliasesAction.NAME);
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         // the union of all indices and aliases gets returned, doesn't matter is some of them don't exist
         String[] expectedIndices = new String[] { "foo", "foofoobar", "missing_index", "missing_alias" };
@@ -974,7 +977,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo*").alias("foofoobar"));
         request.addAliasAction(AliasActions.remove().index("bar*").alias("barbaz"));
-        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, IndicesAliasesAction.NAME);
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         // union of all resolved indices and aliases gets returned, based on what user is authorized for
         String[] expectedIndices = new String[] { "foofoobar", "foofoo", "bar", "barbaz" };
@@ -991,7 +994,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("*").alias("foo*"));
         request.addAliasAction(AliasActions.remove().index("*bar").alias("foo*"));
-        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, IndicesAliasesAction.NAME);
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         // union of all resolved indices and aliases gets returned, based on what user is authorized for
         // note that the index side will end up containing matching aliases too, which is fine, as es core would do
@@ -1009,7 +1012,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("*").alias("_all"));
         request.addAliasAction(AliasActions.remove().index("_all").aliases("_all", "explicit"));
-        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, IndicesAliasesAction.NAME);
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         // union of all resolved indices and aliases gets returned, based on what user is authorized for
         // note that the index side will end up containing matching aliases too, which is fine, as es core would do
@@ -1027,7 +1030,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo*").alias("foo*"));
         request.addAliasAction(AliasActions.remove().index("*bar").alias("bar*"));
-        resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
+        resolveIndices(request, buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
         assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("*", "-*"));
     }
@@ -1036,7 +1039,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.removeIndex().index("foo*"));
         request.addAliasAction(AliasActions.removeIndex().index("*bar"));
-        resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
+        resolveIndices(request, buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME));
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoo"));
         assertThat(request.getAliasActions().get(0).aliases(), emptyArray());
         assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
@@ -1047,7 +1050,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo*").alias("foofoobar"));
         request.addAliasAction(AliasActions.add().index("bar*").alias("foofoobar"));
-        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, IndicesAliasesAction.NAME);
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportIndicesAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         // union of all resolved indices and aliases gets returned, based on what user is authorized for
         String[] expectedIndices = new String[] { "foofoobar", "foofoo", "bar" };
@@ -1514,7 +1517,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new Tuple<TransportRequest, String>(new SearchRequest("remote:foo").indicesOptions(options), TransportSearchAction.TYPE.name()),
             new Tuple<TransportRequest, String>(
                 new FieldCapabilitiesRequest().indices("remote:foo").indicesOptions(options),
-                FieldCapabilitiesAction.NAME
+                TransportFieldCapabilitiesAction.NAME
             ),
             new Tuple<TransportRequest, String>(
                 new GraphExploreRequest().indices("remote:foo").indicesOptions(options),
@@ -1534,7 +1537,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testNonRemotableRequestDoesNotAllowRemoteIndices() {
         IndicesOptions options = IndicesOptions.fromOptions(true, false, false, false);
         Tuple<TransportRequest, String> tuple = randomFrom(
-            new Tuple<TransportRequest, String>(new CloseIndexRequest("remote:foo").indicesOptions(options), CloseIndexAction.NAME),
+            new Tuple<TransportRequest, String>(
+                new CloseIndexRequest("remote:foo").indicesOptions(options),
+                TransportCloseIndexAction.NAME
+            ),
             new Tuple<TransportRequest, String>(new DeleteIndexRequest("remote:foo").indicesOptions(options), DeleteIndexAction.NAME),
             new Tuple<TransportRequest, String>(new PutMappingRequest("remote:foo").indicesOptions(options), PutMappingAction.NAME)
         );
@@ -1548,7 +1554,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testNonRemotableRequestDoesNotAllowRemoteWildcardIndices() {
         IndicesOptions options = IndicesOptions.fromOptions(randomBoolean(), true, true, true);
         Tuple<TransportRequest, String> tuple = randomFrom(
-            new Tuple<TransportRequest, String>(new CloseIndexRequest("*:*").indicesOptions(options), CloseIndexAction.NAME),
+            new Tuple<TransportRequest, String>(new CloseIndexRequest("*:*").indicesOptions(options), TransportCloseIndexAction.NAME),
             new Tuple<TransportRequest, String>(new DeleteIndexRequest("*:*").indicesOptions(options), DeleteIndexAction.NAME),
             new Tuple<TransportRequest, String>(new PutMappingRequest("*:*").indicesOptions(options), PutMappingAction.NAME)
         );
@@ -1604,7 +1610,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_MAIN_ALIAS));
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(
                 InternalUsers.XPACK_SECURITY_USER,
-                IndicesAliasesAction.NAME
+                TransportIndicesAliasesAction.NAME
             );
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
             assertThat(indices, hasItem(SECURITY_MAIN_ALIAS));
@@ -1640,7 +1646,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias1").index("*"));
-            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(allAccessUser, IndicesAliasesAction.NAME);
+            final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(allAccessUser, TransportIndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
             assertThat(indices, not(hasItem(SECURITY_MAIN_ALIAS)));
         }

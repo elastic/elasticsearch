@@ -14,7 +14,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -232,7 +232,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             String snapshotUpdate = "{ \"timestamp\": " + oneDayAgo + "}";
             UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + job.getId(), snapshotDocId);
             updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
-            client().execute(UpdateAction.INSTANCE, updateSnapshotRequest).get();
+            client().execute(TransportUpdateAction.TYPE, updateSnapshotRequest).get();
 
             // Now let's create some forecasts
             openJob(job.getId());

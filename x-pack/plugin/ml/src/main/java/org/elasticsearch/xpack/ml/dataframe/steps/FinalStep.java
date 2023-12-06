@@ -14,8 +14,8 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
@@ -83,7 +83,7 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
             IndexRequest indexRequest = new IndexRequest(MlStatsIndex.writeAlias()).id(DataCounts.documentId(config.getId()))
                 .setRequireAlias(true)
                 .source(builder);
-            executeAsyncWithOrigin(parentTaskClient(), ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
+            executeAsyncWithOrigin(parentTaskClient(), ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, listener);
         } catch (IOException e) {
             listener.onFailure(ExceptionsHelper.serverError("[{}] Error persisting final data counts", e, config.getId()));
         }

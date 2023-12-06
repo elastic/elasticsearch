@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
@@ -195,7 +195,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
                     ActionFilterChain<Request, Response> chain
                 ) {
 
-                    if (action.equals(FieldCapabilitiesAction.NAME)) {
+                    if (action.equals(TransportFieldCapabilitiesAction.NAME)) {
                         final Consumer<Response> actionWrapper = resp -> {
                             try {
                                 fieldCaps.incrementAndGet();

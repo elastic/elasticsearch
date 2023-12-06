@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -351,9 +351,9 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
         client().prepareGet("test1", "id").get();
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("index1", "id")::get, GetAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("index1", "id")::get, TransportGetAction.TYPE.name());
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("missing", "id")::get, GetAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("missing", "id")::get, TransportGetAction.TYPE.name());
 
         expectThrows(IndexNotFoundException.class, () -> client().prepareGet("test5", "id").get());
     }
@@ -374,7 +374,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         assertEquals("index1", multiGetResponse.getResponses()[1].getFailure().getIndex());
         assertAuthorizationExceptionDefaultUsers(
             multiGetResponse.getResponses()[1].getFailure().getFailure(),
-            MultiGetAction.NAME + "[shard]"
+            TransportMultiGetAction.NAME + "[shard]"
         );
         assertFalse(multiGetResponse.getResponses()[2].isFailed());
         assertEquals("test3", multiGetResponse.getResponses()[2].getResponse().getIndex());

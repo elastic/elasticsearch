@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -110,7 +110,7 @@ public class ClientHelperTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
-        ClientHelper.executeAsyncWithOrigin(client, origin, ClusterHealthAction.INSTANCE, new ClusterHealthRequest(), listener);
+        ClientHelper.executeAsyncWithOrigin(client, origin, TransportClusterHealthAction.TYPE, new ClusterHealthRequest(), listener);
 
         latch.await();
     }

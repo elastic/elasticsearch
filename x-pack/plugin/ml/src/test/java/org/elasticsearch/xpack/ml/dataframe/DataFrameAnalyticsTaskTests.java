@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.ml.dataframe;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
@@ -191,7 +191,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
+        doAnswer(withResponse(indexResponse)).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
 
         TaskManager taskManager = mock(TaskManager.class);
 
@@ -218,7 +218,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         InOrder inOrder = inOrder(client, runnable);
         inOrder.verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
-        inOrder.verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        inOrder.verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         inOrder.verify(runnable).run();
         inOrder.verifyNoMoreInteractions();
 
@@ -287,7 +287,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
+        doAnswer(withResponse(indexResponse)).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
 
         DataFrameAnalyticsTask task = new DataFrameAnalyticsTask(
             123,
@@ -316,7 +316,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             // Verify progress was persisted
             ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
             verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
-            verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+            verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
 
             IndexRequest indexRequest = indexRequestCaptor.getValue();
             assertThat(indexRequest.index(), equalTo(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));

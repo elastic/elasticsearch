@@ -21,9 +21,9 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -221,7 +221,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
         AtomicInteger chunkIndex = new AtomicInteger();
 
-        client.addHandler(IndexAction.INSTANCE, (IndexRequest request, ActionListener<DocWriteResponse> listener) -> {
+        client.addHandler(TransportIndexAction.TYPE, (IndexRequest request, ActionListener<DocWriteResponse> listener) -> {
             int chunk = chunkIndex.getAndIncrement();
             assertEquals(OpType.CREATE, request.opType());
             assertThat(request.id(), Matchers.startsWith("test_" + (chunk + 15) + "_"));

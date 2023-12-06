@@ -19,9 +19,9 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheActio
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,11 +47,11 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     private static final ActionType<?>[] ACTIONS = new ActionType<?>[] {
         // client actions
-        GetAction.INSTANCE,
+        TransportGetAction.TYPE,
         TransportSearchAction.TYPE,
-        DeleteAction.INSTANCE,
+        TransportDeleteAction.TYPE,
         DeleteStoredScriptAction.INSTANCE,
-        IndexAction.INSTANCE,
+        TransportIndexAction.TYPE,
 
         // cluster admin actions
         ClusterStatsAction.INSTANCE,
@@ -96,9 +96,9 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         // validation in the settings??? - ugly and conceptually wrong)
 
         // choosing arbitrary top level actions to test
-        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
+        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(TransportGetAction.TYPE.name(), client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(TransportSearchAction.TYPE.name(), client.threadPool()));
-        client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
+        client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(TransportDeleteAction.NAME, client.threadPool()));
         client.admin()
             .cluster()
             .prepareDeleteStoredScript("id")
@@ -106,7 +106,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareIndex("idx")
             .setId("id")
             .setSource("source", XContentType.JSON)
-            .execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportIndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
         client.admin().cluster().prepareClusterStats().execute(new AssertingActionListener<>(ClusterStatsAction.NAME, client.threadPool()));
@@ -132,7 +132,8 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         expected.put("key1", key1Val);
         expected.put("key2", "val 2");
         client.threadPool().getThreadContext().putHeader("key1", key1Val);
-        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, expected, client.threadPool()));
+        client.prepareGet("idx", "id")
+            .execute(new AssertingActionListener<>(TransportGetAction.TYPE.name(), expected, client.threadPool()));
 
         client.admin()
             .cluster()

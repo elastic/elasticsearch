@@ -17,6 +17,6 @@ public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRe
     PendingClusterTasksRequestBuilder> {
 
     public PendingClusterTasksRequestBuilder(ElasticsearchClient client) {
-        super(client, PendingClusterTasksAction.INSTANCE, new PendingClusterTasksRequest());
+        super(client, TransportPendingClusterTasksAction.TYPE, new PendingClusterTasksRequest());
     }
 }

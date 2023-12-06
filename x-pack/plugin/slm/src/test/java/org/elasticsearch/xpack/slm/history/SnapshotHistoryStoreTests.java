@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.slm.history;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_IND
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class SnapshotHistoryStoreTests extends ESTestCase {
@@ -102,7 +103,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(IndexAction.class));
+                assertThat(action, sameInstance(TransportIndexAction.TYPE));
                 assertThat(request, instanceOf(IndexRequest.class));
                 IndexRequest indexRequest = (IndexRequest) request;
                 assertEquals(SLM_HISTORY_DATA_STREAM, indexRequest.index());
@@ -140,7 +141,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                     return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
                 }
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(IndexAction.class));
+                assertThat(action, sameInstance(TransportIndexAction.TYPE));
                 assertThat(request, instanceOf(IndexRequest.class));
                 IndexRequest indexRequest = (IndexRequest) request;
                 assertEquals(SLM_HISTORY_DATA_STREAM, indexRequest.index());

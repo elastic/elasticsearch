@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Tuple;
@@ -185,7 +185,7 @@ public final class SchemaUtil {
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
-            FieldCapabilitiesAction.INSTANCE,
+            TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(r -> listener.onResponse(extractFieldMappings(r)), listener::onFailure)
         );
@@ -270,7 +270,7 @@ public final class SchemaUtil {
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            FieldCapabilitiesAction.INSTANCE,
+            TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)
         );

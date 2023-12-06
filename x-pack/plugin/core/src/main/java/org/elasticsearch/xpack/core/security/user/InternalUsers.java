@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -189,7 +189,7 @@ public class InternalUsers {
             null,
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(ReloadAnalyzerAction.NAME).build(), },
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(TransportReloadAnalyzersAction.TYPE.name()).build(), },
             null,
             null,
             null,

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.store;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
@@ -298,7 +298,14 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".metrics-endpoint.metadata_current_default*",
                         ".metrics-endpoint.metadata_united_default*"
                     )
-                    .privileges("create_index", "delete_index", "read", "index", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
+                    .privileges(
+                        "create_index",
+                        "delete_index",
+                        "read",
+                        "index",
+                        TransportIndicesAliasesAction.NAME,
+                        UpdateSettingsAction.NAME
+                    )
                     .build(),
                 // For destination indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -310,7 +317,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "index",
                         "delete",
                         "manage",
-                        IndicesAliasesAction.NAME,
+                        TransportIndicesAliasesAction.NAME,
                         UpdateSettingsAction.NAME
                     )
                     .build(),
@@ -334,7 +341,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "read",
                         "index",
                         "view_index_metadata",
-                        IndicesAliasesAction.NAME,
+                        TransportIndicesAliasesAction.NAME,
                         UpdateSettingsAction.NAME
                     )
                     .build(),
@@ -349,7 +356,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-cloud_security_posture.scores-default*",
                         "logs-cloud_security_posture.vulnerabilities_latest-default*"
                     )
-                    .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
+                    .privileges("create_index", "read", "index", "delete", TransportIndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder()

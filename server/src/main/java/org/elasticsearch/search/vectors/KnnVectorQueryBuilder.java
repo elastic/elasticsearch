@@ -97,8 +97,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final List<QueryBuilder> filterQueries = new ArrayList<>();
     private final Float vectorSimilarity;
 
-    private Integer neighbors;
-
     public KnnVectorQueryBuilder(String fieldName, float[] queryVector, Integer numCands, Float vectorSimilarity) {
         if (numCands != null && numCands > NUM_CANDS_LIMIT) {
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
@@ -172,11 +170,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return this;
     }
 
-    public KnnVectorQueryBuilder neighbors(Integer neighbors) {
-        this.neighbors = neighbors;
-        return this;
-    }
-
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
@@ -184,9 +177,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             out.writeOptionalVInt(numCands);
         } else {
             if (numCands == null) {
-                throw new IllegalArgumentException(
-                    "[" + NUM_CANDS_FIELD.getPreferredName() + "] must be provided and be greater or equal to [size]"
-                );
+                throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] field cannot be null");
             } else {
                 out.writeVInt(numCands);
             }
@@ -260,8 +251,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         int requestSize = context.requestSize() == null ? DEFAULT_SIZE : context.requestSize();
-        int adjustedSize = neighbors == null ? requestSize : neighbors;
-        int adjustedNumCands = numCands == null ? Math.min(Math.max(100, adjustedSize), NUM_CANDS_LIMIT) : numCands;
+        int adjustedNumCands = numCands == null ? Math.min(Math.max(100, requestSize), NUM_CANDS_LIMIT) : numCands;
         if (fieldType == null) {
             throw new IllegalArgumentException("field [" + fieldName + "] does not exist in the mapping");
         }

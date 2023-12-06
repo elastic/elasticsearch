@@ -78,9 +78,9 @@ setup:
           knn:
             field: vector
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
-            k: 3
+            k: 2
 
-  - match: {hits.total: 3}
+  - match: {hits.total: 2}
 
 ---
 "kNN search with missing both k and num_candidates param - default size":
@@ -112,7 +112,7 @@ setup:
   - match: {hits.total: 2}
 
 ---
-"kNN search with missing k, bigger num_candidate & smaller size":
+"kNN search with missing k, and num_candidates < size":
 
   - do:
       catch: bad_request
@@ -124,5 +124,20 @@ setup:
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
             num_candidates: 2
           size: 10
+
+  - match: { status: 400 }
+
+---
+"kNN search with missing k, default size, and invalid num_candidates":
+
+  - do:
+      catch: bad_request
+      search:
+        index: knn_search_test_index
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            num_candidates: 2
 
   - match: { status: 400 }

@@ -353,9 +353,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
             );
         }
-        return new KnnVectorQueryBuilder(field, queryVector, adjustedNumCands, similarity).boost(boost)
-            .addFilterQueries(filterQueries)
-            .neighbors(adjustedK);
+        return new KnnVectorQueryBuilder(field, queryVector, adjustedNumCands, similarity).boost(boost).addFilterQueries(filterQueries);
     }
 
     @Override

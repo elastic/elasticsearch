@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -75,6 +77,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -107,11 +110,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
-        return verify(execute(plan));
+        BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
+        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
-    public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
+    public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
+        Collection<Failure> failures = verifier.verify(plan, partialMetrics);
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
@@ -701,5 +705,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             return result;
         }
+    }
+
+    private BitSet gatherPreAnalysisMetrics(LogicalPlan plan, BitSet b) {
+        // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
+        if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
+            b.set(LIMIT.ordinal());
+        }
+        plan.forEachDown(p -> FeatureMetric.set(p, b));
+        return b;
     }
 }

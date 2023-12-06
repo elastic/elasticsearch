@@ -121,7 +121,7 @@ and the `output_field` that will contain the {infer} results.
 ////
 [source,console]
 ----
-DELETE _ingest/pipeline/elser-v2-test
+DELETE _ingest/pipeline/openai_embeddings
 ----
 // TEST[continued]
 ////

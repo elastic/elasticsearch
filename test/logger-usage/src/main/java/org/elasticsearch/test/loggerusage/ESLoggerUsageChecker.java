@@ -267,44 +267,44 @@ public class ESLoggerUsageChecker {
                         } else if (argumentTypes.length == 2
                             && argumentTypes[0].equals(STRING_CLASS)
                             && argumentTypes[1].equals(OBJECT_CLASS)) {
-                            checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, 0, 1);
-                        } else if (argumentTypes.length == 3
-                            && argumentTypes[0].equals(STRING_CLASS)
-                            && argumentTypes[1].equals(OBJECT_CLASS)
-                            && argumentTypes[2].equals(OBJECT_CLASS)) {
-                            checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, 0, 2);
-                        } else if (argumentTypes.length == 3
-                            && argumentTypes[0].equals(STRING_CLASS)
-                            && argumentTypes[1].equals(OBJECT_ARRAY_CLASS)
-                            && argumentTypes[2].equals(THROWABLE_CLASS)) {
-                            checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, 0, 1);
-                        } else if (argumentTypes.length == 3
-                            && argumentTypes[0].equals(STRING_CLASS)
-                            && argumentTypes[1].equals(STRING_ARRAY_CLASS)
-                            && argumentTypes[2].equals(THROWABLE_CLASS)) {
-                            checkArrayArgs(
-                                methodNode,
-                                logMessageFrames[i],
-                                arraySizeFrames[i],
-                                lineNumber,
-                                methodInsn,
-                                0,
-                                1
-                            );
-                        } else {
-                            throw new IllegalStateException(
-                                "Constructor invoked on "
-                                    + objectType
-                                    + " that is not supported by logger usage checker"
-                                    + new WrongLoggerUsage(
-                                        className,
-                                        methodNode.name,
-                                        methodInsn.name,
-                                        lineNumber,
-                                        "Constructor: " + Arrays.toString(argumentTypes)
-                                    )
-                            );
-                        }
+                                checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, 0, 1);
+                            } else if (argumentTypes.length == 3
+                                && argumentTypes[0].equals(STRING_CLASS)
+                                && argumentTypes[1].equals(OBJECT_CLASS)
+                                && argumentTypes[2].equals(OBJECT_CLASS)) {
+                                    checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, 0, 2);
+                                } else if (argumentTypes.length == 3
+                                    && argumentTypes[0].equals(STRING_CLASS)
+                                    && argumentTypes[1].equals(OBJECT_ARRAY_CLASS)
+                                    && argumentTypes[2].equals(THROWABLE_CLASS)) {
+                                        checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, 0, 1);
+                                    } else if (argumentTypes.length == 3
+                                        && argumentTypes[0].equals(STRING_CLASS)
+                                        && argumentTypes[1].equals(STRING_ARRAY_CLASS)
+                                        && argumentTypes[2].equals(THROWABLE_CLASS)) {
+                                            checkArrayArgs(
+                                                methodNode,
+                                                logMessageFrames[i],
+                                                arraySizeFrames[i],
+                                                lineNumber,
+                                                methodInsn,
+                                                0,
+                                                1
+                                            );
+                                        } else {
+                                            throw new IllegalStateException(
+                                                "Constructor invoked on "
+                                                    + objectType
+                                                    + " that is not supported by logger usage checker"
+                                                    + new WrongLoggerUsage(
+                                                        className,
+                                                        methodNode.name,
+                                                        methodInsn.name,
+                                                        lineNumber,
+                                                        "Constructor: " + Arrays.toString(argumentTypes)
+                                                    )
+                                            );
+                                        }
                     }
                 } else if (insn.getOpcode() == Opcodes.INVOKEVIRTUAL) {
                     // using strings because this test do not depend on server
@@ -362,18 +362,17 @@ public class ESLoggerUsageChecker {
             } else if (lengthWithoutMarker >= 2
                 && argumentTypes[markerOffset + 0].equals(STRING_CLASS)
                 && argumentTypes[markerOffset + 1].equals(OBJECT_CLASS)) {
-                // MULTI-PARAM METHOD: debug(Marker?, String, Object p0, ...)
-                checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, lengthWithoutMarker - 1);
-            } else if (lengthWithoutMarker == 1
-                || (lengthWithoutMarker == 2
-                    && argumentTypes[markerOffset + 1].equals(THROWABLE_CLASS))) {
-                // all the rest: debug(Marker?, (Message|MessageSupplier|CharSequence|Object|String|Supplier), Throwable?)
-                checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, 0);
-            } else {
-                throw new IllegalStateException(
-                    "Method invoked on " + LOGGER_CLASS.getClassName() + " that is not supported by logger usage checker"
-                );
-            }
+                    // MULTI-PARAM METHOD: debug(Marker?, String, Object p0, ...)
+                    checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, lengthWithoutMarker - 1);
+                } else if (lengthWithoutMarker == 1
+                    || (lengthWithoutMarker == 2 && argumentTypes[markerOffset + 1].equals(THROWABLE_CLASS))) {
+                        // all the rest: debug(Marker?, (Message|MessageSupplier|CharSequence|Object|String|Supplier), Throwable?)
+                        checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, 0);
+                    } else {
+                        throw new IllegalStateException(
+                            "Method invoked on " + LOGGER_CLASS.getClassName() + " that is not supported by logger usage checker"
+                        );
+                    }
         }
 
         private void checkFixedArityArgs(

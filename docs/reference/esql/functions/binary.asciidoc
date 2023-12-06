@@ -2,6 +2,13 @@
 [[esql-binary-operators]]
 === Binary operators
 
+==== Arithmetic Operators
+===== Addition
+Addition is supported via the `+` symbol for numeric and date datatypes.  The following table describes the output type for all valid input combinations:
+include::types/addition.asciidoc
+
+==== Comparison Operators
+
 These binary comparison operators are supported:
 
 * equality: `==`

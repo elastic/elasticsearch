@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -114,7 +114,8 @@ public abstract class DocumentParserContext {
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
-        AtomicInteger dynamicMapperSize) {
+        AtomicInteger dynamicMapperSize
+    ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
@@ -150,7 +151,8 @@ public abstract class DocumentParserContext {
             dynamic,
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
-            in.dynamicMappersSize);
+            in.dynamicMappersSize
+        );
     }
 
     protected DocumentParserContext(
@@ -176,7 +178,8 @@ public abstract class DocumentParserContext {
             dynamic,
             new HashSet<>(),
             new HashSet<>(),
-            new AtomicInteger(0));
+            new AtomicInteger(0)
+        );
     }
 
     public final IndexSettings indexSettings() {

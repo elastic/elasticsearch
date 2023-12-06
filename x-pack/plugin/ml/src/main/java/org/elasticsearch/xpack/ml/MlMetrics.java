@@ -38,6 +38,19 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD;
 
+/**
+ * This class adds two types of ML metrics to the meter registry, such that they can be collected by Elastic APM.
+ *
+ * 1. Per-node ML native memory statistics for ML nodes
+ * 2. Cluster-wide job/model statuses for master-eligible nodes
+ *
+ * The memory metrics relate solely to the ML node they are collected from.
+ *
+ * The job/model metrics are cluster-wide because a key problem we want to be able to detect is when there are
+ * jobs or models that are not assigned to any node. The consumer of the data needs to account for the fact that
+ * multiple master-eligible nodes are reporting the same information. The is_master attribute in the records
+ * indicates which one was actually master, so can be used to deduplicate.
+ */
 public class MlMetrics implements ClusterStateListener {
 
     private final ClusterService clusterService;
@@ -217,6 +230,11 @@ public class MlMetrics implements ClusterStateListener {
         );
     }
 
+    /**
+     * Metric values are recalculated in response to cluster state changes and then cached.
+     * This means that the telemetry provider can poll the metrics registry as often as it
+     * likes without causing extra work in recalculating the metric values.
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         isMasterMap = event.localNodeMaster() ? MASTER_TRUE_MAP : MASTER_FALSE_MAP;
@@ -226,14 +244,16 @@ public class MlMetrics implements ClusterStateListener {
             return;
         }
 
-        boolean recalculateFreeMem = false;
+        boolean mustRecalculateFreeMem = false;
 
         final ClusterState currentState = event.state();
         final ClusterState previousState = event.previousState();
 
         if (firstTime || event.metadataChanged()) {
             final PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            final PersistentTasksCustomMetadata oldTasks = previousState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            final PersistentTasksCustomMetadata oldTasks = firstTime
+                ? null
+                : previousState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             if (tasks != null && tasks.equals(oldTasks) == false) {
                 if (hasMasterRole) {
                     mlTaskStatusCounts = findTaskStatuses(tasks);
@@ -241,43 +261,60 @@ public class MlMetrics implements ClusterStateListener {
                 if (hasMlRole) {
                     nativeMemAdUsage = findAdMemoryUsage(autodetectProcessManager);
                     nativeMemDfaUsage = findDfaMemoryUsage(dataFrameAnalyticsManager, tasks);
-                    recalculateFreeMem = true;
+                    mustRecalculateFreeMem = true;
                 }
             }
         }
 
         final TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
-        final TrainedModelAssignmentMetadata previousMetadata = TrainedModelAssignmentMetadata.fromState(previousState);
+        final TrainedModelAssignmentMetadata previousMetadata = firstTime ? null : TrainedModelAssignmentMetadata.fromState(previousState);
         if (currentMetadata != null && currentMetadata.equals(previousMetadata) == false) {
             if (hasMasterRole) {
                 trainedModelAllocationCounts = findTrainedModelAllocationCounts(currentMetadata);
             }
             if (hasMlRole) {
                 nativeMemTrainedModelUsage = findTrainedModelMemoryUsage(currentMetadata, currentState.nodes().getLocalNode().getId());
-                recalculateFreeMem = true;
+                mustRecalculateFreeMem = true;
             }
         }
 
         if (firstTime) {
             firstTime = false;
             nativeMemLimit = findNativeMemoryLimit(currentState.nodes().getLocalNode(), clusterService.getClusterSettings());
-            recalculateFreeMem = true;
+            mustRecalculateFreeMem = true;
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(USE_AUTO_MACHINE_MEMORY_PERCENT, s -> memoryLimitClusterSettingUpdated());
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, s -> memoryLimitClusterSettingUpdated());
         }
 
-        if (recalculateFreeMem) {
+        if (mustRecalculateFreeMem) {
             nativeMemFree = findNativeMemoryFree(nativeMemLimit, nativeMemAdUsage, nativeMemDfaUsage, nativeMemTrainedModelUsage);
         }
     }
 
+    /**
+     * This method is registered to be called whenever a cluster setting is changed that affects
+     * any of the calculations this class performs.
+     */
     private void memoryLimitClusterSettingUpdated() {
         nativeMemLimit = findNativeMemoryLimit(clusterService.localNode(), clusterService.getClusterSettings());
         nativeMemFree = findNativeMemoryFree(nativeMemLimit, nativeMemAdUsage, nativeMemDfaUsage, nativeMemTrainedModelUsage);
     }
 
+    /**
+     * Returns up-to-date stats about the states of the ML entities that are persistent tasks.
+     * Currently this includes:
+     * - Anomaly detection jobs
+     * - Datafeeds
+     * - Data frame analytics jobs
+     *
+     * In the future it could possibly also include model snapshot upgrade tasks.
+     *
+     * These stats relate to the whole cluster and <em>not</em> just the current node.
+     *
+     * The caller is expected to cache the returned stats to avoid unnecessary recalculation.
+     */
     static MlTaskStatusCounts findTaskStatuses(PersistentTasksCustomMetadata tasks) {
 
         int adOpeningCount = 0;
@@ -345,22 +382,37 @@ public class MlMetrics implements ClusterStateListener {
         );
     }
 
+    /**
+     * Return the memory usage, in bytes, of the anomaly detection jobs that are running on the
+     * current node.
+     */
     static long findAdMemoryUsage(AutodetectProcessManager autodetectProcessManager) {
         return autodetectProcessManager.getOpenProcessMemoryUsage().getBytes();
     }
 
+    /**
+     * Return the memory usage, in bytes, of the data frame analytics jobs that are running on the
+     * current node.
+     */
     static long findDfaMemoryUsage(DataFrameAnalyticsManager dataFrameAnalyticsManager, PersistentTasksCustomMetadata tasks) {
         return dataFrameAnalyticsManager.getActiveTaskMemoryUsage(tasks).getBytes();
     }
 
+    /**
+     * Returns up-to-date stats about the numbers of allocations of ML trained models.
+     *
+     * These stats relate to the whole cluster and <em>not</em> just the current node.
+     *
+     * The caller is expected to cache the returned stats to avoid unnecessary recalculation.
+     */
     static TrainedModelAllocationCounts findTrainedModelAllocationCounts(TrainedModelAssignmentMetadata metadata) {
         int trainedModelsTargetAllocations = 0;
         int trainedModelsCurrentAllocations = 0;
         int trainedModelsFailedAllocations = 0;
 
         for (TrainedModelAssignment trainedModelAssignment : metadata.allAssignments().values()) {
-            trainedModelsTargetAllocations += trainedModelAssignment.totalCurrentAllocations();
-            trainedModelsCurrentAllocations += trainedModelAssignment.totalTargetAllocations();
+            trainedModelsTargetAllocations += trainedModelAssignment.totalTargetAllocations();
+            trainedModelsCurrentAllocations += trainedModelAssignment.totalCurrentAllocations();
             trainedModelsFailedAllocations += trainedModelAssignment.totalFailedAllocations();
         }
 
@@ -371,6 +423,10 @@ public class MlMetrics implements ClusterStateListener {
         );
     }
 
+    /**
+     * Return the memory usage, in bytes, of the trained models that are running on the
+     * current node.
+     */
     static long findTrainedModelMemoryUsage(TrainedModelAssignmentMetadata metadata, String localNodeId) {
         long trainedModelMemoryUsageBytes = 0;
         for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
@@ -384,12 +440,20 @@ public class MlMetrics implements ClusterStateListener {
         return trainedModelMemoryUsageBytes;
     }
 
+    /**
+     * Return the maximum amount of memory, in bytes, permitted for ML processes running on the
+     * current node.
+     */
     static long findNativeMemoryLimit(DiscoveryNode localNode, ClusterSettings settings) {
         return NativeMemoryCalculator.allowedBytesForMl(localNode, settings).orElse(0L);
     }
 
+    /**
+     * Return the amount of free memory, in bytes, that remains available for ML processes running on the
+     * current node.
+     */
     static long findNativeMemoryFree(long nativeMemLimit, long nativeMemAdUsage, long nativeMemDfaUsage, long nativeMemTrainedModelUsage) {
-        long totalUsage = nativeMemAdUsage - nativeMemDfaUsage - nativeMemTrainedModelUsage;
+        long totalUsage = nativeMemAdUsage + nativeMemDfaUsage + nativeMemTrainedModelUsage;
         if (totalUsage > 0) {
             totalUsage += NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
         }

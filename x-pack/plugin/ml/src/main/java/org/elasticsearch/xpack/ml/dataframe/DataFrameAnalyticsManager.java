@@ -79,7 +79,7 @@ public class DataFrameAnalyticsManager {
     /** Indicates whether the node is shutting down. */
     private final AtomicBoolean nodeShuttingDown = new AtomicBoolean();
 
-    private final Map<String, ByteSizeValue> memoryLimitById = new ConcurrentHashMap<>();
+    private final Map<String, ByteSizeValue> memoryLimitById;
 
     public DataFrameAnalyticsManager(
         Settings settings,
@@ -94,6 +94,37 @@ public class DataFrameAnalyticsManager {
         ModelLoadingService modelLoadingService,
         String[] destIndexAllowedSettings
     ) {
+        this(
+            settings,
+            client,
+            threadPool,
+            clusterService,
+            configProvider,
+            processManager,
+            auditor,
+            expressionResolver,
+            resultsPersisterService,
+            modelLoadingService,
+            destIndexAllowedSettings,
+            new ConcurrentHashMap<>()
+        );
+    }
+
+    // For testing only
+    public DataFrameAnalyticsManager(
+        Settings settings,
+        NodeClient client,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        DataFrameAnalyticsConfigProvider configProvider,
+        AnalyticsProcessManager processManager,
+        DataFrameAnalyticsAuditor auditor,
+        IndexNameExpressionResolver expressionResolver,
+        ResultsPersisterService resultsPersisterService,
+        ModelLoadingService modelLoadingService,
+        String[] destIndexAllowedSettings,
+        Map<String, ByteSizeValue> memoryLimitById
+    ) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -105,6 +136,7 @@ public class DataFrameAnalyticsManager {
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
         this.destIndexAllowedSettings = Objects.requireNonNull(destIndexAllowedSettings);
+        this.memoryLimitById = Objects.requireNonNull(memoryLimitById);
     }
 
     public void execute(DataFrameAnalyticsTask task, ClusterState clusterState, TimeValue masterNodeTimeout) {

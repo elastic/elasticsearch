@@ -676,6 +676,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
         private final AtomicInteger expectedSlices;
+        private final AtomicInteger totalInlineFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraceDetails");
 
         private DetailsHandler(
@@ -706,7 +707,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     if (stackFrames.containsKey(frame.getId()) == false) {
                         StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
                         if (stackFrame.isEmpty() == false) {
-                            stackFrames.putIfAbsent(frame.getId(), stackFrame);
+                            if (stackFrames.putIfAbsent(frame.getId(), stackFrame) == null) {
+                                totalInlineFrames.addAndGet(stackFrame.size() - 1); // -1 to only count inlined frames
+                            }
                         } else {
                             log.trace("Stack frame with id [{}] has no properties.", frame.getId());
                         }
@@ -745,6 +748,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
+                builder.totalFrames += totalInlineFrames.get();
                 log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
                 log.debug(watch::report);
                 submitListener.onResponse(builder.build());

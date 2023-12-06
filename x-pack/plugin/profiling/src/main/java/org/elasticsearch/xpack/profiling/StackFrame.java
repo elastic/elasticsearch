@@ -30,9 +30,12 @@ final class StackFrame implements ToXContentObject {
         this.lineNumber = listOf(lineNumber);
     }
 
+    public int size() {
+        return this.functionName.size(); // functionName is the only array that is always set
+    }
+
     public void forEach(Consumer<Frame> action) {
-        int size = this.functionName.size(); // functionName is the only array that is always set
-        for (int i = 0; i < size; i++) {
+        for (int i = 0; i < size(); i++) {
             action.accept(
                 new Frame(
                     fileName.size() > i ? fileName.get(i) : "",
@@ -40,7 +43,7 @@ final class StackFrame implements ToXContentObject {
                     functionOffset.size() > i ? functionOffset.get(i) : 0,
                     lineNumber.size() > i ? lineNumber.get(i) : 0,
                     i > 0,
-                    i == size - 1
+                    i == size() - 1
                 )
             );
         }
@@ -67,7 +70,7 @@ final class StackFrame implements ToXContentObject {
     }
 
     public boolean isEmpty() {
-        return fileName.isEmpty() && functionName.isEmpty() && functionOffset.isEmpty() && lineNumber.isEmpty();
+        return size() == 0;
     }
 
     @Override

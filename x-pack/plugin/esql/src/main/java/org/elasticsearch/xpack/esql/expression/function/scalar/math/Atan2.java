@@ -85,9 +85,9 @@ public class Atan2 extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var yEval = Cast.cast(y.dataType(), DataTypes.DOUBLE, toEvaluator.apply(y));
-        var xEval = Cast.cast(x.dataType(), DataTypes.DOUBLE, toEvaluator.apply(x));
-        return new Atan2Evaluator.Factory(yEval, xEval);
+        var yEval = Cast.cast(source(), y.dataType(), DataTypes.DOUBLE, toEvaluator.apply(y));
+        var xEval = Cast.cast(source(), x.dataType(), DataTypes.DOUBLE, toEvaluator.apply(x));
+        return new Atan2Evaluator.Factory(source(), yEval, xEval);
     }
 
     @Override

@@ -24,12 +24,14 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -146,6 +148,26 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         Mockito.reset(connection);
         wrappedConnection.sendRequest(requestId, anotherAction, request, options);
         verify(connection).sendRequest(requestId, anotherAction, request, options);
+    }
+
+    public void testWrapAndResolveConnectionRoundTrip() {
+        final Transport.Connection connection = mock(Transport.Connection.class);
+        final String clusterAlias = randomAlphaOfLengthBetween(3, 8);
+        final RemoteClusterCredentialsManager credentialsResolver = mock(RemoteClusterCredentialsManager.class);
+        final SecureString credentials = new SecureString(randomAlphaOfLength(42));
+        // second credential will never be resolved
+        when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(credentials, (SecureString) null);
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+            connection,
+            clusterAlias,
+            credentialsResolver
+        );
+
+        final Optional<RemoteConnectionManager.RemoteClusterAliasWithCredentials> actual = RemoteConnectionManager
+            .resolveRemoteClusterAliasWithCredentials(wrappedConnection);
+
+        assertThat(actual.isPresent(), is(true));
+        assertThat(actual.get(), equalTo(new RemoteConnectionManager.RemoteClusterAliasWithCredentials(clusterAlias, credentials)));
     }
 
     private static class TestRemoteConnection extends CloseableConnection {

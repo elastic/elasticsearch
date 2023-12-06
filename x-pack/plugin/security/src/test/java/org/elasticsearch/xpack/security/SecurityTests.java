@@ -877,6 +877,23 @@ public class SecurityTests extends ESTestCase {
                     + "Please either enable security or remove these settings from the keystore."
             )
         );
+
+        // Security off, remote cluster with credentials on reload call
+        final MockSecureSettings secureSettings5 = new MockSecureSettings();
+        secureSettings5.setString("cluster.remote.my1.credentials", randomAlphaOfLength(20));
+        secureSettings5.setString("cluster.remote.my2.credentials", randomAlphaOfLength(20));
+        final Settings.Builder builder5 = Settings.builder().setSecureSettings(secureSettings5);
+        // Use builder with security disabled to construct valid Security instance
+        final var security = new Security(builder2.build());
+        final IllegalArgumentException e5 = expectThrows(IllegalArgumentException.class, () -> security.reload(builder5.build()));
+        assertThat(
+            e5.getMessage(),
+            containsString(
+                "Found [2] remote clusters with credentials [cluster.remote.my1.credentials,cluster.remote.my2.credentials]. "
+                    + "Security [xpack.security.enabled] must be enabled to connect to them. "
+                    + "Please either enable security or remove these settings from the keystore."
+            )
+        );
     }
 
     public void testLoadExtensions() throws Exception {

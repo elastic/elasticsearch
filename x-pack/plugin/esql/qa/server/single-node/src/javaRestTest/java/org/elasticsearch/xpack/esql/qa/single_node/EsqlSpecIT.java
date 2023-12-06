@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102982")
 public class EsqlSpecIT extends EsqlSpecTestCase {
     public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
         super(fileName, groupName, testName, lineNumber, testCase);

@@ -58,9 +58,11 @@ public class RepositoriesModuleTests extends ESTestCase {
     }
 
     public void testCanRegisterTwoRepositoriesWithDifferentTypes() {
-        when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings))
+        when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
+            RepositoriesMetrics.NOOP))
             .thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings))
+        when(plugin2.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
+            RepositoriesMetrics.NOOP))
             .thenReturn(Collections.singletonMap("type2", factory));
 
         // Would throw
@@ -75,9 +77,11 @@ public class RepositoriesModuleTests extends ESTestCase {
     }
 
     public void testCannotRegisterTwoRepositoriesWithSameTypes() {
-        when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings))
+        when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
+            RepositoriesMetrics.NOOP))
             .thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings))
+        when(plugin2.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
+            RepositoriesMetrics.NOOP))
             .thenReturn(Collections.singletonMap("type1", factory));
 
         IllegalArgumentException ex = expectThrows(
@@ -119,7 +123,8 @@ public class RepositoriesModuleTests extends ESTestCase {
     }
 
     public void testCannotRegisterNormalAndInternalRepositoriesWithSameTypes() {
-        when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings))
+        when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
+            RepositoriesMetrics.NOOP))
             .thenReturn(Collections.singletonMap("type1", factory));
         when(plugin2.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
             Collections.singletonMap("type1", factory)

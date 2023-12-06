@@ -32,9 +32,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongHistogram;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -53,13 +51,6 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_HISTOGRAM;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_OPERATIONS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_THROTTLES_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_THROTTLES_HISTOGRAM;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_UNSUCCESSFUL_OPERATIONS_COUNT;
 
 class S3BlobStore implements BlobStore {
 
@@ -89,14 +80,7 @@ class S3BlobStore implements BlobStore {
 
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
-    private final MeterRegistry meterRegistry;
-    private final LongCounter requestCounter;
-    private final LongCounter exceptionCounter;
-    private final LongCounter throttleCounter;
-    private final LongCounter operationCounter;
-    private final LongCounter unsuccessfulOperationCounter;
-    private final LongHistogram exceptionHistogram;
-    private final LongHistogram throttleHistogram;
+    private final RepositoriesMetrics repositoriesMetrics;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
@@ -114,7 +98,7 @@ class S3BlobStore implements BlobStore {
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
-        MeterRegistry meterRegistry
+        RepositoriesMetrics repositoriesMetrics
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -126,14 +110,7 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        this.meterRegistry = meterRegistry;
-        this.requestCounter = this.meterRegistry.getLongCounter(METRIC_REQUESTS_COUNT);
-        this.exceptionCounter = this.meterRegistry.getLongCounter(METRIC_EXCEPTIONS_COUNT);
-        this.throttleCounter = this.meterRegistry.getLongCounter(METRIC_THROTTLES_COUNT);
-        this.operationCounter = this.meterRegistry.getLongCounter(METRIC_OPERATIONS_COUNT);
-        this.unsuccessfulOperationCounter = this.meterRegistry.getLongCounter(METRIC_UNSUCCESSFUL_OPERATIONS_COUNT);
-        this.exceptionHistogram = this.meterRegistry.getLongHistogram(METRIC_EXCEPTIONS_HISTOGRAM);
-        this.throttleHistogram = this.meterRegistry.getLongHistogram(METRIC_THROTTLES_HISTOGRAM);
+        this.repositoriesMetrics = repositoriesMetrics;
         s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
         threadPool.scheduleWithFixedDelay(() -> {
             var priorRetryStats = s3RequestRetryStats;
@@ -210,19 +187,19 @@ class S3BlobStore implements BlobStore {
                 .map(List::size)
                 .orElse(0);
 
-            operationCounter.incrementBy(1, attributes);
+            repositoriesMetrics.getOperationCounter().incrementBy(1, attributes);
             if (numberOfAwsErrors == requestCount) {
-                unsuccessfulOperationCounter.incrementBy(1, attributes);
+                repositoriesMetrics.getUnsuccessfulOperationCounter().incrementBy(1, attributes);
             }
 
-            requestCounter.incrementBy(requestCount, attributes);
+            repositoriesMetrics.getRequestCounter().incrementBy(requestCount, attributes);
             if (exceptionCount > 0) {
-                exceptionCounter.incrementBy(exceptionCount, attributes);
-                exceptionHistogram.record(exceptionCount, attributes);
+                repositoriesMetrics.getExceptionCounter().incrementBy(exceptionCount, attributes);
+                repositoriesMetrics.getExceptionHistogram().record(exceptionCount, attributes);
             }
             if (throttleCount > 0) {
-                throttleCounter.incrementBy(throttleCount, attributes);
-                throttleHistogram.record(throttleCount, attributes);
+                repositoriesMetrics.getThrottleCounter().incrementBy(throttleCount, attributes);
+                repositoriesMetrics.getThrottleHistogram().record(throttleCount, attributes);
             }
         }
 

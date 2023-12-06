@@ -417,7 +417,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         private volatile Map<String, Set<String>> existingSnapshots;
         private volatile Set<String> existingRepositories;
-        private volatile SearchResponse searchResponse;
+        private final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
         private volatile Instant expirationTime;
         private volatile String pointIntTimeId;
         private volatile Object[] searchAfter;
@@ -458,7 +458,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final String pitId = pointIntTimeId;
                 assert Strings.hasLength(pitId);
 
-                if (searchResponse == null) {
+                if (searchResponse.get() == null) {
                     final SearchSourceBuilder searchSource = new SearchSourceBuilder();
                     searchSource.fetchField(new FieldAndFormat(CachedBlob.CREATION_TIME_FIELD, "epoch_millis"));
                     searchSource.fetchSource(false);
@@ -483,7 +483,11 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                                 assert PeriodicMaintenanceTask.this.total.get() == 0L;
                                 PeriodicMaintenanceTask.this.total.set(response.getHits().getTotalHits().value);
                             }
-                            PeriodicMaintenanceTask.this.searchResponse = response;
+                            response.incRef();
+                            var existing = PeriodicMaintenanceTask.this.searchResponse.getAndSet(response);
+                            if (existing != null) {
+                                existing.decRef();
+                            }
                             PeriodicMaintenanceTask.this.searchAfter = null;
                             executeNext(PeriodicMaintenanceTask.this);
                         }
@@ -496,7 +500,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     return;
                 }
 
-                final SearchHit[] searchHits = searchResponse.getHits().getHits();
+                // TODO: this isn't quite good enough, we need to retry if the response is concurrently released
+                final SearchHit[] searchHits = searchResponse.get().getHits().getHits();
                 if (searchHits != null && searchHits.length > 0) {
                     if (expirationTime == null) {
                         final TimeValue retention = periodicTaskRetention;
@@ -565,7 +570,10 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                     assert lastSortValues != null;
                     if (bulkRequest.numberOfActions() == 0) {
-                        this.searchResponse = null;
+                        var previous = PeriodicMaintenanceTask.this.searchResponse.getAndSet(null);
+                        if (previous != null) {
+                            previous.decRef();
+                        }
                         this.searchAfter = lastSortValues;
                         executeNext(this);
                         return;
@@ -581,7 +589,10 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                                     PeriodicMaintenanceTask.this.deletes.incrementAndGet();
                                 }
                             }
-                            PeriodicMaintenanceTask.this.searchResponse = null;
+                            var previous = PeriodicMaintenanceTask.this.searchResponse.getAndSet(null);
+                            if (previous != null) {
+                                previous.decRef();
+                            }
                             PeriodicMaintenanceTask.this.searchAfter = finalSearchAfter;
                             executeNext(PeriodicMaintenanceTask.this);
                         }
@@ -614,6 +625,10 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {
+                var existing = searchResponse.getAndSet(null);
+                if (existing != null) {
+                    existing.decRef();
+                }
                 final Exception e = error.get();
                 if (e != null) {
                     logger.warn(

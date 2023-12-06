@@ -1097,6 +1097,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return client().prepareSearch(indices);
     }
 
+    public static long getTotalHitsValue(SearchRequestBuilder request) {
+        var resp = request.get();
+        try {
+            return resp.getHits().getTotalHits().value;
+        } finally {
+            resp.decRef();
+        }
+    }
+
     /**
      * Retrieves the persistent tasks with the requested task name from the given cluster state.
      */

@@ -396,11 +396,12 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertResponse(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), searchResponse -> {
             if (searchResponse.getHits().getTotalHits().value == docCount) {
-                searchResponse = prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true)
-                    .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
-                    .get();
-                logger.debug("We stopped during analysis: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
-                assertThat(searchResponse.getHits().getTotalHits().value, lessThan((long) docCount));
+                long seenCount = getTotalHitsValue(
+                    prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true)
+                        .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
+                );
+                logger.debug("We stopped during analysis: [{}] < [{}]", seenCount, docCount);
+                assertThat(seenCount, lessThan((long) docCount));
             } else {
                 logger.debug("We stopped during reindexing: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
             }

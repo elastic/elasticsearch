@@ -123,7 +123,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
-        assertThat(compoundFiles.size(), equalTo(1));
+        assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
 
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
@@ -175,7 +175,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
-        assertThat(compoundFiles.size(), equalTo((int) translogReplicator.getMaxUploadedFile() + 1));
+        assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
 
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, 5, 0),
@@ -374,7 +374,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
-        assertThat(compoundFiles.size(), equalTo(1));
+        assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
@@ -441,7 +441,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
-        assertThat(compoundFiles.size(), equalTo(1));
+        assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
@@ -652,7 +652,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.syncAll(shardId, future);
         future.actionGet();
 
-        assertThat(compoundFiles.size(), equalTo(1));
+        assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
 
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
@@ -832,7 +832,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.syncAll(shardId, future3);
         future3.actionGet();
 
-        assertThat(compoundFiles.size(), equalTo(3));
+        assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
 
         compoundFiles.remove(1);
 

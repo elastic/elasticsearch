@@ -137,8 +137,7 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
                 final int b1ValueIdx = block1.getFirstValueIndex(pos);
                 final int b2ValueIdx = block2.getFirstValueIndex(pos);
                 for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    if (block1.getPoint(b1ValueIdx + valueIndex)
-                        .equals(block2.getPoint(b2ValueIdx + valueIndex)) == false) {
+                    if (block1.getPoint(b1ValueIdx + valueIndex).equals(block2.getPoint(b2ValueIdx + valueIndex)) == false) {
                         return false;
                     }
                 }

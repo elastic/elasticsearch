@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.util.Arrays;
 import java.util.BitSet;

@@ -19,20 +19,20 @@ import org.elasticsearch.common.util.LongHash;
 $endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-$if(int)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+$if(int)$
 import org.elasticsearch.compute.data.IntBlock;
 
 $elseif(long)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
+$elseif(Point)$
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.PointBlock;
+
 $else$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
 

@@ -15,11 +15,12 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
 $elseif(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.util.Arrays;
+
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;

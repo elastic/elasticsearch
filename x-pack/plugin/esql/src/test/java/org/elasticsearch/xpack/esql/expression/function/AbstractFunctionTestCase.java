@@ -511,7 +511,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         assertTrue(expression.foldable());
         Object result = expression.fold();
-        if (testCase.expectedType == DataTypes.UNSIGNED_LONG) {
+        if (testCase.expectedType == DataTypes.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
         assertThat(result, testCase.getMatcher());

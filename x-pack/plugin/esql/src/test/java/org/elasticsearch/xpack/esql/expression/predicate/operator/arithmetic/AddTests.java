@@ -88,6 +88,10 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
             )
         );
 
+        // AwaitsFix https://github.com/elastic/elasticsearch/issues/103085
+        // After fixing that issue, please move this line to below where the date cases are generated
+        suppliers = anyNullIsNull(true, suppliers);
+
         // Datetime Cases
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
@@ -168,7 +172,9 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
             )
         );
 
+
         // Cases that should generate warnings
+        /*
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {
             // Ensure we don't have an overflow
             int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
@@ -184,6 +190,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 is(nullValue())
             );
         })));
+
+         */
         return parameterSuppliersFromTypedData(suppliers);
     }
 

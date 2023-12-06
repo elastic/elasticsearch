@@ -156,15 +156,18 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         int expected = 0;
         int min = docsStart != null ? docsStart : 0;
         int max = docsStop != null ? docsStop : fieldValues.size();
+        int valuesCount = 0;
         for (int i = min; i < max; i++) {
-            if (fieldValues.get(i).size() == 1) {
+            int mvCount = fieldValues.get(i).size();
+            if (mvCount == 1) {
                 expected++;
             }
+            valuesCount += mvCount;
         }
         assertThat(count, equalTo(expected));
 
         // query's count runs against the full set, not just min-to-max
-        if (fieldValues.stream().anyMatch(x -> x.size() > 1)) {
+        if (valuesCount > 0 && fieldValues.stream().anyMatch(x -> x.size() > 1)) {
             assertWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"

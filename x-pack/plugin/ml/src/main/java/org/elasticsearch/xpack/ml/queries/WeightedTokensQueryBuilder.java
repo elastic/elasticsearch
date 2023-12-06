@@ -34,7 +34,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ml.queries.TokenPruningConfig.PRUNING_CONFIG;
+import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
 
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
     public static final String NAME = "weighted_tokens";
@@ -91,7 +91,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
         builder.endObject();
         if (tokenPruningConfig != null) {
-            tokenPruningConfig.toXContent(builder, params);
+            builder.field(PRUNING_CONFIG.getPreferredName(), tokenPruningConfig);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();

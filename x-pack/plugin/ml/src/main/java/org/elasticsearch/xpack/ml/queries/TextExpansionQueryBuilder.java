@@ -38,11 +38,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ml.queries.TokenPruningConfig.PRUNING_CONFIG;
 
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
 
     public static final String NAME = "text_expansion";
+    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     public static final ParseField MODEL_TEXT = new ParseField("model_text");
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
@@ -132,7 +132,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         builder.field(MODEL_TEXT.getPreferredName(), modelText);
         builder.field(MODEL_ID.getPreferredName(), modelId);
         if (tokenPruningConfig != null) {
-            tokenPruningConfig.toXContent(builder, params);
+            builder.field(PRUNING_CONFIG.getPreferredName(), tokenPruningConfig);
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();

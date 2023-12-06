@@ -20,8 +20,9 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
+
 public class TokenPruningConfig implements Writeable, ToXContentObject {
-    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     public static final ParseField TOKENS_FREQ_RATIO_THRESHOLD = new ParseField("tokens_freq_ratio_threshold");
     public static final ParseField TOKENS_WEIGHT_THRESHOLD = new ParseField("tokens_weight_threshold");
     public static final ParseField ONLY_SCORE_PRUNED_TOKENS_FIELD = new ParseField("only_score_pruned_tokens");
@@ -118,7 +119,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(PRUNING_CONFIG.getPreferredName());
+        builder.startObject();
         builder.field(TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName(), tokensFreqRatioThreshold);
         builder.field(TOKENS_WEIGHT_THRESHOLD.getPreferredName(), tokensWeightThreshold);
         if (onlyScorePrunedTokens) {
@@ -135,6 +136,9 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
         float weightThreshold = DEFAULT_TOKENS_WEIGHT_THRESHOLD;
         boolean onlyScorePrunedTokens = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                continue;
+            }
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {

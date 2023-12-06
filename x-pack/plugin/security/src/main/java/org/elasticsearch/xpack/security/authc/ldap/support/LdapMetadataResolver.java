@@ -13,6 +13,7 @@ import com.unboundid.ldap.sdk.SearchScope;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
@@ -71,7 +72,9 @@ public class LdapMetadataResolver {
         Collection<Attribute> attributes,
         ActionListener<LdapMetadataResult> listener
     ) {
-        if (attributes != null) {
+        if (Strings.isEmpty(this.fullNameAttributeName) && Strings.isEmpty(this.emailAttributeName) && this.attributeNames.length == 0) {
+            listener.onResponse(LdapMetadataResult.EMPTY);
+        } else if (attributes != null) {
             listener.onResponse(toLdapMetadataResult(name -> findAttribute(attributes, name)));
         } else {
             searchForEntry(
@@ -83,7 +86,7 @@ public class LdapMetadataResolver {
                 ignoreReferralErrors,
                 ActionListener.wrap((SearchResultEntry entry) -> {
                     if (entry == null) {
-                        listener.onResponse(new LdapMetadataResult(null, null, Map.of()));
+                        listener.onResponse(LdapMetadataResult.EMPTY);
                     } else {
                         listener.onResponse(toLdapMetadataResult(entry::getAttribute));
                     }
@@ -100,9 +103,11 @@ public class LdapMetadataResolver {
     }
 
     public static class LdapMetadataResult {
+
+        public static LdapMetadataResult EMPTY = new LdapMetadataResult(null, null, Map.of());
+
         private final String fullName;
         private final String email;
-
         private final Map<String, Object> metaData;
 
         public LdapMetadataResult(String fullName, String email, Map<String, Object> metaData) {

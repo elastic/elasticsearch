@@ -102,10 +102,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return EsqlDataTypes.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
     }
 
-    protected final DataType[] representable() {
-        return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
-    }
-
     protected record ArgumentSpec(boolean optional, Set<DataType> validTypes) {}
 
     public final void testResolveType() {
@@ -187,8 +183,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (withoutNull.equals(negations)) {
             return "numeric, date_period or time_duration";
         }
-        if (validTypes.equals(Set.copyOf(Arrays.asList(representable())))) {
+        if (validTypes.equals(Set.copyOf(Arrays.asList(representableTypes())))) {
             return "representable";
+        }
+        if (validTypes.equals(Set.copyOf(Arrays.asList(representableNonSpatialTypes())))) {
+            return "representableNonSpatial";
         }
         throw new IllegalArgumentException("can't guess expected type for " + validTypes);
     }

@@ -127,7 +127,7 @@ public class DataFrameDataExtractor {
      */
     public void preview(ActionListener<List<Row>> listener) {
 
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, TransportSearchAction.TYPE)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client)
             // This ensures the search throws if there are failures and the scroll context gets cleared automatically
             .setAllowPartialSearchResults(false)
             .setIndices(context.indices)
@@ -203,7 +203,7 @@ public class DataFrameDataExtractor {
 
         LOGGER.trace(() -> format("[%s] Searching docs with [%s] in [%s, %s)", context.jobId, INCREMENTAL_ID, from, to));
 
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, TransportSearchAction.TYPE)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client)
             // This ensures the search throws if there are failures and the scroll context gets cleared automatically
             .setAllowPartialSearchResults(false)
             .addSort(DestinationIndex.INCREMENTAL_ID, SortOrder.ASC)
@@ -401,7 +401,7 @@ public class DataFrameDataExtractor {
             summaryQuery = QueryBuilders.boolQuery().filter(summaryQuery).filter(allExtractedFieldsExistQuery());
         }
 
-        return new SearchRequestBuilder(client, TransportSearchAction.TYPE).setAllowPartialSearchResults(false)
+        return new SearchRequestBuilder(client).setAllowPartialSearchResults(false)
             .setIndices(context.indices)
             .setSize(0)
             .setQuery(summaryQuery)

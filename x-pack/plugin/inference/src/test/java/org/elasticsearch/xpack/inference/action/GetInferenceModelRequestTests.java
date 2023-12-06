@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 
 public class GetInferenceModelRequestTests extends AbstractWireSerializingTestCase<GetInferenceModelAction.Request> {
 
     public static GetInferenceModelAction.Request randomTestInstance() {
-        return new GetInferenceModelAction.Request(randomAlphaOfLength(8), randomFrom(TaskType.values()).toString());
+        return new GetInferenceModelAction.Request(randomAlphaOfLength(8), randomFrom(TaskType.values()));
     }
 
     @Override
@@ -30,10 +31,10 @@ public class GetInferenceModelRequestTests extends AbstractWireSerializingTestCa
     @Override
     protected GetInferenceModelAction.Request mutateInstance(GetInferenceModelAction.Request instance) {
         return switch (randomIntBetween(0, 1)) {
-            case 0 -> new GetInferenceModelAction.Request(instance.getModelId() + "foo", instance.getTaskType().toString());
+            case 0 -> new GetInferenceModelAction.Request(instance.getModelId() + "foo", instance.getTaskType());
             case 1 -> {
                 var nextTaskType = TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length];
-                yield new GetInferenceModelAction.Request(instance.getModelId(), nextTaskType.toString());
+                yield new GetInferenceModelAction.Request(instance.getModelId(), nextTaskType);
             }
             default -> throw new UnsupportedOperationException();
         };

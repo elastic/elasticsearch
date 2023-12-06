@@ -204,4 +204,11 @@ final class FieldTypeLookup {
 
         return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);
     }
+
+    /**
+     * If field is a leaf multi-field return the path to the parent field. Otherwise, return null.
+     */
+    public String parentField(String field) {
+        return fullSubfieldNameToParentPath.get(field);
+    }
 }

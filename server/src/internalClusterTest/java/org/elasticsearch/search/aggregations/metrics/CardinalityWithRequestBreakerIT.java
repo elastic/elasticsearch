@@ -53,7 +53,7 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
                     .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                     .order(BucketOrder.aggregation("cardinality", randomBoolean()))
                     .subAggregation(cardinality("cardinality").precisionThreshold(randomLongBetween(1, 40000)).field("field1.keyword"))
-            ).get();
+            ).get().decRef();
         } catch (ElasticsearchException e) {
             if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) == null) {
                 throw e;

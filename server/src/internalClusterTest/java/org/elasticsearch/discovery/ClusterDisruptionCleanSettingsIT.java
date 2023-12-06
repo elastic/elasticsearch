@@ -23,7 +23,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
@@ -63,6 +63,6 @@ public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
 
         IndicesStoreIntegrationIT.relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
         // now search for the documents and see if we get a reply
-        assertThat(prepareSearch().setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(prepareSearch().setSize(0), 100);
     }
 }

@@ -262,7 +262,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         String modelId = "missing-model";
         String indexName = modelId + "-index";
         var e = expectThrows(ResponseException.class, () -> textExpansionSearch(indexName, "the machine is leaking", modelId, "ml.tokens"));
-        assertThat(e.getMessage(), containsString("Could not find trained model [missing-model]"));
+        assertThat(e.getMessage(), containsString("[missing-model] is not an inference service model or a deployed ml model"));
     }
 
     protected Response textExpansionSearch(String index, String modelText, String modelId, String fieldName) throws IOException {

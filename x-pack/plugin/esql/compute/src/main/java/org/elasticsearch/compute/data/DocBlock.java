@@ -167,4 +167,9 @@ public class DocBlock extends AbstractVectorBlock implements Block {
             Releasables.closeExpectNoException(shards, segments, docs);
         }
     }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
 }

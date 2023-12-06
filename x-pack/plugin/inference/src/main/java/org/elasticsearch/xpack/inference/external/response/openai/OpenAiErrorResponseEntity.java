@@ -12,11 +12,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorMessage;
 
-import java.io.IOException;
 import java.util.Map;
 
-public class OpenAiErrorResponseEntity {
+public class OpenAiErrorResponseEntity implements ErrorMessage {
 
     private final String errorMessage;
 
@@ -60,7 +60,7 @@ public class OpenAiErrorResponseEntity {
                     return new OpenAiErrorResponseEntity(message);
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             // swallow the error
         }
 

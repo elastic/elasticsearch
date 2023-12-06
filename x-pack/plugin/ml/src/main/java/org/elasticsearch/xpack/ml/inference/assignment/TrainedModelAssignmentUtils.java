@@ -7,10 +7,16 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+
+import java.util.List;
+import java.util.Optional;
 
 public class TrainedModelAssignmentUtils {
     public static final String NODES_CHANGED_REASON = "nodes changed";
@@ -22,6 +28,23 @@ public class TrainedModelAssignmentUtils {
         );
 
         return routeUpdate.apply(existingRoute);
+    }
+
+    public static List<TrainedModelAssignment> modelAssignments(String modelId, ClusterState state) {
+        String concreteModelId = Optional.ofNullable(ModelAliasMetadata.fromState(state).getModelId(modelId)).orElse(modelId);
+
+        List<TrainedModelAssignment> assignments;
+
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(state);
+        TrainedModelAssignment assignment = trainedModelAssignmentMetadata.getDeploymentAssignment(concreteModelId);
+        if (assignment != null) {
+            assignments = List.of(assignment);
+        } else {
+            // look up by model
+            assignments = trainedModelAssignmentMetadata.getDeploymentsUsingModel(concreteModelId);
+        }
+
+        return assignments;
     }
 
     private TrainedModelAssignmentUtils() {}

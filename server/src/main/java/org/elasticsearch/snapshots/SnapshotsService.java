@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -153,6 +154,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final ClusterService clusterService;
 
+    private final RerouteService rerouteService;
+
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final RepositoriesService repositoriesService;
@@ -203,6 +206,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     public SnapshotsService(
         Settings settings,
         ClusterService clusterService,
+        RerouteService rerouteService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         RepositoriesService repositoriesService,
         TransportService transportService,
@@ -210,6 +214,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         SystemIndices systemIndices
     ) {
         this.clusterService = clusterService;
+        this.rerouteService = rerouteService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
         this.threadPool = transportService.getThreadPool();
@@ -3712,7 +3717,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final ClusterState state = batchExecutionContext.initialState();
             final SnapshotShardsUpdateContext shardsUpdateContext = new SnapshotShardsUpdateContext(
                 batchExecutionContext,
-                () -> clusterService.getRerouteService().reroute("after shards snapshot update", Priority.NORMAL, ActionListener.noop())
+                () -> rerouteService.reroute("after shards snapshot update", Priority.NORMAL, ActionListener.noop())
             );
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();

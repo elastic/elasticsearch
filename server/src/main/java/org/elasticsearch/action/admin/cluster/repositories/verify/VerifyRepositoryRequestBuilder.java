@@ -22,8 +22,8 @@ public class VerifyRepositoryRequestBuilder extends MasterNodeOperationRequestBu
     /**
      * Constructs unregister repository request builder with specified repository name
      */
-    public VerifyRepositoryRequestBuilder(ElasticsearchClient client, VerifyRepositoryAction action, String name) {
-        super(client, action, new VerifyRepositoryRequest(name));
+    public VerifyRepositoryRequestBuilder(ElasticsearchClient client, String name) {
+        super(client, VerifyRepositoryAction.INSTANCE, new VerifyRepositoryRequest(name));
     }
 
     /**

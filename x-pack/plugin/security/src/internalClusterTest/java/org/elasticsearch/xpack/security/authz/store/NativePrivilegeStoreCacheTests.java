@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -304,14 +303,14 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
                 "Basic " + Base64.getEncoder().encodeToString((testRoleCacheUser + ":longerpassword").getBytes(StandardCharsets.UTF_8))
             )
         );
-        new ClusterHealthRequestBuilder(testRoleCacheUserClient, ClusterHealthAction.INSTANCE).get();
+        new ClusterHealthRequestBuilder(testRoleCacheUserClient).get();
 
         // Directly deleted the role document
         final DeleteResponse deleteResponse = client.prepareDelete(SECURITY_MAIN_ALIAS, "role-" + testRole).get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
         // The cluster health action can still success since the role is cached
-        new ClusterHealthRequestBuilder(testRoleCacheUserClient, ClusterHealthAction.INSTANCE).get();
+        new ClusterHealthRequestBuilder(testRoleCacheUserClient).get();
 
         // Change an application privilege which triggers role cache invalidation as well
         if (randomBoolean()) {
@@ -320,11 +319,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
             addApplicationPrivilege("app-3", "read", "r:q:r:s");
         }
         // Since role cache is cleared, the cluster health action is no longer authorized
-        expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> new ClusterHealthRequestBuilder(testRoleCacheUserClient, ClusterHealthAction.INSTANCE).get()
-        );
-
+        expectThrows(ElasticsearchSecurityException.class, () -> new ClusterHealthRequestBuilder(testRoleCacheUserClient).get());
     }
 
     private HasPrivilegesResponse checkPrivilege(String applicationName, String privilegeName) {

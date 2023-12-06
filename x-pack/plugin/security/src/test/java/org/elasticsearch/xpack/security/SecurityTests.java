@@ -64,7 +64,6 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -134,7 +133,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -206,8 +204,6 @@ public class SecurityTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        RemoteClusterService remoteClusterService = mock(RemoteClusterService.class);
-        doNothing().when(remoteClusterService).updateRemoteClusterCredentials(any());
         return security.createComponents(
             client,
             threadPool,
@@ -218,8 +214,7 @@ public class SecurityTests extends ESTestCase {
             xContentRegistry(),
             env,
             nodeMetadata,
-            TestIndexNameExpressionResolver.newInstance(threadContext),
-            () -> remoteClusterService
+            TestIndexNameExpressionResolver.newInstance(threadContext)
         );
     }
 

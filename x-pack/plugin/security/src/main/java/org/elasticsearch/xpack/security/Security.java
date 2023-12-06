@@ -157,6 +157,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAct
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
+import org.elasticsearch.xpack.core.security.action.settings.ReloadRemoteClusterCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
@@ -248,6 +249,7 @@ import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccoun
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
+import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
@@ -557,7 +559,7 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
     private final SetOnce<Realms> realms = new SetOnce<>();
-    private volatile Supplier<RemoteClusterService> remoteClusterServiceSupplier;
+    private final SetOnce<Client> client = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -638,8 +640,7 @@ public class Security extends Plugin
                 services.xContentRegistry(),
                 services.environment(),
                 services.nodeEnvironment().nodeMetadata(),
-                services.indexNameExpressionResolver(),
-                services.remoteClusterServiceSupplier()
+                services.indexNameExpressionResolver()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -657,15 +658,14 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeMetadata nodeMetadata,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RemoteClusterService> remoteClusterServiceSupplier
+        IndexNameExpressionResolver expressionResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null, null));
         }
 
-        this.remoteClusterServiceSupplier = remoteClusterServiceSupplier;
+        this.client.set(client);
 
         // The settings in `environment` may have additional values over what was provided during construction
         // See Plugin#additionalSettings()
@@ -1358,6 +1358,7 @@ public class Security extends Plugin
             new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
             new ActionHandler<>(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
             new ActionHandler<>(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
+            new ActionHandler<>(ReloadRemoteClusterCredentialsAction.INSTANCE, TransportReloadRemoteClusterCredentialsAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();
@@ -1905,7 +1906,7 @@ public class Security extends Plugin
             }
 
             try {
-                reloadJwtRealmSharedSecrets(settings);
+                reloadSharedSecretsForJwtRealms(settings);
             } catch (Exception ex) {
                 exceptions.add(ex);
             }
@@ -1916,24 +1917,20 @@ public class Security extends Plugin
         }
     }
 
-    private void reloadJwtRealmSharedSecrets(Settings settings) {
+    private void reloadSharedSecretsForJwtRealms(Settings settingsWithKeystore) {
         realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
             if (realm instanceof JwtRealm jwtRealm) {
                 jwtRealm.rotateClientSecret(
-                    CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settings)
+                    CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settingsWithKeystore)
                 );
             }
         });
     }
 
-    private void reloadRemoteClusterCredentials(Settings settings) {
-        final RemoteClusterService remoteClusterService = remoteClusterServiceSupplier.get();
-        if (remoteClusterService == null) {
-            final String msg = "Remote cluster service unavailable during secure settings reload";
-            assert false : msg;
-            throw new IllegalStateException(msg);
-        }
-        remoteClusterService.updateRemoteClusterCredentials(settings);
+    private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
+        client.get()
+            .execute(ReloadRemoteClusterCredentialsAction.INSTANCE, new ReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore))
+            .actionGet();
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

@@ -111,12 +111,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             // Use a RefCountingRunnable so that we only release the lock once all upgrade attempts have succeeded or failed.
             // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
             try (var refs = new RefCountingRunnable(() -> isUpgradeInProgress.set(false))) {
-                List<SystemIndexDescriptor> eligibleDescriptors = getEligibleDescriptors(state.getMetadata());
-                if (eligibleDescriptors.isEmpty()) {
-                    logger.trace("No system indices to update");
-                }
-                for (SystemIndexDescriptor systemIndexDescriptor : eligibleDescriptors) {
-                    logger.trace(() -> "Checking whether to update mappings for [" + systemIndexDescriptor.getPrimaryIndex() + "]");
+                for (SystemIndexDescriptor systemIndexDescriptor : getEligibleDescriptors(state.getMetadata())) {
                     UpgradeStatus upgradeStatus;
                     try {
                         upgradeStatus = getUpgradeStatus(state, systemIndexDescriptor);

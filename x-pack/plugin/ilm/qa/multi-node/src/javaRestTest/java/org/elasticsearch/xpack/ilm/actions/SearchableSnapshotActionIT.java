@@ -685,36 +685,36 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         var policyCold = "policy-cold";
         createPolicy(
-                client(),
-                policyCold,
-                null,
-                null,
-                new Phase(
-                        "cold",
-                        TimeValue.ZERO,
-                        singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
-                ),
-                null,
-                null
+            client(),
+            policyCold,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            null,
+            null
         );
         var policyColdFrozen = "policy-cold-frozen";
         createPolicy(
-                client(),
-                policyColdFrozen,
+            client(),
+            policyColdFrozen,
 
-                null,
-                null,
-                new Phase(
-                        "cold",
-                        TimeValue.ZERO,
-                        singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
-                ),
-                new Phase(
-                        "frozen",
-                        TimeValue.ZERO,
-                        singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
-                ),
-                null
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            new Phase(
+                "frozen",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            null
         );
 
         createIndex(index, Settings.EMPTY);
@@ -763,17 +763,17 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // policy. We add the delete phase now to ensure that the index will not be deleted before we verify the above
         // assertions
         createPolicy(
-                client(),
-                policyCold,
-                null,
-                null,
-                new Phase(
-                        "cold",
-                        TimeValue.ZERO,
-                        singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
-                ),
-                null,
-                new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+            client(),
+            policyCold,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            null,
+            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
         );
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to be deleted...", restoredPartiallyMountedIndexName);

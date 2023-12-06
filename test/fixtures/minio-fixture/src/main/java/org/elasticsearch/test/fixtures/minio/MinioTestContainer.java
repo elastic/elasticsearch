@@ -25,7 +25,7 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     public MinioTestContainer(boolean enabled) {
         super(
-            new ImageFromDockerfile().withDockerfileFromBuilder(
+            new ImageFromDockerfile("es-minio-testfixture", false).withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
                     .env("MINIO_ACCESS_KEY", "s3_test_access_key")
                     .env("MINIO_SECRET_KEY", "s3_test_secret_key")

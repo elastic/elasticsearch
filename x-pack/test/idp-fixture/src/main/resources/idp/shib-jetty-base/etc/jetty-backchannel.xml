@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure_9_0.dtd">
+ 
+<Configure id="Server" class="org.eclipse.jetty.server.Server">
+  
+ <!-- ============================================================= -->
+  <!-- TLS context factory with optional client auth                 -->
+  <!-- and no container trust (delegate to application)              -->
+  <!-- for backchannel (SOAP) communication to IdP                   -->
+  <!-- ============================================================= -->
+  <New id="shibContextFactory" class="net.shibboleth.utilities.jetty9.DelegateToApplicationSslContextFactory">
+    <Set name="KeyStorePath"><Property name="jetty.backchannel.sslContext.keyStorePath" /></Set>
+    <Set name="KeyStoreType"><Property name="jetty.backchannel.sslContext.keyStoreType" /></Set>
+    <Set name="KeyStorePassword"><Property name="jetty.backchannel.sslContext.keyStorePassword" /></Set>
+    <!-- This is a tweak to work around a bug in Jetty when using the PKCS12 keystore type. -->
+    <Set name="TrustStoreType"><Property name="jetty.backchannel.sslContext.keyStoreType" /></Set>
+    <Set name="EndpointIdentificationAlgorithm"></Set>
+    <Set name="renegotiationAllowed">false</Set>
+    <Set name="useCipherSuitesOrder">true</Set>
+    <Set name="excludeProtocols">
+      <Array type="String">
+        <Item>SSL</Item>
+        <Item>SSLv2</Item>
+        <Item>SSLv3</Item>
+      </Array>
+    </Set>
+    <Set name="IncludeCipherSuites">
+      <Array type="String">
+        <Item>TLS_ECDHE.*</Item>
+        <Item>TLS_RSA.*</Item>
+      </Array>
+    </Set>
+    <Set name="ExcludeCipherSuites">
+      <Array type="String">
+        <Item>.*NULL.*</Item>
+        <Item>.*RC4.*</Item>
+        <Item>.*MD5.*</Item>
+        <Item>.*DES.*</Item>
+        <Item>.*DSS.*</Item>
+      </Array>
+    </Set>
+  </New>
+ 
+  <New id="shibHttpConfig" class="org.eclipse.jetty.server.HttpConfiguration">
+    <Arg><Ref refid="httpConfig"/></Arg>
+    <Call name="addCustomizer">
+      <Arg>
+        <New class="org.eclipse.jetty.server.SecureRequestCustomizer">
+          <Arg type="boolean"><Property name="jetty.ssl.sniHostCheck" default="true"/></Arg>
+        </New>
+      </Arg>
+    </Call>
+  </New>
+ 
+  <!-- ============================================================= -->
+  <!-- IdP SOAP protocol connector                                   -->
+  <!-- ============================================================= -->
+  <Call id="shibConnector" name="addConnector">
+    <Arg>
+      <New class="org.eclipse.jetty.server.ServerConnector">
+        <Arg name="server"><Ref refid="Server" /></Arg>
+        <Arg name="acceptors" type="int"><Property name="jetty.ssl.acceptors" default="-1"/></Arg>
+        <Arg name="selectors" type="int"><Property name="jetty.ssl.selectors" default="-1"/></Arg>
+        <Arg name="factories">
+          <Array type="org.eclipse.jetty.server.ConnectionFactory">
+            <Item>
+              <New class="org.eclipse.jetty.server.SslConnectionFactory">
+                <Arg name="next">http/1.1</Arg>
+                <Arg name="sslContextFactory"><Ref refid="shibContextFactory"/></Arg>
+              </New>
+            </Item>
+            <Item>
+              <New class="org.eclipse.jetty.server.HttpConnectionFactory">
+                <Arg name="config"><Ref refid="shibHttpConfig"/></Arg>
+              </New>
+            </Item>
+          </Array>
+        </Arg>
+        <Set name="host"><Property name="jetty.backchannel.host" default="0.0.0.0" /></Set>
+        <Set name="port"><Property name="jetty.backchannel.port" default="8443"/></Set>
+        <Set name="idleTimeout"><Property name="jetty.ssl.timeout" default="30000"/></Set>
+        <Set name="soLingerTime"><Property name="jetty.ssl.soLingerTime" default="-1"/></Set>
+        <Set name="acceptorPriorityDelta"><Property name="jetty.ssl.acceptorPriorityDelta" default="0"/></Set>
+        <Set name="selectorPriorityDelta"><Property name="jetty.ssl.selectorPriorityDelta" default="0"/></Set>
+        <Set name="acceptQueueSize"><Property name="jetty.ssl.acceptQueueSize" default="0"/></Set>
+      </New>
+    </Arg>
+  </Call>
+ 
+</Configure>

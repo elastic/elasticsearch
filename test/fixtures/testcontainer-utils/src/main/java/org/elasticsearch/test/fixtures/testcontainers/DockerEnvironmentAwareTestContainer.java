@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.fixtures.testcontainers;
 
-import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
 import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioTestContainer> {
+public class DockerEnvironmentAwareTestContainer extends GenericContainer<DockerEnvironmentAwareTestContainer> {
     protected static final Logger LOGGER = LoggerFactory.getLogger(DockerEnvironmentAwareTestContainer.class);
 
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
@@ -53,6 +52,7 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioT
 
     public DockerEnvironmentAwareTestContainer(ImageFromDockerfile imageFromDockerfile) {
         super(imageFromDockerfile);
+        withReuse(true);
     }
 
     @Override

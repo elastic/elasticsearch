@@ -42,6 +42,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.fixtures.idp.IdpTestContainer;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -52,6 +53,8 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -87,8 +90,9 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     private static final String SAML_RESPONSE_FIELD = "SAMLResponse";
     private static final String KIBANA_PASSWORD = "K1b@na K1b@na K1b@na";
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    private static IdpTestContainer idpFixture = new IdpTestContainer();
+
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
@@ -136,6 +140,9 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         .configFile("sp-signing.crt", Resource.fromClasspath("sp-signing.crt"))
         .user("test_admin", "x-pack-test-password")
         .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(idpFixture).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

@@ -586,6 +586,9 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testSlmPolicyAndStats() throws IOException {
+        @UpdateForV9
+        var originalClusterSupportsSlm = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_4_0)).orElse(true);
+
         SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy(
             "test-policy",
             "test-policy",
@@ -594,7 +597,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Collections.singletonMap("indices", Collections.singletonList("*")),
             null
         );
-        if (isRunningAgainstOldCluster() && clusterHasFeature(RestTestLegacyFeatures.SLM_SUPPORTED)) {
+        if (isRunningAgainstOldCluster() && originalClusterSupportsSlm) {
             Request createRepoRequest = new Request("PUT", "_snapshot/test-repo");
             String repoCreateJson = "{" + " \"type\": \"fs\"," + " \"settings\": {" + "   \"location\": \"test-repo\"" + "  }" + "}";
             createRepoRequest.setJsonEntity(repoCreateJson);
@@ -608,7 +611,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             client().performRequest(createSlmPolicyRequest);
         }
 
-        if (isRunningAgainstOldCluster() == false && clusterHasFeature(RestTestLegacyFeatures.SLM_SUPPORTED)) {
+        if (isRunningAgainstOldCluster() == false && originalClusterSupportsSlm) {
             Request getSlmPolicyRequest = new Request("GET", "_slm/policy/test-policy");
             Response response = client().performRequest(getSlmPolicyRequest);
             Map<String, Object> responseMap = entityAsMap(response);

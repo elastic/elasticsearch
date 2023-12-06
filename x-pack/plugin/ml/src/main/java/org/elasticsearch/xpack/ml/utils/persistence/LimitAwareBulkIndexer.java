@@ -70,10 +70,10 @@ public class LimitAwareBulkIndexer implements AutoCloseable {
 
     @Override
     public void close() {
-            try {
-                execute();
-            } finally {
-                currentBulkRequest.close();
-            }
+        try {
+            execute();
+        } finally {
+            currentBulkRequest.close();
         }
+    }
 }

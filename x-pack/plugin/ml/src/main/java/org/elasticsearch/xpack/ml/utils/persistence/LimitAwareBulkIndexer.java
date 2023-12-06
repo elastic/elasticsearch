@@ -62,18 +62,18 @@ public class LimitAwareBulkIndexer implements AutoCloseable {
                 executor.accept(currentBulkRequest);
             } finally {
                 currentBulkRequest.close();
+                currentBulkRequest = new BulkRequest();
+                currentRamBytes = 0;
             }
-            currentBulkRequest = new BulkRequest();
-            currentRamBytes = 0;
         }
     }
 
     @Override
     public void close() {
-        try {
-            execute();
-        } finally {
-            currentBulkRequest.close();
+            try {
+                execute();
+            } finally {
+                currentBulkRequest.close();
+            }
         }
-    }
 }

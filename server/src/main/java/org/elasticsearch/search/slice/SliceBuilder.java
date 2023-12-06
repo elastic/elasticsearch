@@ -11,7 +11,6 @@ package org.elasticsearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -90,25 +89,14 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     public SliceBuilder(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.V_7_15_0)) {
-            field = in.readString();
-        } else {
-            field = in.readOptionalString();
-        }
-
-        this.id = in.readVInt();
-        this.max = in.readVInt();
+        field = in.readOptionalString();
+        id = in.readVInt();
+        max = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Before 7.15.0 we always defaulted to _id when the field wasn't provided
-        if (out.getTransportVersion().before(TransportVersions.V_7_15_0)) {
-            String sliceField = field != null ? field : IdFieldMapper.NAME;
-            out.writeString(sliceField);
-        } else {
-            out.writeOptionalString(field);
-        }
+        out.writeOptionalString(field);
         out.writeVInt(id);
         out.writeVInt(max);
     }

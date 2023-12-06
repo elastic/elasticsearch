@@ -16,8 +16,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  */
 public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest, MultiGetResponse> {
 
-    public MultiGetRequestBuilder(ElasticsearchClient client, MultiGetAction action) {
-        super(client, action, new MultiGetRequest());
+    public MultiGetRequestBuilder(ElasticsearchClient client) {
+        super(client, MultiGetAction.INSTANCE, new MultiGetRequest());
     }
 
     public MultiGetRequestBuilder add(String index, String id) {

@@ -1,0 +1,7 @@
+pr: 102891
+summary: "[Query Rules] Fix bug where combining the same metadata with text/numeric\
+  \ values leads to error"
+area: Application
+type: bug
+issues:
+ - 102827

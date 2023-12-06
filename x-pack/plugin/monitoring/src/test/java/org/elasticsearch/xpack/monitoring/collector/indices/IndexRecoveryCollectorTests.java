@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -110,9 +109,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         }
         final RecoveryResponse recoveryResponse = new RecoveryResponse(randomInt(), randomInt(), randomInt(), recoveryStates, emptyList());
 
-        final RecoveryRequestBuilder recoveryRequestBuilder = spy(
-            new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE)
-        );
+        final RecoveryRequestBuilder recoveryRequestBuilder = spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class)));
         doReturn(recoveryResponse).when(recoveryRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -209,9 +206,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             )
         );
 
-        final RecoveryRequestBuilder recoveryRequestBuilder = spy(
-            new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE)
-        );
+        final RecoveryRequestBuilder recoveryRequestBuilder = spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class)));
         doReturn(recoveryResponse).when(recoveryRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);

@@ -16,7 +16,7 @@ public class GetMappingsRequestBuilder extends ClusterInfoRequestBuilder<
     GetMappingsResponse,
     GetMappingsRequestBuilder> {
 
-    public GetMappingsRequestBuilder(ElasticsearchClient client, GetMappingsAction action, String... indices) {
-        super(client, action, new GetMappingsRequest().indices(indices));
+    public GetMappingsRequestBuilder(ElasticsearchClient client, String... indices) {
+        super(client, GetMappingsAction.INSTANCE, new GetMappingsRequest().indices(indices));
     }
 }

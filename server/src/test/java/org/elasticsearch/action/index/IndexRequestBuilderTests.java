@@ -47,7 +47,7 @@ public class IndexRequestBuilderTests extends ESTestCase {
      * test setting the source for the request with different available setters
      */
     public void testSetSource() throws Exception {
-        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient, IndexAction.INSTANCE);
+        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         Map<String, String> source = new HashMap<>();
         source.put("SomeKey", "SomeValue");
         indexRequestBuilder.setSource(source);

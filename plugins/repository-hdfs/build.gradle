@@ -59,12 +59,6 @@ dependencies {
     runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
     //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
 
-    // Set the keytab files in the classpath so that we can access them from test code without the security manager
-    // freaking out.
-    if (isEclipse == false) {
-        javaRestTestRuntimeOnly project(path: ':test:fixtures:krb5kdc-fixture', configuration:'krb5KeytabsHdfsDir')
-    }
-
     krb5Keytabs project(path: ':test:fixtures:krb5kdc-fixture', configuration: 'krb5KeytabsHdfsDir')
     krb5Config project(path: ':test:fixtures:krb5kdc-fixture', configuration: 'krb5ConfHdfsFile')
 }
@@ -187,7 +181,11 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
                 }
             }
             testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-            classpath = sourceSets.javaRestTest.runtimeClasspath + files(portsFileDir)
+            // Set the keytab files in the classpath so that we can access them from test code without the security manager
+            // freaking out.
+            classpath = sourceSets.javaRestTest.runtimeClasspath +
+              configurations.krb5Keytabs +
+              files(portsFileDir)
         }
     }
 

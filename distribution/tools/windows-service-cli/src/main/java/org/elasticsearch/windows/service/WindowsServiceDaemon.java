@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.server.cli.ServerProcess;
-import org.elasticsearch.server.cli.ServerProcessOptions;
+import org.elasticsearch.server.cli.ServerProcessBuilder;
 
 /**
  * Starts an Elasticsearch process, but does not wait for it to exit.
@@ -39,7 +39,7 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
         // the Windows service daemon doesn't support secure settings implementations other than the keystore
         try (var loadedSecrets = KeyStoreWrapper.bootstrap(env.configFile(), () -> new SecureString(new char[0]))) {
             var args = new ServerArgs(false, true, null, loadedSecrets, env.settings(), env.configFile(), env.logsFile());
-            this.server = ServerProcess.start(terminal, ServerProcessOptions.builder(processInfo, args).build());
+            this.server = ServerProcessBuilder.create(terminal, processInfo, args).start();
             // start does not return until the server is ready, and we do not wait for the process
         }
     }

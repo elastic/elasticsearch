@@ -211,11 +211,13 @@ public class ServerProcessTests extends ESTestCase {
             process = new MockElasticsearchProcess();
             return process;
         };
-        var serverProcessOptions = ServerProcessOptions.builder(pinfo, args)
-            .withOptionsBuilder(optionsBuilder)
-            .withProcessStarter(starter)
-            .build();
-        return ServerProcess.start(terminal, serverProcessOptions);
+        var serverProcessBuilder = ServerProcessBuilder.create(
+            terminal,
+            pinfo,
+            args,
+            options -> options.withOptionsBuilder(optionsBuilder).withProcessStarter(starter)
+        );
+        return serverProcessBuilder.start();
     }
 
     public void testProcessBuilder() throws Exception {

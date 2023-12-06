@@ -10,24 +10,20 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.bootstrap.ServerArgs;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptible;
 
 /**
  * A helper to control a {@link Process} running the main Elasticsearch server.
  *
- * <p> The process can be started by calling {@link #start(Terminal, ServerProcessOptions)}.
+ * <p> The process can be started by calling {@link ServerProcessBuilder#start()}.
  * The process is controlled by internally sending arguments and control signals on stdin,
  * and receiving control signals on stderr. The start method does not return until the
  * server is ready to process requests and has exited the bootstrap thread.
@@ -64,45 +60,6 @@ public class ServerProcess {
     // this allows mocking the process building by tests
     interface ProcessStarter {
         Process start(ProcessBuilder pb) throws IOException;
-    }
-
-    /**
-     * Start a server in a new process.
-     *
-     * @param terminal              A terminal to connect the standard inputs and outputs to for the new process.
-     * @param serverProcessOptions  Arguments, options, command and environment to create and start the server process.
-     * @return A running server process that is ready for requests
-     * @throws UserException        If the process failed during bootstrap
-     */
-    public static ServerProcess start(Terminal terminal, ServerProcessOptions serverProcessOptions) throws UserException {
-        Process jvmProcess = null;
-        ErrorPumpThread errorPump;
-
-        boolean success = false;
-        try {
-            jvmProcess = createProcess(serverProcessOptions, serverProcessOptions.getProcessStarter());
-            errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
-            errorPump.start();
-            sendArgs(serverProcessOptions.getServerArgs(), jvmProcess.getOutputStream());
-
-            String errorMsg = errorPump.waitUntilReady();
-            if (errorMsg != null) {
-                // something bad happened, wait for the process to exit then rethrow
-                int exitCode = jvmProcess.waitFor();
-                throw new UserException(exitCode, errorMsg);
-            }
-            success = true;
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } finally {
-            if (success == false && jvmProcess != null && jvmProcess.isAlive()) {
-                jvmProcess.destroyForcibly();
-            }
-        }
-
-        return new ServerProcess(jvmProcess, errorPump);
     }
 
     /**
@@ -148,19 +105,6 @@ public class ServerProcess {
         waitFor(); // ignore exit code, we are already shutting down
     }
 
-    private static void sendArgs(ServerArgs args, OutputStream processStdin) {
-        // DO NOT close the underlying process stdin, since we need to be able to write to it to signal exit
-        var out = new OutputStreamStreamOutput(processStdin);
-        try {
-            args.writeTo(out);
-            out.flush();
-        } catch (IOException ignore) {
-            // A failure to write here means the process has problems, and it will die anyway. We let this fall through
-            // so the pump thread can complete, writing out the actual error. All we get here is the failure to write to
-            // the process pipe, which isn't helpful to print.
-        }
-    }
-
     private void sendShutdownMarker() {
         try {
             OutputStream os = jvmProcess.getOutputStream();
@@ -169,20 +113,5 @@ public class ServerProcess {
         } catch (IOException e) {
             // process is already effectively dead, fall through to wait for it, or should we SIGKILL?
         }
-    }
-
-    private static Process createProcess(ServerProcessOptions serverProcessOptions, ProcessStarter processStarter)
-        throws InterruptedException, IOException {
-
-        var builder = new ProcessBuilder(
-            Stream.concat(
-                Stream.of(serverProcessOptions.getCommand()),
-                Stream.concat(serverProcessOptions.getJvmOptions().stream(), serverProcessOptions.getOtherOptions().stream())
-            ).toList()
-        );
-        builder.environment().putAll(serverProcessOptions.getEnvironment());
-        builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-
-        return processStarter.start(builder);
     }
 }

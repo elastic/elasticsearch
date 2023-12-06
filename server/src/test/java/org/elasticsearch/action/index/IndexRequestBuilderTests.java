@@ -11,6 +11,7 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -24,19 +25,21 @@ import java.util.Map;
 public class IndexRequestBuilderTests extends ESTestCase {
 
     private static final String EXPECTED_SOURCE = "{\"SomeKey\":\"SomeValue\"}";
+    private TestThreadPool threadPool;
     private NoOpClient testClient;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        this.testClient = new NoOpClient(getTestName());
+        this.threadPool = createThreadPool();
+        this.testClient = new NoOpClient(threadPool);
     }
 
     @Override
     @After
     public void tearDown() throws Exception {
-        this.testClient.close();
+        this.threadPool.close();
         super.tearDown();
     }
 
@@ -44,7 +47,7 @@ public class IndexRequestBuilderTests extends ESTestCase {
      * test setting the source for the request with different available setters
      */
     public void testSetSource() throws Exception {
-        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient, IndexAction.INSTANCE);
+        IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         Map<String, String> source = new HashMap<>();
         source.put("SomeKey", "SomeValue");
         indexRequestBuilder.setSource(source);

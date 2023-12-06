@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc.jwt;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -32,6 +33,8 @@ import java.util.stream.Stream;
  * Settings unique to each JWT realm.
  */
 public class JwtRealmSettings {
+
+    public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
     private JwtRealmSettings() {}
 
@@ -160,6 +163,7 @@ public class JwtRealmSettings {
         set.addAll(
             List.of(
                 ALLOWED_SUBJECTS,
+                ALLOWED_SUBJECT_PATTERNS,
                 FALLBACK_SUB_CLAIM,
                 FALLBACK_AUD_CLAIM,
                 REQUIRED_CLAIMS,
@@ -253,11 +257,82 @@ public class JwtRealmSettings {
     );
 
     // JWT end-user settings
-
     public static final Setting.AffixSetting<List<String>> ALLOWED_SUBJECTS = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_subjects",
-        key -> Setting.stringListSetting(key, values -> verifyNonNullNotEmpty(key, values, null), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, new Setting.Validator<>() {
+
+            @Override
+            public void validate(List<String> allowedSubjects) {
+                // validate values themselves are not null or empty
+                allowedSubjects.forEach(allowedSubject -> verifyNonNullNotEmpty(key, allowedSubject, null));
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public void validate(List<String> allowedSubjects, Map<Setting<?>, Object> settings) {
+                // validate both allowed_subjects and allowed_subject_patterns are not simultaneously empty (which is the default value)
+                final String namespace = ALLOWED_SUBJECTS.getNamespace(ALLOWED_SUBJECTS.getConcreteSetting(key));
+                final List<String> allowedSubjectPatterns = (List<String>) settings.get(
+                    ALLOWED_SUBJECT_PATTERNS.getConcreteSettingForNamespace(namespace)
+                );
+                if (allowedSubjects.isEmpty() && allowedSubjectPatterns.isEmpty()) {
+                    throw new SettingsException(
+                        "One of either ["
+                            + ALLOWED_SUBJECTS.getConcreteSettingForNamespace(namespace).getKey()
+                            + "] or ["
+                            + ALLOWED_SUBJECT_PATTERNS.getConcreteSettingForNamespace(namespace).getKey()
+                            + "] must be specified and not be empty."
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = ALLOWED_SUBJECTS.getNamespace(ALLOWED_SUBJECTS.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(ALLOWED_SUBJECT_PATTERNS.getConcreteSettingForNamespace(namespace));
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<List<String>> ALLOWED_SUBJECT_PATTERNS = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "allowed_subject_patterns",
+        key -> Setting.stringListSetting(key, new Setting.Validator<>() {
+
+            @Override
+            public void validate(List<String> allowedSubjectPatterns) {
+                // validate values themselves are not null or empty
+                allowedSubjectPatterns.forEach(allowedSubjectPattern -> verifyNonNullNotEmpty(key, allowedSubjectPattern, null));
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public void validate(List<String> allowedSubjectPatterns, Map<Setting<?>, Object> settings) {
+                // validate both allowed_subjects and allowed_subject_patterns are not simultaneously empty (which is the default value)
+                final String namespace = ALLOWED_SUBJECT_PATTERNS.getNamespace(ALLOWED_SUBJECT_PATTERNS.getConcreteSetting(key));
+                final List<String> allowedSubjects = (List<String>) settings.get(
+                    ALLOWED_SUBJECTS.getConcreteSettingForNamespace(namespace)
+                );
+                if (allowedSubjects.isEmpty() && allowedSubjectPatterns.isEmpty()) {
+                    throw new SettingsException(
+                        "One of either ["
+                            + ALLOWED_SUBJECTS.getConcreteSettingForNamespace(namespace).getKey()
+                            + "] or ["
+                            + ALLOWED_SUBJECT_PATTERNS.getConcreteSettingForNamespace(namespace).getKey()
+                            + "] must be specified and not be empty."
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = ALLOWED_SUBJECT_PATTERNS.getNamespace(ALLOWED_SUBJECT_PATTERNS.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(ALLOWED_SUBJECTS.getConcreteSettingForNamespace(namespace));
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
     );
 
     // Registered claim names from the JWT spec https://www.rfc-editor.org/rfc/rfc7519#section-4.1.

@@ -114,6 +114,7 @@ public class IndexShardRoutingTable {
                 allShardsStarted = false;
             }
         }
+        assert primary != null || shards.isEmpty() : shards;
         this.primary = primary;
         this.replicas = CollectionUtils.wrapUnmodifiableOrEmptySingleton(replicas);
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);

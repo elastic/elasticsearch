@@ -13,8 +13,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static java.util.stream.Collectors.joining;
-
 /**
  * Sink operator that calls a given listener for each page received. The listener receives both the page as well as schema information,
  * i.e. the names of the rows that are outputted.
@@ -36,7 +34,7 @@ public class OutputOperator extends SinkOperator {
 
         @Override
         public String describe() {
-            return "OutputOperator[columns = " + columns.stream().collect(joining(", ")) + "]";
+            return OutputOperator.describe(columns);
         }
     }
 
@@ -64,7 +62,7 @@ public class OutputOperator extends SinkOperator {
     }
 
     @Override
-    public void addInput(Page page) {
+    protected void doAddInput(Page page) {
         pageConsumer.accept(mapper.apply(page));
     }
 
@@ -75,10 +73,18 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public String toString() {
+        return describe(columns);
+    }
+
+    private static String describe(List<String> columns) {
         StringBuilder sb = new StringBuilder();
-        sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("columns=").append(columns).append(", ");
-        sb.append("pageConsumer=").append(pageConsumer);
+        sb.append("OutputOperator").append("[");
+        sb.append("columns = ");
+        if (columns.size() <= 10) {
+            sb.append(columns);
+        } else {
+            sb.append('[').append(columns.size()).append(" columns").append(']');
+        }
         sb.append("]");
         return sb.toString();
     }

@@ -14,7 +14,8 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/part-1-fips.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/part-1-fips.*'
           github-hooks: true
           status-context: elasticsearch-ci/part-1-fips
           cancel-builds-on-update: true
@@ -23,15 +24,10 @@
           excluded-regions:
             - ^docs/.*
             - ^x-pack/docs/.*
-          white-list-labels:
-            - 'Team:Security'
-          black-list-labels:
-            - '>test-mute'
-            - 'buildkite-opt-in'
     builders:
       - inject:
           # Use FIPS-specific Java versions
-          properties-file: '.ci/java-versions-fips.properties'
+          properties-file: ".ci/java-versions-fips.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             JAVA16_HOME=$HOME/.java/openjdk16

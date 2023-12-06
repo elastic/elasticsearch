@@ -36,21 +36,11 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
     int positionCount = v.getPositionCount();
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return driverContext.blockFactory().newConstantNullBlock(positionCount);
-      }
+      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
     }
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        try {
-          builder.appendBytesRef(evalValue(vector, p, scratchPad));
-        } catch (Exception e) {
-          registerException(e);
-          builder.appendNull();
-        }
+        builder.appendBytesRef(evalValue(vector, p, scratchPad));
       }
       return builder.build();
     }
@@ -74,17 +64,13 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            BytesRef value = evalValue(block, i, scratchPad);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendBytesRef(value);
-            valuesAppended = true;
-          } catch (Exception e) {
-            registerException(e);
+          BytesRef value = evalValue(block, i, scratchPad);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendBytesRef(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

@@ -69,7 +69,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
 
     @Override
     public ConstantNullBlock filter(int... positions) {
-        return (ConstantNullBlock) blockFactory.newConstantNullBlock(positions.length);
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -99,6 +99,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
 
     @Override
     public Block expand() {
+        incRef();
         return this;
     }
 
@@ -126,12 +127,8 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
     }
 
     @Override
-    public void close() {
-        if (isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+    public void closeInternal() {
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 
     static class Builder implements Block.Builder {

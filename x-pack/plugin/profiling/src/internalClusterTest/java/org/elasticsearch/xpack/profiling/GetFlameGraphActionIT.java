@@ -8,19 +8,16 @@
 package org.elasticsearch.xpack.profiling;
 
 public class GetFlameGraphActionIT extends ProfilingTestCase {
-    @Override
-    protected boolean useOnlyAllEvents() {
-        return true;
-    }
-
     public void testGetStackTracesUnfiltered() throws Exception {
-        GetStackTracesRequest request = new GetStackTracesRequest(1, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(1000, 600.0d, 1.0d, null, null, null, null, null, null, null, null);
         GetFlamegraphResponse response = client().execute(GetFlamegraphAction.INSTANCE, request).get();
         // only spot-check top level properties - detailed tests are done in unit tests
-        assertEquals(4, response.getSize());
+        assertEquals(994, response.getSize());
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(3, response.getSelfCPU());
-        assertEquals(4, response.getTotalCPU());
-        assertEquals(1, response.getTotalSamples());
+        assertEquals(44, response.getSelfCPU());
+        assertEquals(1865, response.getTotalCPU());
+        assertEquals(1.3651d, response.getSelfAnnualCostsUSD(), 0.0001d);
+        assertEquals(0.000144890d, response.getSelfAnnualCO2Tons(), 0.000000001d);
+        assertEquals(44, response.getTotalSamples());
     }
 }

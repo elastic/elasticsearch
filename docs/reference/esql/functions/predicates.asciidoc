@@ -2,6 +2,7 @@
 [[esql-predicates]]
 === `IS NULL` and `IS NOT NULL` predicates
 
+//tag::body[]
 For NULL comparison, use the `IS NULL` and `IS NOT NULL` predicates:
 
 [source.merge.styled,esql]
@@ -21,3 +22,4 @@ include::{esql-specs}/null.csv-spec[tag=is-not-null]
 |===
 include::{esql-specs}/null.csv-spec[tag=is-not-null-result]
 |===
+//end::body[]

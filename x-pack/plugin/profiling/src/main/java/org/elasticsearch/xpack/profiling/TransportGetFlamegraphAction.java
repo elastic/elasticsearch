@@ -44,20 +44,14 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
     @Override
     protected void doExecute(Task task, GetStackTracesRequest request, ActionListener<GetFlamegraphResponse> listener) {
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), task);
-        long start = System.nanoTime();
+        StopWatch watch = new StopWatch("getFlamegraphAction");
         client.execute(GetStackTracesAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(GetStackTracesResponse response) {
-                long responseStart = System.nanoTime();
                 try {
+                    StopWatch processingWatch = new StopWatch("Processing response");
                     GetFlamegraphResponse flamegraphResponse = buildFlamegraph(response);
-                    log.debug(
-                        "getFlamegraphAction took ["
-                            + (System.nanoTime() - start) / 1_000_000.0d
-                            + "] ms (processing response: ["
-                            + (System.nanoTime() - responseStart) / 1_000_000.0d
-                            + "] ms."
-                    );
+                    log.debug(() -> watch.report() + " " + processingWatch.report());
                     listener.onResponse(flamegraphResponse);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
@@ -83,12 +77,20 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
 
         SortedMap<String, StackTrace> sortedStacktraces = new TreeMap<>(response.getStackTraces());
         for (Map.Entry<String, StackTrace> st : sortedStacktraces.entrySet()) {
-            String stackTraceId = st.getKey();
             StackTrace stackTrace = st.getValue();
-            int samples = response.getStackTraceEvents().getOrDefault(stackTraceId, 0);
             builder.setCurrentNode(0);
+
+            long samples = stackTrace.count;
             builder.addSamplesInclusive(0, samples);
-            builder.addSamplesExclusive(0, 0);
+            builder.addSamplesExclusive(0, 0L);
+
+            double annualCO2Tons = stackTrace.annualCO2Tons;
+            builder.addAnnualCO2TonsInclusive(0, annualCO2Tons);
+            builder.addAnnualCO2TonsExclusive(0, 0.0d);
+
+            double annualCostsUSD = stackTrace.annualCostsUSD;
+            builder.addAnnualCostsUSDInclusive(0, annualCostsUSD);
+            builder.addAnnualCostsUSDExclusive(0, 0.0d);
 
             int frameCount = stackTrace.frameIds.size();
             for (int i = 0; i < frameCount; i++) {
@@ -98,14 +100,17 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 Integer addressOrLine = stackTrace.addressOrLines.get(i);
                 StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, EMPTY_STACKFRAME);
                 String executable = response.getExecutables().getOrDefault(fileId, "");
+                final boolean isLeafFrame = i == frameCount - 1;
 
-                for (Frame frame : stackFrame.frames()) {
+                stackFrame.forEach(frame -> {
                     String frameGroupId = FrameGroupID.create(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
 
                     int nodeId;
                     if (builder.isExists(frameGroupId)) {
                         nodeId = builder.getNodeId(frameGroupId);
                         builder.addSamplesInclusive(nodeId, samples);
+                        builder.addAnnualCO2TonsInclusive(nodeId, annualCO2Tons);
+                        builder.addAnnualCostsUSDInclusive(nodeId, annualCostsUSD);
                     } else {
                         nodeId = builder.addNode(
                             fileId,
@@ -118,15 +123,19 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                             frame.fileName(),
                             frame.lineNumber(),
                             samples,
+                            annualCO2Tons,
+                            annualCostsUSD,
                             frameGroupId
                         );
                     }
-                    if (i == frameCount - 1) {
+                    if (isLeafFrame && frame.last()) {
                         // Leaf frame: sum up counts for exclusive CPU.
                         builder.addSamplesExclusive(nodeId, samples);
+                        builder.addAnnualCO2TonsExclusive(nodeId, annualCO2Tons);
+                        builder.addAnnualCostsUSDExclusive(nodeId, annualCostsUSD);
                     }
                     builder.setCurrentNode(nodeId);
-                }
+                });
             }
         }
         return builder.build();
@@ -134,9 +143,15 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
 
     private static class FlamegraphBuilder {
         private int currentNode = 0;
+        // size is the number of nodes in the flamegraph
         private int size = 0;
-        private int selfCPU;
-        private int totalCPU;
+        private long selfCPU;
+        private long totalCPU;
+        private double selfAnnualCO2Tons;
+        private double totalAnnualCO2Tons;
+        private double selfAnnualCostsUSD;
+        private double totalAnnualCostsUSD;
+        // totalSamples is the total number of samples in the stacktraces
         private final long totalSamples;
         // Map: FrameGroupId -> NodeId
         private final List<Map<String, Integer>> edges;
@@ -149,8 +164,12 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         private final List<Integer> functionOffsets;
         private final List<String> sourceFileNames;
         private final List<Integer> sourceLines;
-        private final List<Integer> countInclusive;
-        private final List<Integer> countExclusive;
+        private final List<Long> countInclusive;
+        private final List<Long> countExclusive;
+        private final List<Double> annualCO2TonsExclusive;
+        private final List<Double> annualCO2TonsInclusive;
+        private final List<Double> annualCostsUSDExclusive;
+        private final List<Double> annualCostsUSDInclusive;
         private final double samplingRate;
 
         FlamegraphBuilder(long totalSamples, int frames, double samplingRate) {
@@ -168,9 +187,13 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             this.sourceLines = new ArrayList<>(capacity);
             this.countInclusive = new ArrayList<>(capacity);
             this.countExclusive = new ArrayList<>(capacity);
+            this.annualCO2TonsInclusive = new ArrayList<>(capacity);
+            this.annualCO2TonsExclusive = new ArrayList<>(capacity);
+            this.annualCostsUSDInclusive = new ArrayList<>(capacity);
+            this.annualCostsUSDExclusive = new ArrayList<>(capacity);
             this.totalSamples = totalSamples;
             // always insert root node
-            int nodeId = this.addNode("", 0, false, "", 0, "", 0, "", 0, 0, null);
+            int nodeId = this.addNode("", 0, false, "", 0, "", 0, "", 0, 0, 0.0, 0.0, null);
             this.setCurrentNode(nodeId);
             this.samplingRate = samplingRate;
         }
@@ -186,7 +209,9 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             int functionOffset,
             String sourceFileName,
             int sourceLine,
-            int samples,
+            long samples,
+            double annualCO2Tons,
+            double annualCostsUSD,
             String frameGroupId
         ) {
             int node = this.size;
@@ -202,7 +227,13 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             this.sourceLines.add(sourceLine);
             this.countInclusive.add(samples);
             this.totalCPU += samples;
-            this.countExclusive.add(0);
+            this.countExclusive.add(0L);
+            this.annualCO2TonsInclusive.add(annualCO2Tons);
+            this.totalAnnualCO2Tons += annualCO2Tons;
+            this.annualCO2TonsExclusive.add(0.0);
+            this.annualCostsUSDInclusive.add(annualCostsUSD);
+            this.totalAnnualCostsUSD += annualCostsUSD;
+            this.annualCostsUSDExclusive.add(0.0);
             if (frameGroupId != null) {
                 this.edges.get(currentNode).put(frameGroupId, node);
             }
@@ -222,16 +253,40 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             return this.edges.get(currentNode).get(frameGroupId);
         }
 
-        public void addSamplesInclusive(int nodeId, int sampleCount) {
-            Integer priorSampleCount = this.countInclusive.get(nodeId);
+        public void addSamplesInclusive(int nodeId, long sampleCount) {
+            Long priorSampleCount = this.countInclusive.get(nodeId);
             this.countInclusive.set(nodeId, priorSampleCount + sampleCount);
             this.totalCPU += sampleCount;
         }
 
-        public void addSamplesExclusive(int nodeId, int sampleCount) {
-            Integer priorSampleCount = this.countExclusive.get(nodeId);
+        public void addSamplesExclusive(int nodeId, long sampleCount) {
+            Long priorSampleCount = this.countExclusive.get(nodeId);
             this.countExclusive.set(nodeId, priorSampleCount + sampleCount);
             this.selfCPU += sampleCount;
+        }
+
+        public void addAnnualCO2TonsInclusive(int nodeId, double annualCO2Tons) {
+            Double priorAnnualCO2Tons = this.annualCO2TonsInclusive.get(nodeId);
+            this.annualCO2TonsInclusive.set(nodeId, priorAnnualCO2Tons + annualCO2Tons);
+            this.totalAnnualCO2Tons += annualCO2Tons;
+        }
+
+        public void addAnnualCO2TonsExclusive(int nodeId, double annualCO2Tons) {
+            Double priorAnnualCO2Tons = this.annualCO2TonsExclusive.get(nodeId);
+            this.annualCO2TonsExclusive.set(nodeId, priorAnnualCO2Tons + annualCO2Tons);
+            this.selfAnnualCO2Tons += annualCO2Tons;
+        }
+
+        public void addAnnualCostsUSDInclusive(int nodeId, double annualCostsUSD) {
+            Double priorAnnualCostsUSD = this.annualCostsUSDInclusive.get(nodeId);
+            this.annualCostsUSDInclusive.set(nodeId, priorAnnualCostsUSD + annualCostsUSD);
+            this.totalAnnualCostsUSD += annualCostsUSD;
+        }
+
+        public void addAnnualCostsUSDExclusive(int nodeId, double annualCostsUSD) {
+            Double priorAnnualCostsUSD = this.annualCostsUSDExclusive.get(nodeId);
+            this.annualCostsUSDExclusive.set(nodeId, priorAnnualCostsUSD + annualCostsUSD);
+            this.selfAnnualCostsUSD += annualCostsUSD;
         }
 
         public GetFlamegraphResponse build() {
@@ -250,8 +305,16 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 sourceLines,
                 countInclusive,
                 countExclusive,
+                annualCO2TonsInclusive,
+                annualCO2TonsExclusive,
+                annualCostsUSDInclusive,
+                annualCostsUSDExclusive,
                 selfCPU,
                 totalCPU,
+                selfAnnualCO2Tons,
+                totalAnnualCO2Tons,
+                selfAnnualCostsUSD,
+                totalAnnualCostsUSD,
                 totalSamples
             );
         }

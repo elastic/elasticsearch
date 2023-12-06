@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * This file has been contributed to be a Generative AI
  */
 
 package org.elasticsearch.xpack.ml.datafeed;
@@ -10,6 +12,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -17,6 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
@@ -74,7 +78,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
     @Override
     public void runUpdate() {
-        PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = PlainActionFuture.newFuture();
+        PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = new PlainActionFuture<>();
         provider.expandDatafeedConfigs("_all", true, null, getdatafeeds);
         List<DatafeedConfig.Builder> datafeedConfigBuilders = getdatafeeds.actionGet();
         List<DatafeedUpdate> updates = datafeedConfigBuilders.stream()
@@ -96,7 +100,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
         List<Exception> failures = new ArrayList<>();
         for (DatafeedUpdate update : updates) {
-            PlainActionFuture<DatafeedConfig> updateDatafeeds = PlainActionFuture.newFuture();
+            PlainActionFuture<DatafeedConfig> updateDatafeeds = new PlainActionFuture<>();
             provider.updateDatefeedConfig(
                 update.getId(),
                 update,
@@ -109,7 +113,20 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
                 logger.debug(() -> "[" + update.getId() + "] datafeed successfully updated");
             } catch (Exception ex) {
                 logger.warn(() -> "[" + update.getId() + "] failed being updated", ex);
-                failures.add(new ElasticsearchException("Failed to update datafeed {}", ex, update.getId()));
+                if (ex instanceof ElasticsearchException elasticsearchException) {
+                    failures.add(
+                        new ElasticsearchStatusException(
+                            "Failed to update datafeed {}",
+                            elasticsearchException.status(),
+                            elasticsearchException,
+                            update.getId()
+                        )
+                    );
+                } else {
+                    failures.add(
+                        new ElasticsearchStatusException("Failed to update datafeed {}", RestStatus.REQUEST_TIMEOUT, ex, update.getId())
+                    );
+                }
             }
         }
         if (failures.isEmpty()) {

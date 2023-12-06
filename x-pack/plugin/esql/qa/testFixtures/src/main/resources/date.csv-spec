@@ -182,7 +182,7 @@ string:keyword                                          |datetime:date
 // end::to_datetime-str-result[]
 ;
 
-convertFromUnsignedLong
+convertFromUnsignedLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
 warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:58: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
@@ -724,4 +724,46 @@ birth_date:datetime
 1952-06-13T00:00:00.000Z
 1952-02-27T00:00:00.000Z
 1953-04-21T00:00:00.000Z
+;
+
+docsGettingStartedAutoBucket
+// tag::gs-auto_bucket[]
+FROM sample_data
+| KEEP @timestamp
+| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+// end::gs-auto_bucket[]
+| LIMIT 0
+;
+
+@timestamp:date | bucket:date
+;
+
+docsGettingStartedAutoBucketStatsBy
+// tag::gs-auto_bucket-stats-by[]
+FROM sample_data
+| KEEP @timestamp, event_duration
+| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| STATS COUNT(*) BY bucket
+// end::gs-auto_bucket-stats-by[]
+| SORT bucket
+;
+
+COUNT(*):long | bucket:date
+2              |2023-10-23T12:00:00.000Z
+5              |2023-10-23T13:00:00.000Z
+;
+
+docsGettingStartedAutoBucketStatsByMedian
+// tag::gs-auto_bucket-stats-by-median[]
+FROM sample_data
+| KEEP @timestamp, event_duration
+| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| STATS median_duration = MEDIAN(event_duration) BY bucket
+// end::gs-auto_bucket-stats-by-median[]
+| SORT bucket
+;
+
+median_duration:double | bucket:date
+3107561.0              |2023-10-23T12:00:00.000Z
+1756467.0              |2023-10-23T13:00:00.000Z
 ;

@@ -23,7 +23,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -230,7 +229,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     ) {
         return new SearchPhase("fetch") {
             @Override
-            public void run() throws IOException {
+            public void run() {
                 sendResponse(queryPhase, fetchResults);
             }
         };
@@ -241,19 +240,15 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
-            final InternalSearchResponse internalResponse = SearchPhaseController.merge(
-                true,
-                queryPhase,
-                fetchResults.asList(),
-                fetchResults::get
-            );
+            final InternalSearchResponse internalResponse = SearchPhaseController.merge(true, queryPhase, fetchResults);
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
             }
-            listener.onResponse(
+            ActionListener.respondAndRelease(
+                listener,
                 new SearchResponse(
                     internalResponse,
                     scrollId,

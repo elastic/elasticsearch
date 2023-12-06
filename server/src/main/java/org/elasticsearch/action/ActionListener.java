@@ -16,6 +16,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 import java.util.ArrayList;
@@ -310,6 +311,18 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Shorthand for resolving given {@code listener} with given {@code response} and decrementing the response's ref count by one
+     * afterwards.
+     */
+    static <R extends RefCounted> void respondAndRelease(ActionListener<R> listener, R response) {
+        try {
+            listener.onResponse(response);
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
      * @return A listener which (if assertions are enabled) wraps around the given delegate and asserts that it is only called once.
      */
     static <Response> ActionListener<Response> assertOnce(ActionListener<Response> delegate) {
@@ -327,7 +340,12 @@ public interface ActionListener<Response> {
                 @Override
                 public void onResponse(Response response) {
                     assertFirstRun();
-                    delegate.onResponse(response);
+                    try {
+                        delegate.onResponse(response);
+                    } catch (Exception e) {
+                        assert false : new AssertionError("listener [" + delegate + "] must handle its own exceptions", e);
+                        throw e;
+                    }
                 }
 
                 @Override

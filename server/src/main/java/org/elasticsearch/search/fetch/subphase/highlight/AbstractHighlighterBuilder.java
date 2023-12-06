@@ -161,9 +161,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             options(in.readMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            maxAnalyzedOffset(in.readOptionalInt());
-        }
+        maxAnalyzedOffset(in.readOptionalInt());
     }
 
     /**
@@ -207,9 +205,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeGenericMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            out.writeOptionalInt(maxAnalyzedOffset);
-        }
+        out.writeOptionalInt(maxAnalyzedOffset);
         doWriteTo(out);
     }
 
@@ -449,13 +445,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             this.boundaryScannerLocale = Locale.forLanguageTag(boundaryScannerLocale);
         }
         return (HB) this;
-    }
-
-    /**
-     * @return the value set by {@link #boundaryScannerLocale(String)}
-     */
-    public Locale boundaryScannerLocale() {
-        return this.boundaryScannerLocale;
     }
 
     /**

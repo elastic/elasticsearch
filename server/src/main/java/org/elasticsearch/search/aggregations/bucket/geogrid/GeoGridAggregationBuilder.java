@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -64,7 +63,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         parser.declareInt(GeoGridAggregationBuilder::size, FIELD_SIZE);
         parser.declareInt(GeoGridAggregationBuilder::shardSize, FIELD_SHARD_SIZE);
         parser.declareField(
-            (p, builder, context) -> { builder.setGeoBoundingBox(GeoBoundingBox.parseBoundingBox(p)); },
+            (p, builder, context) -> builder.setGeoBoundingBox(GeoBoundingBox.parseBoundingBox(p)),
             GeoBoundingBox.BOUNDS_FIELD,
             org.elasticsearch.xcontent.ObjectParser.ValueType.OBJECT
         );
@@ -91,9 +90,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            geoBoundingBox = new GeoBoundingBox(in);
-        }
+        geoBoundingBox = new GeoBoundingBox(in);
+
     }
 
     @Override
@@ -111,9 +109,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            geoBoundingBox.writeTo(out);
-        }
+        geoBoundingBox.writeTo(out);
     }
 
     /**
@@ -151,20 +147,12 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         return this;
     }
 
-    public int size() {
-        return requiredSize;
-    }
-
     public GeoGridAggregationBuilder shardSize(int shardSize) {
         if (shardSize <= 0) {
             throw new IllegalArgumentException("[shardSize] must be greater than 0. Found [" + shardSize + "] in [" + name + "]");
         }
         this.shardSize = shardSize;
         return this;
-    }
-
-    public int shardSize() {
-        return shardSize;
     }
 
     public GeoGridAggregationBuilder setGeoBoundingBox(GeoBoundingBox geoBoundingBox) {

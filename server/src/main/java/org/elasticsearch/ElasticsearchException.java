@@ -28,6 +28,7 @@ import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
@@ -1131,12 +1132,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         // 26 was BatchOperationException
-        SNAPSHOT_CREATION_EXCEPTION(
-            org.elasticsearch.snapshots.SnapshotCreationException.class,
-            org.elasticsearch.snapshots.SnapshotCreationException::new,
-            27,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 27 was SnapshotCreationException
         // 28 was DeleteFailedEngineException, deprecated in 6.0, removed in 7.0
         DOCUMENT_MISSING_EXCEPTION(
             org.elasticsearch.index.engine.DocumentMissingException.class,
@@ -1868,6 +1864,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             AggregationExecutionException.InvalidPath::new,
             174,
             TransportVersions.INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED
+        ),
+        MISSED_INDICES_UPDATE_EXCEPTION(
+            AutoscalingMissedIndicesUpdateException.class,
+            AutoscalingMissedIndicesUpdateException::new,
+            175,
+            TransportVersions.MISSED_INDICES_UPDATE_EXCEPTION_ADDED
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

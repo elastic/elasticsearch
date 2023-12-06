@@ -62,6 +62,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleIndexExecutor;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -158,6 +159,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final ThreadPool threadPool;
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     final ResultDeduplicator<String, Void> clusterStateChangesDeduplicator;
+    private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -174,6 +176,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * The number of retries for a particular index and error after which DSL will emmit a signal (e.g. log statement)
      */
     private volatile int signallingErrorRetryInterval;
+
+    /**
+     * The following stats are tracking how the data stream lifecycle runs are performing time wise
+     */
+    private volatile Long lastRunStartedAt = null;
+    private volatile Long lastRunDuration = null;
+    private volatile Long timeBetweenStarts = null;
 
     private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
@@ -197,7 +206,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         ThreadPool threadPool,
         LongSupplier nowSupplier,
         DataStreamLifecycleErrorStore errorStore,
-        AllocationService allocationService
+        AllocationService allocationService,
+        DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher
     ) {
         this.settings = settings;
         this.client = client;
@@ -225,6 +235,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             Priority.URGENT, // urgent priority as this deletes indices
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
         );
+        this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
     }
 
     /**
@@ -289,6 +300,25 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     event.getTriggeredTime()
                 );
                 run(clusterService.state());
+                dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        assert acknowledgedResponse.isAcknowledged() : "updating the health info is always acknowledged";
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(
+                            String.format(
+                                Locale.ROOT,
+                                "unable to update the health cache with DSL errors related information "
+                                    + "due to [%s]. Will retry on the next DSL run",
+                                e.getMessage()
+                            ),
+                            e
+                        );
+                    }
+                });
             }
         }
     }
@@ -299,6 +329,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     // default visibility for testing purposes
     void run(ClusterState state) {
+        long startTime = nowSupplier.getAsLong();
+        if (lastRunStartedAt != null) {
+            timeBetweenStarts = startTime - lastRunStartedAt;
+        }
+        lastRunStartedAt = startTime;
         int affectedIndices = 0;
         int affectedDataStreams = 0;
         for (DataStream dataStream : state.metadata().dataStreams().values()) {
@@ -396,8 +431,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             affectedIndices += indicesToExcludeForRemainingRun.size();
             affectedDataStreams++;
         }
+        lastRunDuration = nowSupplier.getAsLong() - lastRunStartedAt;
         logger.trace(
-            "Data stream lifecycle service performed operations on [{}] indices, part of [{}] data streams",
+            "Data stream lifecycle service run for {} and performed operations on [{}] indices, part of [{}] data streams",
+            TimeValue.timeValueMillis(lastRunDuration).toHumanReadableString(2),
             affectedIndices,
             affectedDataStreams
         );
@@ -1191,6 +1228,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             return null;
         }
         return dataStream.getLifecycle().getEffectiveDataRetention();
+    }
+
+    /**
+     * @return the duration of the last run in millis or null if the service hasn't completed a run yet.
+     */
+    @Nullable
+    public Long getLastRunDuration() {
+        return lastRunDuration;
+    }
+
+    /**
+     * @return the time passed between the start times of the last two consecutive runs or null if the service hasn't started twice yet.
+     */
+    @Nullable
+    public Long getTimeBetweenStarts() {
+        return timeBetweenStarts;
     }
 
     /**

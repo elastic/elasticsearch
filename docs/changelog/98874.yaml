@@ -1,0 +1,5 @@
+pr: 98874
+summary: Estimate the memory required to deploy trained models more accurately
+area: Machine Learning
+type: enhancement
+issues: []

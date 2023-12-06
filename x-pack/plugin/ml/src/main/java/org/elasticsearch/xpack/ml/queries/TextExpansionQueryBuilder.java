@@ -24,7 +24,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
@@ -123,41 +125,50 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             return weightedTokensToQuery(fieldName, weightedTokensSupplier.get(), queryRewriteContext);
         }
 
-        InferModelAction.Request inferRequest = InferModelAction.Request.forTextInput(
+        CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             modelId,
+            List.of(modelText),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
-            List.of(modelText)
+            false,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
         );
         inferRequest.setHighPriority(true);
+        inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(inferenceResponse -> {
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                CoordinatedInferenceAction.INSTANCE,
+                inferRequest,
+                ActionListener.wrap(inferenceResponse -> {
 
-                if (inferenceResponse.getInferenceResults().isEmpty()) {
-                    listener.onFailure(new IllegalStateException("inference response contain no results"));
-                    return;
-                }
+                    if (inferenceResponse.getInferenceResults().isEmpty()) {
+                        listener.onFailure(new IllegalStateException("inference response contain no results"));
+                        return;
+                    }
 
-                if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
-                    textExpansionResultsSupplier.set(textExpansionResults);
-                    listener.onResponse(null);
-                } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
-                    listener.onFailure(new IllegalStateException(warning.getWarning()));
-                } else {
-                    listener.onFailure(
-                        new IllegalStateException(
-                            "expected a result of type ["
-                                + TextExpansionResults.NAME
-                                + "] received ["
-                                + inferenceResponse.getInferenceResults().get(0).getWriteableName()
-                                + "]. Is ["
-                                + modelId
-                                + "] a compatible model?"
-                        )
-                    );
-                }
-            }, listener::onFailure));
+                    if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
+                        textExpansionResultsSupplier.set(textExpansionResults);
+                        listener.onResponse(null);
+                    } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
+                        listener.onFailure(new IllegalStateException(warning.getWarning()));
+                    } else {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                "expected a result of type ["
+                                    + TextExpansionResults.NAME
+                                    + "] received ["
+                                    + inferenceResponse.getInferenceResults().get(0).getWriteableName()
+                                    + "]. Is ["
+                                    + modelId
+                                    + "] a compatible model?"
+                            )
+                        );
+                    }
+                }, listener::onFailure)
+            );
         });
 
         return new TextExpansionQueryBuilder(this, textExpansionResultsSupplier);

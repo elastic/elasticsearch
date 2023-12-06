@@ -23,7 +23,7 @@ public class IsInfinite extends RationalUnaryPredicate {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return new IsInfiniteEvaluator.Factory(toEvaluator.apply(field()));
+        return new IsInfiniteEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Evaluator

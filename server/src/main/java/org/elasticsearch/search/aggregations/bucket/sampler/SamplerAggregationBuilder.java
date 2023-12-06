@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 public class SamplerAggregationBuilder extends AbstractAggregationBuilder<SamplerAggregationBuilder> {
     public static final String NAME = "sampler";
@@ -65,13 +66,6 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     public SamplerAggregationBuilder shardSize(int shardSize) {
         this.shardSize = shardSize;
         return this;
-    }
-
-    /**
-     * Get the max num docs to be returned from each shard.
-     */
-    public int shardSize() {
-        return shardSize;
     }
 
     @Override
@@ -147,5 +141,10 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
     }
 }

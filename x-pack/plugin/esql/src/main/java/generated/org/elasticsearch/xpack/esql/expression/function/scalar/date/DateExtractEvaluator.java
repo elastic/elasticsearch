@@ -46,20 +46,18 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valueRef = value.eval(page)) {
-      LongBlock valueBlock = (LongBlock) valueRef.block();
-      try (Block.Ref chronoFieldRef = chronoField.eval(page)) {
-        BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoFieldRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valueBlock = (LongBlock) value.eval(page)) {
+      try (BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoField.eval(page)) {
         LongVector valueVector = valueBlock.asVector();
         if (valueVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valueBlock, chronoFieldBlock));
+          return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
         }
         BytesRefVector chronoFieldVector = chronoFieldBlock.asVector();
         if (chronoFieldVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valueBlock, chronoFieldBlock));
+          return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valueVector, chronoFieldVector));
+        return eval(page.getPositionCount(), valueVector, chronoFieldVector);
       }
     }
   }
@@ -68,11 +66,25 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
+        if (valueBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (chronoFieldBlock.isNull(p) || chronoFieldBlock.getValueCount(p) != 1) {
+        if (valueBlock.getValueCount(p) != 1) {
+          if (valueBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (chronoFieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (chronoFieldBlock.getValueCount(p) != 1) {
+          if (chronoFieldBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

@@ -14,8 +14,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Objects;
 
 /**
@@ -84,7 +82,7 @@ public final class Page implements Writeable {
     private Page(Page prev, Block[] toAdd) {
         for (Block block : toAdd) {
             if (prev.positionCount != block.getPositionCount()) {
-                throw new IllegalArgumentException("Block does not have same position count");
+                throw new IllegalArgumentException("Block [" + block + "] does not have same position count");
             }
         }
         this.positionCount = prev.positionCount;
@@ -235,42 +233,18 @@ public final class Page implements Writeable {
 
         blocksReleased = true;
 
-        // blocks can be used as multiple columns
-        var map = new IdentityHashMap<Block, Boolean>(mapSize(blocks.length));
-        for (Block b : blocks) {
-            if (map.putIfAbsent(b, Boolean.TRUE) == null) {
-                Releasables.closeExpectNoException(b);
-            }
-        }
+        Releasables.closeExpectNoException(blocks);
     }
 
     /**
-     * Returns a Page from the given blocks and closes all blocks that are not included, from the current Page.
-     * That is, allows clean-up of the current page _after_ external manipulation of the blocks.
-     * The current page should no longer be used and be considered closed.
+     * Before passing a Page to another Driver, it is necessary to switch the owning block factories of its Blocks to their parents,
+     * which are associated with the global circuit breaker. This ensures that when the new driver releases this Page, it returns
+     * memory directly to the parent block factory instead of the local block factory. This is important because the local block
+     * factory is not thread safe and doesn't support simultaneous access by more than one thread.
      */
-    public Page newPageAndRelease(Block... keep) {
-        if (blocksReleased) {
-            throw new IllegalStateException("can't create new page from already released page");
+    public void allowPassingToDifferentDriver() {
+        for (Block block : blocks) {
+            block.allowPassingToDifferentDriver();
         }
-
-        blocksReleased = true;
-
-        var newPage = new Page(positionCount, keep);
-        var set = Collections.newSetFromMap(new IdentityHashMap<Block, Boolean>(mapSize(keep.length)));
-        set.addAll(Arrays.asList(keep));
-
-        // close blocks that have been left out
-        for (Block b : blocks) {
-            if (set.contains(b) == false) {
-                Releasables.closeExpectNoException(b);
-            }
-        }
-
-        return newPage;
-    }
-
-    static int mapSize(int expectedSize) {
-        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
     }
 }

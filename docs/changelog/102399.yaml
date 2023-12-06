@@ -1,0 +1,6 @@
+pr: 102399
+summary: "ES|QL: Fix layout management for Project"
+area: ES|QL
+type: bug
+issues:
+ - 102120

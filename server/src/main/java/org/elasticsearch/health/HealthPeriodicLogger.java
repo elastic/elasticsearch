@@ -118,6 +118,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
     private static final Logger logger = LogManager.getLogger(HealthPeriodicLogger.class);
 
+    private final MeterRegistry meterRegistry;
     private final Map<String, LongGaugeMetric> metrics = new HashMap<>();
 
     /**
@@ -163,33 +164,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = ENABLED_SETTING.get(settings);
         this.outputMode = OUTPUT_MODE_SETTING.get(settings);
+        this.meterRegistry = meterRegistry;
 
-        // create APM metric reporters
-        createMetrics(meterRegistry);
-    }
-
-    private void createMetrics(MeterRegistry meterRegistry) {
-        String[] indicators = {
-            "blob_store",
-            "disk",
-            "ilm",
-            "master_is_stable",
-            "overall",
-            "repository_integrity",
-            "shards_availability",
-            "shards_capacity",
-            "slm" };
-        for (String indicator : indicators) {
-            metrics.put(
-                indicator,
-                LongGaugeMetric.create(
-                    meterRegistry,
-                    String.format(Locale.ROOT, "es.health.%s.red", indicator),
-                    String.format(Locale.ROOT, "%s: Red", indicator),
-                    "{cluster}"
-                )
-            );
-        }
+        // create metric for overall level metrics
+        this.metrics.put("overall", LongGaugeMetric.create(this.meterRegistry, "es.health.overall.red", "Overall: Red", "{cluster}"));
     }
 
     private void registerListeners() {
@@ -345,13 +323,27 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
     };
 
+    /**
+     * Handle the setting (and possible creation) of APM metrics
+     */
+    // default visibility for testing purposes
     void handleMetrics(List<HealthIndicatorResult> healthIndicatorResults) {
         if (healthIndicatorResults != null) {
             for (HealthIndicatorResult result : healthIndicatorResults) {
-                if (metrics.containsKey(result.name())) {
-                    metricWriter.accept(metrics.get(result.name()), (long) (result.status() == RED ? 1 : 0));
+                String metricName = result.name();
+                LongGaugeMetric metric = this.metrics.get(metricName);
+                if (metric == null) {
+                    metric = LongGaugeMetric.create(
+                        this.meterRegistry,
+                        String.format(Locale.ROOT, "es.health.%s.red", metricName),
+                        String.format(Locale.ROOT, "%s: Red", metricName),
+                        "{cluster}"
+                    );
+                    this.metrics.put(metricName, metric);
                 }
+                metricWriter.accept(metric, (long) (result.status() == RED ? 1 : 0));
             }
+
             metricWriter.accept(metrics.get("overall"), (long) (calculateOverallStatus(healthIndicatorResults) == RED ? 1 : 0));
         }
     }

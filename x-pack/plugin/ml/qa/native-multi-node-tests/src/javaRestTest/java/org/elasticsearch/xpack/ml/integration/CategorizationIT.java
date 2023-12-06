@@ -471,7 +471,8 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 "time",
                 nowMillis - TimeValue.timeValueHours(5).millis(),
                 "msg",
-                "2015-10-18 18:01:53,447 INFO [main] org.apache.hadoop.mapreduce.v2.app.rm.RMContainerRequestor: nodeBlacklistingEnabled:true"
+                "2015-10-18 18:01:53,447 INFO [main] org.apache.hadoop.mapreduce.v2.app.rm.RMContainerRequestor: "
+                    + "nodeBlacklistingEnabled:true"
             );
             bulkRequestBuilder.add(indexRequest);
             indexRequest = new IndexRequest(index);

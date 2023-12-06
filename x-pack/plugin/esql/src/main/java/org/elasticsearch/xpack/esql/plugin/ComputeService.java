@@ -29,6 +29,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
+import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeResponse;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -148,6 +149,8 @@ public class ComputeService {
         LOGGER.debug("Sending data node plan\n{}\n with filter [{}]", dataNodePlan, requestFilter);
 
         String[] originalIndices = PlannerUtils.planOriginalIndices(physicalPlan);
+        var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
+        listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
         computeTargetNodes(
             rootTask,
             requestFilter,
@@ -168,7 +171,16 @@ public class ComputeService {
                     exchangeSource.addCompletionListener(requestRefs.acquire());
                     // run compute on the coordinator
                     var computeContext = new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null);
-                    runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, requestRefs.acquire()));
+                    runCompute(
+                        rootTask,
+                        computeContext,
+                        coordinatorPlan,
+                        cancelOnFailure(
+                            rootTask,
+                            cancelled,
+                            ActionListener.runBefore(requestRefs.acquire(), responseHeadersCollector::collect)
+                        )
+                    );
                     // run compute on remote nodes
                     // TODO: This is wrong, we need to be able to cancel
                     runComputeOnRemoteNodes(
@@ -178,7 +190,11 @@ public class ComputeService {
                         dataNodePlan,
                         exchangeSource,
                         targetNodes,
-                        () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(unused -> null)
+                        () -> cancelOnFailure(
+                            rootTask,
+                            cancelled,
+                            ActionListener.runBefore(requestRefs.acquire(), responseHeadersCollector::collect)
+                        )
                     );
                 }
             })
@@ -192,7 +208,7 @@ public class ComputeService {
         PhysicalPlan dataNodePlan,
         ExchangeSourceHandler exchangeSource,
         List<TargetNode> targetNodes,
-        Supplier<ActionListener<DataNodeResponse>> listener
+        Supplier<ActionListener<Void>> listener
     ) {
         // Do not complete the exchange sources until we have linked all remote sinks
         final SubscribableListener<Void> blockingSinkFuture = new SubscribableListener<>();
@@ -221,7 +237,7 @@ public class ComputeService {
                             new DataNodeRequest(sessionId, configuration, targetNode.shardIds, targetNode.aliasFilters, dataNodePlan),
                             rootTask,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(delegate, DataNodeResponse::new, esqlExecutor)
+                            new ActionListenerResponseHandler<>(delegate.map(ignored -> null), DataNodeResponse::new, esqlExecutor)
                         );
                     })
                 );
@@ -432,7 +448,10 @@ public class ComputeService {
                 runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(unused -> {
                     // don't return until all pages are fetched
                     exchangeSink.addCompletionListener(
-                        ActionListener.releaseAfter(listener, () -> exchangeService.finishSinkHandler(sessionId, null))
+                        ContextPreservingActionListener.wrapPreservingContext(
+                            ActionListener.releaseAfter(listener, () -> exchangeService.finishSinkHandler(sessionId, null)),
+                            transportService.getThreadPool().getThreadContext()
+                        )
                     );
                 }, e -> {
                     exchangeService.finishSinkHandler(sessionId, e);

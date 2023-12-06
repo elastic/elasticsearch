@@ -20,7 +20,8 @@ public abstract class RegexMapper extends ExpressionMapper<RegexMatch<?>> {
     public static final ExpressionMapper<?> REGEX_MATCH = new RegexMapper() {
         @Override
         public ExpressionEvaluator.Factory map(RegexMatch<?> expression, Layout layout) {
-            return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RegexMatchEvaluator(
+            return dvrCtx -> new RegexMatchEvaluator(
+                expression.source(),
                 EvalMapper.toEvaluator(expression.field(), layout).get(dvrCtx),
                 new CharacterRunAutomaton(((AbstractStringPattern) expression.pattern()).createAutomaton()),
                 dvrCtx

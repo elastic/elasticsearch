@@ -55,7 +55,7 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
 
     @Override
     public DoubleVector filter(int... positions) {
-        try (DoubleVector.Builder builder = blockFactory.newDoubleVectorBuilder(positions.length)) {
+        try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendDouble(values[pos]);
             }

@@ -157,7 +157,7 @@ public class ElserMlNodeService implements InferenceService {
         client.execute(
             StartTrainedModelDeploymentAction.INSTANCE,
             startRequest,
-            ActionListener.wrap(r -> listener.onResponse(Boolean.TRUE), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Boolean.TRUE))
         );
     }
 
@@ -181,9 +181,11 @@ public class ElserMlNodeService implements InferenceService {
             input,
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request
         );
-        client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, ActionListener.wrap(inferenceResult -> {
-            listener.onResponse(SparseEmbeddingResults.of(inferenceResult.getResults()));
-        }, listener::onFailure));
+        client.execute(
+            InferTrainedModelDeploymentAction.INSTANCE,
+            request,
+            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getResults())))
+        );
     }
 
     private static ElserMlNodeTaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {

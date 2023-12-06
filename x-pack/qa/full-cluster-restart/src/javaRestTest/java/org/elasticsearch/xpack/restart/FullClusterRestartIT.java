@@ -594,7 +594,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Collections.singletonMap("indices", Collections.singletonList("*")),
             null
         );
-        if (isRunningAgainstOldCluster() && has(ProductFeature.SLM)) {
+        if (isRunningAgainstOldCluster() && clusterHasFeature(RestTestLegacyFeatures.SLM_SUPPORTED)) {
             Request createRepoRequest = new Request("PUT", "_snapshot/test-repo");
             String repoCreateJson = "{" + " \"type\": \"fs\"," + " \"settings\": {" + "   \"location\": \"test-repo\"" + "  }" + "}";
             createRepoRequest.setJsonEntity(repoCreateJson);
@@ -608,7 +608,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             client().performRequest(createSlmPolicyRequest);
         }
 
-        if (isRunningAgainstOldCluster() == false && has(ProductFeature.SLM)) {
+        if (isRunningAgainstOldCluster() == false && clusterHasFeature(RestTestLegacyFeatures.SLM_SUPPORTED)) {
             Request getSlmPolicyRequest = new Request("GET", "_slm/policy/test-policy");
             Response response = client().performRequest(getSlmPolicyRequest);
             Map<String, Object> responseMap = entityAsMap(response);

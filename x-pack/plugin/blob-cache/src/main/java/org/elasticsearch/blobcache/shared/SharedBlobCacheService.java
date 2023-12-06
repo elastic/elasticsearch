@@ -708,25 +708,31 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private void fillGaps(Executor executor, RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
+            final var cacheFileRegion = CacheFileRegion.this;
             for (SparseFileTracker.Gap gap : gaps) {
                 executor.execute(new AbstractRunnable() {
 
                     @Override
                     protected void doRun() throws Exception {
-                        assert CacheFileRegion.this.hasReferences();
                         ensureOpen();
-                        final int start = Math.toIntExact(gap.start());
-                        var ioRef = io;
-                        assert regionOwners.get(ioRef) == CacheFileRegion.this;
-                        writer.fillCacheRange(
-                            ioRef,
-                            start,
-                            start,
-                            Math.toIntExact(gap.end() - start),
-                            progress -> gap.onProgress(start + progress)
-                        );
-                        writeCount.increment();
-
+                        if (cacheFileRegion.tryIncRef() == false) {
+                            throw new AlreadyClosedException("File chunk [" + cacheFileRegion.regionKey + "] has been released");
+                        }
+                        try {
+                            final int start = Math.toIntExact(gap.start());
+                            var ioRef = io;
+                            assert regionOwners.get(ioRef) == cacheFileRegion;
+                            writer.fillCacheRange(
+                                ioRef,
+                                start,
+                                start,
+                                Math.toIntExact(gap.end() - start),
+                                progress -> gap.onProgress(start + progress)
+                            );
+                            writeCount.increment();
+                        } finally {
+                            cacheFileRegion.decRef();
+                        }
                         gap.onCompletion();
                     }
 

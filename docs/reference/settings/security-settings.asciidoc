@@ -1246,10 +1246,15 @@ As per `attribute_patterns.principal`, but for the _dn_ property.
 // tag::saml-attributes-delimiters-groups-tag[]
 `attribute_delimiters.groups` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-A plain string that is used as a delimiter to split the value of the first
-element in the attribute specified by `attributes.groups` before it is
-applied to the user's _group_ property. Group values can not contain the
-delimiter, even if escaped.
+A plain string that is used as a delimiter to split a single-valued SAML
+attribute specified by attributes.groups before it is applied to the user's
+groups property. For example, splitting the SAML attribute value
+engineering,elasticsearch-admins,employees on a delimiter value of , will
+result in engineering, elasticsearch-admins, and employees as the list of
+groups for the user. The delimiter will always be split on, regardless of
+escaping in the input string. This setting does not support multi-valued SAML
+attributes. It cannot be used together with the attribute_patterns setting.
+You can only configure this setting for the groups attribute.
 // end::saml-attributes-delimiters-groups-tag[]
 
 // tag::saml-nameid-format-tag[]

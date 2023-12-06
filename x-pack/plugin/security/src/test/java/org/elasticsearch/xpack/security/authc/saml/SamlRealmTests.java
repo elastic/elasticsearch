@@ -352,16 +352,30 @@ public class SamlRealmTests extends SamlTestCase {
         final boolean principalIsEmailAddress = randomBoolean();
         final Boolean populateUserMetadata = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
-        AuthenticationResult<User> result = performAuthentication(
-            roleMapper,
-            useNameId,
-            principalIsEmailAddress,
-            populateUserMetadata,
-            false,
-            authenticatingRealm,
-            List.of("STRIKE Team: Delta$shield"),
-            "$"
-        );
+        final boolean testWithDelimiter = randomBoolean();
+        final AuthenticationResult<User> result;
+
+        if (testWithDelimiter) {
+            result = performAuthentication(
+                roleMapper,
+                useNameId,
+                principalIsEmailAddress,
+                populateUserMetadata,
+                false,
+                authenticatingRealm,
+                List.of("STRIKE Team: Delta$shield"),
+                "$"
+            );
+        } else {
+            result = performAuthentication(
+                roleMapper,
+                useNameId,
+                principalIsEmailAddress,
+                populateUserMetadata,
+                false,
+                authenticatingRealm
+            );
+        }
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
         assertThat(result.getValue().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
@@ -379,7 +393,11 @@ public class SamlRealmTests extends SamlTestCase {
         }
 
         assertThat(userData.get().getUsername(), equalTo(useNameId ? "clint.barton" : "cbarton"));
-        assertThat(userData.get().getGroups(), containsInAnyOrder("STRIKE Team: Delta", "shield"));
+        if (testWithDelimiter) {
+            assertThat(userData.get().getGroups(), containsInAnyOrder("STRIKE Team: Delta", "shield"));
+        } else {
+            assertThat(userData.get().getGroups(), containsInAnyOrder("avengers", "shield"));
+        }
     }
 
     public void testAuthenticateWithAuthorizingRealm() throws Exception {
@@ -477,7 +495,7 @@ public class SamlRealmTests extends SamlTestCase {
 
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), useNameId ? "nameid" : "uid")
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.GROUPS_ATTRIBUTE.getAttributePatternSetting().getAttribute()), "groups")
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.GROUPS_ATTRIBUTE.getAttributeSetting().getAttribute()), "groups")
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.MAIL_ATTRIBUTE.getAttribute()), "mail");
 
         if (groupsDelimiter != null) {
@@ -563,10 +581,28 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testAttributeSelectionWithSplit() {
-        String delimiter = ",";
+        List<String> strings = performAttributeSelectionWithSplit(",", "departments", "engineering", "elasticsearch-admins", "employees");
+        assertThat("For attributes: " + strings, strings, contains("engineering", "elasticsearch-admins", "employees"));
+    }
 
+    public void testAttributeSelectionWithSplitEmptyInput() {
+        List<String> strings = performAttributeSelectionWithSplit(",", "departments");
+        assertThat("For attributes: " + strings, strings, is(empty()));
+    }
+
+    public void testAttributeSelectionWithSplitJustDelimiter() {
+        List<String> strings = performAttributeSelectionWithSplit(",", ",");
+        assertThat("For attributes: " + strings, strings, is(empty()));
+    }
+
+    public void testAttributeSelectionWithSplitNoDelimiter() {
+        List<String> strings = performAttributeSelectionWithSplit(",", "departments", "elasticsearch-team");
+        assertThat("For attributes: " + strings, strings, contains("elasticsearch-team"));
+    }
+
+    private List<String> performAttributeSelectionWithSplit(String delimiter, String groupAttributeName, String... returnedGroups) {
         final Settings settings = Settings.builder()
-            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
+            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", groupAttributeName)
             .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter)
             .build();
 
@@ -582,84 +618,11 @@ public class SamlRealmTests extends SamlTestCase {
                 new SamlAttributes.SamlAttribute(
                     "departments",
                     "departments",
-                    Collections.singletonList(String.join(delimiter, "engineering", "elasticsearch-admins", "employees"))
+                    Collections.singletonList(String.join(delimiter, returnedGroups))
                 )
             )
         );
-
-        final List<String> strings = parser.getAttribute(attributes);
-        assertThat("For attributes: " + strings, strings, contains("engineering", "elasticsearch-admins", "employees"));
-    }
-
-    public void testAttributeSelectionWithSplitEmptyInput() {
-        String delimiter = ",";
-
-        final Settings settings = Settings.builder()
-            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
-            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter)
-            .build();
-
-        final RealmConfig config = buildConfig(settings);
-
-        final SamlRealmSettings.AttributeSettingWithDelimiter groupSetting = new SamlRealmSettings.AttributeSettingWithDelimiter("groups");
-        final SamlRealm.AttributeParser parser = SamlRealm.AttributeParser.forSetting(logger, groupSetting, config);
-
-        final SamlAttributes attributes = new SamlAttributes(
-            new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
-            randomAlphaOfLength(16),
-            Collections.singletonList(new SamlAttributes.SamlAttribute("departments", "departments", Collections.singletonList("")))
-        );
-
-        final List<String> strings = parser.getAttribute(attributes);
-        assertThat(strings.isEmpty(), equalTo(true));
-    }
-
-    public void testAttributeSelectionWithSplitJustDelimiter() {
-        String delimiter = ",";
-
-        final Settings settings = Settings.builder()
-            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
-            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter)
-            .build();
-
-        final RealmConfig config = buildConfig(settings);
-
-        final SamlRealmSettings.AttributeSettingWithDelimiter groupSetting = new SamlRealmSettings.AttributeSettingWithDelimiter("groups");
-        final SamlRealm.AttributeParser parser = SamlRealm.AttributeParser.forSetting(logger, groupSetting, config);
-
-        final SamlAttributes attributes = new SamlAttributes(
-            new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
-            randomAlphaOfLength(16),
-            Collections.singletonList(new SamlAttributes.SamlAttribute("departments", "departments", Collections.singletonList(",")))
-        );
-
-        final List<String> strings = parser.getAttribute(attributes);
-        assertThat(strings.isEmpty(), equalTo(true));
-    }
-
-    public void testAttributeSelectionWithSplitNoDelimiter() {
-        String delimiter = ",";
-
-        final Settings settings = Settings.builder()
-            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
-            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter)
-            .build();
-
-        final RealmConfig config = buildConfig(settings);
-
-        final SamlRealmSettings.AttributeSettingWithDelimiter groupSetting = new SamlRealmSettings.AttributeSettingWithDelimiter("groups");
-        final SamlRealm.AttributeParser parser = SamlRealm.AttributeParser.forSetting(logger, groupSetting, config);
-
-        final SamlAttributes attributes = new SamlAttributes(
-            new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
-            randomAlphaOfLength(16),
-            Collections.singletonList(
-                new SamlAttributes.SamlAttribute("departments", "departments", Collections.singletonList("elasticsearch-team"))
-            )
-        );
-
-        final List<String> strings = parser.getAttribute(attributes);
-        assertThat("For attributes: " + strings, strings, contains("elasticsearch-team"));
+        return parser.getAttribute(attributes);
     }
 
     public void testAttributeSelectionWithDelimiterAndPatternThrowsSettingsException() throws Exception {

@@ -239,7 +239,7 @@ public class SamlRealmSettings {
         private final Setting.AffixSetting<String> delimiter;
         private final AttributeSetting attributeSetting;
 
-        public AttributeSetting getAttributePatternSetting() {
+        public AttributeSetting getAttributeSetting() {
             return attributeSetting;
         }
 

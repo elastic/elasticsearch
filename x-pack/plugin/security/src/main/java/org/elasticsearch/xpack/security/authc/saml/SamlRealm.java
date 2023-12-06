@@ -1005,7 +1005,7 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         static AttributeParser forSetting(Logger logger, SamlRealmSettings.AttributeSettingWithDelimiter setting, RealmConfig realmConfig) {
-            SamlRealmSettings.AttributeSetting attributeSetting = setting.getAttributePatternSetting();
+            SamlRealmSettings.AttributeSetting attributeSetting = setting.getAttributeSetting();
             if (realmConfig.hasSetting(setting.getDelimiter())) {
                 if (realmConfig.hasSetting(attributeSetting.getAttribute()) == false) {
                     throw new SettingsException(

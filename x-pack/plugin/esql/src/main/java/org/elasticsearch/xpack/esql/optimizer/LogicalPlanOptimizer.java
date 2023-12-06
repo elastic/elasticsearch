@@ -1180,23 +1180,27 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // 1. collect aliases
             AttributeMap<Expression> aliases = new AttributeMap<>();
             aggregate.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
-            // 2. look at the references and resolve their back alias
+            // 2. look at the references and resolve their backing aliases
+            // since the alias might point to an expression containing multiple references, use a loop
             var groupings = aggregate.groupings();
-            var resolvedGroupings = new ArrayList<Expression>(groupings.size());
+            var rootGroupings = new AttributeSet();
             for (Expression group : groupings) {
                 for (Attribute ref : group.references()) {
                     // ignore constants
                     if (ref.foldable() == false) {
-                        resolvedGroupings.add(aliases.resolve(ref, ref));
+                        rootGroupings.addAll(resolveExpressionAsRootAttributes(ref, aliases));
                     }
                 }
             }
             // 3. remove any field that matches a reference inside the grouping key
             nonNullAggFields.removeIf(f -> {
-                AttributeSet set = f.references();
-                for (Expression resolveGroup : resolvedGroupings) {
-                    if (set.contains(resolveGroup)) {
-                        return true;
+                AttributeSet set = resolveExpressionAsRootAttributes(f, aliases);
+                for (Attribute attr : set) {
+                    AttributeSet localSet = aliases.resolve(attr, attr).references();
+                    for (Expression resolveGroup : rootGroupings) {
+                        if (localSet.contains(resolveGroup)) {
+                            return true;
+                        }
                     }
                 }
                 // no match, keep the field
@@ -1210,6 +1214,27 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 plan = aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), condition));
             }
             return plan;
+        }
+
+        /**
+         * The purpose of this method is to keep unrolling the expression to its references to get to the root fields
+         * that really matter for filtering.
+         */
+        private AttributeSet resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases) {
+            AttributeSet resolvedExpressions = new AttributeSet();
+            doResolve(exp, aliases, resolvedExpressions);
+            return resolvedExpressions;
+        }
+
+        private void doResolve(Expression exp, AttributeMap<Expression> aliases, AttributeSet attributes) {
+            for (Expression e : exp.references()) {
+                Expression resolved = aliases.resolve(e, e);
+                if (resolved instanceof Attribute a && resolved == e) {
+                    attributes.add(a);
+                } else {
+                    doResolve(resolved, aliases, attributes);
+                }
+            }
         }
     }
 

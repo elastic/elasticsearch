@@ -2825,6 +2825,34 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var from = as(filter.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[w{r}#14, g{r}#16],[COUNT(b{r}#24) AS c, w{r}#14, gender{f}#32 AS g]]
+     *   \_Eval[[emp_no{f}#30 / 10[INTEGER] AS x, x{r}#4 + salary{f}#35 AS y, y{r}#8 / 4[INTEGER] AS z, z{r}#11 * 2[INTEGER] +
+     *  3[INTEGER] AS w, salary{f}#35 + 4[INTEGER] / 2[INTEGER] AS a, a{r}#21 + 3[INTEGER] AS b]]
+     *     \_EsRelation[test][_meta_field{f}#36, emp_no{f}#30, first_name{f}#31, ..]
+     */
+    public void testIsNotNullConstraintForAliasedExpressions() {
+        var plan = optimizedPlan("""
+            from test
+            | eval x = emp_no / 10
+            | eval y = x + salary
+            | eval z = y / 4
+            | eval w = z * 2 + 3
+            | rename gender as g, salary as s
+            | eval a = (s + 4) / 2
+            | eval b = a + 3
+            | stats c = count(b) by w, g
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("c", "w", "g"));
+        var eval = as(agg.child(), Eval.class);
+        var from = as(eval.child(), EsRelation.class);
+    }
+
     private <T> T aliased(Expression exp, Class<T> clazz) {
         var alias = as(exp, Alias.class);
         return as(alias.child(), clazz);

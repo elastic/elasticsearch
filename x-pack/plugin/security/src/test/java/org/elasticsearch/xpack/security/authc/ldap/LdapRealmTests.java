@@ -139,37 +139,25 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(user.metadata(), notNullValue());
         assertThat(user.metadata().get("ldap_dn"), equalTo("cn=" + VALID_USERNAME + ",ou=people,o=sevenSeas"));
         assertThat(user.metadata().get("ldap_groups"), instanceOf(List.class));
+        assertThat(user.metadata().get("mail"), nullValue());
+        assertThat(user.metadata().get("cn"), nullValue());
         assertThat((List<?>) user.metadata().get("ldap_groups"), contains("cn=HMS Victory,ou=crews,ou=groups,o=sevenSeas"));
-    }
-
-    public void testAuthenticateMailMetadata() throws Exception {
-        String groupSearchBase = "o=sevenSeas";
-        Settings settings = Settings.builder()
-            .put(defaultGlobalSettings)
-            .put(buildLdapSettings(ldapUrls(), VALID_USER_TEMPLATE, groupSearchBase, LdapSearchScope.SUB_TREE))
-            .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
-            .build();
-        RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
-        SessionFactory ldapFactory = LdapRealm.sessionFactory(config, sslService, threadPool);
-        LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
-        ldap.initialize(Collections.singleton(ldap), licenseState);
-
-        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult<User> result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getValue();
-        assertThat(user, notNullValue());
         assertThat(user.email(), equalTo("thardy@royalnavy.mod.uk"));
         assertThat(user.fullName(), equalTo("Thomas Masterman Hardy"));
     }
 
-    public void testAuthenticateMissingMailMetadata() throws Exception {
+    public void testAuthenticateMapFullNameAndEmailMetadata() throws Exception {
         String groupSearchBase = "o=sevenSeas";
+        boolean misssingSetting = randomBoolean();
         Settings settings = Settings.builder()
             .put(defaultGlobalSettings)
             .put(buildLdapSettings(ldapUrls(), VALID_USER_TEMPLATE, groupSearchBase, LdapSearchScope.SUB_TREE))
             .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
+            .put(
+                getFullSettingKey(REALM_IDENTIFIER, LdapMetadataResolverSettings.FULL_NAME_SETTING),
+                misssingSetting ? "thisdoesnotexist" : "description"
+            )
+            .put(getFullSettingKey(REALM_IDENTIFIER, LdapMetadataResolverSettings.EMAIL_SETTING), "uid")
             .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
         SessionFactory ldapFactory = LdapRealm.sessionFactory(config, sslService, threadPool);
@@ -182,56 +170,8 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         User user = result.getValue();
         assertThat(user, notNullValue());
-        assertThat(user.email(), nullValue());
-        assertThat(user.fullName(), equalTo("John Samuel"));
-    }
-
-    public void testAuthenticateMapFullNameAndEmailMetadata() throws Exception {
-        String groupSearchBase = "o=sevenSeas";
-        Settings settings = Settings.builder()
-            .put(defaultGlobalSettings)
-            .put(buildLdapSettings(ldapUrls(), VALID_USER_TEMPLATE, groupSearchBase, LdapSearchScope.SUB_TREE))
-            .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
-            .put(getFullSettingKey(REALM_IDENTIFIER, LdapMetadataResolverSettings.FULL_NAME_SETTING), "description")
-            .put(getFullSettingKey(REALM_IDENTIFIER, LdapMetadataResolverSettings.EMAIL_SETTING), "uid")
-            .build();
-        RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
-        SessionFactory ldapFactory = LdapRealm.sessionFactory(config, sslService, threadPool);
-        LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
-        ldap.initialize(Collections.singleton(ldap), licenseState);
-
-        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken("William Cole", new SecureString(PASSWORD)), future);
-        final AuthenticationResult<User> result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getValue();
-        assertThat(user, notNullValue());
-        assertThat(user.email(), equalTo("wcole@royalnavy.mod.uk"));
-        assertThat(user.fullName(), equalTo("William Mark Cole"));
-    }
-
-    public void testAuthenticateMapNonExistingMetadata() throws Exception {
-        String groupSearchBase = "o=sevenSeas";
-        Settings settings = Settings.builder()
-            .put(defaultGlobalSettings)
-            .put(buildLdapSettings(ldapUrls(), VALID_USER_TEMPLATE, groupSearchBase, LdapSearchScope.SUB_TREE))
-            .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
-            .put(getFullSettingKey(REALM_IDENTIFIER, LdapMetadataResolverSettings.FULL_NAME_SETTING), "thisdoesnotexist")
-            .put(getFullSettingKey(REALM_IDENTIFIER, LdapMetadataResolverSettings.EMAIL_SETTING), "thisdoesnotexist")
-            .build();
-        RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
-        SessionFactory ldapFactory = LdapRealm.sessionFactory(config, sslService, threadPool);
-        LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
-        ldap.initialize(Collections.singleton(ldap), licenseState);
-
-        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
-        ldap.authenticate(new UsernamePasswordToken("William Cole", new SecureString(PASSWORD)), future);
-        final AuthenticationResult<User> result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getValue();
-        assertThat(user, notNullValue());
-        assertThat(user.email(), nullValue());
-        assertThat(user.fullName(), nullValue());
+        assertThat(user.email(), equalTo("jsamuel@royalnavy.mod.uk"));
+        assertThat(user.fullName(), equalTo(misssingSetting ? null : "Clerk John Samuel"));
     }
 
     private RealmConfig getRealmConfig(RealmConfig.RealmIdentifier identifier, Settings settings) {

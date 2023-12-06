@@ -10,6 +10,7 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 
 import java.io.BufferedReader;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -39,7 +41,7 @@ import java.util.stream.StreamSupport;
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.
  */
-final class JvmOptionsParser {
+public final class JvmOptionsParser {
 
     static class JvmOptionsFileParserException extends Exception {
 
@@ -59,7 +61,6 @@ final class JvmOptionsParser {
             this.jvmOptionsFile = jvmOptionsFile;
             this.invalidLines = invalidLines;
         }
-
     }
 
     /**
@@ -70,25 +71,27 @@ final class JvmOptionsParser {
      * variable.
      *
      * @param args            the start-up arguments
-     * @param configDir       the ES config dir
+     * @param processInfo     info to pass through to the new Java subprocess
      * @param tmpDir          the directory that should be passed to {@code -Djava.io.tmpdir}
-     * @param envOptions      the options passed through the ES_JAVA_OPTS env var
      * @return the list of options to put on the Java command line
-     * @throws InterruptedException if the java subprocess is interrupted
-     * @throws IOException          if there is a problem reading any of the files
+     * @throws RuntimeException     if the java subprocess is interrupted
+     * @throws UncheckedIOException if there is a problem reading any of the files
      * @throws UserException        if there is a problem parsing the `jvm.options` file or `jvm.options.d` files
      */
-    static List<String> determineJvmOptions(ServerArgs args, Path configDir, Path tmpDir, String envOptions) throws InterruptedException,
-        IOException, UserException {
-
+    public static List<String> determineJvmOptions(ServerArgs args, ProcessInfo processInfo, Path tmpDir) throws UserException {
         final JvmOptionsParser parser = new JvmOptionsParser();
 
         final Map<String, String> substitutions = new HashMap<>();
         substitutions.put("ES_TMPDIR", tmpDir.toString());
-        substitutions.put("ES_PATH_CONF", configDir.toString());
+        substitutions.put("ES_PATH_CONF", args.configDir().toString());
+
+        final String envOptions = processInfo.envVars().get("ES_JAVA_OPTS");
 
         try {
-            return parser.jvmOptions(args, configDir, tmpDir, envOptions, substitutions);
+            List<String> jvmOptions = parser.jvmOptions(args, args.configDir(), tmpDir, envOptions, substitutions);
+            // also pass through distribution type
+            jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
+            return Collections.unmodifiableList(jvmOptions);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -114,6 +117,10 @@ final class JvmOptionsParser {
                 msg.append(message);
             }
             throw new UserException(ExitCodes.CONFIG, msg.toString());
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

@@ -181,8 +181,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         TermQueryBuilder termQuery = new TermQueryBuilder("unmapped_field", 42);
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, VECTOR_DIMENSION, null)
-            .neighbors(1);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, VECTOR_DIMENSION, null);
         query.addFilterQuery(termQuery);
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> query.toQuery(context));

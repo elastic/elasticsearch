@@ -401,16 +401,7 @@ public class Node implements Closeable {
             }
         }
 
-        var httpTransport = injector.getInstance(HttpServerTransport.class);
-        try {
-            httpTransport.start();
-        } catch (IllegalStateException e) {
-            if (httpTransport.lifecycleState() == Lifecycle.State.CLOSED) {
-                throw new IllegalStateException("Node is shutting down, cannot complete startup", e);
-            } else {
-                throw e;
-            }
-        }
+        injector.getInstance(HttpServerTransport.class).start();
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);

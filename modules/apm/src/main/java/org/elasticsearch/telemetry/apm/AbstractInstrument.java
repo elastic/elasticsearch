@@ -26,7 +26,6 @@ import java.util.function.Function;
  * @param <T> delegated instrument
  */
 public abstract class AbstractInstrument<T> implements Instrument {
-    private static final int MAX_NAME_LENGTH = 255;
     private final AtomicReference<T> delegate = new AtomicReference<>();
     private final String name;
     private final Function<Meter, T> instrumentBuilder;
@@ -51,6 +50,8 @@ public abstract class AbstractInstrument<T> implements Instrument {
     }
 
     protected abstract static class Builder<T> {
+        private static final int MAX_NAME_LENGTH = 255;
+
         protected final String name;
         protected final String description;
         protected final String unit;

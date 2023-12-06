@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
@@ -19,6 +20,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
 
@@ -28,7 +30,12 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
     static final String URL = "url";
 
     public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map) {
-        return new HuggingFaceElserServiceSettings(extractUri(map, URL));
+        ValidationException validationException = new ValidationException();
+        var uri = extractUri(map, URL, validationException);
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+        return new HuggingFaceElserServiceSettings(uri);
     }
 
     public HuggingFaceElserServiceSettings {

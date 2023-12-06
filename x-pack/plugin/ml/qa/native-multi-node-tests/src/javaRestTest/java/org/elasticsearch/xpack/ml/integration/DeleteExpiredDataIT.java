@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -268,11 +269,13 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         retainAllSnapshots("snapshots-retention-with-retain");
 
-        long totalModelSizeStatsBeforeDelete = getTotalHitsValue(
+        long totalModelSizeStatsBeforeDelete = SearchResponseUtils.getTotalHitsValue(
             prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
         );
-        long totalNotificationsCountBeforeDelete = getTotalHitsValue(prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX));
+        long totalNotificationsCountBeforeDelete = SearchResponseUtils.getTotalHitsValue(
+            prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+        );
         assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
         assertThat(totalNotificationsCountBeforeDelete, greaterThan(0L));
 
@@ -316,11 +319,13 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getRecords("results-and-snapshots-retention").size(), equalTo(0));
         assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
 
-        long totalModelSizeStatsAfterDelete = getTotalHitsValue(
+        long totalModelSizeStatsAfterDelete = SearchResponseUtils.getTotalHitsValue(
             prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
         );
-        long totalNotificationsCountAfterDelete = getTotalHitsValue(prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX));
+        long totalNotificationsCountAfterDelete = SearchResponseUtils.getTotalHitsValue(
+            prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+        );
         assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
         assertThat(totalNotificationsCountAfterDelete, greaterThanOrEqualTo(totalNotificationsCountBeforeDelete));
 

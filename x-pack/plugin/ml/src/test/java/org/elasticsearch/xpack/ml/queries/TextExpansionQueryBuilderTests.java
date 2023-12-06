@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.ml.queries;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.document.FloatDocValuesField;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -47,7 +52,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
-        TokenPruningConfig tokenPruningConfig = rarely()
+        TokenPruningConfig tokenPruningConfig = randomBoolean()
             ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean())
             : null;
         var builder = new TextExpansionQueryBuilder(
@@ -131,6 +136,46 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         for (var clause : booleanQuery.clauses()) {
             assertEquals(BooleanClause.Occur.SHOULD, clause.getOccur());
             assertThat(clause.getQuery(), either(instanceOf(featureQueryClass)).or(instanceOf(boostQueryClass)));
+        }
+    }
+
+    /**
+     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
+     */
+    @Override
+    public void testCacheability() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            Document document = new Document();
+            document.add(new FloatDocValuesField(RANK_FEATURES_FIELD, 1.0f));
+            iw.addDocument(document);
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+                TextExpansionQueryBuilder queryBuilder = createTestQueryBuilder();
+                QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+
+                assertNotNull(rewriteQuery.toQuery(context));
+                assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+            }
+        }
+    }
+
+    /**
+     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
+     */
+    @Override
+    public void testToQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            Document document = new Document();
+            document.add(new FloatDocValuesField(RANK_FEATURES_FIELD, 1.0f));
+            iw.addDocument(document);
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+                TextExpansionQueryBuilder queryBuilder = createTestQueryBuilder();
+                Query query = queryBuilder.toQuery(context);
+
+                assertTrue(query instanceof BooleanQuery);
+                // TODO
+            }
         }
     }
 

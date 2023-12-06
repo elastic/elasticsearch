@@ -118,6 +118,7 @@ class MutableSearchResponse {
             : getShardsInResponseMismatchInfo(response, ccsMinimizeRoundtrips);
 
         this.responseHeaders = threadContext.getResponseHeaders();
+        response.incRef();
         this.finalResponse = response;
         this.isPartial = isPartialResponse(response);
         this.frozen = true;

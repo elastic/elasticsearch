@@ -13,7 +13,7 @@ package org.elasticsearch.compute.data;
 abstract class AbstractVector implements Vector {
 
     private final int positionCount;
-    protected final BlockFactory blockFactory;
+    private BlockFactory blockFactory;
     protected boolean released;
 
     protected AbstractVector(int positionCount, BlockFactory blockFactory) {
@@ -33,6 +33,11 @@ abstract class AbstractVector implements Vector {
     @Override
     public BlockFactory blockFactory() {
         return blockFactory;
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        blockFactory = blockFactory.parent();
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -43,6 +44,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.reverseNested;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102974")
 public class ReverseNestedAggregatorTests extends AggregatorTestCase {
 
     private static final String VALUE_FIELD_NAME = "number";

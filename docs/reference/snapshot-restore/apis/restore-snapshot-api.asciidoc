@@ -159,6 +159,7 @@ The cluster state includes:
 * <<indices-templates-v1,Legacy index templates>>
 * <<ingest,Ingest pipelines>>
 * <<index-lifecycle-management,{ilm-init} policies>>
+* <<script-stored-scripts,Stored scripts>>
 * For snapshots taken after 7.12.0, <<feature-state,feature states>>
 // end::cluster-state-contents[]
 
@@ -260,12 +261,12 @@ You may want to restore an index in-place, for example when no alternative
 options surface after the <<cluster-allocation-explain>> API reports
 `no_valid_shard_copy`.
 
-The following request <<indices-close,closes>> `index_1` and then restores it 
+The following request <<indices-close,closes>> `index_1` and then restores it
 in-place from the `snapshot_2` snapshot in the `my_repository` repository.
 
 [source,console]
 ----
-POST index_1/_close 
+POST index_1/_close
 
 POST /_snapshot/my_repository/snapshot_2/_restore?wait_for_completion=true
 {

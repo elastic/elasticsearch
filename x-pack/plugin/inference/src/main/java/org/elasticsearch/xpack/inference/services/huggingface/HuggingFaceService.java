@@ -11,11 +11,14 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 
@@ -41,6 +44,33 @@ public class HuggingFaceService extends HuggingFaceBaseService {
             case SPARSE_EMBEDDING -> new HuggingFaceElserModel(modelId, taskType, NAME, serviceSettings, secretSettings);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
+    }
+
+    @Override
+    public void checkModelConfig(Model model, ActionListener<Model> listener) {
+        if (model instanceof HuggingFaceEmbeddingsModel embeddingsModel) {
+            ServiceUtils.getEmbeddingSize(
+                model,
+                this,
+                ActionListener.wrap(
+                    size -> listener.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)),
+                    listener::onFailure
+                )
+            );
+        } else {
+            listener.onResponse(model);
+        }
+    }
+
+    private static HuggingFaceEmbeddingsModel updateModelWithEmbeddingDetails(HuggingFaceEmbeddingsModel model, int embeddingSize) {
+        var serviceSettings = new HuggingFaceServiceSettings(
+            model.getServiceSettings().uri(),
+            null, // Similarity measure is unknown
+            embeddingSize,
+            null  // max input tokens is unknown
+        );
+
+        return new HuggingFaceEmbeddingsModel(model, serviceSettings);
     }
 
     @Override

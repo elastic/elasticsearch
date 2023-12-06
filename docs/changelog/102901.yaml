@@ -1,0 +1,5 @@
+pr: 102901
+summary: Introduce local block factory
+area: ES|QL
+type: enhancement
+issues: []

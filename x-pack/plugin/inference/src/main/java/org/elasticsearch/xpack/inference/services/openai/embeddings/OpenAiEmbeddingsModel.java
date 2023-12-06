@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Map;
 
 public class OpenAiEmbeddingsModel extends OpenAiModel {
+
     public OpenAiEmbeddingsModel(
         String modelId,
         TaskType taskType,
@@ -58,6 +59,19 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
                 originalModel.getConfigurations().getService(),
                 originalModel.getServiceSettings(),
                 taskSettings
+            ),
+            new ModelSecrets(originalModel.getSecretSettings())
+        );
+    }
+
+    public OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiServiceSettings serviceSettings) {
+        super(
+            new ModelConfigurations(
+                originalModel.getConfigurations().getModelId(),
+                originalModel.getConfigurations().getTaskType(),
+                originalModel.getConfigurations().getService(),
+                serviceSettings,
+                originalModel.getTaskSettings()
             ),
             new ModelSecrets(originalModel.getSecretSettings())
         );

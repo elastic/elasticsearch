@@ -108,6 +108,19 @@ class MutableSearchResponse {
     }
 
     /**
+     * Updates the response with the result of a partial reduction.
+     * Called only when minimize_roundtrips=true
+     * @param response
+     */
+    synchronized void updatePartialResponse(SearchResponse response) {
+        failIfFrozen();
+
+        this.responseHeaders = threadContext.getResponseHeaders();
+        this.finalResponse = response;
+        this.isPartial = true;
+    }
+
+    /**
      * Updates the response with the final {@link SearchResponse} once the
      * search is complete.
      */

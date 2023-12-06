@@ -89,6 +89,18 @@ public abstract class SearchProgressListener {
     protected void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
 
     /**
+     * Executed during a cross-cluster search (CCS) when minimizing roundtrips, as each cluster
+     * finishes and sends back its individual SearchResponse. The SearchResponse passed into this
+     * method has had a full reduction/merge (of both aggs and tophits) across all SearchResponses
+     * received so far (including from the local cluster if that has finished) and may or not be
+     * the final response.
+     *
+     * @param response SearchResponse holding the cumulative search responses of all
+     *                 clusters that have reported back so far.
+     */
+    protected void onCcsReduce(SearchResponse response) {}
+
+    /**
      * Executed when a shard returns a fetch result.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
@@ -140,6 +152,14 @@ public abstract class SearchProgressListener {
             onPartialReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
             logger.warn("Failed to execute progress listener on partial reduce", e);
+        }
+    }
+
+    final void notifyCcsReduce(SearchResponse response) {
+        try {
+            onCcsReduce(response);
+        } catch (Exception e) {
+            logger.warn("Failed to execute progress listener on CCS reduce", e);
         }
     }
 

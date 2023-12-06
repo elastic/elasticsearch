@@ -533,6 +533,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 emptyReduceContextBuilder(),
                 remoteClusterService,
                 threadPool,
+                SearchProgressListener.NOOP,
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l))
             );
@@ -602,6 +603,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    SearchProgressListener.NOOP,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -651,6 +653,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    SearchProgressListener.NOOP,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -711,6 +714,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    SearchProgressListener.NOOP,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -760,6 +764,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    SearchProgressListener.NOOP,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -831,6 +836,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    SearchProgressListener.NOOP,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );

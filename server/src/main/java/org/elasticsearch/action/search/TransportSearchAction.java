@@ -372,6 +372,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         aggregationReduceContextBuilder,
                         remoteClusterService,
                         threadPool,
+                        task.getProgressListener(),
                         delegate,
                         (r, l) -> executeLocalSearch(
                             task,
@@ -506,6 +507,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
         RemoteClusterService remoteClusterService,
         ThreadPool threadPool,
+        SearchProgressListener progressListener,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
     ) {

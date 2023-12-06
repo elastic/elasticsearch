@@ -940,6 +940,10 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         var originalClusterSupportsDataStreams = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_9_0))
             .orElse(true);
 
+        @UpdateForV9
+        var originalClusterDataStreamHasDateInIndexName = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_11_0))
+            .orElse(true);
+
         assumeTrue("no data streams in versions before 7.9.0", originalClusterSupportsDataStreams);
         if (isRunningAgainstOldCluster()) {
             createComposableTemplate(client(), "dst", "ds");
@@ -977,12 +981,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
         assertEquals(
-            DataStreamTestHelper.getLegacyDefaultBackingIndexName(
-                "ds",
-                1,
-                timestamp,
-                clusterHasFeature(RestTestLegacyFeatures.DATA_STREAMS_DATE_IN_INDEX_NAME)
-            ),
+            DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1, timestamp, originalClusterDataStreamHasDateInIndexName),
             indices.get(0).get("index_name")
         );
         assertNumHits("ds", 1, 1);

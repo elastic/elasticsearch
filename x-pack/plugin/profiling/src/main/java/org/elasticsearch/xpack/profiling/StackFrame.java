@@ -12,11 +12,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 final class StackFrame implements ToXContentObject {
     List<String> fileName;
@@ -29,6 +28,22 @@ final class StackFrame implements ToXContentObject {
         this.functionName = listOf(functionName);
         this.functionOffset = listOf(functionOffset);
         this.lineNumber = listOf(lineNumber);
+    }
+
+    public void forEach(Consumer<Frame> action) {
+        int size = this.functionName.size(); // functionName is the only array that is always set
+        for (int i = 0; i < size; i++) {
+            action.accept(
+                new Frame(
+                    fileName.size() > i ? fileName.get(i) : "",
+                    functionName.get(i),
+                    functionOffset.size() > i ? functionOffset.get(i) : 0,
+                    lineNumber.size() > i ? lineNumber.get(i) : 0,
+                    i > 0,
+                    i == size - 1
+                )
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -53,11 +68,6 @@ final class StackFrame implements ToXContentObject {
 
     public boolean isEmpty() {
         return fileName.isEmpty() && functionName.isEmpty() && functionOffset.isEmpty() && lineNumber.isEmpty();
-    }
-
-    public Iterable<Frame> frames() {
-        return new Frames();
-
     }
 
     @Override
@@ -89,43 +99,5 @@ final class StackFrame implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(fileName, functionName, functionOffset, lineNumber);
-    }
-
-    private class Frames implements Iterable<Frame> {
-        @Override
-        public Iterator<Frame> iterator() {
-            return new Iterator<>() {
-                private int currentElement = 0;
-
-                @Override
-                public boolean hasNext() {
-                    // array lengths might not be consistent - allow to move until all underlying lists have been exhausted
-                    return currentElement < fileName.size()
-                        || currentElement < functionName.size()
-                        || currentElement < functionOffset.size()
-                        || currentElement < lineNumber.size();
-                }
-
-                @Override
-                public Frame next() {
-                    if (hasNext() == false) {
-                        throw new NoSuchElementException();
-                    }
-                    Frame f = new Frame(
-                        get(fileName, currentElement, ""),
-                        get(functionName, currentElement, ""),
-                        get(functionOffset, currentElement, 0),
-                        get(lineNumber, currentElement, 0),
-                        currentElement > 0
-                    );
-                    currentElement++;
-                    return f;
-                }
-            };
-        }
-
-        private static <T> T get(List<T> l, int index, T defaultValue) {
-            return index < l.size() ? l.get(index) : defaultValue;
-        }
     }
 }

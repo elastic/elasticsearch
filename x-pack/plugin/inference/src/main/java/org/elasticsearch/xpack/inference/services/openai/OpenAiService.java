@@ -19,10 +19,12 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.List;
@@ -132,6 +134,41 @@ public class OpenAiService extends SenderService {
 
         var action = openAiModel.accept(actionCreator, taskSettings);
         action.execute(input, listener);
+    }
+
+    /**
+     * For text embedding models get the embedding size and
+     * update the service settings.
+     *
+     * @param model The new model
+     * @param listener The listener
+     */
+    @Override
+    public void checkModelConfig(Model model, ActionListener<Model> listener) {
+        if (model instanceof OpenAiEmbeddingsModel embeddingsModel) {
+            ServiceUtils.getEmbeddingSize(
+                model,
+                this,
+                ActionListener.wrap(
+                    size -> listener.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)),
+                    listener::onFailure
+                )
+            );
+        } else {
+            listener.onResponse(model);
+        }
+    }
+
+    private OpenAiEmbeddingsModel updateModelWithEmbeddingDetails(OpenAiEmbeddingsModel model, int embeddingSize) {
+        OpenAiServiceSettings serviceSettings = new OpenAiServiceSettings(
+            model.getServiceSettings().uri(),
+            model.getServiceSettings().organizationId(),
+            SimilarityMeasure.DOT_PRODUCT,
+            embeddingSize,
+            null
+        );
+
+        return new OpenAiEmbeddingsModel(model, serviceSettings);
     }
 
     @Override

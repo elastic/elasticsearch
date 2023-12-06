@@ -57,7 +57,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
-            test.getInputs().property(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
+            test.getExtensions().getExtraProperties().set(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
             test.getExtensions().add("errorReportingTestListener", listener);
             test.addTestOutputListener(listener);
             test.addTestListener(listener);

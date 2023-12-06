@@ -28,7 +28,7 @@ public class Cos extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
-        return new CosEvaluator.Factory(field);
+        return new CosEvaluator.Factory(source(), field);
     }
 
     @Override

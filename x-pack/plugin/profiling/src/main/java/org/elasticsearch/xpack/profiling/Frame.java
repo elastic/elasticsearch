@@ -7,4 +7,4 @@
 
 package org.elasticsearch.xpack.profiling;
 
-public record Frame(String fileName, String functionName, int functionOffset, int lineNumber, boolean inline) {}
+public record Frame(String fileName, String functionName, int functionOffset, int lineNumber, boolean inline, boolean last) {}

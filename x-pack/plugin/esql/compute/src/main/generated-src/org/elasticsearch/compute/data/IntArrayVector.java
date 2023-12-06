@@ -55,7 +55,7 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
 
     @Override
     public IntVector filter(int... positions) {
-        try (IntVector.Builder builder = blockFactory.newIntVectorBuilder(positions.length)) {
+        try (IntVector.Builder builder = blockFactory().newIntVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendInt(values[pos]);
             }

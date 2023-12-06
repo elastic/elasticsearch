@@ -58,7 +58,7 @@ that the model will create based on your input text - must be created. The
 destination index must have a field with the <<dense-vector, `dense_vector`>> 
 field type to index the output of the OpenAI model.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT openai-embeddings
 {
@@ -96,7 +96,7 @@ Create an <<ingest,ingest pipeline>> with an
 in the {infer} task to infer against the data that is being ingested in the 
 pipeline.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/openai_embeddings
 {
@@ -220,6 +220,7 @@ GET openai-embeddings/_search
   ]
 }
 --------------------------------------------------
+// TEST[skip:TBD]
 
 As a result, you receive the top 10 documents that are closest in meaning to the 
 query from the `openai-embeddings` index sorted by their proximity to the query:
@@ -257,4 +258,4 @@ query from the `openai-embeddings` index sorted by their proximity to the query:
       (...)
     ]
 --------------------------------------------------
-
+// NOTCONSOLE

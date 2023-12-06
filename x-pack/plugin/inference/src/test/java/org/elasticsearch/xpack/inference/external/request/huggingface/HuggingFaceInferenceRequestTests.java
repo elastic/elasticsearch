@@ -44,8 +44,18 @@ public class HuggingFaceInferenceRequestTests extends ESTestCase {
         assertThat(inputList, contains("abc"));
     }
 
-    public void testTruncate() {
-        fail("TODO");
+    public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
+        var huggingFaceRequest = createRequest("www.google.com", "secret", "abcd");
+        var rebuiltRequest = huggingFaceRequest.truncate(0.5);
+        assertThat(rebuiltRequest.getURI().toString(), is(new URI("www.google.com").toString()));
+
+        var httpRequest = rebuiltRequest.createRequest();
+        assertThat(httpRequest, instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest;
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap.get("inputs"), instanceOf(List.class));
+        assertThat(requestMap.get("inputs"), is(List.of("ab")));
     }
 
     public static HuggingFaceInferenceRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {

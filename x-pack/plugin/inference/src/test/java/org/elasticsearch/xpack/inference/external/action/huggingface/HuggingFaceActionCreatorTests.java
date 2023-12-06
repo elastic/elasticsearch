@@ -285,7 +285,68 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
         }
     }
 
-    public void testContentTooLarge() {
-        fail("TODO");
+    public void testExecute_ReturnsSuccessfulResponse_AfterTruncating() throws IOException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJsonContentTooLarge = """
+                {
+                    "error": "Input validation error: `inputs` must have less than 512 tokens. Given: 571",
+                    "error_type": "Validation"
+                }
+                """;
+
+            String responseJson = """
+                {
+                    "embeddings": [
+                        [
+                            -0.0123,
+                            0.123
+                        ]
+                    ]
+                {
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
+            var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(List.of("abcd"), listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectation(List.of(List.of(-0.0123F, 0.123F)))));
+
+            assertThat(webServer.requests(), hasSize(2));
+            {
+                assertNull(webServer.requests().get(0).getUri().getQuery());
+                assertThat(
+                    webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                    equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+                );
+                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+                var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
+                var initialInputs = initialRequestAsMap.get("inputs");
+                assertThat(initialInputs, is(List.of("abcd")));
+            }
+            {
+                assertNull(webServer.requests().get(1).getUri().getQuery());
+                assertThat(
+                    webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE),
+                    equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+                );
+                assertThat(webServer.requests().get(1).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+                var truncatedRequest = entityAsMap(webServer.requests().get(1).getBody());
+                var truncatedInputs = truncatedRequest.get("inputs");
+                assertThat(truncatedInputs, is(List.of("ab")));
+            }
+        }
     }
 }

@@ -84,8 +84,19 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get("model"), is("model"));
     }
 
-    public void testTruncate() {
-        fail("TODO");
+    public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
+        var request = createRequest(null, null, "secret", "abcd", "model", null);
+        var rebuiltRequest = request.truncate(0.5);
+        assertThat(request.getURI().toString(), is(buildDefaultUri().toString()));
+
+        var httpRequest = rebuiltRequest.createRequest();
+        assertThat(httpRequest, instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest;
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap, aMapWithSize(2));
+        assertThat(requestMap.get("input"), is(List.of("ab")));
+        assertThat(requestMap.get("model"), is("model"));
     }
 
     public static OpenAiEmbeddingsRequest createRequest(

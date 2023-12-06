@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.elasticsearch.xpack.inference.external.request.Request;
 
-// TODO rename?
+/**
+ * Provides an interface for determining if an error should be retried and a way to modify
+ * the request to based on the type of failure that occurred.
+ */
 public interface Retryable {
-    Request initialize(Request original);
+    Request rebuildRequest(Request original);
 
     boolean shouldRetry();
 }

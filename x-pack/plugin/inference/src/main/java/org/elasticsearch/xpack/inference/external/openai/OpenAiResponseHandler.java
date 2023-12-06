@@ -87,9 +87,13 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
             return true;
         }
 
-        var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
+        if (statusCode == 400) {
+            var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
 
-        return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
+            return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
+        }
+
+        return false;
     }
 
     static String buildRateLimitErrorMessage(HttpResult result) {

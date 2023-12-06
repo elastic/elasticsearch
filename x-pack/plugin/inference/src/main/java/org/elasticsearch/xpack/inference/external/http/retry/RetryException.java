@@ -34,7 +34,7 @@ public class RetryException extends ElasticsearchException implements Elasticsea
     }
 
     @Override
-    public Request initialize(Request original) {
+    public Request rebuildRequest(Request original) {
         return original;
     }
 

@@ -20,7 +20,7 @@ public class ContentTooLargeException extends RetryException {
     }
 
     @Override
-    public Request initialize(Request original) {
+    public Request rebuildRequest(Request original) {
         return original.truncate(TRUNCATION_PERCENTAGE);
     }
 }

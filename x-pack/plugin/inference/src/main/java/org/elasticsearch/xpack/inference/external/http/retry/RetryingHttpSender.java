@@ -65,7 +65,6 @@ public class RetryingHttpSender implements Retrier {
     }
 
     private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
-        // private final HttpRequestBase request;
         private Request request;
         private final ResponseHandler responseHandler;
 
@@ -108,7 +107,7 @@ public class RetryingHttpSender implements Retrier {
         @Override
         public boolean shouldRetry(Exception e) {
             if (e instanceof Retryable retry) {
-                request = retry.initialize(request);
+                request = retry.rebuildRequest(request);
                 return retry.shouldRetry();
             }
 

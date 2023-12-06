@@ -16,6 +16,11 @@ Defaults to `true`.
 This option is applicable when the <<ilm-searchable-snapshot,searchable
 snapshot>> action is used in any previous phase.
 
+WARNING: If a policy with a searchable snapshot action is applied on an existing searchable snapshot index,
+the snapshot backing this index will NOT be deleted because it was not created by this policy. If you want
+to clean this snapshot, please delete it manually after the index is deleted using the <<delete-snapshot-api, delete snapshot API>>, you
+can find the repository and snapshot name using the <<indices-get-index, get index API>>.
+
 [[ilm-delete-action-ex]]
 ==== Example
 

@@ -258,8 +258,10 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
     }
 
     private boolean isDumpOutputEnabled() {
-        return (Boolean) testTask.getInputs()
-            .getProperties()
-            .getOrDefault(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
+        return true;
+
+        // return (Boolean) testTask.getInputs()
+        //     .getProperties()
+        //     .getOrDefault(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
     }
 }

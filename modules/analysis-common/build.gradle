@@ -44,8 +44,10 @@ dependencies {
 	// 	because 'allows tests to run from IDEs that bundle older version of launcher'
 	// }
 
-    testImplementation "junit:junit:4.13.2"
-    testRuntimeOnly "org.junit.vintage:junit-vintage-engine"
+    // testImplementation "junit:junit:4.13.2"
+    yamlRestTestImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
+    yamlRestTestImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
+    yamlRestTestImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
 
   // testImplementation(platform(buildLibs.junit5.platform))
   // testImplementation(buildLibs.junit5.jupiter) {
@@ -80,13 +82,12 @@ test {
 }
 
 tasks.named('yamlRestTest').configure {
-    useJUnitPlatform {
-      includeEngines 'junit-vintage'
-    }
-
-
+    useJUnitPlatform()
     distribution {
       enabled = true
       maxLocalExecutors = 0
+    }
+    javaLauncher = javaToolchains.launcherFor {
+    //     // languageVersion = JavaLanguageVersion.of(20)
     }
 }

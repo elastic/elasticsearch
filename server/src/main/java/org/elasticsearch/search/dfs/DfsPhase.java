@@ -33,6 +33,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.ProfilingQuery;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -215,6 +216,11 @@ public class DfsPhase {
                 CollectorResult.REASON_SEARCH_TOP_HITS
             );
             topDocs = searcher.search(knnQuery, ipcm);
+
+            if (knnQuery instanceof ProfilingQuery profilingQuery) {
+                profilingQuery.profile(knnProfiler);
+            }
+
             knnProfiler.setCollectorResult(ipcm.getCollectorTree());
         }
         // Set profiler back after running KNN searches

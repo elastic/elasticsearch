@@ -184,7 +184,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("keyword", keyword.simpleName());
     }
 
-    /*public void testMergedFieldNamesMultiFieldsWithinSubobjectsFalse() {
+    public void testMergedFieldNamesMultiFieldsWithinSubobjectsFalse() {
         RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
             createObjectSubobjectsFalseLeafWithMultiField()
         ).build(MapperBuilderContext.root(false, false));
@@ -245,7 +245,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper parent3 = (ObjectMapper) mergedAdd3.getMapper("parent");
         assertNotNull(parent3.getMapper("child1"));
         assertNotNull(parent3.getMapper("child2"));
-    }*/
+    }
 
     public void testMergeWithLimitMultiField() {
         RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(

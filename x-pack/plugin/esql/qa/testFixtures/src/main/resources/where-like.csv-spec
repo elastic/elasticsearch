@@ -287,3 +287,14 @@ row x = "C:\\foo\\bar.exe" | mv_expand x | where x LIKE "C:\\\\\\\\*";
 
 x:keyword
 ;
+
+docsGettingStartedLike
+// tag::gs-like[]
+FROM sample_data
+| WHERE message LIKE "Connected*"
+// end::gs-like[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;

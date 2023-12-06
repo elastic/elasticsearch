@@ -50,7 +50,7 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
 
     @Override
     public LongBlock filter(int... positions) {
-        try (var builder = blockFactory.newLongBlockBuilder(positions.length)) {
+        try (var builder = blockFactory().newLongBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -84,7 +84,7 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
             return this;
         }
         // TODO use reference counting to share the values
-        try (var builder = blockFactory.newLongBlockBuilder(firstValueIndexes[getPositionCount()])) {
+        try (var builder = blockFactory().newLongBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -137,6 +137,6 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
 
     @Override
     public void closeInternal() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

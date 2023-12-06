@@ -13,8 +13,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -59,9 +62,14 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         return wrapInMockESDirectoryReader(reader);
     }
 
+    private static RandomIndexWriter newRandomIndexWriter(Directory directory) throws IOException {
+        final IndexWriterConfig conf = newIndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(new LogDocMergePolicy());
+        return new RandomIndexWriter(random(), directory, conf);
+    }
+
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
                 // intentionally not writing any docs
             }
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
@@ -90,7 +98,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedMaxValue = Double.NEGATIVE_INFINITY;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
                 for (int i = 0; i < numParentDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -146,7 +154,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
                 for (int i = 0; i < numParentDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -209,26 +217,31 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     )
                 )
         );
-        testCase(NestedAggregatorTests.buildResellerData(numProducts, numResellers), result -> {
-            InternalNested nested = (InternalNested) result;
-            assertThat(nested.getDocCount(), equalTo((long) numProducts * numResellers));
-            LongTerms resellers = nested.getAggregations().get("resellers");
-            assertThat(
-                resellers.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
-                equalTo(LongStream.range(0, numResellers).mapToObj(Long::valueOf).collect(toList()))
-            );
-            for (int r = 0; r < numResellers; r++) {
-                LongTerms.Bucket bucket = resellers.getBucketByKey(Integer.toString(r));
-                assertThat(bucket.getDocCount(), equalTo((long) numProducts));
-                InternalReverseNested reverseNested = bucket.getAggregations().get("reverse_nested");
-                assertThat(reverseNested.getDocCount(), equalTo((long) numProducts));
-                LongTerms products = reverseNested.getAggregations().get("products");
-                assertThat(
-                    products.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
-                    equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList()))
-                );
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+                NestedAggregatorTests.buildResellerData(numProducts, numResellers).accept(iw);
             }
-        }, new AggTestConfig(b, NestedAggregatorTests.resellersMappedFields()));
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                InternalNested nested = searchAndReduce(indexReader, new AggTestConfig(b, NestedAggregatorTests.resellersMappedFields()));
+                LongTerms resellers = nested.getAggregations().get("resellers");
+                assertThat(
+                    resellers.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
+                    equalTo(LongStream.range(0, numResellers).mapToObj(Long::valueOf).collect(toList()))
+                );
+                for (int r = 0; r < numResellers; r++) {
+                    LongTerms.Bucket bucket = resellers.getBucketByKey(Integer.toString(r));
+                    assertThat(bucket.getDocCount(), equalTo((long) numProducts));
+                    InternalReverseNested reverseNested = bucket.getAggregations().get("reverse_nested");
+                    assertThat(reverseNested.getDocCount(), equalTo((long) numProducts));
+                    LongTerms products = reverseNested.getAggregations().get("products");
+                    assertThat(
+                        products.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
+                        equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList()))
+                    );
+                }
+            }
+        }
     }
 
     @Override

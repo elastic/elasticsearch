@@ -257,7 +257,8 @@ eth1           |alpha          |::1         |::1
 eth0           |beta           |127.0.0.1   |::1
 ;
 
-pushDownIPWithComparision#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+// AwaitsFix: https://github.com/elastic/elasticsearch/issues/103028
+pushDownIPWithComparision#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]-Ignore
 from hosts | where ip1 > to_ip("127.0.0.1") | keep card, ip1;
 ignoreOrder:true
 warning:Line 1:20: evaluation of [ip1 > to_ip(\"127.0.0.1\")] failed, treating result as null. Only first 20 failures recorded.

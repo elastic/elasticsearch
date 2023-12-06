@@ -60,6 +60,7 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
 
     @Override
     public DoubleVector filter(int... positions) {
+        var blockFactory = blockFactory();
         final DoubleArray filtered = blockFactory.bigArrays().newDoubleArray(positions.length, true);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));

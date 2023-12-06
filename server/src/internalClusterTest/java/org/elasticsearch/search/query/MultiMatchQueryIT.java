@@ -447,8 +447,13 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     }
 
     public void testEquivalence() {
-
-        final int numDocs = (int) prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
+        var response = prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get();
+        final int numDocs;
+        try {
+            numDocs = (int) response.getHits().getTotalHits().value;
+        } finally {
+            response.decRef();
+        }
         int numIters = scaledRandomIntBetween(5, 10);
         for (int i = 0; i < numIters; i++) {
             {

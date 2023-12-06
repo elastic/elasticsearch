@@ -86,12 +86,9 @@ public class EvaluatorImplementer {
         builder.addJavadoc("This class is generated. Do not edit it.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
-
         builder.addType(factory());
 
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
-        }
+        builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         processFunction.args.stream().forEach(a -> a.declareField(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
@@ -108,10 +105,8 @@ public class EvaluatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            builder.addParameter(SOURCE, "source");
-            builder.addStatement("this.warnings = new Warnings(source)");
-        }
+        builder.addParameter(SOURCE, "source");
+        builder.addStatement("this.warnings = new Warnings(source)");
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
 
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
@@ -217,8 +212,23 @@ public class EvaluatorImplementer {
     }
 
     private static void skipNull(MethodSpec.Builder builder, String value) {
-        builder.beginControlFlow("if ($N.isNull(p) || $N.getValueCount(p) != 1)", value, value);
+        builder.beginControlFlow("if ($N.isNull(p))", value);
         {
+            builder.addStatement("result.appendNull()");
+            builder.addStatement("continue position");
+        }
+        builder.endControlFlow();
+        builder.beginControlFlow("if ($N.getValueCount(p) != 1)", value);
+        {
+            builder.beginControlFlow("if ($N.getValueCount(p) > 1)", value);
+            {
+                builder.addStatement(
+                    // TODO: reflection on SingleValueQuery.MULTI_VALUE_WARNING?
+                    "warnings.registerException(new $T(\"single-value function encountered multi-value\"))",
+                    IllegalArgumentException.class
+                );
+            }
+            builder.endControlFlow();
             builder.addStatement("result.appendNull()");
             builder.addStatement("continue position");
         }
@@ -259,9 +269,7 @@ public class EvaluatorImplementer {
         builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
         builder.addModifiers(Modifier.STATIC);
 
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
-        }
+        builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
         processFunction.args.stream().forEach(a -> a.declareFactoryField(builder));
 
         builder.addMethod(factoryCtor());
@@ -273,10 +281,8 @@ public class EvaluatorImplementer {
 
     private MethodSpec factoryCtor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            builder.addParameter(SOURCE, "source");
-            builder.addStatement("this.source = source");
-        }
+        builder.addParameter(SOURCE, "source");
+        builder.addStatement("this.source = source");
         processFunction.args.stream().forEach(a -> a.implementFactoryCtor(builder));
 
         return builder.build();
@@ -289,9 +295,7 @@ public class EvaluatorImplementer {
         builder.returns(implementation);
 
         List<String> args = new ArrayList<>();
-        if (processFunction.warnExceptions.isEmpty() == false) {
-            args.add("source");
-        }
+        args.add("source");
         for (ProcessFunctionArg arg : processFunction.args) {
             String invocation = arg.factoryInvocation(builder);
             if (invocation != null) {

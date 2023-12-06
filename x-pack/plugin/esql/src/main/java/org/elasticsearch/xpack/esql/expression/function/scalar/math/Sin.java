@@ -32,7 +32,7 @@ public class Sin extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
-        return new SinEvaluator.Factory(field);
+        return new SinEvaluator.Factory(source(), field);
     }
 
     @Override

@@ -14,6 +14,7 @@ import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
@@ -38,6 +39,7 @@ public class LdapMetadataResolver {
     private final boolean ignoreReferralErrors;
     private final String fullNameAttributeName;
     private final String emailAttributeName;
+    private final String[] allAttributeNamesToResolve;
 
     public LdapMetadataResolver(RealmConfig realmConfig, boolean ignoreReferralErrors) {
         this(
@@ -58,6 +60,11 @@ public class LdapMetadataResolver {
         this.emailAttributeName = emailAttributeName;
         this.attributeNames = attributeNames.toArray(new String[attributeNames.size()]);
         this.ignoreReferralErrors = ignoreReferralErrors;
+        this.allAttributeNamesToResolve = Stream.concat(
+            Stream.of(this.attributeNames),
+            Stream.of(this.fullNameAttributeName, this.emailAttributeName)
+        ).distinct().toArray(String[]::new);
+
     }
 
     public String[] attributeNames() {
@@ -91,9 +98,7 @@ public class LdapMetadataResolver {
                         listener.onResponse(toLdapMetadataResult(entry::getAttribute));
                     }
                 }, listener::onFailure),
-                Stream.concat(Stream.of(this.attributeNames), Stream.of(this.fullNameAttributeName, this.emailAttributeName))
-                    .distinct()
-                    .toArray(String[]::new)
+                allAttributeNamesToResolve
             );
         }
     }
@@ -110,16 +115,18 @@ public class LdapMetadataResolver {
         private final String email;
         private final Map<String, Object> metaData;
 
-        public LdapMetadataResult(String fullName, String email, Map<String, Object> metaData) {
+        public LdapMetadataResult(@Nullable String fullName, @Nullable String email, Map<String, Object> metaData) {
             this.fullName = fullName;
             this.email = email;
             this.metaData = metaData;
         }
 
+        @Nullable
         public String getFullName() {
             return fullName;
         }
 
+        @Nullable
         public String getEmail() {
             return email;
         }

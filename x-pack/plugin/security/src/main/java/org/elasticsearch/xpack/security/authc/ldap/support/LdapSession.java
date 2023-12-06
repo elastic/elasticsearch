@@ -111,7 +111,14 @@ public class LdapSession implements Releasable {
         groups(ActionListener.wrap(groups -> {
             logger.debug("Resolved {} LDAP groups [{}] for user [{}]", groups.size(), groups, userDn);
             metadata(ActionListener.wrap(meta -> {
-                logger.debug("Resolved {} meta-data fields [{}] for user [{}]", meta.getMetaData().size(), meta, userDn);
+                logger.debug(
+                    "Resolved full name [{}], email [{}] and {} meta-data [{}] for user [{}]",
+                    meta.getFullName(),
+                    meta.getEmail(),
+                    meta.getMetaData().size(),
+                    meta,
+                    userDn
+                );
                 listener.onResponse(new LdapUserData(meta.getFullName(), meta.getEmail(), groups, meta.getMetaData()));
             }, listener::onFailure));
         }, listener::onFailure));

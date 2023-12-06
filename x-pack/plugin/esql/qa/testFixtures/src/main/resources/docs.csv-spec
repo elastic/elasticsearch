@@ -569,6 +569,7 @@ ROW a = "row 1"
 a:keyword
 row 1
 // end::random-result[]
+;
 
 dissectRightPaddingModifier
 // tag::dissectRightPaddingModifier[]

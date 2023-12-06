@@ -148,9 +148,9 @@ synopsis:keyword
 ? mv_sum(arg1:?)                                        
 ? now()                                                 
 ? percentile(arg1:?, arg2:?)                            
-? pi()                                                  
-"? pow(base:integer|unsigned_long|long|double, exponent:integer|unsigned_long|long|double)" 
-"? random()"
+? pi()
+"? pow(base:integer|unsigned_long|long|double, exponent:integer|unsigned_long|long|double)"
+double random()
 "? replace(arg1:?, arg2:?, arg3:?)"
 "? right(string:keyword, length:integer)"     
 ? round(arg1:?, arg2:?)                                 
@@ -211,5 +211,5 @@ countFunctions#[skip:-8.11.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-84     | 84     | 84
+85     | 85     | 85
 ;

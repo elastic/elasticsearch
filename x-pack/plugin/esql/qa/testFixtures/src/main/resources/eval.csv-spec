@@ -234,14 +234,14 @@ row z=1 | eval a=to_int(ceil(random())) | keep a;
 
 a:integer
 1
+;
 
 docsGettingStartedEval
 // tag::gs-eval[]
 FROM sample_data
 | EVAL duration_ms = event_duration / 1000000.0
 // end::gs-eval[]
-| LIMIT 0
-;
+| LIMIT 0;
 
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword |  duration_ms:double
 ;
@@ -251,8 +251,7 @@ docsGettingStartedRound
 FROM sample_data
 | EVAL duration_ms = ROUND(event_duration / 1000000.0, 1)
 // end::gs-round[]
-| LIMIT 0
-;
+| LIMIT 0;
 
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword |  duration_ms:double
 ;

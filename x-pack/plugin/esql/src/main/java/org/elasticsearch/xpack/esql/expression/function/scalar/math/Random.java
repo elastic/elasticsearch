@@ -60,7 +60,7 @@ public class Random extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
-        return new RandomNoSeedEvaluator.Factory();
+        return new RandomNoSeedEvaluator.Factory(source());
     }
 
     @Override

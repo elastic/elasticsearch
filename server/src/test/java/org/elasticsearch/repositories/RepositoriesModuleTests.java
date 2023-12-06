@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -58,11 +60,13 @@ public class RepositoriesModuleTests extends ESTestCase {
     }
 
     public void testCanRegisterTwoRepositoriesWithDifferentTypes() {
-        when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
-            RepositoriesMetrics.NOOP))
+        when(plugin1.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
+            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
+            any(RepositoriesMetrics.class)))
             .thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
-            RepositoriesMetrics.NOOP))
+        when(plugin2.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
+            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
+            any(RepositoriesMetrics.class)))
             .thenReturn(Collections.singletonMap("type2", factory));
 
         // Would throw
@@ -77,11 +81,13 @@ public class RepositoriesModuleTests extends ESTestCase {
     }
 
     public void testCannotRegisterTwoRepositoriesWithSameTypes() {
-        when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
-            RepositoriesMetrics.NOOP))
+        when(plugin1.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
+            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
+            any(RepositoriesMetrics.class)))
             .thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
-            RepositoriesMetrics.NOOP))
+        when(plugin2.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
+            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
+            any(RepositoriesMetrics.class)))
             .thenReturn(Collections.singletonMap("type1", factory));
 
         IllegalArgumentException ex = expectThrows(
@@ -123,8 +129,9 @@ public class RepositoriesModuleTests extends ESTestCase {
     }
 
     public void testCannotRegisterNormalAndInternalRepositoriesWithSameTypes() {
-        when(plugin1.getRepositories(environment, contentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
-            RepositoriesMetrics.NOOP))
+        when(plugin1.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
+            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
+            any(RepositoriesMetrics.class)))
             .thenReturn(Collections.singletonMap("type1", factory));
         when(plugin2.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
             Collections.singletonMap("type1", factory)

@@ -134,7 +134,6 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin implement
 
     @Override
     public void reload(Settings settings) throws Exception {
-        // TODO
         plugins.stream().filter(p -> p instanceof ReloadablePlugin).forEach(p -> {
             try {
                 ((ReloadablePlugin) p).reload(settings);

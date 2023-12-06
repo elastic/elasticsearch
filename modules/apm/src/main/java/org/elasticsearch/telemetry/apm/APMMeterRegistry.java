@@ -83,7 +83,7 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public DoubleCounter registerDoubleCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return doubleCounters.register(new DoubleCounterAdapter(meter, name, description, unit));
+            return register(doubleCounters, new DoubleCounterAdapter(meter, name, description, unit));
         }
     }
 
@@ -100,7 +100,7 @@ public class APMMeterRegistry implements MeterRegistry {
         Supplier<DoubleWithAttributes> observer
     ) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return doubleAsynchronousCounters.register(new DoubleAsyncCounterAdapter(meter, name, description, unit, observer));
+            return register(doubleAsynchronousCounters, new DoubleAsyncCounterAdapter(meter, name, description, unit, observer));
         }
     }
 
@@ -112,7 +112,7 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return doubleUpDownCounters.register(new DoubleUpDownCounterAdapter(meter, name, description, unit));
+            return register(doubleUpDownCounters, new DoubleUpDownCounterAdapter(meter, name, description, unit));
         }
     }
 
@@ -124,7 +124,7 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return doubleGauges.register(new DoubleGaugeAdapter(meter, name, description, unit, observer));
+            return register(doubleGauges, new DoubleGaugeAdapter(meter, name, description, unit, observer));
         }
     }
 
@@ -136,7 +136,7 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return doubleHistograms.register(new DoubleHistogramAdapter(meter, name, description, unit));
+            return register(doubleHistograms, new DoubleHistogramAdapter(meter, name, description, unit));
         }
     }
 
@@ -148,14 +148,14 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public LongCounter registerLongCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return longCounters.register(new LongCounterAdapter(meter, name, description, unit));
+            return register(longCounters, new LongCounterAdapter(meter, name, description, unit));
         }
     }
 
     @Override
     public LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return longAsynchronousCounters.register(new LongAsyncCounterAdapter(meter, name, description, unit, observer));
+            return register(longAsynchronousCounters, new LongAsyncCounterAdapter(meter, name, description, unit, observer));
         }
     }
 
@@ -172,7 +172,7 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return longUpDownCounters.register(new LongUpDownCounterAdapter(meter, name, description, unit));
+            return register(longUpDownCounters, new LongUpDownCounterAdapter(meter, name, description, unit));
         }
     }
 
@@ -184,7 +184,7 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return longGauges.register(new LongGaugeAdapter(meter, name, description, unit, observer));
+            return register(longGauges, new LongGaugeAdapter(meter, name, description, unit, observer));
         }
     }
 
@@ -196,13 +196,18 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public LongHistogram registerLongHistogram(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return longHistograms.register(new LongHistogramAdapter(meter, name, description, unit));
+            return register(longHistograms, new LongHistogramAdapter(meter, name, description, unit));
         }
     }
 
     @Override
     public LongHistogram getLongHistogram(String name) {
         return longHistograms.get(name);
+    }
+
+    private <T extends AbstractInstrument<?>> T register(Registrar<T> registrar, T adapter){
+        assert registrars.contains(registrar) : "usage of unknown registrar";
+        return registrar.register(adapter);
     }
 
     public void setProvider(Meter meter) {

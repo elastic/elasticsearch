@@ -259,7 +259,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
                 // We can skip the generate, initial cleanup, and snapshot taking for this index, as we already have a generated snapshot.
                 // This will jump ahead directly to the "mount snapshot" step
-                logger.info(
+                logger.debug(
                     "Policy [{}] will use an existing snapshot [{}] in repository [{}] (index name: [{}]) "
                         + "to mount [{}] as a searchable snapshot. This snapshot was found in the {}.",
                     policyName,

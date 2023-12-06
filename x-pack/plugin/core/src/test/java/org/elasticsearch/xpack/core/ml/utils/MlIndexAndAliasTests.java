@@ -127,6 +127,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             );
 
         listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
 
         createRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         aliasesRequestCaptor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
@@ -171,6 +172,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             listener
         );
         InOrder inOrder = inOrder(client, listener);
+        inOrder.verify(listener).delegateFailureAndWrap(any());
         inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
         inOrder.verify(listener).onResponse(true);
     }
@@ -236,6 +238,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             listener
         );
         InOrder inOrder = inOrder(client, listener);
+        inOrder.verify(listener).delegateFailureAndWrap(any());
         inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
         inOrder.verify(listener).onResponse(true);
     }

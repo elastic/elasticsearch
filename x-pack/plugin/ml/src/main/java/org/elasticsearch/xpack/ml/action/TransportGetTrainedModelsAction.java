@@ -89,6 +89,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                 new OriginSettingClient(client, ML_ORIGIN),
                 configs.get(0),
                 false,  // missing docs are not an error
+                null,   // if download is in progress, don't wait for it to complete
                 ActionListener.wrap(modelIdAndLength -> {
                     configs.get(0).setFullDefinition(modelIdAndLength.v2() > 0);
                     listener.onResponse(responseBuilder.setModels(configs).build());

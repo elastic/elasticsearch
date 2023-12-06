@@ -24,6 +24,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -62,6 +63,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_INDEX_NAME_FORMAT;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_NAME_FORMAT;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -228,7 +230,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         if (randomBoolean()) {
             container.writeBlob(randomPurpose(), blobName, bytesArray, failIfAlreadyExists);
         } else {
-            container.writeBlobAtomic(randomPurpose(), blobName, bytesArray, failIfAlreadyExists);
+            container.writeBlobAtomic(randomNonDataPurpose(), blobName, bytesArray, failIfAlreadyExists);
         }
     }
 
@@ -331,7 +333,13 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     logger.info("--> add random documents to {}", index);
                     addRandomDocuments(index, randomIntBetween(10, 1000));
                 } else {
-                    int docCount = (int) prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
+                    var resp = prepareSearch(index).setSize(0).get();
+                    final int docCount;
+                    try {
+                        docCount = (int) resp.getHits().getTotalHits().value;
+                    } finally {
+                        resp.decRef();
+                    }
                     int deleteCount = randomIntBetween(1, docCount);
                     logger.info("--> delete {} random documents from {}", deleteCount, index);
                     for (int i = 0; i < deleteCount; i++) {
@@ -401,7 +409,12 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 addRandomDocuments(indexName, docCount);
             }
             // Check number of documents in this iteration
-            docCounts[i] = (int) prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value;
+            var resp = prepareSearch(indexName).setSize(0).get();
+            try {
+                docCounts[i] = (int) resp.getHits().getTotalHits().value;
+            } finally {
+                resp.decRef();
+            }
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(
                 clusterAdmin().prepareCreateSnapshot(repoName, snapshotName + "-" + i).setWaitForCompletion(true).setIndices(indexName)
@@ -556,7 +569,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         // Create an extra dangling blob as if from an earlier snapshot that failed to clean up
         shardContainer.writeBlob(
-            randomPurpose(),
+            OperationPurpose.SNAPSHOT_DATA,
             BlobStoreRepository.UPLOADED_DATA_BLOB_PREFIX + UUIDs.randomBase64UUID(random()),
             BytesArray.EMPTY,
             true

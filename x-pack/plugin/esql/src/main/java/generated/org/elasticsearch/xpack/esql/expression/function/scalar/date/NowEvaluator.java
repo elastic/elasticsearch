@@ -11,17 +11,22 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Now}.
  * This class is generated. Do not edit it.
  */
 public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final long now;
 
   private final DriverContext driverContext;
 
-  public NowEvaluator(long now, DriverContext driverContext) {
+  public NowEvaluator(Source source, long now, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.now = now;
     this.driverContext = driverContext;
   }
@@ -50,15 +55,18 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final long now;
 
-    public Factory(long now) {
+    public Factory(Source source, long now) {
+      this.source = source;
       this.now = now;
     }
 
     @Override
     public NowEvaluator get(DriverContext context) {
-      return new NowEvaluator(now, context);
+      return new NowEvaluator(source, now, context);
     }
 
     @Override

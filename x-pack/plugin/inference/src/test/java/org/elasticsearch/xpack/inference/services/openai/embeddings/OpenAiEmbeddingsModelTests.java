@@ -11,11 +11,15 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.util.Map;
+
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.getRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class OpenAiEmbeddingsModelTests extends ESTestCase {
 
@@ -26,6 +30,22 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
         var overriddenModel = model.overrideWith(requestTaskSettingsMap);
 
         assertThat(overriddenModel, is(createModel("url", "org", "api_key", "model_name", "user_override")));
+    }
+
+    public void testOverrideWith_EmptyMap() {
+        var model = createModel("url", "org", "api_key", "model_name", null);
+
+        var requestTaskSettingsMap = Map.<String, Object>of();
+
+        var overriddenModel = model.overrideWith(requestTaskSettingsMap);
+        assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public void testOverrideWith_NullMap() {
+        var model = createModel("url", "org", "api_key", "model_name", null);
+
+        var overriddenModel = model.overrideWith(null);
+        assertThat(overriddenModel, sameInstance(model));
     }
 
     public static OpenAiEmbeddingsModel createModel(
@@ -39,7 +59,7 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new OpenAiServiceSettings(url, org),
+            new OpenAiServiceSettings(url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null),
             new OpenAiEmbeddingsTaskSettings(modelName, user),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -35,11 +36,21 @@ public final class ToUnsignedLongFromIntEvaluator extends AbstractConvertFunctio
     IntVector vector = (IntVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
+      try {
+        return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
+      } catch (InvalidArgumentException  e) {
+        registerException(e);
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
+      }
     }
     try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendLong(evalValue(vector, p));
+        try {
+          builder.appendLong(evalValue(vector, p));
+        } catch (InvalidArgumentException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
       return builder.build();
     }
@@ -62,13 +73,17 @@ public final class ToUnsignedLongFromIntEvaluator extends AbstractConvertFunctio
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          long value = evalValue(block, i);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+          try {
+            long value = evalValue(block, i);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendLong(value);
+            valuesAppended = true;
+          } catch (InvalidArgumentException  e) {
+            registerException(e);
           }
-          builder.appendLong(value);
-          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

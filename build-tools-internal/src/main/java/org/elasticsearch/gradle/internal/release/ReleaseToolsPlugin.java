@@ -53,6 +53,10 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
 
         project.getTasks().register("freezeVersions", FreezeVersionTask.class, t -> { t.luceneVersion(luceneVersion); });
+        project.getTasks().register("finalizeVersions", FinalizeVersionTask.class, t -> {
+            t.releaseVersion(version);
+            t.luceneVersion(luceneVersion);
+        });
 
         final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsTask = project.getTasks()
             .register("validateChangelogs", ValidateYamlAgainstSchemaTask.class, task -> {

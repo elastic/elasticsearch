@@ -28,60 +28,108 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 
-public class FreezeVersionTaskTests {
+public class FinalizeVersionTaskTests {
 
     @Test
     public void updateVersion_minorRelease() {
         final String versionJava = """
             public class Version {
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_8_10_1 = new Version(8_10_01_99);
                 public static final Version V_8_11_0 = new Version(8_11_00_99);
                 public static final Version CURRENT = V_8_11_0;
             }""";
         final String updatedVersionJava = """
             public class Version {
 
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+
                 public static final Version V_8_11_0 = new Version(8_11_00_99);
 
-                public static final Version V_9_0_0 = new Version(9_00_00_99);
+                public static final Version V_8_11_1 = new Version(8_11_01_99);
 
-                public static final Version CURRENT = V_9_0_0;
+                public static final Version CURRENT = V_8_11_1;
             }
             """;
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        FreezeVersionTask.updateVersionJava(unit, Version.fromString("9.0.0"));
+        FinalizeVersionTask.updateVersionJava(unit, Version.fromString("8.11.0"), Version.fromString("8.11.1"), true, true);
 
         assertThat(unit, hasToString(updatedVersionJava));
     }
 
     @Test
-    public void updateVersion_majorRelease() {
+    public void updateVersion_patchRelease() {
         final String versionJava = """
             public class Version {
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_8_10_1 = new Version(8_10_01_99);
                 public static final Version V_8_11_0 = new Version(8_11_00_99);
-                public static final Version CURRENT = V_8_11_0;
+                public static final Version V_8_11_1 = new Version(8_11_01_99);
+                public static final Version CURRENT = V_8_11_1;
             }""";
         final String updatedVersionJava = """
             public class Version {
 
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+
+                public static final Version V_8_10_1 = new Version(8_10_01_99);
+
                 public static final Version V_8_11_0 = new Version(8_11_00_99);
 
-                public static final Version V_8_12_0 = new Version(8_12_00_99);
+                public static final Version V_8_11_1 = new Version(8_11_01_99);
 
-                public static final Version CURRENT = V_8_12_0;
+                public static final Version V_8_11_2 = new Version(8_11_02_99);
+
+                public static final Version CURRENT = V_8_11_2;
             }
             """;
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        FreezeVersionTask.updateVersionJava(unit, Version.fromString("8.12.0"));
+        FinalizeVersionTask.updateVersionJava(unit, Version.fromString("8.11.1"), Version.fromString("8.11.2"), true, false);
+
+        assertThat(unit, hasToString(updatedVersionJava));
+    }
+
+    @Test
+    public void updateVersion_previousPatchRelease() {
+        final String versionJava = """
+            public class Version {
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_8_10_1 = new Version(8_10_01_99);
+                public static final Version V_8_11_0 = new Version(8_11_00_99);
+                public static final Version V_8_11_1 = new Version(8_11_01_99);
+                public static final Version CURRENT = V_8_11_1;
+            }""";
+        final String updatedVersionJava = """
+            public class Version {
+
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+
+                public static final Version V_8_10_1 = new Version(8_10_01_99);
+
+                public static final Version V_8_10_2 = new Version(8_10_02_99);
+
+                public static final Version V_8_11_0 = new Version(8_11_00_99);
+
+                public static final Version V_8_11_1 = new Version(8_11_01_99);
+
+                public static final Version CURRENT = V_8_11_1;
+            }
+            """;
+
+        CompilationUnit unit = StaticJavaParser.parse(versionJava);
+
+        FinalizeVersionTask.updateVersionJava(unit, Version.fromString("8.10.1"), Version.fromString("8.10.2"), false, false);
 
         assertThat(unit, hasToString(updatedVersionJava));
     }
 
     @Test
     public void updateVersionFile_updatesCorrectly() throws Exception {
+        Version releaseVersion = new Version(50, 1, 1);
         Version newVersion = new Version(50, 1, 2);
         String versionField = String.format("V_%d_%d_%d", newVersion.getMajor(), newVersion.getMinor(), newVersion.getRevision());
 
@@ -89,10 +137,13 @@ public class FreezeVersionTaskTests {
         CompilationUnit unit = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionFile));
         assertFalse("Test version already exists in the file", findFirstField(unit, versionField).isPresent());
 
+        // first freeze the release
+        FreezeVersionTask.updateVersionJava(unit, releaseVersion);
+
         List<FieldDeclaration> existingFields = unit.findAll(FieldDeclaration.class);
 
-        // do the update
-        FreezeVersionTask.updateVersionJava(unit, newVersion);
+        // then finalize it
+        FinalizeVersionTask.updateVersionJava(unit, releaseVersion, newVersion, true, false);
 
         // write out & parse back in again
         StringWriter writer = new StringWriter();

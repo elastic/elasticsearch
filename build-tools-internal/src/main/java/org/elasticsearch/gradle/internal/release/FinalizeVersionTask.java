@@ -30,23 +30,35 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-public class FreezeVersionTask extends DefaultTask {
-    private static final Logger LOGGER = Logging.getLogger(FreezeVersionTask.class);
+public class FinalizeVersionTask extends DefaultTask {
+    private static final Logger LOGGER = Logging.getLogger(FinalizeVersionTask.class);
 
     static final String SERVER_PATH = "server/src/main/java/";
     static final String VERSION_PATH = SERVER_PATH + "org/elasticsearch/Version.java";
 
     private final Path rootDir;
 
+    private Version releaseVersion;
     private Version nextVersion;
     private String luceneVersion;
+    private boolean updateCurrent;
+    private boolean removeLastMinorFinalPatch;
 
     @Inject
-    public FreezeVersionTask(Project project) {
+    public FinalizeVersionTask(Project project) {
         rootDir = project.getRootDir().toPath();
+    }
+
+    public void releaseVersion(Version releaseVersion) {
+        this.releaseVersion = releaseVersion;
     }
 
     @Option(option = "next-version", description = "Specifies the next version after the release version")
@@ -58,6 +70,16 @@ public class FreezeVersionTask extends DefaultTask {
         this.luceneVersion = luceneVersion;
     }
 
+    @Option(option = "update-current", description = "True if CURRENT should be updated")
+    public void updateCurrent(boolean update) {
+        updateCurrent = update;
+    }
+
+    @Option(option = "remove-last-minor-patch", description = "True if the last version of the previous minor should be removed")
+    public void removeLastMinorFinalPatch(boolean remove) {
+        removeLastMinorFinalPatch = remove;
+    }
+
     @TaskAction
     public void executeTask() throws IOException {
         if (nextVersion == null) {
@@ -65,19 +87,27 @@ public class FreezeVersionTask extends DefaultTask {
         }
 
         Path versionJava = rootDir.resolve(VERSION_PATH);
-        LOGGER.lifecycle("Updating [{}]", versionJava);
+        LOGGER.lifecycle("    > Updating [{}]", versionJava);
         CompilationUnit file = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionJava));
-        CompilationUnit newFile = updateVersionJava(file, nextVersion);
+        CompilationUnit newFile = updateVersionJava(file, releaseVersion, nextVersion, updateCurrent, removeLastMinorFinalPatch);
         writeOutNewContents(versionJava, newFile);
     }
 
+    private static final Pattern VERSION_FIELD = Pattern.compile("V_(\\d+)_(\\d+)_(\\d+)(?:_(\\w+))?");
+
     @VisibleForTesting
-    static CompilationUnit updateVersionJava(CompilationUnit versionJava, Version nextVersion) {
+    static CompilationUnit updateVersionJava(
+        CompilationUnit versionJava,
+        Version releaseVersion,
+        Version nextVersion,
+        boolean updateCurrent,
+        boolean removeLastMinorFinalPatch
+    ) {
         String newFieldName = String.format("V_%d_%d_%d", nextVersion.getMajor(), nextVersion.getMinor(), nextVersion.getRevision());
 
         ClassOrInterfaceDeclaration version = versionJava.getClassByName("Version").get();
         if (version.getFieldByName(newFieldName).isPresent()) {
-            LOGGER.lifecycle("New version constant [{}] already present, skipping", newFieldName);
+            LOGGER.lifecycle("    > New version constant [{}] already present, skipping", newFieldName);
             return versionJava;
         }
 
@@ -88,25 +118,45 @@ public class FreezeVersionTask extends DefaultTask {
             nextVersion.getRevision()
         );
 
-        for (int i = 0; i < version.getMembers().size(); i++) {
-            var member = version.getMember(i);
-            if (member.isFieldDeclaration() && member.asFieldDeclaration().getVariable(0).getName().getIdentifier().equals("CURRENT")) {
-                // found CURRENT - copy the previous variable
-                var current = member.asFieldDeclaration();
-                // copy the last version field constant
-                var lastVersion = version.getMember(i - 1).asFieldDeclaration();
-                FieldDeclaration newVersion = createNewConstant(lastVersion, newFieldName, newFieldConstant);
+        NavigableMap<Version, FieldDeclaration> versions = version.getFields()
+            .stream()
+            .map(f -> Map.entry(f, VERSION_FIELD.matcher(f.getVariable(0).getName().getIdentifier())))
+            .filter(e -> e.getValue().find())
+            .collect(
+                Collectors.toMap(
+                    e -> new Version(
+                        Integer.parseInt(e.getValue().group(1)),
+                        Integer.parseInt(e.getValue().group(2)),
+                        Integer.parseInt(e.getValue().group(3)),
+                        e.getValue().group(4)
+                    ),
+                    Map.Entry::getKey,
+                    (v1, v2) -> {
+                        throw new IllegalArgumentException();
+                    },
+                    TreeMap::new
+                )
+            );
 
-                // add a new field
-                version.getMembers().addAfter(newVersion, lastVersion);
-
-                // and update CURRENT to point to it
-                current.getVariable(0).setInitializer(new NameExpr(newFieldName));
-                return versionJava;
-            }
+        if (removeLastMinorFinalPatch) {
+            var remove = versions.lowerEntry(releaseVersion);
+            remove.getValue().remove();
+            versions.remove(remove.getKey());
         }
 
-        throw new IllegalArgumentException("Could not find CURRENT constant in Version.java");
+        // find the version this should be inserted after
+        var releaseField = versions.get(releaseVersion);
+        FieldDeclaration newVersion = createNewConstant(releaseField, newFieldName, newFieldConstant);
+        version.getMembers().addAfter(newVersion, releaseField);
+
+        if (updateCurrent) {
+            version.getFieldByName("CURRENT")
+                .orElseThrow(() -> new IllegalArgumentException("Could not find CURRENT constant in Version.java"))
+                .getVariable(0)
+                .setInitializer(new NameExpr(newFieldName));
+        }
+
+        return versionJava;
     }
 
     private static FieldDeclaration createNewConstant(FieldDeclaration lastVersion, String newName, String newExpr) {

@@ -220,14 +220,14 @@ public class JobManager {
             );
         } else if (analysisConfig.getCategorizationFieldName() != null
             && minNodeVersion.onOrAfter(MIN_ML_CONFIG_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER)) {
-                // Any supplied categorization filters are transferred into the new categorization analyzer.
-                // The user supplied categorization filters will already have been validated when the put job
-                // request was built, so we know they're valid.
-                AnalysisConfig.Builder analysisConfigBuilder = new AnalysisConfig.Builder(analysisConfig).setCategorizationAnalyzerConfig(
-                    CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(analysisConfig.getCategorizationFilters())
-                ).setCategorizationFilters(null);
-                jobBuilder.setAnalysisConfig(analysisConfigBuilder);
-            }
+            // Any supplied categorization filters are transferred into the new categorization analyzer.
+            // The user supplied categorization filters will already have been validated when the put job
+            // request was built, so we know they're valid.
+            AnalysisConfig.Builder analysisConfigBuilder = new AnalysisConfig.Builder(analysisConfig).setCategorizationAnalyzerConfig(
+                CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(analysisConfig.getCategorizationFilters())
+            ).setCategorizationFilters(null);
+            jobBuilder.setAnalysisConfig(analysisConfigBuilder);
+        }
     }
 
     /**

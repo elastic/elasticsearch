@@ -365,7 +365,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitSource(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -451,7 +452,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitFunction(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -526,7 +528,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitParameters(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -612,7 +615,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitStatement(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -754,7 +758,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitFor(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -783,7 +788,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitTry(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -820,7 +826,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitWhile(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -861,7 +868,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitIneach(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -902,7 +910,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitIf(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -947,7 +956,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitEach(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1256,7 +1266,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitDecl(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1273,7 +1284,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitBreak(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1294,7 +1306,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitThrow(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1311,7 +1324,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitContinue(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1328,7 +1342,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitExpr(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1365,7 +1380,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitDo(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1386,7 +1402,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitReturn(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1503,7 +1520,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitTrailer(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1603,7 +1621,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitBlock(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1675,7 +1694,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitEmpty(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1720,7 +1740,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitInitializer(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1772,7 +1793,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitAfterthought(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1829,7 +1851,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitDeclaration(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1905,7 +1928,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitDecltype(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -1989,7 +2013,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitType(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2076,7 +2101,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitDeclvar(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2150,7 +2176,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitTrap(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2214,7 +2241,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitSingle(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2267,7 +2295,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitComp(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2296,7 +2325,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitBool(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2369,7 +2399,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitBinary(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2394,7 +2425,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitElvis(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2419,7 +2451,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitInstanceof(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2709,7 +2742,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitConditional(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2778,7 +2812,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitAssignment(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2795,7 +2830,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitNonconditional(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2889,7 +2925,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitNotaddsub(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2914,7 +2951,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitPre(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -2939,7 +2977,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitAddsub(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3051,7 +3090,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitCast(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3076,7 +3116,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitNot(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3093,7 +3134,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitRead(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3118,7 +3160,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitPost(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3230,7 +3273,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitRefcast(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3259,7 +3303,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitPrimordefcast(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3331,7 +3376,8 @@ class PainlessParser extends Parser {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitPrimordefcasttype(
                 this
             );
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3420,7 +3466,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitRefcasttype(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3566,7 +3613,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitDynamic(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3583,7 +3631,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitNewarray(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3667,7 +3716,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitListinit(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3684,7 +3734,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitRegex(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3701,7 +3752,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitNull(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3718,7 +3770,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitString(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3735,7 +3788,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitMapinit(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3760,7 +3814,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitCalllocal(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3777,7 +3832,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitTrue(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3794,7 +3850,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitFalse(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3811,7 +3868,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitVariable(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3840,7 +3898,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitNumeric(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3865,7 +3924,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitNewobject(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -3890,7 +3950,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitPrecedence(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4047,7 +4108,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitPostfix(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4109,7 +4171,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitPostdot(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4173,7 +4236,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitCallinvoke(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4238,7 +4302,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitFieldaccess(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4304,7 +4369,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitBraceaccess(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4402,7 +4468,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitNewstandardarray(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4465,7 +4532,8 @@ class PainlessParser extends Parser {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitNewinitializedarray(
                 this
             );
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4644,7 +4712,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitListinitializer(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4743,7 +4812,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitMapinitializer(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4828,7 +4898,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitMaptoken(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4893,7 +4964,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitArguments(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -4974,7 +5046,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitArgument(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -5064,7 +5137,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitLambda(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -5191,7 +5265,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitLamtype(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -5262,7 +5337,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitClassfuncref(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -5289,7 +5365,8 @@ class PainlessParser extends Parser {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitConstructorfuncref(
                 this
             );
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 
@@ -5314,7 +5391,8 @@ class PainlessParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof PainlessParserVisitor) return ((PainlessParserVisitor<? extends T>) visitor).visitLocalfuncref(this);
-            else return visitor.visitChildren(this);
+            else
+                return visitor.visitChildren(this);
         }
     }
 

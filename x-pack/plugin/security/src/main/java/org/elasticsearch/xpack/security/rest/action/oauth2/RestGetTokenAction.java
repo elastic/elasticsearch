@@ -148,21 +148,17 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
             } else if (e instanceof ElasticsearchSecurityException
                 && "invalid_grant".equals(e.getMessage())
                 && ((ElasticsearchSecurityException) e).getHeader("error_description").size() == 1) {
-                    sendTokenErrorResponse(
-                        TokenRequestError.INVALID_GRANT,
-                        ((ElasticsearchSecurityException) e).getHeader("error_description").get(0),
-                        e
-                    );
-                } else if (e instanceof ElasticsearchSecurityException
-                    && "failed to authenticate user, gss context negotiation not complete".equals(e.getMessage())) {
-                        sendTokenErrorResponse(
-                            TokenRequestError._UNAUTHORIZED,
-                            extractBase64EncodedToken((ElasticsearchSecurityException) e),
-                            e
-                        );
-                    } else {
-                        sendFailure(e);
-                    }
+                sendTokenErrorResponse(
+                    TokenRequestError.INVALID_GRANT,
+                    ((ElasticsearchSecurityException) e).getHeader("error_description").get(0),
+                    e
+                );
+            } else if (e instanceof ElasticsearchSecurityException
+                && "failed to authenticate user, gss context negotiation not complete".equals(e.getMessage())) {
+                sendTokenErrorResponse(TokenRequestError._UNAUTHORIZED, extractBase64EncodedToken((ElasticsearchSecurityException) e), e);
+            } else {
+                sendFailure(e);
+            }
         }
 
         private static String extractBase64EncodedToken(ElasticsearchSecurityException e) {

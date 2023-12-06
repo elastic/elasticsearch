@@ -377,21 +377,21 @@ public final class OptimizerRules {
                     || ex instanceof GreaterThanOrEqual
                     || ex instanceof LessThan
                     || ex instanceof LessThanOrEqual) {
-                        BinaryComparison bc = (BinaryComparison) ex;
-                        if (bc.right().foldable()) {
-                            inequalities.add(bc);
-                        } else {
-                            exps.add(ex);
-                        }
-                    } else if (ex instanceof NotEquals otherNotEq) {
-                        if (otherNotEq.right().foldable()) {
-                            notEquals.add(otherNotEq);
-                        } else {
-                            exps.add(ex);
-                        }
+                    BinaryComparison bc = (BinaryComparison) ex;
+                    if (bc.right().foldable()) {
+                        inequalities.add(bc);
                     } else {
                         exps.add(ex);
                     }
+                } else if (ex instanceof NotEquals otherNotEq) {
+                    if (otherNotEq.right().foldable()) {
+                        notEquals.add(otherNotEq);
+                    } else {
+                        exps.add(ex);
+                    }
+                } else {
+                    exps.add(ex);
+                }
             }
 
             // check
@@ -737,25 +737,25 @@ public final class OptimizerRules {
                         // </<= AND >/>=
                         else if ((other instanceof GreaterThan || other instanceof GreaterThanOrEqual)
                             && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
-                                bcs.remove(j);
-                                bcs.remove(i);
+                            bcs.remove(j);
+                            bcs.remove(i);
 
-                                ranges.add(
-                                    new Range(
-                                        and.source(),
-                                        main.left(),
-                                        other.right(),
-                                        other instanceof GreaterThanOrEqual,
-                                        main.right(),
-                                        main instanceof LessThanOrEqual,
-                                        main.zoneId()
-                                    )
-                                );
+                            ranges.add(
+                                new Range(
+                                    and.source(),
+                                    main.left(),
+                                    other.right(),
+                                    other instanceof GreaterThanOrEqual,
+                                    main.right(),
+                                    main instanceof LessThanOrEqual,
+                                    main.zoneId()
+                                )
+                            );
 
-                                changed = true;
-                                step = 0;
-                                break;
-                            }
+                            changed = true;
+                            step = 0;
+                            break;
+                        }
                     }
                 }
             }
@@ -1033,33 +1033,33 @@ public final class OptimizerRules {
                 else if ((other instanceof LessThan || other instanceof LessThanOrEqual)
                     && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
 
-                        if (main.left().semanticEquals(other.left())) {
-                            Integer compare = BinaryComparison.compare(value, other.right().fold());
+                    if (main.left().semanticEquals(other.left())) {
+                        Integer compare = BinaryComparison.compare(value, other.right().fold());
 
-                            if (compare != null) {
-                                // AND
-                                if ((conjunctive &&
-                                // a < 2 AND a < 3 -> a < 2
-                                    (compare < 0 ||
+                        if (compare != null) {
+                            // AND
+                            if ((conjunctive &&
+                            // a < 2 AND a < 3 -> a < 2
+                                (compare < 0 ||
                                 // a < 2 AND a <= 2 -> a < 2
-                                        (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual))) ||
-                                // OR
-                                    (conjunctive == false &&
+                                    (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual))) ||
+                            // OR
+                                (conjunctive == false &&
                                 // a < 2 OR a < 3 -> a < 3
-                                        (compare > 0 ||
-                                // a <= 2 OR a < 2 -> a <= 2
-                                            (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
-                                    bcs.remove(i);
-                                    bcs.add(i, main);
+                                    (compare > 0 ||
+                                    // a <= 2 OR a < 2 -> a <= 2
+                                        (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
+                                bcs.remove(i);
+                                bcs.add(i, main);
 
-                                }
-                                // found a match
-                                return true;
                             }
-
-                            return false;
+                            // found a match
+                            return true;
                         }
+
+                        return false;
                     }
+                }
             }
 
             return false;
@@ -1690,8 +1690,8 @@ public final class OptimizerRules {
             } else if (e instanceof Alias == false
                 && e.nullable() == Nullability.TRUE
                 && Expressions.anyMatch(e.children(), Expressions::isNull)) {
-                    return Literal.of(e, null);
-                }
+                return Literal.of(e, null);
+            }
             return e;
         }
     }

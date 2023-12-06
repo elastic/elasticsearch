@@ -276,12 +276,12 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             ignoreThrottled = value;
                         } else if (parserConfig.restApiVersion() == RestApiVersion.V_7
                             && ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
-                                deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
-                            } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
-                                // Skip, the parser handled the key/value
-                            } else {
-                                throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
-                            }
+                            deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+                        } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                            // Skip, the parser handled the key/value
+                        } else {
+                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
+                        }
                     }
                     defaultOptions = IndicesOptions.fromParameters(
                         expandWildcards,

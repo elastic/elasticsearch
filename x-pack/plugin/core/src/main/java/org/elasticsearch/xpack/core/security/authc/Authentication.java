@@ -1320,20 +1320,18 @@ public final class Authentication implements ToXContentObject {
                 );
             } else if (authentication.getEffectiveSubject().getTransportVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
-                    metadata = new HashMap<>(metadata);
-                    metadata.put(
-                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                        convertRoleDescriptorsMapToBytes(
-                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
-                        )
-                    );
-                    metadata.put(
-                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                        convertRoleDescriptorsMapToBytes(
-                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
-                        )
-                    );
-                }
+                metadata = new HashMap<>(metadata);
+                metadata.put(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    convertRoleDescriptorsMapToBytes((Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY))
+                );
+                metadata.put(
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    convertRoleDescriptorsMapToBytes(
+                        (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+            }
         }
         return metadata;
     }

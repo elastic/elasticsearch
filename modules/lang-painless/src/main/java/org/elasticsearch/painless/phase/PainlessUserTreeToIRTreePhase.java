@@ -108,16 +108,16 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                             || returnType == char.class
                             || returnType == short.class
                             || returnType == int.class) {
-                                irConstantNode.attachDecoration(new IRDConstant(0));
-                            } else if (returnType == long.class) {
-                                irConstantNode.attachDecoration(new IRDConstant(0L));
-                            } else if (returnType == float.class) {
-                                irConstantNode.attachDecoration(new IRDConstant(0f));
-                            } else if (returnType == double.class) {
-                                irConstantNode.attachDecoration(new IRDConstant(0d));
-                            } else {
-                                throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
-                            }
+                            irConstantNode.attachDecoration(new IRDConstant(0));
+                        } else if (returnType == long.class) {
+                            irConstantNode.attachDecoration(new IRDConstant(0L));
+                        } else if (returnType == float.class) {
+                            irConstantNode.attachDecoration(new IRDConstant(0f));
+                        } else if (returnType == double.class) {
+                            irConstantNode.attachDecoration(new IRDConstant(0d));
+                        } else {
+                            throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
+                        }
 
                         irExpressionNode = irConstantNode;
                     } else {

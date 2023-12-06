@@ -236,10 +236,10 @@ public final class BulkRequestParser {
                                     }
                                 } else if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))
                                     && deprecateOrErrorOnType) {
-                                        throw new IllegalArgumentException(
-                                            "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
-                                        );
-                                    }
+                                    throw new IllegalArgumentException(
+                                        "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
+                                    );
+                                }
                                 type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
@@ -282,21 +282,21 @@ public final class BulkRequestParser {
                             );
                         } else if (token == XContentParser.Token.START_OBJECT
                             && DYNAMIC_TEMPLATES.match(currentFieldName, parser.getDeprecationHandler())) {
-                                dynamicTemplates = parser.mapStrings();
-                            } else if (token == XContentParser.Token.START_OBJECT
-                                && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    fetchSourceContext = FetchSourceContext.fromXContent(parser);
-                                } else if (token != XContentParser.Token.VALUE_NULL) {
-                                    throw new IllegalArgumentException(
-                                        "Malformed action/metadata line ["
-                                            + line
-                                            + "], expected a simple value for field ["
-                                            + currentFieldName
-                                            + "] but found ["
-                                            + token
-                                            + "]"
-                                    );
-                                }
+                            dynamicTemplates = parser.mapStrings();
+                        } else if (token == XContentParser.Token.START_OBJECT
+                            && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                        } else if (token != XContentParser.Token.VALUE_NULL) {
+                            throw new IllegalArgumentException(
+                                "Malformed action/metadata line ["
+                                    + line
+                                    + "], expected a simple value for field ["
+                                    + currentFieldName
+                                    + "] but found ["
+                                    + token
+                                    + "]"
+                            );
+                        }
                     }
                 } else if (token != XContentParser.Token.END_OBJECT) {
                     throw new IllegalArgumentException(

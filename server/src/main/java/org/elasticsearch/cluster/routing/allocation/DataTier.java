@@ -237,19 +237,19 @@ public class DataTier {
             } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "."))
                 || settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "."))
                 || settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
-                    // A different index level require, include, or exclude has been specified, so don't put the setting
-                    logger.debug("index [{}] specifies custom index level routing filtering, skipping tier allocation", indexName);
-                    return Settings.EMPTY;
+                // A different index level require, include, or exclude has been specified, so don't put the setting
+                logger.debug("index [{}] specifies custom index level routing filtering, skipping tier allocation", indexName);
+                return Settings.EMPTY;
+            } else {
+                // Otherwise, put the setting in place by default, the "hot"
+                // tier if the index is part of a data stream, the "content"
+                // tier if it is not.
+                if (dataStreamName != null) {
+                    return DATA_HOT_TIER_PREFERENCE_SETTINGS;
                 } else {
-                    // Otherwise, put the setting in place by default, the "hot"
-                    // tier if the index is part of a data stream, the "content"
-                    // tier if it is not.
-                    if (dataStreamName != null) {
-                        return DATA_HOT_TIER_PREFERENCE_SETTINGS;
-                    } else {
-                        return DATA_CONTENT_TIER_PREFERENCE_SETTINGS;
-                    }
+                    return DATA_CONTENT_TIER_PREFERENCE_SETTINGS;
                 }
+            }
         }
     }
 

@@ -222,15 +222,15 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             );
         } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
             || (request.charFilters() != null && request.charFilters().size() > 0))) {
-                return analysisRegistry.buildCustomAnalyzer(
-                    IndexCreationContext.RELOAD_ANALYZERS,
-                    indexSettings,
-                    true,
-                    new NameOrDefinition("keyword"),
-                    request.charFilters(),
-                    request.tokenFilters()
-                );
-            }
+            return analysisRegistry.buildCustomAnalyzer(
+                IndexCreationContext.RELOAD_ANALYZERS,
+                indexSettings,
+                true,
+                new NameOrDefinition("keyword"),
+                request.charFilters(),
+                request.tokenFilters()
+            );
+        }
         return null;
     }
 

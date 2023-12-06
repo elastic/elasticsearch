@@ -148,13 +148,13 @@ public class ClientYamlTestClient implements Closeable {
             } else if (restApi.getParams().containsKey(entry.getKey())
                 || restSpec.isGlobalParameter(entry.getKey())
                 || restSpec.isClientParameter(entry.getKey())) {
-                    queryStringParams.put(entry.getKey(), entry.getValue());
-                    apiRequiredParameters.remove(entry.getKey());
-                } else {
-                    throw new IllegalArgumentException(
-                        "path/param [" + entry.getKey() + "] not supported by [" + restApi.getName() + "] " + "api"
-                    );
-                }
+                queryStringParams.put(entry.getKey(), entry.getValue());
+                apiRequiredParameters.remove(entry.getKey());
+            } else {
+                throw new IllegalArgumentException(
+                    "path/param [" + entry.getKey() + "] not supported by [" + restApi.getName() + "] " + "api"
+                );
+            }
         }
 
         if (false == apiRequiredParameters.isEmpty()) {

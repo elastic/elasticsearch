@@ -151,10 +151,10 @@ public class UpdateJobProcessNotifier {
                     logger.debug("Remote job [{}] not updated as it has been deleted", update.getJobId());
                 } else if (cause.getMessage().contains("because job [" + update.getJobId() + "] is not open")
                     && cause instanceof ElasticsearchStatusException) {
-                        logger.debug("Remote job [{}] not updated as it is no longer open", update.getJobId());
-                    } else {
-                        logger.error("Failed to update remote job [" + update.getJobId() + "]", cause);
-                    }
+                    logger.debug("Remote job [{}] not updated as it is no longer open", update.getJobId());
+                } else {
+                    logger.error("Failed to update remote job [" + update.getJobId() + "]", cause);
+                }
                 updateHolder.listener.onFailure(e);
                 executeProcessUpdates(updatesIterator);
             }

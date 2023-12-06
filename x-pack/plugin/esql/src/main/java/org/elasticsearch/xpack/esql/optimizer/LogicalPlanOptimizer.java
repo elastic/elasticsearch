@@ -942,8 +942,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 || plan instanceof Project
                 || plan instanceof RegexExtract
                 || plan instanceof Enrich) {
-                    pullable = findPullableOrderBy(((UnaryPlan) plan).child());
-                }
+                pullable = findPullableOrderBy(((UnaryPlan) plan).child());
+            }
             return pullable;
         }
 

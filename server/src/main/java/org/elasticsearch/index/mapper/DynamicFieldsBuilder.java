@@ -126,15 +126,15 @@ final class DynamicFieldsBuilder {
             } else if (numberType == XContentParser.NumberType.FLOAT
                 || numberType == XContentParser.NumberType.DOUBLE
                 || numberType == XContentParser.NumberType.BIG_DECIMAL) {
-                    createDynamicField(
-                        context,
-                        name,
-                        DynamicTemplate.XContentFieldType.DOUBLE,
-                        () -> strategy.newDynamicDoubleField(context, name)
-                    );
-                } else {
-                    throw new IllegalStateException("Unable to parse number of type [" + numberType + "]");
-                }
+                createDynamicField(
+                    context,
+                    name,
+                    DynamicTemplate.XContentFieldType.DOUBLE,
+                    () -> strategy.newDynamicDoubleField(context, name)
+                );
+            } else {
+                throw new IllegalStateException("Unable to parse number of type [" + numberType + "]");
+            }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             createDynamicField(
                 context,

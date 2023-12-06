@@ -195,51 +195,51 @@ public class Email implements ToXContentObject {
                 currentFieldName = parser.currentName();
             } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY)
                 && currentFieldName != null) {
-                    if (Field.ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                        email.id(parser.text());
-                    } else if (Field.FROM.match(currentFieldName, parser.getDeprecationHandler())) {
-                        email.from(Address.parse(currentFieldName, token, parser));
-                    } else if (Field.REPLY_TO.match(currentFieldName, parser.getDeprecationHandler())) {
-                        email.replyTo(AddressList.parse(currentFieldName, token, parser));
-                    } else if (Field.TO.match(currentFieldName, parser.getDeprecationHandler())) {
-                        email.to(AddressList.parse(currentFieldName, token, parser));
-                    } else if (Field.CC.match(currentFieldName, parser.getDeprecationHandler())) {
-                        email.cc(AddressList.parse(currentFieldName, token, parser));
-                    } else if (Field.BCC.match(currentFieldName, parser.getDeprecationHandler())) {
-                        email.bcc(AddressList.parse(currentFieldName, token, parser));
-                    } else if (Field.PRIORITY.match(currentFieldName, parser.getDeprecationHandler())) {
-                        email.priority(Email.Priority.resolve(parser.text()));
-                    } else if (Field.SENT_DATE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        email.sentDate(DateFormatters.from(DATE_TIME_FORMATTER.parse(parser.text())));
-                    } else if (Field.SUBJECT.match(currentFieldName, parser.getDeprecationHandler())) {
-                        email.subject(parser.text());
-                    } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
-                        String bodyField = currentFieldName;
-                        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                            email.textBody(parser.text());
-                        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    currentFieldName = parser.currentName();
-                                } else if (currentFieldName == null) {
-                                    throw new ElasticsearchParseException("could not parse email. empty [{}] field", bodyField);
-                                } else if (Email.Field.BODY_TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    email.textBody(parser.text());
-                                } else if (Email.Field.BODY_HTML.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    email.htmlBody(parser.text());
-                                } else {
-                                    throw new ElasticsearchParseException(
-                                        "could not parse email. unexpected field [{}.{}] field",
-                                        bodyField,
-                                        currentFieldName
-                                    );
-                                }
+                if (Field.ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                    email.id(parser.text());
+                } else if (Field.FROM.match(currentFieldName, parser.getDeprecationHandler())) {
+                    email.from(Address.parse(currentFieldName, token, parser));
+                } else if (Field.REPLY_TO.match(currentFieldName, parser.getDeprecationHandler())) {
+                    email.replyTo(AddressList.parse(currentFieldName, token, parser));
+                } else if (Field.TO.match(currentFieldName, parser.getDeprecationHandler())) {
+                    email.to(AddressList.parse(currentFieldName, token, parser));
+                } else if (Field.CC.match(currentFieldName, parser.getDeprecationHandler())) {
+                    email.cc(AddressList.parse(currentFieldName, token, parser));
+                } else if (Field.BCC.match(currentFieldName, parser.getDeprecationHandler())) {
+                    email.bcc(AddressList.parse(currentFieldName, token, parser));
+                } else if (Field.PRIORITY.match(currentFieldName, parser.getDeprecationHandler())) {
+                    email.priority(Email.Priority.resolve(parser.text()));
+                } else if (Field.SENT_DATE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    email.sentDate(DateFormatters.from(DATE_TIME_FORMATTER.parse(parser.text())));
+                } else if (Field.SUBJECT.match(currentFieldName, parser.getDeprecationHandler())) {
+                    email.subject(parser.text());
+                } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
+                    String bodyField = currentFieldName;
+                    if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                        email.textBody(parser.text());
+                    } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (currentFieldName == null) {
+                                throw new ElasticsearchParseException("could not parse email. empty [{}] field", bodyField);
+                            } else if (Email.Field.BODY_TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
+                                email.textBody(parser.text());
+                            } else if (Email.Field.BODY_HTML.match(currentFieldName, parser.getDeprecationHandler())) {
+                                email.htmlBody(parser.text());
+                            } else {
+                                throw new ElasticsearchParseException(
+                                    "could not parse email. unexpected field [{}.{}] field",
+                                    bodyField,
+                                    currentFieldName
+                                );
                             }
                         }
-                    } else {
-                        throw new ElasticsearchParseException("could not parse email. unexpected field [{}]", currentFieldName);
                     }
+                } else {
+                    throw new ElasticsearchParseException("could not parse email. unexpected field [{}]", currentFieldName);
                 }
+            }
         }
         return email.build();
     }

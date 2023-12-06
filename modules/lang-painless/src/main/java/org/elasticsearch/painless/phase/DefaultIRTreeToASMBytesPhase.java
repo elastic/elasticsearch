@@ -1016,98 +1016,98 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             || comparisonType == long.class
             || comparisonType == float.class
             || comparisonType == double.class) {
-                if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-                else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
-                else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
-                else if (lte) methodWriter.ifCmp(type, MethodWriter.LE, jump);
-                else if (gt) methodWriter.ifCmp(type, MethodWriter.GT, jump);
-                else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
-                else {
-                    throw new IllegalStateException(
-                        Strings.format(
-                            "unexpected comparison operation [%s] for type [%s]",
-                            operation,
-                            irComparisonNode.getDecorationString(IRDExpressionType.class)
-                        )
-                    );
-                }
-
-            } else if (comparisonType == def.class) {
-                Type booleanType = Type.getType(boolean.class);
-                Type descriptor = Type.getMethodType(
-                    booleanType,
-                    MethodWriter.getType(irLeftNode.getDecorationValue(IRDExpressionType.class)),
-                    MethodWriter.getType(irRightNode.getDecorationValue(IRDExpressionType.class))
+            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
+            else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
+            else if (lte) methodWriter.ifCmp(type, MethodWriter.LE, jump);
+            else if (gt) methodWriter.ifCmp(type, MethodWriter.GT, jump);
+            else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
+            else {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "unexpected comparison operation [%s] for type [%s]",
+                        operation,
+                        irComparisonNode.getDecorationString(IRDExpressionType.class)
+                    )
                 );
+            }
 
-                if (eq) {
-                    if (irRightNode instanceof NullNode) {
-                        methodWriter.ifNull(jump);
-                    } else if (irLeftNode instanceof NullNode == false && operation == Operation.EQ) {
-                        methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
-                        writejump = false;
-                    } else {
-                        methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-                    }
-                } else if (ne) {
-                    if (irRightNode instanceof NullNode) {
-                        methodWriter.ifNonNull(jump);
-                    } else if (irLeftNode instanceof NullNode == false && operation == Operation.NE) {
-                        methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
-                        methodWriter.ifZCmp(MethodWriter.EQ, jump);
-                    } else {
-                        methodWriter.ifCmp(type, MethodWriter.NE, jump);
-                    }
-                } else if (lt) {
-                    methodWriter.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                    writejump = false;
-                } else if (lte) {
-                    methodWriter.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                    writejump = false;
-                } else if (gt) {
-                    methodWriter.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                    writejump = false;
-                } else if (gte) {
-                    methodWriter.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+        } else if (comparisonType == def.class) {
+            Type booleanType = Type.getType(boolean.class);
+            Type descriptor = Type.getMethodType(
+                booleanType,
+                MethodWriter.getType(irLeftNode.getDecorationValue(IRDExpressionType.class)),
+                MethodWriter.getType(irRightNode.getDecorationValue(IRDExpressionType.class))
+            );
+
+            if (eq) {
+                if (irRightNode instanceof NullNode) {
+                    methodWriter.ifNull(jump);
+                } else if (irLeftNode instanceof NullNode == false && operation == Operation.EQ) {
+                    methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                     writejump = false;
                 } else {
-                    throw new IllegalStateException(
-                        Strings.format(
-                            "unexpected comparison operation [%s] for type [%s]",
-                            operation,
-                            irComparisonNode.getDecorationString(IRDExpressionType.class)
-                        )
-                    );
+                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+                }
+            } else if (ne) {
+                if (irRightNode instanceof NullNode) {
+                    methodWriter.ifNonNull(jump);
+                } else if (irLeftNode instanceof NullNode == false && operation == Operation.NE) {
+                    methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                    methodWriter.ifZCmp(MethodWriter.EQ, jump);
+                } else {
+                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
+                }
+            } else if (lt) {
+                methodWriter.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                writejump = false;
+            } else if (lte) {
+                methodWriter.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                writejump = false;
+            } else if (gt) {
+                methodWriter.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                writejump = false;
+            } else if (gte) {
+                methodWriter.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                writejump = false;
+            } else {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "unexpected comparison operation [%s] for type [%s]",
+                        operation,
+                        irComparisonNode.getDecorationString(IRDExpressionType.class)
+                    )
+                );
+            }
+        } else {
+            if (eq) {
+                if (irRightNode instanceof NullNode) {
+                    methodWriter.ifNull(jump);
+                } else if (operation == Operation.EQ) {
+                    methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
+                    writejump = false;
+                } else {
+                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+                }
+            } else if (ne) {
+                if (irRightNode instanceof NullNode) {
+                    methodWriter.ifNonNull(jump);
+                } else if (operation == Operation.NE) {
+                    methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
+                    methodWriter.ifZCmp(MethodWriter.EQ, jump);
+                } else {
+                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
                 }
             } else {
-                if (eq) {
-                    if (irRightNode instanceof NullNode) {
-                        methodWriter.ifNull(jump);
-                    } else if (operation == Operation.EQ) {
-                        methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
-                        writejump = false;
-                    } else {
-                        methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-                    }
-                } else if (ne) {
-                    if (irRightNode instanceof NullNode) {
-                        methodWriter.ifNonNull(jump);
-                    } else if (operation == Operation.NE) {
-                        methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
-                        methodWriter.ifZCmp(MethodWriter.EQ, jump);
-                    } else {
-                        methodWriter.ifCmp(type, MethodWriter.NE, jump);
-                    }
-                } else {
-                    throw new IllegalStateException(
-                        Strings.format(
-                            "unexpected comparison operation [%s] for type [%s]",
-                            operation,
-                            irComparisonNode.getDecorationString(IRDExpressionType.class)
-                        )
-                    );
-                }
+                throw new IllegalStateException(
+                    Strings.format(
+                        "unexpected comparison operation [%s] for type [%s]",
+                        operation,
+                        irComparisonNode.getDecorationString(IRDExpressionType.class)
+                    )
+                );
             }
+        }
 
         if (writejump) {
             methodWriter.push(false);

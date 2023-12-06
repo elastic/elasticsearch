@@ -79,28 +79,28 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         } else if (fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)
             || fieldType.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
 
-                return new TTestAggregationBuilder("foo").a(
+            return new TTestAggregationBuilder("foo").a(
+                new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).lt(DateUtils.toInstant(10)))
+                    .build()
+            )
+                .b(
                     new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
-                        .setFilter(QueryBuilders.rangeQuery(fieldName).lt(DateUtils.toInstant(10)))
+                        .setFilter(QueryBuilders.rangeQuery(fieldName).gte(DateUtils.toInstant(10)))
                         .build()
-                )
-                    .b(
-                        new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
-                            .setFilter(QueryBuilders.rangeQuery(fieldName).gte(DateUtils.toInstant(10)))
-                            .build()
-                    );
-            } else if (fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)) {
-                return new TTestAggregationBuilder("foo").a(
+                );
+        } else if (fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)) {
+            return new TTestAggregationBuilder("foo").a(
+                new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).lt("true"))
+                    .build()
+            )
+                .b(
                     new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
-                        .setFilter(QueryBuilders.rangeQuery(fieldName).lt("true"))
+                        .setFilter(QueryBuilders.rangeQuery(fieldName).gte("false"))
                         .build()
-                )
-                    .b(
-                        new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
-                            .setFilter(QueryBuilders.rangeQuery(fieldName).gte("false"))
-                            .build()
-                    );
-            }
+                );
+        }
         // if it's "unsupported" just use matchall filters to avoid parsing issues
         return new TTestAggregationBuilder("foo").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName).setFilter(QueryBuilders.matchAllQuery()).build()

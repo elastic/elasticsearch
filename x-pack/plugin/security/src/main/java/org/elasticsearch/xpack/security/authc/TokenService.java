@@ -596,15 +596,15 @@ public final class TokenService {
                         listener.onResponse(null);
                     } else if (storedRefreshToken != null
                         && (refreshSource == null || storedRefreshToken.equals(refreshSource.get("token")) == false)) {
-                            logger.error(
-                                "The stored refresh token [{}] for token doc id [{}] could not be verified",
-                                storedRefreshToken,
-                                tokenId
-                            );
-                            listener.onResponse(null);
-                        } else {
-                            listener.onResponse(new Doc(response));
-                        }
+                        logger.error(
+                            "The stored refresh token [{}] for token doc id [{}] could not be verified",
+                            storedRefreshToken,
+                            tokenId
+                        );
+                        listener.onResponse(null);
+                    } else {
+                        listener.onResponse(new Doc(response));
+                    }
                 }, e -> {
                     // if the index or the shard is not there / available we assume that
                     // the token is not valid
@@ -1640,16 +1640,16 @@ public final class TokenService {
                 .getRealm()
                 .getName()
                 .equals(refreshToken.getAssociatedRealm()) == false) {
-                    logger.warn(
-                        "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
-                        refreshToken.getAssociatedUser(),
-                        refreshToken.getAssociatedRealm(),
-                        clientAuthentication.getAuthenticatingSubject().getRealm().getName()
-                    );
-                    return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-                } else {
-                    return Optional.empty();
-                }
+                logger.warn(
+                    "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
+                    refreshToken.getAssociatedUser(),
+                    refreshToken.getAssociatedRealm(),
+                    clientAuthentication.getAuthenticatingSubject().getRealm().getName()
+                );
+                return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+            } else {
+                return Optional.empty();
+            }
         }
     }
 

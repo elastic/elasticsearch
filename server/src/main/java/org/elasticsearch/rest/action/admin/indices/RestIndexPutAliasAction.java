@@ -80,14 +80,14 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                         } else if ("indexRouting".equals(currentFieldName)
                             || "index-routing".equals(currentFieldName)
                             || "index_routing".equals(currentFieldName)) {
-                                indexRouting = parser.textOrNull();
-                            } else if ("searchRouting".equals(currentFieldName)
-                                || "search-routing".equals(currentFieldName)
-                                || "search_routing".equals(currentFieldName)) {
-                                    searchRouting = parser.textOrNull();
-                                } else if ("is_write_index".equals(currentFieldName)) {
-                                    writeIndex = parser.booleanValue();
-                                }
+                            indexRouting = parser.textOrNull();
+                        } else if ("searchRouting".equals(currentFieldName)
+                            || "search-routing".equals(currentFieldName)
+                            || "search_routing".equals(currentFieldName)) {
+                            searchRouting = parser.textOrNull();
+                        } else if ("is_write_index".equals(currentFieldName)) {
+                            writeIndex = parser.booleanValue();
+                        }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("filter".equals(currentFieldName)) {
                             filter = parser.mapOrdered();

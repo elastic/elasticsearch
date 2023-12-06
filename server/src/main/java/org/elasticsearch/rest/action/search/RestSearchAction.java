@@ -445,14 +445,14 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.source().trackTotalHits(true);
         } else if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE
             && trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                throw new IllegalArgumentException(
-                    "["
-                        + TOTAL_HITS_AS_INT_PARAM
-                        + "] cannot be used "
-                        + "if the tracking of total hits is not accurate, got "
-                        + trackTotalHitsUpTo
-                );
-            }
+            throw new IllegalArgumentException(
+                "["
+                    + TOTAL_HITS_AS_INT_PARAM
+                    + "] cannot be used "
+                    + "if the tracking of total hits is not accurate, got "
+                    + trackTotalHitsUpTo
+            );
+        }
     }
 
     private static void checkSearchType(RestRequest restRequest, SearchRequest searchRequest) {

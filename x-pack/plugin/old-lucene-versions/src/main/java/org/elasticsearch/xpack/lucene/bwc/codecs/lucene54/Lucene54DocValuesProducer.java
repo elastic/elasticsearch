@@ -474,8 +474,8 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             ramBytesUsed.addAndGet(RamUsageEstimator.sizeOf(entry.tableOffsets));
         } else if (entry.format != Lucene54DocValuesFormat.SORTED_SINGLE_VALUED
             && entry.format != Lucene54DocValuesFormat.SORTED_WITH_ADDRESSES) {
-                throw new CorruptIndexException("Unknown format: " + entry.format, meta);
-            }
+            throw new CorruptIndexException("Unknown format: " + entry.format, meta);
+        }
         return entry;
     }
 

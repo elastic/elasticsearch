@@ -1027,8 +1027,8 @@ public class InternalEngine extends Engine {
         } else if (engineConfig.isEnableGcDeletes()
             && versionValue.isDelete()
             && (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue) versionValue).time) > getGcDeletesInMillis()) {
-                versionValue = null;
-            }
+            versionValue = null;
+        }
         return versionValue;
     }
 
@@ -1349,34 +1349,34 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion, index.id());
             } else if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                 && (versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm())) {
-                    final VersionConflictEngineException e = new VersionConflictEngineException(
-                        shardId,
-                        index.id(),
-                        index.getIfSeqNo(),
-                        index.getIfPrimaryTerm(),
-                        versionValue.seqNo,
-                        versionValue.term
-                    );
-                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, index.id());
-                } else if (index.versionType().isVersionConflictForWrites(currentVersion, index.version(), currentNotFoundOrDeleted)) {
-                    final VersionConflictEngineException e = new VersionConflictEngineException(
-                        shardId,
-                        index.parsedDoc().documentDescription(),
-                        index.versionType().explainConflictForWrites(currentVersion, index.version(), true)
-                    );
-                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, index.id());
+                final VersionConflictEngineException e = new VersionConflictEngineException(
+                    shardId,
+                    index.id(),
+                    index.getIfSeqNo(),
+                    index.getIfPrimaryTerm(),
+                    versionValue.seqNo,
+                    versionValue.term
+                );
+                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, index.id());
+            } else if (index.versionType().isVersionConflictForWrites(currentVersion, index.version(), currentNotFoundOrDeleted)) {
+                final VersionConflictEngineException e = new VersionConflictEngineException(
+                    shardId,
+                    index.parsedDoc().documentDescription(),
+                    index.versionType().explainConflictForWrites(currentVersion, index.version(), true)
+                );
+                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, index.id());
+            } else {
+                final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
+                if (reserveError != null) {
+                    plan = IndexingStrategy.failAsTooManyDocs(reserveError, index.id());
                 } else {
-                    final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
-                    if (reserveError != null) {
-                        plan = IndexingStrategy.failAsTooManyDocs(reserveError, index.id());
-                    } else {
-                        plan = IndexingStrategy.processNormally(
-                            currentNotFoundOrDeleted,
-                            canOptimizeAddDocument ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
-                            reservingDocs
-                        );
-                    }
+                    plan = IndexingStrategy.processNormally(
+                        currentNotFoundOrDeleted,
+                        canOptimizeAddDocument ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
+                        reservingDocs
+                    );
                 }
+            }
         }
         return plan;
     }
@@ -1766,31 +1766,31 @@ public class InternalEngine extends Engine {
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true, delete.id());
         } else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
             && (versionValue.seqNo != delete.getIfSeqNo() || versionValue.term != delete.getIfPrimaryTerm())) {
-                final VersionConflictEngineException e = new VersionConflictEngineException(
-                    shardId,
-                    delete.id(),
-                    delete.getIfSeqNo(),
-                    delete.getIfPrimaryTerm(),
-                    versionValue.seqNo,
-                    versionValue.term
-                );
-                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());
-            } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
-                final VersionConflictEngineException e = new VersionConflictEngineException(
-                    shardId,
-                    "[" + delete.id() + "]",
-                    delete.versionType().explainConflictForWrites(currentVersion, delete.version(), true)
-                );
-                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());
+            final VersionConflictEngineException e = new VersionConflictEngineException(
+                shardId,
+                delete.id(),
+                delete.getIfSeqNo(),
+                delete.getIfPrimaryTerm(),
+                versionValue.seqNo,
+                versionValue.term
+            );
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());
+        } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
+            final VersionConflictEngineException e = new VersionConflictEngineException(
+                shardId,
+                "[" + delete.id() + "]",
+                delete.versionType().explainConflictForWrites(currentVersion, delete.version(), true)
+            );
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());
+        } else {
+            final Exception reserveError = tryAcquireInFlightDocs(delete, 1);
+            if (reserveError != null) {
+                plan = DeletionStrategy.failAsTooManyDocs(reserveError, delete.id());
             } else {
-                final Exception reserveError = tryAcquireInFlightDocs(delete, 1);
-                if (reserveError != null) {
-                    plan = DeletionStrategy.failAsTooManyDocs(reserveError, delete.id());
-                } else {
-                    final long versionOfDeletion = delete.versionType().updateVersion(currentVersion, delete.version());
-                    plan = DeletionStrategy.processNormally(currentlyDeleted, versionOfDeletion, 1);
-                }
+                final long versionOfDeletion = delete.versionType().updateVersion(currentVersion, delete.version());
+                plan = DeletionStrategy.processNormally(currentlyDeleted, versionOfDeletion, 1);
             }
+        }
         return plan;
     }
 
@@ -2541,11 +2541,11 @@ public class InternalEngine extends Engine {
         } else if (e != null
             && ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
                 || (translog.isOpen() == false && translog.getTragicException() == e))) {
-                    // this spot on - we are handling the tragic event exception here so we have to fail the engine
-                    // right away
-                    failEngine(source, e);
-                    return true;
-                }
+            // this spot on - we are handling the tragic event exception here so we have to fail the engine
+            // right away
+            failEngine(source, e);
+            return true;
+        }
         return false;
     }
 

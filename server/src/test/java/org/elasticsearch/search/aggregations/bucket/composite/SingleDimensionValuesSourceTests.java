@@ -234,24 +234,24 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             } else if (numberType == NumberFieldMapper.NumberType.HALF_FLOAT
                 || numberType == NumberFieldMapper.NumberType.FLOAT
                 || numberType == NumberFieldMapper.NumberType.DOUBLE) {
-                    source = new DoubleValuesSource(
-                        BigArrays.NON_RECYCLING_INSTANCE,
-                        number,
-                        context -> null,
-                        DocValueFormat.RAW,
-                        false,
-                        MissingOrder.DEFAULT,
-                        1,
-                        1
-                    );
-                    IndexReader reader = mockIndexReader(1, 1);
-                    assertNull(source.createSortedDocsProducerOrNull(reader, null));
-                    assertNull(source.createSortedDocsProducerOrNull(reader, new FieldExistsQuery("number")));
-                    assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
-                    assertNull(source.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new FieldExistsQuery("number"))));
-                } else {
-                    throw new AssertionError("missing type:" + numberType.typeName());
-                }
+                source = new DoubleValuesSource(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    number,
+                    context -> null,
+                    DocValueFormat.RAW,
+                    false,
+                    MissingOrder.DEFAULT,
+                    1,
+                    1
+                );
+                IndexReader reader = mockIndexReader(1, 1);
+                assertNull(source.createSortedDocsProducerOrNull(reader, null));
+                assertNull(source.createSortedDocsProducerOrNull(reader, new FieldExistsQuery("number")));
+                assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
+                assertNull(source.createSortedDocsProducerOrNull(reader, new ConstantScoreQuery(new FieldExistsQuery("number"))));
+            } else {
+                throw new AssertionError("missing type:" + numberType.typeName());
+            }
             assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
         }
     }

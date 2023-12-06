@@ -69,28 +69,25 @@ public class ScriptClassInfo {
             } else if (m.getName().startsWith("get")
                 && m.getName().equals("getClass") == false
                 && Modifier.isStatic(m.getModifiers()) == false) {
-                    getReturns.add(
-                        definitionTypeForClass(
-                            painlessLookup,
-                            m.getReturnType(),
-                            componentType -> "["
-                                + m.getName()
-                                + "] has unknown return "
-                                + "type ["
-                                + componentType.getName()
-                                + "]. Painless can only support getters with return types that are "
-                                + "whitelisted."
-                        )
-                    );
+                getReturns.add(
+                    definitionTypeForClass(
+                        painlessLookup,
+                        m.getReturnType(),
+                        componentType -> "["
+                            + m.getName()
+                            + "] has unknown return "
+                            + "type ["
+                            + componentType.getName()
+                            + "]. Painless can only support getters with return types that are "
+                            + "whitelisted."
+                    )
+                );
 
-                    getMethods.add(
-                        new org.objectweb.asm.commons.Method(
-                            m.getName(),
-                            MethodType.methodType(m.getReturnType()).toMethodDescriptorString()
-                        )
-                    );
+                getMethods.add(
+                    new org.objectweb.asm.commons.Method(m.getName(), MethodType.methodType(m.getReturnType()).toMethodDescriptorString())
+                );
 
-                }
+            }
         }
 
         if (executeMethod == null) {

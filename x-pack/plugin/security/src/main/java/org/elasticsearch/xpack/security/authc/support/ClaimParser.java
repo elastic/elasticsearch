@@ -91,12 +91,12 @@ public final class ClaimParser {
             values = List.of((String) claimValueObject);
         } else if (claimValueObject instanceof Collection
             && ((Collection<?>) claimValueObject).stream().allMatch(c -> c instanceof String)) {
-                values = (Collection<String>) claimValueObject;
-            } else {
-                throw new SettingsException(
-                    "Setting [ " + settingKey + "] expects claim [" + fallbackableClaim + "] with String or a String Array value"
-                );
-            }
+            values = (Collection<String>) claimValueObject;
+        } else {
+            throw new SettingsException(
+                "Setting [ " + settingKey + "] expects claim [" + fallbackableClaim + "] with String or a String Array value"
+            );
+        }
         return values;
     }
 

@@ -478,45 +478,41 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 currentFieldName = parser.currentName();
             } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())
                 || Fields.INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
-                    indicesPrivileges = parseIndices(name, parser, allow2xFormat);
-                } else if (Fields.RUN_AS.match(currentFieldName, parser.getDeprecationHandler())) {
-                    runAsUsers = readStringArray(name, parser, true);
-                } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    clusterPrivileges = readStringArray(name, parser, true);
-                } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
-                    || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
-                        applicationPrivileges = parseApplicationPrivileges(name, parser);
-                    } else if (Fields.GLOBAL.match(currentFieldName, parser.getDeprecationHandler())) {
-                        configurableClusterPrivileges = ConfigurableClusterPrivileges.parse(parser);
-                    } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
-                        if (token != XContentParser.Token.START_OBJECT) {
-                            throw new ElasticsearchParseException(
-                                "expected field [{}] to be of type object, but found [{}] instead",
-                                currentFieldName,
-                                token
-                            );
-                        }
-                        metadata = parser.map();
-                    } else if (Fields.TRANSIENT_METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
-                        if (token == XContentParser.Token.START_OBJECT) {
-                            // consume object but just drop
-                            parser.map();
-                        } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse role [{}]. unexpected field [{}]",
-                                name,
-                                currentFieldName
-                            );
-                        }
-                    } else if (Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
-                        remoteIndicesPrivileges = parseRemoteIndices(name, parser);
-                    } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
-                        restriction = Restriction.parse(name, parser);
-                    } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // don't need it
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
-                    }
+                indicesPrivileges = parseIndices(name, parser, allow2xFormat);
+            } else if (Fields.RUN_AS.match(currentFieldName, parser.getDeprecationHandler())) {
+                runAsUsers = readStringArray(name, parser, true);
+            } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
+                clusterPrivileges = readStringArray(name, parser, true);
+            } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
+                || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
+                applicationPrivileges = parseApplicationPrivileges(name, parser);
+            } else if (Fields.GLOBAL.match(currentFieldName, parser.getDeprecationHandler())) {
+                configurableClusterPrivileges = ConfigurableClusterPrivileges.parse(parser);
+            } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new ElasticsearchParseException(
+                        "expected field [{}] to be of type object, but found [{}] instead",
+                        currentFieldName,
+                        token
+                    );
+                }
+                metadata = parser.map();
+            } else if (Fields.TRANSIENT_METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    // consume object but just drop
+                    parser.map();
+                } else {
+                    throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
+                }
+            } else if (Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
+                remoteIndicesPrivileges = parseRemoteIndices(name, parser);
+            } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
+                restriction = Restriction.parse(name, parser);
+            } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                // don't need it
+            } else {
+                throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
+            }
         }
         return new RoleDescriptor(
             name,
@@ -564,14 +560,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 clusterPrivileges = readStringArray(description, parser, true);
             } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
                 || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
-                    applicationPrivileges = parseApplicationPrivileges(description, parser);
-                } else {
-                    throw new ElasticsearchParseException(
-                        "failed to parse privileges check [{}]. unexpected field [{}]",
-                        description,
-                        currentFieldName
-                    );
-                }
+                applicationPrivileges = parseApplicationPrivileges(description, parser);
+            } else {
+                throw new ElasticsearchParseException(
+                    "failed to parse privileges check [{}]. unexpected field [{}]",
+                    description,
+                    currentFieldName
+                );
+            }
         }
         if (indexPrivileges == null && clusterPrivileges == null && applicationPrivileges == null) {
             throw new ElasticsearchParseException(

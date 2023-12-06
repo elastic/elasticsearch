@@ -655,13 +655,13 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
                     fuzzyTranspositions = parser.booleanValue();
                 } else if (parser.getRestApiVersion() == RestApiVersion.V_7
                     && CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        throw new ParsingException(parser.getTokenLocation(), CUTOFF_FREQUENCY_DEPRECATION_MSG);
-                    } else {
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "[" + NAME + "] query does not support [" + currentFieldName + "]"
-                        );
-                    }
+                    throw new ParsingException(parser.getTokenLocation(), CUTOFF_FREQUENCY_DEPRECATION_MSG);
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                    );
+                }
             } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),

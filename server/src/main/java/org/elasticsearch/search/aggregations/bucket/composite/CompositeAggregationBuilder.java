@@ -179,10 +179,10 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         } else if (factory instanceof NestedAggregatorFactory
             || factory instanceof FilterAggregationBuilder.FilterAggregatorFactory
             || factory instanceof RandomSamplerAggregatorFactory) {
-                return validateParentAggregations(factory.getParent());
-            } else {
-                return factory;
-            }
+            return validateParentAggregations(factory.getParent());
+        } else {
+            return factory;
+        }
     }
 
     private static void validateSources(List<CompositeValuesSourceBuilder<?>> sources) {

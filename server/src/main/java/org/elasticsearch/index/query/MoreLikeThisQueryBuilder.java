@@ -353,38 +353,33 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                         item.index = parser.text();
                     } else if (parser.getRestApiVersion() == RestApiVersion.V_7
                         && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            deprecationLogger.compatibleCritical("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
-                        } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.id = parser.text();
-                        } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
-                            item.xContentType = XContentType.JSON;
-                        } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
-                            if (token == XContentParser.Token.START_ARRAY) {
-                                List<String> fields = new ArrayList<>();
-                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    fields.add(parser.text());
-                                }
-                                item.fields(fields.toArray(new String[fields.size()]));
-                            } else {
-                                throw new ElasticsearchParseException(
-                                    "failed to parse More Like This item. field [fields] must be an array"
-                                );
+                        deprecationLogger.compatibleCritical("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                    } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.id = parser.text();
+                    } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
+                        item.xContentType = XContentType.JSON;
+                    } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        if (token == XContentParser.Token.START_ARRAY) {
+                            List<String> fields = new ArrayList<>();
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                fields.add(parser.text());
                             }
-                        } else if (PER_FIELD_ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
-                        } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.routing = parser.text();
-                        } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.version = parser.longValue();
-                        } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.versionType = VersionType.fromString(parser.text());
+                            item.fields(fields.toArray(new String[fields.size()]));
                         } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse More Like This item. unknown field [{}]",
-                                currentFieldName
-                            );
+                            throw new ElasticsearchParseException("failed to parse More Like This item. field [fields] must be an array");
                         }
+                    } else if (PER_FIELD_ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
+                    } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.routing = parser.text();
+                    } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.version = parser.longValue();
+                    } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.versionType = VersionType.fromString(parser.text());
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse More Like This item. unknown field [{}]", currentFieldName);
+                    }
                 }
             }
             if (item.id != null && item.doc != null) {

@@ -234,15 +234,15 @@ public class PathTrie<T> {
                     && node.value == null
                     && children.get(wildcard) != null
                     && trieMatchingMode == TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED) {
-                        /*
-                         * If we are at the root, and root wildcards are allowed, use the child wildcard
-                         * node.
-                         */
-                        node = children.get(wildcard);
-                        usedWildcard = true;
-                    } else {
-                        usedWildcard = token.equals(wildcard);
-                    }
+                    /*
+                     * If we are at the root, and root wildcards are allowed, use the child wildcard
+                     * node.
+                     */
+                    node = children.get(wildcard);
+                    usedWildcard = true;
+                } else {
+                    usedWildcard = token.equals(wildcard);
+                }
             }
 
             put(params, node, token);

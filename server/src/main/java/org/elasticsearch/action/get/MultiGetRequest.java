@@ -455,45 +455,42 @@ public class MultiGetRequest extends ActionRequest
                         id = parser.text();
                     } else if (parser.getRestApiVersion() == RestApiVersion.V_7
                         && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
-                        } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                            routing = parser.text();
-                        } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
-                            throw new ParsingException(
-                                parser.getTokenLocation(),
-                                "Unsupported field [fields] used, expected [stored_fields] instead"
-                            );
-                        } else if (STORED_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
-                            storedFields = new ArrayList<>();
-                            storedFields.add(parser.text());
-                        } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                            version = parser.longValue();
-                        } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            versionType = VersionType.fromString(parser.text());
-                        } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            if (parser.isBooleanValue()) {
-                                fetchSourceContext = fetchSourceContext == null
-                                    ? FetchSourceContext.of(parser.booleanValue())
-                                    : FetchSourceContext.of(
-                                        parser.booleanValue(),
-                                        fetchSourceContext.includes(),
-                                        fetchSourceContext.excludes()
-                                    );
-                            } else if (token == Token.VALUE_STRING) {
-                                fetchSourceContext = FetchSourceContext.of(
-                                    fetchSourceContext == null || fetchSourceContext.fetchSource(),
-                                    new String[] { parser.text() },
-                                    fetchSourceContext == null ? Strings.EMPTY_ARRAY : fetchSourceContext.excludes()
+                        deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+                    } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                        routing = parser.text();
+                    } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unsupported field [fields] used, expected [stored_fields] instead"
+                        );
+                    } else if (STORED_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        storedFields = new ArrayList<>();
+                        storedFields.add(parser.text());
+                    } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+                        version = parser.longValue();
+                    } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        versionType = VersionType.fromString(parser.text());
+                    } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        if (parser.isBooleanValue()) {
+                            fetchSourceContext = fetchSourceContext == null
+                                ? FetchSourceContext.of(parser.booleanValue())
+                                : FetchSourceContext.of(
+                                    parser.booleanValue(),
+                                    fetchSourceContext.includes(),
+                                    fetchSourceContext.excludes()
                                 );
-                            } else {
-                                throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
-                            }
-                        } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse multi get request. unknown field [{}]",
-                                currentFieldName
+                        } else if (token == Token.VALUE_STRING) {
+                            fetchSourceContext = FetchSourceContext.of(
+                                fetchSourceContext == null || fetchSourceContext.fetchSource(),
+                                new String[] { parser.text() },
+                                fetchSourceContext == null ? Strings.EMPTY_ARRAY : fetchSourceContext.excludes()
                             );
+                        } else {
+                            throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
                         }
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse multi get request. unknown field [{}]", currentFieldName);
+                    }
                 } else if (token == Token.START_ARRAY) {
                     if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         throw new ParsingException(

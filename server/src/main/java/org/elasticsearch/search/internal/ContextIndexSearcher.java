@@ -459,10 +459,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else if (liveDocs instanceof CombinedBitSet
             // if the underlying role bitset is sparse
             && ((CombinedBitSet) liveDocs).getFirst() instanceof SparseFixedBitSet) {
-                return (BitSet) liveDocs;
-            } else {
-                return null;
-            }
+            return (BitSet) liveDocs;
+        } else {
+            return null;
+        }
 
     }
 

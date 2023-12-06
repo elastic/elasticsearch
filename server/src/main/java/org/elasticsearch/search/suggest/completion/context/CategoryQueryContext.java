@@ -108,10 +108,10 @@ public final class CategoryQueryContext implements ToXContentObject {
         } else if (token == XContentParser.Token.VALUE_STRING
             || token == XContentParser.Token.VALUE_BOOLEAN
             || token == XContentParser.Token.VALUE_NUMBER) {
-                builder.setCategory(parser.text());
-            } else {
-                throw new XContentParseException("category context must be an object, string, number or boolean");
-            }
+            builder.setCategory(parser.text());
+        } else {
+            throw new XContentParseException("category context must be an object, string, number or boolean");
+        }
         return builder.build();
     }
 

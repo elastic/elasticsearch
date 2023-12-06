@@ -1254,10 +1254,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).byteValue();
-            } else {
-                throw castException(value.getClass(), byte.class, false);
-            }
+            return ((Number) value).byteValue();
+        } else {
+            throw castException(value.getClass(), byte.class, false);
+        }
     }
 
     public static short defToshortExplicit(final Object value) {
@@ -1269,10 +1269,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).shortValue();
-            } else {
-                throw castException(value.getClass(), short.class, false);
-            }
+            return ((Number) value).shortValue();
+        } else {
+            throw castException(value.getClass(), short.class, false);
+        }
     }
 
     public static char defTocharExplicit(final Object value) {
@@ -1286,10 +1286,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return (char) ((Number) value).intValue();
-            } else {
-                throw castException(value.getClass(), char.class, false);
-            }
+            return (char) ((Number) value).intValue();
+        } else {
+            throw castException(value.getClass(), char.class, false);
+        }
     }
 
     public static int defTointExplicit(final Object value) {
@@ -1301,10 +1301,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).intValue();
-            } else {
-                throw castException(value.getClass(), int.class, false);
-            }
+            return ((Number) value).intValue();
+        } else {
+            throw castException(value.getClass(), int.class, false);
+        }
     }
 
     public static long defTolongExplicit(final Object value) {
@@ -1316,10 +1316,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).longValue();
-            } else {
-                throw castException(value.getClass(), long.class, false);
-            }
+            return ((Number) value).longValue();
+        } else {
+            throw castException(value.getClass(), long.class, false);
+        }
     }
 
     public static float defTofloatExplicit(final Object value) {
@@ -1331,10 +1331,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).floatValue();
-            } else {
-                throw castException(value.getClass(), float.class, false);
-            }
+            return ((Number) value).floatValue();
+        } else {
+            throw castException(value.getClass(), float.class, false);
+        }
     }
 
     public static double defTodoubleExplicit(final Object value) {
@@ -1346,10 +1346,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).doubleValue();
-            } else {
-                throw castException(value.getClass(), byte.class, false);
-            }
+            return ((Number) value).doubleValue();
+        } else {
+            throw castException(value.getClass(), byte.class, false);
+        }
     }
 
     // Conversion methods for def to boxed types.
@@ -1483,10 +1483,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).byteValue();
-            } else {
-                throw castException(value.getClass(), Byte.class, false);
-            }
+            return ((Number) value).byteValue();
+        } else {
+            throw castException(value.getClass(), Byte.class, false);
+        }
     }
 
     public static Short defToShortExplicit(final Object value) {
@@ -1500,10 +1500,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).shortValue();
-            } else {
-                throw castException(value.getClass(), Short.class, false);
-            }
+            return ((Number) value).shortValue();
+        } else {
+            throw castException(value.getClass(), Short.class, false);
+        }
     }
 
     public static Character defToCharacterExplicit(final Object value) {
@@ -1519,10 +1519,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return (char) ((Number) value).intValue();
-            } else {
-                throw castException(value.getClass(), Character.class, false);
-            }
+            return (char) ((Number) value).intValue();
+        } else {
+            throw castException(value.getClass(), Character.class, false);
+        }
     }
 
     public static Integer defToIntegerExplicit(final Object value) {
@@ -1536,10 +1536,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).intValue();
-            } else {
-                throw castException(value.getClass(), Integer.class, false);
-            }
+            return ((Number) value).intValue();
+        } else {
+            throw castException(value.getClass(), Integer.class, false);
+        }
     }
 
     public static Long defToLongExplicit(final Object value) {
@@ -1553,10 +1553,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).longValue();
-            } else {
-                throw castException(value.getClass(), Long.class, false);
-            }
+            return ((Number) value).longValue();
+        } else {
+            throw castException(value.getClass(), Long.class, false);
+        }
     }
 
     public static Float defToFloatExplicit(final Object value) {
@@ -1570,10 +1570,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).floatValue();
-            } else {
-                throw castException(value.getClass(), Float.class, false);
-            }
+            return ((Number) value).floatValue();
+        } else {
+            throw castException(value.getClass(), Float.class, false);
+        }
     }
 
     public static Double defToDoubleExplicit(final Object value) {
@@ -1587,10 +1587,10 @@ public final class Def {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double) {
-                return ((Number) value).doubleValue();
-            } else {
-                throw castException(value.getClass(), Double.class, false);
-            }
+            return ((Number) value).doubleValue();
+        } else {
+            throw castException(value.getClass(), Double.class, false);
+        }
     }
 
     public static String defToStringImplicit(final Object value) {

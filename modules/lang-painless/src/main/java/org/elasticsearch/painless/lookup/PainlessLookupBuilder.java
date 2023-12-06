@@ -1935,19 +1935,19 @@ public final class PainlessLookupBuilder {
                 && methodName.startsWith("is")
                 && methodName.length() > 2
                 && Character.isUpperCase(methodName.charAt(2))) {
-                    painlessClassBuilder.getterMethodHandles.putIfAbsent(
-                        Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3),
-                        bridgePainlessMethod.methodHandle()
-                    );
-                } else if (typeParametersSize == 1
-                    && methodName.startsWith("set")
-                    && methodName.length() > 3
-                    && Character.isUpperCase(methodName.charAt(3))) {
-                        painlessClassBuilder.setterMethodHandles.putIfAbsent(
-                            Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4),
-                            bridgePainlessMethod.methodHandle()
-                        );
-                    }
+                painlessClassBuilder.getterMethodHandles.putIfAbsent(
+                    Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3),
+                    bridgePainlessMethod.methodHandle()
+                );
+            } else if (typeParametersSize == 1
+                && methodName.startsWith("set")
+                && methodName.length() > 3
+                && Character.isUpperCase(methodName.charAt(3))) {
+                painlessClassBuilder.setterMethodHandles.putIfAbsent(
+                    Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4),
+                    bridgePainlessMethod.methodHandle()
+                );
+            }
         }
 
         for (PainlessField painlessField : painlessClassBuilder.fields.values()) {

@@ -118,12 +118,12 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
             || original instanceof Double
             || original instanceof Character
             || original instanceof Boolean) {
-                clone = original;
-            } else {
-                throw new IllegalArgumentException(
-                    "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName()
-                );
-            }
+            clone = original;
+        } else {
+            throw new IllegalArgumentException(
+                "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName()
+            );
+        }
         return clone;
     }
 

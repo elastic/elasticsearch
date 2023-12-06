@@ -1142,10 +1142,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     shardRouting -> retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))
                         || checkpoints.get(shardRouting.allocationId().getId()).tracked == false
                 )) {
-                    // Although this index is old enough not to have all the expected peer recovery retention leases, in fact it does, so we
-                    // don't need to do any more work.
-                    hasAllPeerRecoveryRetentionLeases = true;
-                }
+            // Although this index is old enough not to have all the expected peer recovery retention leases, in fact it does, so we
+            // don't need to do any more work.
+            hasAllPeerRecoveryRetentionLeases = true;
+        }
     }
 
     /**

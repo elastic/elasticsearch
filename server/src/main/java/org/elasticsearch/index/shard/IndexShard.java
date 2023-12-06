@@ -540,14 +540,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 && currentRouting.relocating()
                 && replicationTracker.isRelocated()
                 && (newRouting.relocating() == false || newRouting.equalsIgnoringMetadata(currentRouting) == false)) {
-                    // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
-                    // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
-                    // reactivate primary mode without risking two active primaries.
-                    throw new IndexShardRelocatedException(
-                        shardId(),
-                        "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
-                    );
-                }
+                // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
+                // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
+                // reactivate primary mode without risking two active primaries.
+                throw new IndexShardRelocatedException(
+                    shardId(),
+                    "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
+                );
+            }
 
             if (newRouting.active() && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
                 // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be

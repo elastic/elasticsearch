@@ -542,11 +542,11 @@ public class MockRepository extends FsRepository {
                 } else if (path().equals(basePath())
                     && name.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
                     && blockOnceOnReadSnapshotInfo.compareAndSet(true, false)) {
-                        blockExecutionAndMaybeWait(name);
-                    } else {
-                        maybeReadErrorAfterBlock(name);
-                        maybeIOExceptionOrBlock(name);
-                    }
+                    blockExecutionAndMaybeWait(name);
+                } else {
+                    maybeReadErrorAfterBlock(name);
+                    maybeIOExceptionOrBlock(name);
+                }
                 return super.readBlob(purpose, name);
             }
 

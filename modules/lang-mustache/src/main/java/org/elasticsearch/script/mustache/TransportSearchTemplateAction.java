@@ -135,14 +135,14 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
                 searchSourceBuilder.trackTotalHitsUpTo(trackTotalHitsUpTo);
             } else if (searchSourceBuilder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
                 && searchSourceBuilder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                    throw new IllegalArgumentException(
-                        "["
-                            + RestSearchAction.TOTAL_HITS_AS_INT_PARAM
-                            + "] cannot be used "
-                            + "if the tracking of total hits is not accurate, got "
-                            + searchSourceBuilder.trackTotalHitsUpTo()
-                    );
-                }
+                throw new IllegalArgumentException(
+                    "["
+                        + RestSearchAction.TOTAL_HITS_AS_INT_PARAM
+                        + "] cannot be used "
+                        + "if the tracking of total hits is not accurate, got "
+                        + searchSourceBuilder.trackTotalHitsUpTo()
+                );
+            }
         }
     }
 }

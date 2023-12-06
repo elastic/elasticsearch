@@ -175,11 +175,8 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
                 }
             } else if ("factor".equals(currentFieldName)
                 && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "[" + NAME + "] field 'factor' does not support lists or objects"
-                    );
-                }
+                throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] field 'factor' does not support lists or objects");
+            }
         }
 
         if (field == null) {

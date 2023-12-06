@@ -229,21 +229,21 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             );
         } else if (securityContext.getAuthentication() != null
             && securityContext.getAuthentication().getEffectiveSubject().getTransportVersion().equals(minVersion) == false) {
-                // re-write the authentication since we want the authentication version to match the version of the connection
-                securityContext.executeAfterRewritingAuthentication(
-                    original -> sendWithUser(
-                        connection,
-                        action,
-                        request,
-                        options,
-                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
-                        sender
-                    ),
-                    minVersion
-                );
-            } else {
-                sendWithUser(connection, action, request, options, handler, sender);
-            }
+            // re-write the authentication since we want the authentication version to match the version of the connection
+            securityContext.executeAfterRewritingAuthentication(
+                original -> sendWithUser(
+                    connection,
+                    action,
+                    request,
+                    options,
+                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                    sender
+                ),
+                minVersion
+            );
+        } else {
+            sendWithUser(connection, action, request, options, handler, sender);
+        }
     }
 
     // Package private for testing

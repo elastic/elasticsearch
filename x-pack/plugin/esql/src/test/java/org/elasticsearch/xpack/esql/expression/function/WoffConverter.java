@@ -153,7 +153,8 @@ class WoffConverter {
             } catch (DataFormatException e) {
                 throw new IllegalArgumentException("Malformed woff file");
             }
-        } else inflatedFontData = fontData;
+        } else
+            inflatedFontData = fontData;
         return inflatedFontData;
     }
 

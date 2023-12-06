@@ -478,8 +478,8 @@ public final class AnalyzerCaster {
             || from1 == short.class
             || from0 == byte.class
             || from1 == byte.class) {
-                return int.class;
-            }
+            return int.class;
+        }
 
         return null;
     }

@@ -369,14 +369,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // interval of exactly 1 day
                                 else if (value instanceof IntervalDayTime
                                     && ((IntervalDayTime) value).interval().equals(Duration.ofDays(1))) {
-                                        // When the histogram is `INTERVAL '1' DAY` the interval used in
-                                        // the ES date_histogram will be a calendar_interval with value "1d"
-                                        if (field instanceof FieldAttribute) {
-                                            key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), DAY_INTERVAL, h.zoneId());
-                                        } else if (field instanceof Function) {
-                                            key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), DAY_INTERVAL, h.zoneId());
-                                        }
+                                    // When the histogram is `INTERVAL '1' DAY` the interval used in
+                                    // the ES date_histogram will be a calendar_interval with value "1d"
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), DAY_INTERVAL, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), DAY_INTERVAL, h.zoneId());
                                     }
+                                }
                                 // All other intervals will be fixed_intervals expressed in ms.
                                 else {
                                     long intervalAsMillis = Intervals.inMillis(h.interval());

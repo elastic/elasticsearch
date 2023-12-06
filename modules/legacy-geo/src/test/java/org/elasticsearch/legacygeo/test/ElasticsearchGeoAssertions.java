@@ -209,18 +209,18 @@ public class ElasticsearchGeoAssertions {
             || (s1 instanceof org.apache.lucene.geo.Polygon && s2 instanceof org.apache.lucene.geo.Polygon)
             || (s1 instanceof org.apache.lucene.geo.Rectangle && s2 instanceof org.apache.lucene.geo.Rectangle)
             || (s1 instanceof GeoPoint && s2 instanceof GeoPoint)) {
-                Assert.assertEquals(s1, s2);
-            } else if (s1 instanceof Object[] objects1 && s2 instanceof Object[] objects2) {
-                Assert.assertArrayEquals(objects1, objects2);
-            } else if (s1 instanceof org.elasticsearch.geometry.Geometry && s2 instanceof org.elasticsearch.geometry.Geometry) {
-                Assert.assertEquals(s1, s2);
-            } else {
-                // We want to know the type of the shape because we test shape equality in a special way...
-                // ... in particular we test that one ring is equivalent to another ring even if the points are rotated or reversed.
-                throw new RuntimeException(
-                    "equality of shape types not supported [" + s1.getClass().getName() + " and " + s2.getClass().getName() + "]"
-                );
-            }
+            Assert.assertEquals(s1, s2);
+        } else if (s1 instanceof Object[] objects1 && s2 instanceof Object[] objects2) {
+            Assert.assertArrayEquals(objects1, objects2);
+        } else if (s1 instanceof org.elasticsearch.geometry.Geometry && s2 instanceof org.elasticsearch.geometry.Geometry) {
+            Assert.assertEquals(s1, s2);
+        } else {
+            // We want to know the type of the shape because we test shape equality in a special way...
+            // ... in particular we test that one ring is equivalent to another ring even if the points are rotated or reversed.
+            throw new RuntimeException(
+                "equality of shape types not supported [" + s1.getClass().getName() + " and " + s2.getClass().getName() + "]"
+            );
+        }
     }
 
     @Deprecated

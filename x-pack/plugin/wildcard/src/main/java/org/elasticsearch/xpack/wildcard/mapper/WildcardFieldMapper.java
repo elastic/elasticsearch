@@ -140,7 +140,8 @@ public class WildcardFieldMapper extends FieldMapper {
             if (input.incrementToken()) {
                 normalize(termAtt.buffer(), 0, termAtt.length());
                 return true;
-            } else return false;
+            } else
+                return false;
         }
 
         public static String normalize(String s) {

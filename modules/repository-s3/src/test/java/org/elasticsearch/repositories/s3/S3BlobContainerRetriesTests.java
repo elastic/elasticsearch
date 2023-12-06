@@ -295,36 +295,36 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             } else if ("PUT".equals(exchange.getRequestMethod())
                 && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
                 && exchange.getRequestURI().getQuery().contains("partNumber=")) {
-                    // upload part request
-                    MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                    BytesReference bytes = Streams.readFully(md5);
-                    assertThat((long) bytes.length(), anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
-                    assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
+                // upload part request
+                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
+                BytesReference bytes = Streams.readFully(md5);
+                assertThat((long) bytes.length(), anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
+                assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
 
-                    if (countDownUploads.decrementAndGet() % 2 == 0) {
-                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
-                        exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
-                        exchange.close();
-                        return;
-                    }
-
-                } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
-                    // complete multipart upload request
-                    if (countDownComplete.countDown()) {
-                        Streams.readFully(exchange.getRequestBody());
-                        byte[] response = ("""
-                            <?xml version="1.0" encoding="UTF-8"?>
-                            <CompleteMultipartUploadResult>
-                              <Bucket>bucket</Bucket>
-                              <Key>write_large_blob</Key>
-                            </CompleteMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
-                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                        exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                        exchange.getResponseBody().write(response);
-                        exchange.close();
-                        return;
-                    }
+                if (countDownUploads.decrementAndGet() % 2 == 0) {
+                    exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    exchange.close();
+                    return;
                 }
+
+            } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
+                // complete multipart upload request
+                if (countDownComplete.countDown()) {
+                    Streams.readFully(exchange.getRequestBody());
+                    byte[] response = ("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <CompleteMultipartUploadResult>
+                          <Bucket>bucket</Bucket>
+                          <Key>write_large_blob</Key>
+                        </CompleteMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                    return;
+                }
+            }
 
             // sends an error back or let the request time out
             if (useTimeout == false) {
@@ -394,35 +394,35 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             } else if ("PUT".equals(exchange.getRequestMethod())
                 && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
                 && exchange.getRequestURI().getQuery().contains("partNumber=")) {
-                    // upload part request
-                    MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                    BytesReference bytes = Streams.readFully(md5);
+                // upload part request
+                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
+                BytesReference bytes = Streams.readFully(md5);
 
-                    if (counterUploads.incrementAndGet() % 2 == 0) {
-                        bytesReceived.addAndGet(bytes.length());
-                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
-                        exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
-                        exchange.close();
-                        return;
-                    }
-
-                } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
-                    // complete multipart upload request
-                    if (countDownComplete.countDown()) {
-                        Streams.readFully(exchange.getRequestBody());
-                        byte[] response = ("""
-                            <?xml version="1.0" encoding="UTF-8"?>
-                            <CompleteMultipartUploadResult>
-                              <Bucket>bucket</Bucket>
-                              <Key>write_large_blob_streaming</Key>
-                            </CompleteMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
-                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                        exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                        exchange.getResponseBody().write(response);
-                        exchange.close();
-                        return;
-                    }
+                if (counterUploads.incrementAndGet() % 2 == 0) {
+                    bytesReceived.addAndGet(bytes.length());
+                    exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    exchange.close();
+                    return;
                 }
+
+            } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
+                // complete multipart upload request
+                if (countDownComplete.countDown()) {
+                    Streams.readFully(exchange.getRequestBody());
+                    byte[] response = ("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <CompleteMultipartUploadResult>
+                          <Bucket>bucket</Bucket>
+                          <Key>write_large_blob_streaming</Key>
+                        </CompleteMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                    return;
+                }
+            }
 
             // sends an error back or let the request time out
             if (useTimeout == false) {

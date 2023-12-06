@@ -39,26 +39,26 @@ public final class ConnectionProfile {
             && profile.getPingInterval() != null
             && profile.getCompressionEnabled() != null
             && profile.getCompressionScheme() != null) {
-                return profile;
-            } else {
-                ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
-                if (profile.getConnectTimeout() == null) {
-                    builder.setConnectTimeout(fallbackProfile.getConnectTimeout());
-                }
-                if (profile.getHandshakeTimeout() == null) {
-                    builder.setHandshakeTimeout(fallbackProfile.getHandshakeTimeout());
-                }
-                if (profile.getPingInterval() == null) {
-                    builder.setPingInterval(fallbackProfile.getPingInterval());
-                }
-                if (profile.getCompressionEnabled() == null) {
-                    builder.setCompressionEnabled(fallbackProfile.getCompressionEnabled());
-                }
-                if (profile.getCompressionScheme() == null) {
-                    builder.setCompressionScheme(fallbackProfile.getCompressionScheme());
-                }
-                return builder.build();
+            return profile;
+        } else {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
+            if (profile.getConnectTimeout() == null) {
+                builder.setConnectTimeout(fallbackProfile.getConnectTimeout());
             }
+            if (profile.getHandshakeTimeout() == null) {
+                builder.setHandshakeTimeout(fallbackProfile.getHandshakeTimeout());
+            }
+            if (profile.getPingInterval() == null) {
+                builder.setPingInterval(fallbackProfile.getPingInterval());
+            }
+            if (profile.getCompressionEnabled() == null) {
+                builder.setCompressionEnabled(fallbackProfile.getCompressionEnabled());
+            }
+            if (profile.getCompressionScheme() == null) {
+                builder.setCompressionScheme(fallbackProfile.getCompressionScheme());
+            }
+            return builder.build();
+        }
     }
 
     /**

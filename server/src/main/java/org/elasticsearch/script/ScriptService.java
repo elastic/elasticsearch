@@ -843,9 +843,9 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         } else if (current.general.rate.equals(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings)) == false
             || current.general.cacheExpire.equals(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings)) == false
             || current.general.cacheSize != SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings)) {
-                // General compilation rate, cache expiration or cache size changed
-                cacheHolder.set(generalCacheHolder(settings));
-            }
+            // General compilation rate, cache expiration or cache size changed
+            cacheHolder.set(generalCacheHolder(settings));
+        }
     }
 
     CacheHolder generalCacheHolder(Settings settings) {

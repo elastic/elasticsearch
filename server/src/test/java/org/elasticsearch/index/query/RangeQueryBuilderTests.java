@@ -164,93 +164,93 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             && expectedFieldName.equals(INT_FIELD_NAME) == false
             && expectedFieldName.equals(DATE_RANGE_FIELD_NAME) == false
             && expectedFieldName.equals(INT_RANGE_FIELD_NAME) == false) {
-                assertThat(query, instanceOf(TermRangeQuery.class));
-                TermRangeQuery termRangeQuery = (TermRangeQuery) query;
-                assertThat(termRangeQuery.getField(), equalTo(expectedFieldName));
-                assertThat(termRangeQuery.getLowerTerm(), equalTo(BytesRefs.toBytesRef(queryBuilder.from())));
-                assertThat(termRangeQuery.getUpperTerm(), equalTo(BytesRefs.toBytesRef(queryBuilder.to())));
-                assertThat(termRangeQuery.includesLower(), equalTo(queryBuilder.includeLower()));
-                assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
-            } else if (expectedFieldName.equals(DATE_FIELD_NAME)) {
-                assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
-                assertThat(query, instanceOf(PointRangeQuery.class));
-                MappedFieldType mappedFieldType = context.getFieldType(expectedFieldName);
-                final Long fromInMillis;
-                final Long toInMillis;
-                // we have to normalize the incoming value into milliseconds since it could be literally anything
-                if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
-                    fromInMillis = queryBuilder.from() == null
-                        ? null
-                        : ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(
-                            queryBuilder.from(),
-                            queryBuilder.includeLower(),
-                            queryBuilder.getDateTimeZone(),
-                            queryBuilder.getForceDateParser(),
-                            context::nowInMillis
-                        );
-                    toInMillis = queryBuilder.to() == null
-                        ? null
-                        : ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(
-                            queryBuilder.to(),
-                            queryBuilder.includeUpper(),
-                            queryBuilder.getDateTimeZone(),
-                            queryBuilder.getForceDateParser(),
-                            context::nowInMillis
-                        );
-                } else {
-                    fromInMillis = toInMillis = null;
-                    fail("unexpected mapped field type: [" + mappedFieldType.getClass() + "] " + mappedFieldType.toString());
-                }
-
-                Long min = fromInMillis;
-                Long max = toInMillis;
-                long minLong, maxLong;
-                if (min == null) {
-                    minLong = Long.MIN_VALUE;
-                } else {
-                    minLong = min.longValue();
-                    if (queryBuilder.includeLower() == false && minLong != Long.MAX_VALUE) {
-                        minLong++;
-                    }
-                }
-                if (max == null) {
-                    maxLong = Long.MAX_VALUE;
-                } else {
-                    maxLong = max.longValue();
-                    if (queryBuilder.includeUpper() == false && maxLong != Long.MIN_VALUE) {
-                        maxLong--;
-                    }
-                }
-                assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME, minLong, maxLong), query);
-            } else if (expectedFieldName.equals(INT_FIELD_NAME)) {
-                assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
-                assertThat(query, instanceOf(PointRangeQuery.class));
-                Integer min = (Integer) queryBuilder.from();
-                Integer max = (Integer) queryBuilder.to();
-                int minInt, maxInt;
-                if (min == null) {
-                    minInt = Integer.MIN_VALUE;
-                } else {
-                    minInt = min.intValue();
-                    if (queryBuilder.includeLower() == false && minInt != Integer.MAX_VALUE) {
-                        minInt++;
-                    }
-                }
-                if (max == null) {
-                    maxInt = Integer.MAX_VALUE;
-                } else {
-                    maxInt = max.intValue();
-                    if (queryBuilder.includeUpper() == false && maxInt != Integer.MIN_VALUE) {
-                        maxInt--;
-                    }
-                }
-            } else if (expectedFieldName.equals(DATE_RANGE_FIELD_NAME) || expectedFieldName.equals(INT_RANGE_FIELD_NAME)) {
-                // todo can't check RangeFieldQuery because its currently package private (this will change)
+            assertThat(query, instanceOf(TermRangeQuery.class));
+            TermRangeQuery termRangeQuery = (TermRangeQuery) query;
+            assertThat(termRangeQuery.getField(), equalTo(expectedFieldName));
+            assertThat(termRangeQuery.getLowerTerm(), equalTo(BytesRefs.toBytesRef(queryBuilder.from())));
+            assertThat(termRangeQuery.getUpperTerm(), equalTo(BytesRefs.toBytesRef(queryBuilder.to())));
+            assertThat(termRangeQuery.includesLower(), equalTo(queryBuilder.includeLower()));
+            assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
+        } else if (expectedFieldName.equals(DATE_FIELD_NAME)) {
+            assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
+            query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+            assertThat(query, instanceOf(PointRangeQuery.class));
+            MappedFieldType mappedFieldType = context.getFieldType(expectedFieldName);
+            final Long fromInMillis;
+            final Long toInMillis;
+            // we have to normalize the incoming value into milliseconds since it could be literally anything
+            if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+                fromInMillis = queryBuilder.from() == null
+                    ? null
+                    : ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(
+                        queryBuilder.from(),
+                        queryBuilder.includeLower(),
+                        queryBuilder.getDateTimeZone(),
+                        queryBuilder.getForceDateParser(),
+                        context::nowInMillis
+                    );
+                toInMillis = queryBuilder.to() == null
+                    ? null
+                    : ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(
+                        queryBuilder.to(),
+                        queryBuilder.includeUpper(),
+                        queryBuilder.getDateTimeZone(),
+                        queryBuilder.getForceDateParser(),
+                        context::nowInMillis
+                    );
             } else {
-                throw new UnsupportedOperationException();
+                fromInMillis = toInMillis = null;
+                fail("unexpected mapped field type: [" + mappedFieldType.getClass() + "] " + mappedFieldType.toString());
             }
+
+            Long min = fromInMillis;
+            Long max = toInMillis;
+            long minLong, maxLong;
+            if (min == null) {
+                minLong = Long.MIN_VALUE;
+            } else {
+                minLong = min.longValue();
+                if (queryBuilder.includeLower() == false && minLong != Long.MAX_VALUE) {
+                    minLong++;
+                }
+            }
+            if (max == null) {
+                maxLong = Long.MAX_VALUE;
+            } else {
+                maxLong = max.longValue();
+                if (queryBuilder.includeUpper() == false && maxLong != Long.MIN_VALUE) {
+                    maxLong--;
+                }
+            }
+            assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME, minLong, maxLong), query);
+        } else if (expectedFieldName.equals(INT_FIELD_NAME)) {
+            assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
+            query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+            assertThat(query, instanceOf(PointRangeQuery.class));
+            Integer min = (Integer) queryBuilder.from();
+            Integer max = (Integer) queryBuilder.to();
+            int minInt, maxInt;
+            if (min == null) {
+                minInt = Integer.MIN_VALUE;
+            } else {
+                minInt = min.intValue();
+                if (queryBuilder.includeLower() == false && minInt != Integer.MAX_VALUE) {
+                    minInt++;
+                }
+            }
+            if (max == null) {
+                maxInt = Integer.MAX_VALUE;
+            } else {
+                maxInt = max.intValue();
+                if (queryBuilder.includeUpper() == false && maxInt != Integer.MIN_VALUE) {
+                    maxInt--;
+                }
+            }
+        } else if (expectedFieldName.equals(DATE_RANGE_FIELD_NAME) || expectedFieldName.equals(INT_RANGE_FIELD_NAME)) {
+            // todo can't check RangeFieldQuery because its currently package private (this will change)
+        } else {
+            throw new UnsupportedOperationException();
+        }
     }
 
     public void testIllegalArguments() {

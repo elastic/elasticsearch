@@ -105,70 +105,70 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                     currentFieldName = parser.currentName();
                 } else if (CHAR_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
                     && token == XContentParser.Token.START_ARRAY) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                builder.addCharFilter(parser.text());
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                builder.addCharFilter(parser.map());
-                            } else {
-                                throw new IllegalArgumentException(
-                                    "["
-                                        + currentFieldName
-                                        + "] in ["
-                                        + CATEGORIZATION_ANALYZER
-                                        + "] array element should contain char_filter's name or settings ["
-                                        + token
-                                        + "]"
-                                );
-                            }
-                        }
-                    } else if (TOKENIZER.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
-                            builder.setTokenizer(parser.text());
+                            builder.addCharFilter(parser.text());
                         } else if (token == XContentParser.Token.START_OBJECT) {
-                            builder.setTokenizer(parser.map());
+                            builder.addCharFilter(parser.map());
                         } else {
                             throw new IllegalArgumentException(
                                 "["
                                     + currentFieldName
                                     + "] in ["
                                     + CATEGORIZATION_ANALYZER
-                                    + "] should be tokenizer's name or settings ["
+                                    + "] array element should contain char_filter's name or settings ["
                                     + token
                                     + "]"
                             );
                         }
-                    } else if (TOKEN_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
-                        && token == XContentParser.Token.START_ARRAY) {
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                if (token == XContentParser.Token.VALUE_STRING) {
-                                    builder.addTokenFilter(parser.text());
-                                } else if (token == XContentParser.Token.START_OBJECT) {
-                                    builder.addTokenFilter(parser.map());
-                                } else {
-                                    throw new IllegalArgumentException(
-                                        "["
-                                            + currentFieldName
-                                            + "] in ["
-                                            + CATEGORIZATION_ANALYZER
-                                            + "] array element should contain token_filter's name or settings ["
-                                            + token
-                                            + "]"
-                                    );
-                                }
-                            }
-                            // Be lenient when parsing cluster state - assume unknown fields are from future versions
-                        } else if (ignoreUnknownFields == false) {
+                    }
+                } else if (TOKENIZER.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        builder.setTokenizer(parser.text());
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        builder.setTokenizer(parser.map());
+                    } else {
+                        throw new IllegalArgumentException(
+                            "["
+                                + currentFieldName
+                                + "] in ["
+                                + CATEGORIZATION_ANALYZER
+                                + "] should be tokenizer's name or settings ["
+                                + token
+                                + "]"
+                        );
+                    }
+                } else if (TOKEN_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
+                    && token == XContentParser.Token.START_ARRAY) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            builder.addTokenFilter(parser.text());
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            builder.addTokenFilter(parser.map());
+                        } else {
                             throw new IllegalArgumentException(
-                                "Parameter ["
+                                "["
                                     + currentFieldName
                                     + "] in ["
                                     + CATEGORIZATION_ANALYZER
-                                    + "] is unknown or of the wrong type ["
+                                    + "] array element should contain token_filter's name or settings ["
                                     + token
                                     + "]"
                             );
                         }
+                    }
+                    // Be lenient when parsing cluster state - assume unknown fields are from future versions
+                } else if (ignoreUnknownFields == false) {
+                    throw new IllegalArgumentException(
+                        "Parameter ["
+                            + currentFieldName
+                            + "] in ["
+                            + CATEGORIZATION_ANALYZER
+                            + "] is unknown or of the wrong type ["
+                            + token
+                            + "]"
+                    );
+                }
             }
         }
 

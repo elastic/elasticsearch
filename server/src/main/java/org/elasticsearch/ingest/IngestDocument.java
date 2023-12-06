@@ -807,12 +807,12 @@ public final class IngestDocument {
             || value instanceof Double
             || value instanceof Boolean
             || value instanceof ZonedDateTime) {
-                return value;
-            } else if (value instanceof Date date) {
-                return date.clone();
-            } else {
-                throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
-            }
+            return value;
+        } else if (value instanceof Date date) {
+            return date.clone();
+        } else {
+            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        }
     }
 
     public static Set<String> getAllFields(Map<String, Object> input) {

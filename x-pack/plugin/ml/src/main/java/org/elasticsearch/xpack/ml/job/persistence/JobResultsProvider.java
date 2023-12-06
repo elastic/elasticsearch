@@ -258,10 +258,10 @@ public class JobResultsProvider {
                             quantileDocCount++;
                         } else if (hit.getId().startsWith(CategorizerState.documentPrefix(job.getId()))
                             || hit.getId().startsWith(CategorizerState.v54DocumentPrefix(job.getId()))) {
-                                categorizerStateDocCount++;
-                            } else {
-                                resultDocCount++;
-                            }
+                            categorizerStateDocCount++;
+                        } else {
+                            resultDocCount++;
+                        }
                     }
 
                     LOGGER.warn(

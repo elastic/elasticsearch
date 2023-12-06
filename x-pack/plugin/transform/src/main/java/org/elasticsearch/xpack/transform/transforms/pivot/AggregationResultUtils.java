@@ -452,32 +452,32 @@ public final class AggregationResultUtils {
                 // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
             } else if (Double.compare(aggregation.topLeft().getLat(), aggregation.bottomRight().getLat()) == 0
                 || Double.compare(aggregation.topLeft().getLon(), aggregation.bottomRight().getLon()) == 0) {
-                    geoShape.put(FIELD_TYPE, LINESTRING);
-                    geoShape.put(
-                        FIELD_COORDINATES,
+                geoShape.put(FIELD_TYPE, LINESTRING);
+                geoShape.put(
+                    FIELD_COORDINATES,
+                    Arrays.asList(
+                        new Double[] { aggregation.topLeft().getLon(), aggregation.topLeft().getLat() },
+                        new Double[] { aggregation.bottomRight().getLon(), aggregation.bottomRight().getLat() }
+                    )
+                );
+            } else {
+                // neither points are equal, we have a polygon that is a square
+                geoShape.put(FIELD_TYPE, POLYGON);
+                final GeoPoint tl = aggregation.topLeft();
+                final GeoPoint br = aggregation.bottomRight();
+                geoShape.put(
+                    FIELD_COORDINATES,
+                    Collections.singletonList(
                         Arrays.asList(
-                            new Double[] { aggregation.topLeft().getLon(), aggregation.topLeft().getLat() },
-                            new Double[] { aggregation.bottomRight().getLon(), aggregation.bottomRight().getLat() }
+                            new Double[] { tl.getLon(), tl.getLat() },
+                            new Double[] { br.getLon(), tl.getLat() },
+                            new Double[] { br.getLon(), br.getLat() },
+                            new Double[] { tl.getLon(), br.getLat() },
+                            new Double[] { tl.getLon(), tl.getLat() }
                         )
-                    );
-                } else {
-                    // neither points are equal, we have a polygon that is a square
-                    geoShape.put(FIELD_TYPE, POLYGON);
-                    final GeoPoint tl = aggregation.topLeft();
-                    final GeoPoint br = aggregation.bottomRight();
-                    geoShape.put(
-                        FIELD_COORDINATES,
-                        Collections.singletonList(
-                            Arrays.asList(
-                                new Double[] { tl.getLon(), tl.getLat() },
-                                new Double[] { br.getLon(), tl.getLat() },
-                                new Double[] { br.getLon(), br.getLat() },
-                                new Double[] { tl.getLon(), br.getLat() },
-                                new Double[] { tl.getLon(), tl.getLat() }
-                            )
-                        )
-                    );
-                }
+                    )
+                );
+            }
             return geoShape;
         }
     }
@@ -525,10 +525,10 @@ public final class AggregationResultUtils {
                 return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
             } else if ((DateFieldMapper.CONTENT_TYPE.equals(type) || DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(type))
                 && key instanceof Long) {
-                    // date_histogram return bucket keys with milliseconds since epoch precision, therefore we don't need a
-                    // nanosecond formatter, for the parser on indexing side, time is optional (only the date part is mandatory)
-                    return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
-                }
+                // date_histogram return bucket keys with milliseconds since epoch precision, therefore we don't need a
+                // nanosecond formatter, for the parser on indexing side, time is optional (only the date part is mandatory)
+                return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
+            }
 
             return key;
         }

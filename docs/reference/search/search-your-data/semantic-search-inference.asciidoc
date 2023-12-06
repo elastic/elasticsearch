@@ -118,6 +118,15 @@ PUT _ingest/pipeline/openai_embeddings
 <2> Configuration object that defines the `input_field` for the {infer} process
 and the `output_field` that will contain the {infer} results.
 
+////
+[source,console]
+----
+DELETE _ingest/pipeline/elser-v2-test
+----
+// TEST[continued]
+////
+
+
 [discrete]
 [[infer-load-data]]
 ==== Load data
@@ -199,7 +208,7 @@ provide the query text and the model you have used to create the embeddings.
 NOTE: If you cancelled the reindexing process, you run the query only a part of 
 the data which affects the quality of your results.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET openai-embeddings/_search
 {
@@ -225,7 +234,7 @@ GET openai-embeddings/_search
 As a result, you receive the top 10 documents that are closest in meaning to the 
 query from the `openai-embeddings` index sorted by their proximity to the query:
 
-[source,js]
+[source,consol-result]
 --------------------------------------------------
 "hits": [
       {

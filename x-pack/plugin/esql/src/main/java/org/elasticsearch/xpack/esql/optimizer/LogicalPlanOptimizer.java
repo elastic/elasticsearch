@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
@@ -107,8 +109,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             Limiter.ONCE,
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
-            new ReplaceAliasingEvalWithProject()
+            new ReplaceAliasingEvalWithProject(),
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
+            new InferNonNullAggConstraint()
         );
 
         var operators = new Batch<>(
@@ -296,7 +299,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Agg with underlying Project (group by on sub-queries)
             if (plan instanceof Aggregate a) {
                 if (child instanceof Project p) {
-                    return new Aggregate(a.source(), p.child(), a.groupings(), combineProjections(a.aggregates(), p.projections()));
+                    var aggs = a.aggregates();
+                    var lowerProjections = p.projections();
+                    var newAggs = combineProjections(aggs, lowerProjections);
+                    var newGroups = replacePrunedAliasesUsedInGroupBy(a.groupings(), lowerProjections, newAggs);
+                    return new Aggregate(a.source(), p.child(), newGroups, newAggs);
                 }
             }
 
@@ -1133,6 +1140,75 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 plan = new Project(eval.source(), child, projections);
             }
 
+            return plan;
+        }
+    }
+
+    /**
+     * The vast majority of aggs ignore null entries - this rule adds a filter to filter this entries out
+     * to begin with.
+     * STATS x = min(a), y = sum(b) BY c
+     * becomes
+     * | WHERE a IS NOT NULL OR b IS NOT NULL
+     * | STATS x = min(a), y = sum(b) BY c
+     */
+    static class InferNonNullAggConstraint extends OptimizerRules.OptimizerRule<Aggregate> {
+
+        @Override
+        protected LogicalPlan rule(Aggregate aggregate) {
+            LogicalPlan plan = aggregate;
+            var aggs = aggregate.aggregates();
+            Set<Expression> nonNullAggFields = Sets.newLinkedHashSetWithExpectedSize(aggs.size());
+            for (var agg : aggs) {
+                Expression expr = agg;
+                if (agg instanceof Alias as) {
+                    expr = as.child();
+                }
+                if (expr instanceof AggregateFunction af) {
+                    Expression field = af.field();
+                    // ignore literals (e.g. COUNT(1)
+                    if (field.foldable() == false) {
+                        nonNullAggFields.add(field);
+                    }
+                }
+            }
+
+            // Avoid adding a filter on fields that are included in the grouping column
+            // However pay attention to expressions and aliasing which might hide the field
+            // e.g. eval x = a | eval y = x + 1 | stats sum(a) by y
+
+            // 1. collect aliases
+            AttributeMap<Expression> aliases = new AttributeMap<>();
+            aggregate.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
+            // 2. look at the references and resolve their back alias
+            var groupings = aggregate.groupings();
+            var resolvedGroupings = new ArrayList<Expression>(groupings.size());
+            for (Expression group : groupings) {
+                for (Attribute ref : group.references()) {
+                    // ignore constants
+                    if (ref.foldable() == false) {
+                        resolvedGroupings.add(aliases.resolve(ref, ref));
+                    }
+                }
+            }
+            // 3. remove any field that matches a reference inside the grouping key
+            nonNullAggFields.removeIf(f -> {
+                AttributeSet set = f.references();
+                for (Expression resolveGroup : resolvedGroupings) {
+                    if (set.contains(resolveGroup)) {
+                        return true;
+                    }
+                }
+                // no match, keep the field
+                return false;
+            });
+
+            if (nonNullAggFields.size() > 0) {
+                Expression condition = Predicates.combineOr(
+                    nonNullAggFields.stream().map(f -> (Expression) new IsNotNull(aggregate.source(), f)).toList()
+                );
+                plan = aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), condition));
+            }
             return plan;
         }
     }

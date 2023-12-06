@@ -328,16 +328,16 @@ public class JobResultsPersister {
             shouldRetry,
             retryMessage -> logger.debug("[{}] {} {}", jobId, quantilesDocId, retryMessage)
         );
+        final String indexOrAlias;
         try {
-            String indexOrAlias = searchResponse.getHits().getHits().length > 0
+            indexOrAlias = searchResponse.getHits().getHits().length > 0
                 ? searchResponse.getHits().getHits()[0].getIndex()
                 : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
-
-            Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);
-            persistable.persist(shouldRetry, AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
         } finally {
             searchResponse.decRef();
         }
+        Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);
+        persistable.persist(shouldRetry, AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
     }
 
     /**

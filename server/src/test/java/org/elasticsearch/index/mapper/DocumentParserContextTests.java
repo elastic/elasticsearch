@@ -19,43 +19,26 @@ public class DocumentParserContextTests extends ESTestCase {
 
     public void testDynamicMapperSizeMultipleMappers() {
         context.addDynamicMapper("foo", new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()));
-        assertEquals(1, context.getNewDynamicMappersSize());
+        assertEquals(1, context.getNewFieldsSize());
         context.addDynamicMapper("bar", new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers()));
-        assertEquals(2, context.getNewDynamicMappersSize());
+        assertEquals(2, context.getNewFieldsSize());
         context.addDynamicRuntimeField(new TestRuntimeField("runtime1", "keyword"));
-        assertEquals(3, context.getNewDynamicMappersSize());
+        assertEquals(3, context.getNewFieldsSize());
         context.addDynamicRuntimeField(new TestRuntimeField("runtime2", "keyword"));
-        assertEquals(4, context.getNewDynamicMappersSize());
+        assertEquals(4, context.getNewFieldsSize());
     }
 
     public void testDynamicMapperSizeSameFieldMultipleRuntimeFields() {
         context.addDynamicRuntimeField(new TestRuntimeField("foo", "keyword"));
         context.addDynamicRuntimeField(new TestRuntimeField("foo", "keyword"));
-        assertEquals(context.getNewDynamicMappersSize(), 1);
+        assertEquals(context.getNewFieldsSize(), 1);
     }
 
     public void testDynamicMapperSizeSameFieldMultipleMappers() {
         context.addDynamicMapper("foo", new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()));
-        assertEquals(1, context.getNewDynamicMappersSize());
+        assertEquals(1, context.getNewFieldsSize());
         context.addDynamicMapper("foo", new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()));
-        assertEquals(1, context.getNewDynamicMappersSize());
-    }
-
-    public void testDynamicMapperSizeSameFieldMultipleMappersDifferentSize() {
-        context.addDynamicMapper(
-            "foo",
-            new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()).addMultiField(
-                new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())
-            )
-        );
-        assertEquals(2, context.getNewDynamicMappersSize());
-        context.addDynamicMapper(
-            "foo",
-            new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()).addMultiField(
-                new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())
-            ).addMultiField(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
-        );
-        assertEquals(3, context.getNewDynamicMappersSize());
+        assertEquals(1, context.getNewFieldsSize());
     }
 
     public void testAddRuntimeFieldWhenLimitIsReachedViaMapper() {

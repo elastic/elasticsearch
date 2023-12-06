@@ -22,11 +22,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -85,6 +86,7 @@ public abstract class DocumentParserContext {
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
+    private final AtomicInteger dynamicMappersSize;
     private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
     private final DocumentDimensions dimensions;
@@ -111,8 +113,8 @@ public abstract class DocumentParserContext {
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
-        Set<String> copyToFields
-    ) {
+        Set<String> copyToFields,
+        AtomicInteger dynamicMapperSize) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
@@ -128,6 +130,7 @@ public abstract class DocumentParserContext {
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
+        this.dynamicMappersSize = dynamicMapperSize;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -146,8 +149,8 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             in.fieldsAppliedFromTemplates,
-            in.copyToFields
-        );
+            in.copyToFields,
+            in.dynamicMappersSize);
     }
 
     protected DocumentParserContext(
@@ -162,9 +165,9 @@ public abstract class DocumentParserContext {
             mappingParserContext,
             source,
             new HashSet<>(),
-            new HashMap<>(),
-            new HashMap<>(),
-            new HashMap<>(),
+            new LinkedHashMap<>(),
+            new LinkedHashMap<>(),
+            new LinkedHashMap<>(),
             null,
             null,
             null,
@@ -172,8 +175,8 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             new HashSet<>(),
-            new HashSet<>()
-        );
+            new HashSet<>(),
+            new AtomicInteger(0));
     }
 
     public final IndexSettings indexSettings() {
@@ -316,7 +319,8 @@ public abstract class DocumentParserContext {
         if (mappingLookup.getMapper(fullName) == null
             && mappingLookup.objectMappers().containsKey(fullName) == false
             && dynamicMappers.containsKey(fullName) == false) {
-            int additionalFieldsToAdd = getNewDynamicMappersSize() + builder.mapperSize();
+            int builderMapperSize = builder.mapperSize();
+            int additionalFieldsToAdd = getNewFieldsSize() + builderMapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
                     addIgnoredField(fullName);
@@ -325,6 +329,7 @@ public abstract class DocumentParserContext {
             } else {
                 mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd);
             }
+            dynamicMappersSize.addAndGet(builderMapperSize);
         }
         if (builder instanceof ObjectMapper.Builder objectMapper) {
             dynamicObjectMappers.put(fullName, objectMapper);
@@ -349,27 +354,21 @@ public abstract class DocumentParserContext {
     }
 
     /*
-     * Returns an approximation of the number of dynamically mapped fields that will be added to the mapping.
+     * Returns an approximation of the number of dynamically mapped fields and runtime fields that will be added to the mapping.
      * This is to validate early and to fail fast during document parsing.
      * There will be another authoritative (but more expensive) validation step when making the actual update mapping request.
      * During the mapping update, the actual number fields is determined by counting the total number of fields of the merged mapping.
      * Therefore, both over-counting and under-counting here is not critical.
      * However, in order for users to get to the field limit, we should try to be as close as possible to the actual field count.
-     * If we under-count fields here (for example by not counting multi-fields),
-     * we may only know that we exceed the field limit during the mapping update.
+     * If we under-count fields here, we may only know that we exceed the field limit during the mapping update.
+     * This can happen when merging the mappers for the same field results in a mapper with a larger size than the individual mappers.
      * This leads to document rejection instead of ignoring fields above the limit
      * if ignore_dynamic_beyond_limit is configured for the index.
      * If we over-count the fields (for example by counting all mappers with the same name),
      * we may reject fields earlier than necessary and before actually hitting the field limit.
      */
-    int getNewDynamicMappersSize() {
-        return dynamicMappers.values()
-            .stream()
-            // we're taking the largest mapper in case there are multiple mappers for the same field
-            // we may under-count if the mappers are merged in a way where the total size of the field is greater than the largest mapper
-            // we can't just accumulate the sizes as we get a dynamic mapper for each element in an array, even if the type is the same
-            .mapToInt(mappers -> mappers.stream().mapToInt(Mapper.Builder::mapperSize).max().orElse(0))
-            .sum() + dynamicRuntimeFields.size();
+    int getNewFieldsSize() {
+        return dynamicMappersSize.get() + dynamicRuntimeFields.size();
     }
 
     /**
@@ -417,12 +416,12 @@ public abstract class DocumentParserContext {
     final boolean addDynamicRuntimeField(RuntimeField runtimeField) {
         if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
-                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), getNewDynamicMappersSize() + 1)) {
+                if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), getNewFieldsSize() + 1)) {
                     addIgnoredField(runtimeField.name());
                     return false;
                 }
             } else {
-                mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), getNewDynamicMappersSize() + 1);
+                mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), getNewFieldsSize() + 1);
             }
         }
         dynamicRuntimeFields.computeIfAbsent(runtimeField.name(), k -> new ArrayList<>(1)).add(runtimeField);

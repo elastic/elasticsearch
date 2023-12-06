@@ -14,8 +14,8 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.PointBlock;
 
 import java.util.Arrays;
 

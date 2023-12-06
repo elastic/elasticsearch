@@ -447,18 +447,18 @@ public class MultivalueDedupeTests extends ESTestCase {
             return c;
         })); // Sort for easier visual comparison of errors
         // TODO: Remove this once fully debugged
-//        if (false == equalTo(expected).matches(actual)) {
-//            if (expected.size() != actual.size()) {
-//                System.out.println("Different sizes: " + expected.size() + " != " + actual.size());
-//            } else {
-//                for (int i = 0; i < actual.size(); i++) {
-//                    System.out.println(i);
-//                    System.out.println("Expected: " + expected.get(i));
-//                    System.out.println("Actual:   " + actual.get(i));
-//                    System.out.println("Equal: " + expected.get(i).equals(actual.get(i)));
-//                }
-//            }
-//        }
+        // if (false == equalTo(expected).matches(actual)) {
+        // if (expected.size() != actual.size()) {
+        // System.out.println("Different sizes: " + expected.size() + " != " + actual.size());
+        // } else {
+        // for (int i = 0; i < actual.size(); i++) {
+        // System.out.println(i);
+        // System.out.println("Expected: " + expected.get(i));
+        // System.out.println("Actual: " + actual.get(i));
+        // System.out.println("Equal: " + expected.get(i).equals(actual.get(i)));
+        // }
+        // }
+        // }
         assertThat(actual, equalTo(expected));
         return valueOffset;
     }

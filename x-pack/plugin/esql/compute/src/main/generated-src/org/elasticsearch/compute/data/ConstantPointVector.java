@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 /**
  * Vector implementation that stores a constant SpatialPoint value.

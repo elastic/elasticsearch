@@ -7,12 +7,13 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.util.Arrays;
 
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+
 /**
  * Vector implementation that stores an array of SpatialPoint values.
  * This class is generated. Do not edit it.

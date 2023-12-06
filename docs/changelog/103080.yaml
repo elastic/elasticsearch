@@ -1,0 +1,8 @@
+pr: 103080
+summary: "ESQL: `mv_expand` default limit fix"
+area: ES|QL
+type: bug
+issues:
+ - 101266
+ - 102084
+ - 102061

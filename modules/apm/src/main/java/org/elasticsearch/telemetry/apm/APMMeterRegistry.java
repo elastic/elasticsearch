@@ -205,7 +205,7 @@ public class APMMeterRegistry implements MeterRegistry {
         return longHistograms.get(name);
     }
 
-    private <T extends AbstractInstrument<?>> T register(Registrar<T> registrar, T adapter){
+    private <T extends AbstractInstrument<?>> T register(Registrar<T> registrar, T adapter) {
         assert registrars.contains(registrar) : "usage of unknown registrar";
         return registrar.register(adapter);
     }

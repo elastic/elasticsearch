@@ -100,9 +100,9 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 Integer addressOrLine = stackTrace.addressOrLines.get(i);
                 StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, EMPTY_STACKFRAME);
                 String executable = response.getExecutables().getOrDefault(fileId, "");
+                final boolean isLeafFrame = i == frameCount - 1;
 
-                for (int j = 0; j < stackFrame.size(); j++) {
-                    Frame frame = stackFrame.get(j);
+                stackFrame.forEach(frame -> {
                     String frameGroupId = FrameGroupID.create(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
 
                     int nodeId;
@@ -128,14 +128,14 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                             frameGroupId
                         );
                     }
-                    if (i == frameCount - 1 && j == stackFrame.size() - 1) {
+                    if (isLeafFrame && frame.last()) {
                         // Leaf frame: sum up counts for exclusive CPU.
                         builder.addSamplesExclusive(nodeId, samples);
                         builder.addAnnualCO2TonsExclusive(nodeId, annualCO2Tons);
                         builder.addAnnualCostsUSDExclusive(nodeId, annualCostsUSD);
                     }
                     builder.setCurrentNode(nodeId);
-                }
+                });
             }
         }
         return builder.build();

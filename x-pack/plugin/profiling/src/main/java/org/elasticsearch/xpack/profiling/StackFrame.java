@@ -15,35 +15,35 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 final class StackFrame implements ToXContentObject {
     List<String> fileName;
     List<String> functionName;
     List<Integer> functionOffset;
     List<Integer> lineNumber;
-    private final int size;
 
     StackFrame(Object fileName, Object functionName, Object functionOffset, Object lineNumber) {
         this.fileName = listOf(fileName);
         this.functionName = listOf(functionName);
         this.functionOffset = listOf(functionOffset);
         this.lineNumber = listOf(lineNumber);
-        this.size = this.functionName.size(); // functionName is the only array that is always set
     }
 
-    public int size() {
-        return size;
-    }
-
-    public Frame get(int index) {
-        // Array lengths might not be consistent, so we need to do checks here.
-        return new Frame(
-            fileName.size() > index ? fileName.get(index) : "",
-            functionName.get(index),
-            functionOffset.size() > index ? functionOffset.get(index) : 0,
-            lineNumber.size() > index ? lineNumber.get(index) : 0,
-            index > 0
-        );
+    public void forEach(Consumer<Frame> action) {
+        int size = this.functionName.size(); // functionName is the only array that is always set
+        for (int i = 0; i < size; i++) {
+            action.accept(
+                new Frame(
+                    fileName.size() > i ? fileName.get(i) : "",
+                    functionName.get(i),
+                    functionOffset.size() > i ? functionOffset.get(i) : 0,
+                    lineNumber.size() > i ? lineNumber.get(i) : 0,
+                    i > 0,
+                    i == size - 1
+                )
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -50,6 +50,27 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     public static final String MESSAGE_FIELD = "message";
 
     /**
+     * Describes how messages can be logged
+     */
+    interface Writer {
+        void write(LongGaugeMetric metric, long value);
+
+        void write(ESLogMessage msg);
+    }
+
+    Writer writer = new Writer() {
+        @Override
+        public void write(LongGaugeMetric metric, long value) {
+            metric.set(value);
+        }
+
+        @Override
+        public void write(ESLogMessage msg) {
+            logger.info(msg);
+        }
+    };
+
+    /**
      * Valid modes of output for this logger
      */
     public enum OutputMode {
@@ -141,6 +162,20 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         return logger;
     }
 
+    // default visibility for testing purposes
+    static HealthPeriodicLogger create(
+        Settings settings,
+        ClusterService clusterService,
+        Client client,
+        HealthService healthService,
+        TelemetryProvider telemetryProvider,
+        Writer writer
+    ) {
+        HealthPeriodicLogger logger = HealthPeriodicLogger.create(settings, clusterService, client, healthService, telemetryProvider);
+        logger.writer = writer;
+        return logger;
+    }
+
     private HealthPeriodicLogger(
         Settings settings,
         ClusterService clusterService,
@@ -177,7 +212,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                 indicator,
                 LongGaugeMetric.create(
                     meterRegistry,
-                    String.format(Locale.ROOT, "es.health.status.%s.red", indicator),
+                    String.format(Locale.ROOT, "es.health.%s.red", indicator),
                     String.format(Locale.ROOT, "%s: Red", indicator),
                     "{cluster}"
                 )
@@ -318,7 +353,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                     // if we have a valid response, log in JSON format
                     if (resultsMap.isEmpty() == false) {
                         ESLogMessage msg = new ESLogMessage().withFields(resultsMap);
-                        logger.info(msg);
+                        writer.write(msg);
                     }
                 }
 
@@ -342,10 +377,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         if (healthIndicatorResults != null) {
             for (HealthIndicatorResult result : healthIndicatorResults) {
                 if (metrics.containsKey(result.name())) {
-                    metrics.get(result.name()).set(result.status() == RED ? 1 : 0);
+                    writer.write(metrics.get(result.name()), result.status() == RED ? 1 : 0);
                 }
             }
-            metrics.get("overall").set(calculateOverallStatus(healthIndicatorResults) == RED ? 1 : 0);
+            writer.write(metrics.get("overall"), calculateOverallStatus(healthIndicatorResults) == RED ? 1 : 0);
         }
     }
 

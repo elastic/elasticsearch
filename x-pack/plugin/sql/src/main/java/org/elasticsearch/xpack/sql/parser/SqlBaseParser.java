@@ -479,8 +479,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSingleStatement(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -537,8 +536,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSingleExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -708,8 +706,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitExplain(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -769,8 +766,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSysColumns(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -815,8 +811,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSysTypes(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -898,8 +893,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitDebug(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -930,8 +924,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitShowCatalogs(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -958,8 +951,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitStatementDefault(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1022,8 +1014,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSysTables(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1058,8 +1049,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitShowFunctions(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1123,8 +1113,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitShowTables(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1155,8 +1144,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitShowSchemas(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1231,8 +1219,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitShowColumns(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1989,8 +1976,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitQuery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2090,8 +2076,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitQueryNoWith(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2201,8 +2186,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitLimitClause(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2302,8 +2286,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSubquery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2330,8 +2313,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitQueryPrimaryDefault(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2424,8 +2406,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitOrderBy(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2562,8 +2543,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitQuerySpecification(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2696,8 +2676,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitFromClause(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2785,8 +2764,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitGroupBy(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2877,8 +2855,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSingleGroupingSet(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2934,8 +2911,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitGroupingExpressions(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3038,8 +3014,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitNamedQuery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3104,8 +3079,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitTopClause(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3162,8 +3136,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSetQuantifier(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3226,8 +3199,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSelectItems(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3316,8 +3288,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSelectExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3397,8 +3368,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitRelation(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3482,8 +3452,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitJoinRelation(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3590,8 +3559,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitJoinType(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3723,8 +3691,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitJoinCriteria(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3834,8 +3801,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitAliasedRelation(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3870,8 +3836,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitAliasedQuery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3910,8 +3875,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitTableName(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4082,8 +4046,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitPivotClause(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4156,8 +4119,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitPivotArgs(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4233,8 +4195,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitNamedValueExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4308,8 +4269,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4377,8 +4337,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitLogicalNot(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4415,8 +4374,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitStringQuery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4443,8 +4401,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitBooleanDefault(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4475,8 +4432,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitExists(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4518,8 +4474,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitMultiMatchQuery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4561,8 +4516,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitMatchQuery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4605,8 +4559,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitLogicalBinary(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4804,8 +4757,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitMatchQueryOptions(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4875,8 +4827,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitPredicated(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -4989,8 +4940,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitPredicate(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5181,8 +5131,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitLikePattern(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5241,8 +5190,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitPattern(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5316,8 +5264,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitPatternEscape(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5400,8 +5347,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitValueExpressionDefault(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5439,8 +5385,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitComparison(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5495,8 +5440,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitArithmeticBinary(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5533,8 +5477,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitArithmeticUnary(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5775,8 +5718,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitDereference(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5803,8 +5745,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitCast(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5831,8 +5772,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitConstantDefault(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5859,8 +5799,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitExtract(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5887,8 +5826,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitParenthesizedExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5923,8 +5861,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitStar(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5959,8 +5896,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitCastOperatorExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -5987,8 +5923,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitFunction(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6015,8 +5950,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitCurrentDateTimeFunction(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6043,8 +5977,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitSubqueryExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6098,8 +6031,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitCase(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6340,8 +6272,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitBuiltinDateTimeFunction(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6423,8 +6354,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitCastExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6518,8 +6448,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitCastTemplate(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6588,8 +6517,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitConvertTemplate(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6658,8 +6586,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitExtractExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6741,8 +6668,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitExtractTemplate(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6811,8 +6737,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitFunctionExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -6938,8 +6863,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitFunctionTemplate(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7041,8 +6965,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitFunctionName(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7169,8 +7092,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitNullLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7205,8 +7127,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitTimestampEscapedLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7237,8 +7158,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitStringLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7265,8 +7185,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitParamLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7301,8 +7220,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitTimeEscapedLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7337,8 +7255,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitDateEscapedLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7365,8 +7282,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitIntervalLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7393,8 +7309,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitNumericLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7421,8 +7336,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitBooleanLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7457,8 +7371,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitGuidEscapedLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7640,8 +7553,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitComparisonOperator(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7704,8 +7616,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitBooleanValue(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7798,8 +7709,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitInterval(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -7944,8 +7854,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitIntervalField(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8018,8 +7927,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitPrimitiveDataType(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8083,8 +7991,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitQualifiedName(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8158,8 +8065,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitIdentifier(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8277,8 +8183,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitTableIdentifier(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8379,8 +8284,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitBackQuotedIdentifier(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8407,8 +8311,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitQuotedIdentifier(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8487,8 +8390,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitDigitIdentifier(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8519,8 +8421,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitUnquotedIdentifier(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8646,8 +8547,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitDecimalLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8674,8 +8574,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitIntegerLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8745,8 +8644,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitString(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -8820,8 +8718,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitWhenClause(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -9038,8 +8935,7 @@ class SqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof SqlBaseVisitor) return ((SqlBaseVisitor<? extends T>) visitor).visitNonReserved(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 

@@ -268,8 +268,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitSingleStatement(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -326,8 +325,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitSingleExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -388,8 +386,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitStatement(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -467,8 +464,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitQuery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -558,8 +554,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitSequenceParams(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -642,8 +637,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitSequence(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -774,8 +768,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitSample(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -870,8 +863,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitJoin(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -983,8 +975,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitPipe(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1080,8 +1071,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitJoinKeys(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1157,8 +1147,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitJoinTerm(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1244,8 +1233,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitSequenceTerm(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1335,8 +1323,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitSubquery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1399,8 +1386,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitEventQuery(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1465,8 +1451,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitEventFilter(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1536,8 +1521,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1605,8 +1589,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitLogicalNot(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1633,8 +1616,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitBooleanDefault(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1671,8 +1653,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitProcessCheck(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1715,8 +1696,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitLogicalBinary(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1865,8 +1845,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitValueExpressionDefault(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1904,8 +1883,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitComparison(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -1990,8 +1968,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitOperatorExpressionDefault(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2046,8 +2023,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitArithmeticBinary(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2084,8 +2060,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitArithmeticUnary(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2318,8 +2293,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitPredicate(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2481,8 +2455,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitDereference(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2509,8 +2482,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitConstantDefault(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2545,8 +2517,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitParenthesizedExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2573,8 +2544,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitFunction(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2682,8 +2652,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitFunctionExpression(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2769,8 +2738,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitFunctionName(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2842,8 +2810,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitNullLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2870,8 +2837,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitStringLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2898,8 +2864,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitNumericLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -2926,8 +2891,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitBooleanLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3029,8 +2993,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitComparisonOperator(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3093,8 +3056,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitBooleanValue(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3193,8 +3155,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitQualifiedName(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3307,8 +3268,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitIdentifier(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3373,8 +3333,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitTimeUnit(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3449,8 +3408,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitDecimalLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3477,8 +3435,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitIntegerLiteral(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3544,8 +3501,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitString(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 
@@ -3600,8 +3556,7 @@ class EqlBaseParser extends Parser {
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
             if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitEventValue(this);
-            else
-                return visitor.visitChildren(this);
+            return visitor.visitChildren(this);
         }
     }
 

@@ -608,8 +608,8 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                         termAtt.setLength(termAtt.length() - 1);
                     }
                     return true;
-                } else
-                    return false;
+                }
+                return false;
             }
         }
 

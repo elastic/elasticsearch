@@ -75,9 +75,7 @@ public class LongHashTests extends ESTestCase {
             for (int i = 0; i < 797; i++) {
                 long count = hash.size();
                 long key = hash.add(randomLong());
-                if (key < 0) assertEquals(hash.size(), count);
-                else
-                    assertEquals(hash.size(), count + 1);
+                assertEquals(hash.size(), key < 0 ? count : count + 1);
                 if (i % mod == 0) {
                     hash.close();
                     hash = randomHash();

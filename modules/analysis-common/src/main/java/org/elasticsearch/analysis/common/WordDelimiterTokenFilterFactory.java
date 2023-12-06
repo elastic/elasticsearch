@@ -138,8 +138,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         else if (s.equals("DIGIT")) return WordDelimiterFilter.DIGIT;
         else if (s.equals("ALPHANUM")) return WordDelimiterFilter.ALPHANUM;
         else if (s.equals("SUBWORD_DELIM")) return WordDelimiterFilter.SUBWORD_DELIM;
-        else
-            return null;
+        return null;
     }
 
     private static String parseString(String s) {

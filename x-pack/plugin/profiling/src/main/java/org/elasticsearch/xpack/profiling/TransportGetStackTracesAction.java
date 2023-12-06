@@ -408,9 +408,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             return;
         }
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
-        List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
         ClusterState clusterState = clusterService.state();
         List<Index> indices = resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
+        // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
+        int sliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, indices) ? 1 : desiredSlices;
+        log.trace("Using [{}] slice(s) to lookup stacktraces.", sliceCount);
+        List<List<String>> slicedEventIds = sliced(eventIds, sliceCount);
 
         // Build a set of unique host IDs.
         Set<String> uniqueHostIDs = new HashSet<>(responseBuilder.hostEventCounts.size());
@@ -464,7 +467,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     // package private for testing
     static <T> List<List<T>> sliced(List<T> c, int slices) {
-        if (c.size() <= slices) {
+        if (c.size() <= slices || slices == 1) {
             return List.of(c);
         }
         List<List<T>> slicedList = new ArrayList<>();
@@ -628,9 +631,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         if (mayNotifyOfCancellation(submitTask, submitListener)) {
             return;
         }
-
-        List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, desiredDetailSlices);
-        List<List<String>> slicedExecutableIds = sliced(executableIds, desiredDetailSlices);
         List<Index> stackFrameIndices = resolver.resolve(
             clusterState,
             "profiling-stackframes",
@@ -643,6 +643,18 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             responseBuilder.getStart(),
             responseBuilder.getEnd()
         );
+        // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
+        int stackFrameSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, stackFrameIndices) ? 1 : desiredDetailSlices;
+        int executableSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, executableIndices) ? 1 : desiredDetailSlices;
+        log.trace(
+            "Using [{}] slice(s) to lookup stack frames and [{}] slice(s) to lookup executables.",
+            stackFrameSliceCount,
+            executableSliceCount
+        );
+
+        List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, stackFrameSliceCount);
+        List<List<String>> slicedExecutableIds = sliced(executableIds, executableSliceCount);
+
         DetailsHandler handler = new DetailsHandler(
             responseBuilder,
             submitListener,

@@ -79,9 +79,16 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
             GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(getStackTracesRequest);
             responseBuilder.setSamplingRate(0.04d);
             responseBuilder.setTotalFrames(523);
+            responseBuilder.setTotalSamples(3L);
 
             GetStackTracesResponse response = responseBuilder.build();
-            assertEquals(new GetStackTracesResponse(null, null, null, null, 523, 0.04d, 0L), response);
+            assertNull(response.getStackTraces());
+            assertNull(response.getStackFrames());
+            assertNull(response.getExecutables());
+            assertNull(response.getStackTraceEvents());
+            assertEquals(response.getSamplingRate(), 0.04d, 0.0001d);
+            assertEquals(response.getTotalFrames(), 523);
+            assertEquals(response.getTotalSamples(), 3L);
 
             return response;
         });

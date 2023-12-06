@@ -179,11 +179,14 @@ public class ServerProcessBuilder {
             String command = javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
 
             var jvmArgs = List.of(
-                "--module-path", esHome.resolve("lib").toString(),
+                "--module-path",
+                esHome.resolve("lib").toString(),
                 // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
                 "--add-modules=jdk.net", // needed to reflectively set extended socket options
                 // we control the module path, which may have additional modules not required by server
-                "--add-modules=ALL-MODULE-PATH", "-m", "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch"
+                "--add-modules=ALL-MODULE-PATH",
+                "-m",
+                "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch"
             );
 
             return new ServerProcessBuilder(
@@ -241,9 +244,7 @@ public class ServerProcessBuilder {
 
     private Process createProcess() throws InterruptedException, IOException {
 
-        var builder = new ProcessBuilder(
-            Stream.concat(Stream.of(command), Stream.concat(jvmOptions.stream(), jvmArgs.stream())).toList()
-        );
+        var builder = new ProcessBuilder(Stream.concat(Stream.of(command), Stream.concat(jvmOptions.stream(), jvmArgs.stream())).toList());
         builder.environment().putAll(environment);
         builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 

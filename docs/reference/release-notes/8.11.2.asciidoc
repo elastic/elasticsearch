@@ -3,7 +3,7 @@
 
 Also see <<breaking-changes-8.11,Breaking changes in 8.11>>.
 
-[[known-issues-8.11.1]]
+[[known-issues-8.11.2]]
 [float]
 === Known issues
 include::8.10.3.asciidoc[tag=no-preventive-gc-issue]

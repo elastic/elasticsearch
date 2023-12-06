@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class WarningsIT extends AbstractEsqlIntegTestCase {
 
     public void testCollectWarnings() {
-        internalCluster().ensureAtLeastNumDataNodes(2);
         final String node1, node2;
         if (randomBoolean()) {
             internalCluster().ensureAtLeastNumDataNodes(2);

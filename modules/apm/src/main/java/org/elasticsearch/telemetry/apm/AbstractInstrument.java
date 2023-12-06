@@ -17,6 +17,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * An instrument that contains the name, description and unit.  The delegate may be replaced when
@@ -26,26 +27,23 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public abstract class AbstractInstrument<T> implements Instrument {
     private static final int MAX_NAME_LENGTH = 255;
-    private final AtomicReference<T> delegate;
+    private final AtomicReference<T> delegate = new AtomicReference<>();
     private final String name;
-    private final String description;
-    private final String unit;
+    private final Function<Meter, T> instrumentBuilder;
 
-    @SuppressWarnings("this-escape")
-    public AbstractInstrument(Meter meter, String name, String description, String unit) {
+    public AbstractInstrument(Meter meter, String name, Function<Meter, T> instrumentBuilder) {
+        checkMaxLength(name);
         this.name = Objects.requireNonNull(name);
+        this.instrumentBuilder = m -> AccessController.doPrivileged((PrivilegedAction<T>) () -> instrumentBuilder.apply(m));
+        this.delegate.set(this.instrumentBuilder.apply(meter));
+    }
+
+    protected static void checkMaxLength(String name) {
         if (name.length() > MAX_NAME_LENGTH) {
             throw new IllegalArgumentException(
                 "Instrument name [" + name + "] with length [" + name.length() + "] exceeds maximum length [" + MAX_NAME_LENGTH + "]"
             );
         }
-        this.description = Objects.requireNonNull(description);
-        this.unit = Objects.requireNonNull(unit);
-        this.delegate = new AtomicReference<>(doBuildInstrument(meter));
-    }
-
-    private T doBuildInstrument(Meter meter) {
-        return AccessController.doPrivileged((PrivilegedAction<T>) () -> buildInstrument(meter));
     }
 
     @Override
@@ -53,21 +51,11 @@ public abstract class AbstractInstrument<T> implements Instrument {
         return name;
     }
 
-    public String getUnit() {
-        return unit.toString();
-    }
-
     protected T getInstrument() {
         return delegate.get();
     }
 
-    protected String getDescription() {
-        return description;
-    }
-
     void setProvider(@Nullable Meter meter) {
-        delegate.set(doBuildInstrument(Objects.requireNonNull(meter)));
+        delegate.set(instrumentBuilder.apply(Objects.requireNonNull(meter)));
     }
-
-    protected abstract T buildInstrument(Meter meter);
 }

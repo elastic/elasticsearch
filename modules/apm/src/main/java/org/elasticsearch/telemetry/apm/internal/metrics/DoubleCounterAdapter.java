@@ -15,6 +15,7 @@ import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * DoubleGaugeAdapter wraps an otel ObservableDoubleMeasurement
@@ -22,16 +23,15 @@ import java.util.Objects;
 public class DoubleCounterAdapter extends AbstractInstrument<DoubleCounter> implements org.elasticsearch.telemetry.metric.DoubleCounter {
 
     public DoubleCounterAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, name, description, unit);
+        super(
+            meter,
+            name,
+            instrumentBuilder(Objects.requireNonNull(name), Objects.requireNonNull(description), Objects.requireNonNull(unit))
+        );
     }
 
-    protected io.opentelemetry.api.metrics.DoubleCounter buildInstrument(Meter meter) {
-        return Objects.requireNonNull(meter)
-            .counterBuilder(getName())
-            .ofDoubles()
-            .setDescription(getDescription())
-            .setUnit(getUnit())
-            .build();
+    protected static Function<Meter, DoubleCounter> instrumentBuilder(String name, String description, String unit) {
+        return meter -> Objects.requireNonNull(meter).counterBuilder(name).ofDoubles().setDescription(description).setUnit(unit).build();
     }
 
     @Override

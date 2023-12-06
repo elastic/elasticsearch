@@ -15,20 +15,22 @@ import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * LongCounterAdapter wraps an otel LongCounter
  */
 public class LongCounterAdapter extends AbstractInstrument<LongCounter> implements org.elasticsearch.telemetry.metric.LongCounter {
-
     public LongCounterAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, name, description, unit);
+        super(
+            meter,
+            name,
+            instrumentBuilder(Objects.requireNonNull(name), Objects.requireNonNull(description), Objects.requireNonNull(unit))
+        );
     }
 
-    @Override
-    protected io.opentelemetry.api.metrics.LongCounter buildInstrument(Meter meter) {
-        var builder = Objects.requireNonNull(meter).counterBuilder(getName());
-        return builder.setDescription(getDescription()).setUnit(getUnit()).build();
+    protected static Function<Meter, LongCounter> instrumentBuilder(String name, String description, String unit) {
+        return meter -> Objects.requireNonNull(meter).counterBuilder(name).setDescription(description).setUnit(unit).build();
     }
 
     @Override

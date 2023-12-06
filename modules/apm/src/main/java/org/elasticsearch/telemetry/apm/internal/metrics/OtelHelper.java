@@ -9,8 +9,15 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
+import io.opentelemetry.api.metrics.ObservableLongMeasurement;
+
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 class OtelHelper {
     static Attributes fromMap(Map<String, Object> attributes) {
@@ -40,5 +47,37 @@ class OtelHelper {
             }
         });
         return builder.build();
+    }
+
+    static Consumer<ObservableDoubleMeasurement> doubleMeasurementCallback(Supplier<DoubleWithAttributes> observer) {
+        return measurement -> {
+            DoubleWithAttributes observation;
+            try {
+                observation = observer.get();
+            } catch (RuntimeException err) {
+                assert false : "observer must not throw [" + err.getMessage() + "]";
+                return;
+            }
+            if (observation == null) {
+                return;
+            }
+            measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+        };
+    }
+
+    static Consumer<ObservableLongMeasurement> longMeasurementCallback(Supplier<LongWithAttributes> observer) {
+        return measurement -> {
+            LongWithAttributes observation;
+            try {
+                observation = observer.get();
+            } catch (RuntimeException err) {
+                assert false : "observer must not throw [" + err.getMessage() + "]";
+                return;
+            }
+            if (observation == null) {
+                return;
+            }
+            measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+        };
     }
 }

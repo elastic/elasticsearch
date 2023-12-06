@@ -15,6 +15,7 @@ import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * DoubleHistogramAdapter wraps an otel DoubleHistogram
@@ -24,13 +25,15 @@ public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
         org.elasticsearch.telemetry.metric.DoubleHistogram {
 
     public DoubleHistogramAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, name, description, unit);
+        super(
+            meter,
+            name,
+            instrumentBuilder(Objects.requireNonNull(name), Objects.requireNonNull(description), Objects.requireNonNull(unit))
+        );
     }
 
-    @Override
-    protected io.opentelemetry.api.metrics.DoubleHistogram buildInstrument(Meter meter) {
-        var builder = Objects.requireNonNull(meter).histogramBuilder(getName());
-        return builder.setDescription(getDescription()).setUnit(getUnit()).build();
+    protected static Function<Meter, DoubleHistogram> instrumentBuilder(String name, String description, String unit) {
+        return meter -> Objects.requireNonNull(meter).histogramBuilder(name).setDescription(description).setUnit(unit).build();
     }
 
     @Override

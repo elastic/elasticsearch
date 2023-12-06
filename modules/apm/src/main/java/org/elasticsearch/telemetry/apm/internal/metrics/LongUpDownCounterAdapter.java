@@ -15,6 +15,7 @@ import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * LongUpDownCounterAdapter wraps an otel LongUpDownCounter
@@ -24,13 +25,15 @@ public class LongUpDownCounterAdapter extends AbstractInstrument<LongUpDownCount
         org.elasticsearch.telemetry.metric.LongUpDownCounter {
 
     public LongUpDownCounterAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, name, description, unit);
+        super(
+            meter,
+            name,
+            instrumentBuilder(Objects.requireNonNull(name), Objects.requireNonNull(description), Objects.requireNonNull(unit))
+        );
     }
 
-    @Override
-    protected io.opentelemetry.api.metrics.LongUpDownCounter buildInstrument(Meter meter) {
-        var builder = Objects.requireNonNull(meter).upDownCounterBuilder(getName());
-        return builder.setDescription(getDescription()).setUnit(getUnit()).build();
+    protected static Function<Meter, LongUpDownCounter> instrumentBuilder(String name, String description, String unit) {
+        return meter -> Objects.requireNonNull(meter).upDownCounterBuilder(name).setDescription(description).setUnit(unit).build();
     }
 
     @Override

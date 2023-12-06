@@ -113,18 +113,26 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
+                    boolean hasRoutingPath = allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey());
                     boolean useDynamicDimensions = allSettings.getAsBoolean(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), false);
-                    if ((allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false || useDynamicDimensions)
-                        && combinedTemplateMappings.isEmpty() == false) {
+                    if ((hasRoutingPath == false || useDynamicDimensions) && combinedTemplateMappings.isEmpty() == false) {
                         List<String> routingPaths = new ArrayList<>();
                         List<String> dynamicDimensions = new ArrayList<>();
                         findRoutingPathsAndDimensions(
                             indexName,
                             allSettings,
                             combinedTemplateMappings,
-                            routingPaths,
+                            hasRoutingPath ? null : routingPaths,
                             useDynamicDimensions ? dynamicDimensions : null
                         );
+                        if (useDynamicDimensions && hasRoutingPath == false && routingPaths.isEmpty() && dynamicDimensions.isEmpty()) {
+                            throw new IllegalStateException(
+                                "index "
+                                    + indexName
+                                    + " with [index.mode=time_series] has no routing path and no dynamic templates with fields marked"
+                                    + " as [time_series_dimension]"
+                            );
+                        }
                         if (routingPaths.isEmpty() == false) {
                             builder.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
@@ -156,7 +164,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         String indexName,
         Settings allSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        List<String> routingPaths,
+        @Nullable List<String> routingPaths,
         @Nullable List<String> dynamicDimensions
     ) {
         var tmpIndexMetadata = IndexMetadata.builder(indexName);
@@ -182,8 +190,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         // Create MapperService just to extract keyword dimension fields:
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
-            for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
-                extractPath(routingPaths, fieldMapper);
+            if (routingPaths != null) {
+                for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
+                    extractPath(routingPaths, fieldMapper);
+                }
             }
             for (var template : mapperService.getAllDynamicTemplates()) {
                 var templateName = "__dynamic__" + template.name();
@@ -193,15 +203,17 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     continue;
                 }
 
-                MappingParserContext parserContext = mapperService.parserContext();
-                for (String pathMatch : template.pathMatch()) {
-                    var mapper = parserContext.typeParser(mappingSnippetType)
-                        // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
-                        // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
-                        // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
-                        .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
-                        .build(MapperBuilderContext.root(false, false));
-                    extractPath(routingPaths, mapper);
+                if (routingPaths != null) {
+                    MappingParserContext parserContext = mapperService.parserContext();
+                    for (String pathMatch : template.pathMatch()) {
+                        var mapper = parserContext.typeParser(mappingSnippetType)
+                            // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
+                            // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
+                            // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
+                            .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
+                            .build(MapperBuilderContext.root(false, false));
+                        extractPath(routingPaths, mapper);
+                    }
                 }
 
                 if (dynamicDimensions != null) {

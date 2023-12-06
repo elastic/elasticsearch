@@ -32,6 +32,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -51,9 +52,9 @@ public abstract class IndexRouting {
      */
     public static IndexRouting fromIndexMetadataAndDynamicTemplates(IndexMetadata metadata, Map<String, String> dynamicTemplates) {
         if (false == metadata.getRoutingPaths().isEmpty() || false == dynamicTemplates.isEmpty()) {
-            List<String> dynamicDimensions = RoutingPathMatching.getDynamicDimensions(metadata, dynamicTemplates);
+            List<String> dynamicDimensions = ExtractFromSource.getDynamicDimensions(metadata, dynamicTemplates);
             if (false == metadata.getRoutingPaths().isEmpty() || false == dynamicDimensions.isEmpty()) {
-                return new RoutingPathMatching(metadata, dynamicDimensions);
+                return new ExtractFromSource(metadata, dynamicDimensions);
             }
         }
         if (metadata.isRoutingPartitionedIndex()) {
@@ -73,7 +74,7 @@ public abstract class IndexRouting {
      * Build the routing from {@link IndexMetadata} and provided dynamic dimensions.
      */
     public static IndexRouting fromIndexMetadataAndDynamicDimensions(IndexMetadata metadata, List<String> dynamicDimensions) {
-        return new RoutingPathMatching(metadata, dynamicDimensions);
+        return new ExtractFromSource(metadata, dynamicDimensions);
     }
 
     /**
@@ -86,7 +87,13 @@ public abstract class IndexRouting {
         if (fromDynamicTemplates.size() > 1) {
             // Sort and deduplicate dynamic dimensions so that they are always processed in the same order, regardless of their
             // ordering in the dynamic template spec.
-            fromDynamicTemplates = fromDynamicTemplates.stream().sorted().distinct().collect(Collectors.toList());
+            fromDynamicTemplates = fromDynamicTemplates.stream()
+                .map(str -> str.toLowerCase(Locale.ROOT))
+                .sorted()
+                .distinct()
+                .collect(Collectors.toList());
+        } else {
+            fromDynamicTemplates = List.of(fromDynamicTemplates.get(0).toLowerCase(Locale.ROOT));
         }
         List<String> combined = new ArrayList<>(fromRoutingPath);
         combined.addAll(fromDynamicTemplates);
@@ -269,12 +276,12 @@ public abstract class IndexRouting {
         }
     }
 
-    public static class RoutingPathMatching extends IndexRouting {
+    public static class ExtractFromSource extends IndexRouting {
         private final Predicate<String> isRoutingPath;
 
         private final XContentParserConfiguration parserConfig;
 
-        RoutingPathMatching(IndexMetadata metadata, List<String> dynamicDimensions) {
+        ExtractFromSource(IndexMetadata metadata, List<String> dynamicDimensions) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
@@ -315,11 +322,11 @@ public abstract class IndexRouting {
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            return hashToShardId(hashSource(sourceType, source).buildHash(RoutingPathMatching::defaultOnEmpty));
+            return hashToShardId(hashSource(sourceType, source).buildHash(ExtractFromSource::defaultOnEmpty));
         }
 
         public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
-            return hashSource(sourceType, source).createId(suffix, RoutingPathMatching::defaultOnEmpty);
+            return hashSource(sourceType, source).createId(suffix, ExtractFromSource::defaultOnEmpty);
         }
 
         public String createId(Map<String, Object> flat, byte[] suffix) {
@@ -329,7 +336,7 @@ public abstract class IndexRouting {
                     b.hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
                 }
             }
-            return b.createId(suffix, RoutingPathMatching::defaultOnEmpty);
+            return b.createId(suffix, ExtractFromSource::defaultOnEmpty);
         }
 
         private static int defaultOnEmpty() {

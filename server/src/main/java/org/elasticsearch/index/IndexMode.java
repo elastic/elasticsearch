@@ -200,7 +200,7 @@ public enum IndexMode {
 
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings, Map<String, String> dynamicTemplates) {
-            var routing = (IndexRouting.RoutingPathMatching) IndexRouting.fromIndexMetadataAndDynamicTemplates(
+            var routing = (IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadataAndDynamicTemplates(
                 settings.getIndexMetadata(),
                 dynamicTemplates
             );

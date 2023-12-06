@@ -105,7 +105,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, IndexRouting.RoutingPathMatching.Builder routingBuilder, BytesRef tsid) {
+    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
         List<IndexableField> timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampFields.isEmpty()) {
             throw new IllegalArgumentException(
@@ -123,7 +123,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
              * documents with valid mappings. *But* some invalid mappings will not parse the field but be rejected later by the dynamic
              * mappings machinery. So if there are any dynamic mappings or runtime fields we skip the assertion.
              */
-            IndexRouting.RoutingPathMatching indexRouting = (IndexRouting.RoutingPathMatching) context.indexSettings().getIndexRouting();
+            IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
             assert id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
             assert id.equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
         }
@@ -147,7 +147,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     public static String createId(
         boolean dynamicMappersExists,
-        IndexRouting.RoutingPathMatching.Builder routingBuilder,
+        IndexRouting.ExtractFromSource.Builder routingBuilder,
         BytesRef tsid,
         long timestamp,
         byte[] suffix

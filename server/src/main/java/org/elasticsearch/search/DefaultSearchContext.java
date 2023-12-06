@@ -927,7 +927,7 @@ final class DefaultSearchContext extends SearchContext {
                     routingPaths = IndexRouting.mergeDimensions(routingPaths, dynamicDimensions);
                 }
             }
-            return IdLoader.createTsIdLoader((IndexRouting.RoutingPathMatching) indexRouting, routingPaths);
+            return IdLoader.createTsIdLoader((IndexRouting.ExtractFromSource) indexRouting, routingPaths);
         }
         return IdLoader.fromLeafStoredFieldLoader();
     }

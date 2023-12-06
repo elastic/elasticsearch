@@ -63,7 +63,19 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        super(breaker, bigArrays);
+        this(breaker, bigArrays, null);
+    }
+
+    protected MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, BlockFactory parent) {
+        super(breaker, bigArrays, parent);
+    }
+
+    @Override
+    public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {
+        if (childBreaker.parentBreaker() != breaker()) {
+            throw new IllegalStateException("Different parent breaker");
+        }
+        return new MockBlockFactory(childBreaker, bigArrays(), this);
     }
 
     @Override

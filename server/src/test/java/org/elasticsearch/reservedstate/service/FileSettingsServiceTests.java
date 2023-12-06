@@ -67,14 +67,12 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         threadpool = new TestThreadPool("file_settings_service_tests");
 
-        var reroute = mock(RerouteService.class);
         clusterService = spy(
             new ClusterService(
                 Settings.builder().put(NODE_NAME_SETTING.getKey(), "test").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadpool,
-                new TaskManager(Settings.EMPTY, threadpool, Set.of()),
-                () -> reroute
+                new TaskManager(Settings.EMPTY, threadpool, Set.of())
             )
         );
 
@@ -101,7 +99,11 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
+        controller = new ReservedClusterStateService(
+            clusterService,
+            mock(RerouteService.class),
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
+        );
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
     }
 

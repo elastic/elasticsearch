@@ -89,7 +89,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
         this.customPerCoreWattX86 = customPerCoreWattX86;
-        this.customPerCoreWattARM64 = customPerCoreWattX86;
+        this.customPerCoreWattARM64 = customPerCoreWattARM64;
         this.customCostPerCoreHour = customCostPerCoreHour;
     }
 

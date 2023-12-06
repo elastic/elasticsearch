@@ -232,13 +232,13 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         final String customPreference = randomAlphaOfLength(10);
 
-        final String nodeId = prepareSearch("test").setQuery(matchAllQuery())
-            .setPreference(customPreference)
-            .get()
-            .getHits()
-            .getAt(0)
-            .getShard()
-            .getNodeId();
+        final String nodeId;
+        var response = prepareSearch("test").setQuery(matchAllQuery()).setPreference(customPreference).get();
+        try {
+            nodeId = response.getHits().getAt(0).getShard().getNodeId();
+        } finally {
+            response.decRef();
+        }
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 

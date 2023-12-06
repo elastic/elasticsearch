@@ -10,7 +10,6 @@ package org.elasticsearch.search.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,22 +55,12 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            shardResults = in.readMap(SearchProfileShardResult::new);
-        } else {
-            // Before 8.0.0 we only send the query phase result
-            shardResults = in.readMap(i -> new SearchProfileShardResult(new SearchProfileQueryPhaseResult(i), null));
-        }
+        shardResults = in.readMap(SearchProfileShardResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            out.writeMap(shardResults, StreamOutput::writeWriteable);
-        } else {
-            // Before 8.0.0 we only send the query phase
-            out.writeMap(shardResults, (o, r) -> r.getQueryPhase().writeTo(o));
-        }
+        out.writeMap(shardResults, StreamOutput::writeWriteable);
     }
 
     public Map<String, SearchProfileShardResult> getShardResults() {

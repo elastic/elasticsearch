@@ -34,12 +34,12 @@ public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSe
 
     @Override
     protected void doExecute(Task task, DeleteSecretRequest request, ActionListener<DeleteSecretResponse> listener) {
-        client.prepareDelete(FLEET_SECRETS_INDEX_NAME, request.id()).execute(ActionListener.wrap(deleteResponse -> {
+        client.prepareDelete(FLEET_SECRETS_INDEX_NAME, request.id()).execute(listener.delegateFailureAndWrap((delegate, deleteResponse) -> {
             if (deleteResponse.getResult() == Result.NOT_FOUND) {
-                listener.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
+                delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
                 return;
             }
-            listener.onResponse(new DeleteSecretResponse(deleteResponse.getResult() == Result.DELETED));
-        }, listener::onFailure));
+            delegate.onResponse(new DeleteSecretResponse(deleteResponse.getResult() == Result.DELETED));
+        }));
     }
 }

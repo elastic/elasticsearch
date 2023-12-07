@@ -175,14 +175,18 @@ public class DataFrameDataExtractor {
             // We've set allow_partial_search_results to false which means if something
             // goes wrong the request will throw.
             SearchResponse searchResponse = request.get();
-            LOGGER.trace(() -> "[" + context.jobId + "] Search response was obtained");
+            try {
+                LOGGER.trace(() -> "[" + context.jobId + "] Search response was obtained");
 
-            List<Row> rows = processSearchResponse(searchResponse);
+                List<Row> rows = processSearchResponse(searchResponse);
 
-            // Request was successfully executed and processed so we can restore the flag to retry if a future failure occurs
-            hasPreviousSearchFailed = false;
+                // Request was successfully executed and processed so we can restore the flag to retry if a future failure occurs
+                hasPreviousSearchFailed = false;
 
-            return rows;
+                return rows;
+            } finally {
+                searchResponse.decRef();
+            }
         } catch (Exception e) {
             if (hasPreviousSearchFailed) {
                 throw e;
@@ -370,9 +374,13 @@ public class DataFrameDataExtractor {
     public DataSummary collectDataSummary() {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-        long rows = searchResponse.getHits().getTotalHits().value;
-        LOGGER.debug(() -> format("[%s] Data summary rows [%s]", context.jobId, rows));
-        return new DataSummary(rows, organicFeatures.length + processedFeatures.length);
+        try {
+            long rows = searchResponse.getHits().getTotalHits().value;
+            LOGGER.debug(() -> format("[%s] Data summary rows [%s]", context.jobId, rows));
+            return new DataSummary(rows, organicFeatures.length + processedFeatures.length);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {

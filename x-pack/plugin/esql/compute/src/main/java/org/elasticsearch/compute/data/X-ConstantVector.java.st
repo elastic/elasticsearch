@@ -108,6 +108,6 @@ $endif$
             throw new IllegalStateException("can't release already released vector [" + this + "]");
         }
         released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

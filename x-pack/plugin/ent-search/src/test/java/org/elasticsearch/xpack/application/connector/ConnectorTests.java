@@ -47,10 +47,10 @@ public class ConnectorTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
+        String connectorId = "test-connector";
         String content = XContentHelper.stripWhitespace("""
             {
                "api_key_id":"test",
-               "connector_id":"test-connector",
                "custom_scheduling":{
                   "schedule-key":{
                      "configuration_overrides":{
@@ -206,12 +206,12 @@ public class ConnectorTests extends ESTestCase {
                "sync_now":false
             }""");
 
-        Connector connector = Connector.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        Connector connector = Connector.fromXContentBytes(new BytesArray(content), connectorId, XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(connector, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         Connector parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = Connector.fromXContent(parser);
+            parsed = Connector.fromXContent(parser, connectorId);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }

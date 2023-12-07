@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -165,18 +166,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             if (invocationOnMock.getArguments()[0] instanceof ActionType<?> v) {
                 ActionListener<?> l = (ActionListener<?>) invocationOnMock.getArguments()[2];
+                if (v == TransportClusterHealthAction.TYPE) {
+                    ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
+                    listener.onResponse(
+                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO)
+                    );
+                    return null;
+                }
                 ParameterizedType parameterizedType = (ParameterizedType) v.getClass().getGenericSuperclass();
                 Type t = parameterizedType.getActualTypeArguments()[0];
                 if (t.getTypeName().contains("AcknowledgedResponse")) {
                     ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) l;
                     listener.onResponse(AcknowledgedResponse.TRUE);
-                    return null;
-                }
-                if (t.getTypeName().contains("ClusterHealthResponse")) {
-                    ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
-                    listener.onResponse(
-                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO)
-                    );
                     return null;
                 }
                 fail("Mock not configured to handle generic type " + t.getTypeName());

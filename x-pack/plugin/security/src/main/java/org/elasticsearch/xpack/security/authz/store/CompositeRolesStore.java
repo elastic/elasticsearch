@@ -353,12 +353,12 @@ public class CompositeRolesStore {
             final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
             assert roleReferences.size() == 1;
 
-            roleReferences.iterator().next().resolve(roleReferenceResolver, listener.map(rolesRetrievalResult -> {
+            ActionListener.run(listener.<RolesRetrievalResult>map(rolesRetrievalResult -> {
                 if (rolesRetrievalResult.isSuccess() == false) {
                     throw new ElasticsearchException("role retrieval had one or more failures");
                 }
                 return rolesRetrievalResult.getRoleDescriptors();
-            }));
+            }), l -> roleReferences.iterator().next().resolve(roleReferenceResolver, l));
         });
     }
 

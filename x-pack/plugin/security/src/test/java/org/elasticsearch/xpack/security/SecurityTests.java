@@ -994,7 +994,14 @@ public class SecurityTests extends ESTestCase {
         final var exception = expectThrows(ElasticsearchException.class, () -> security.reload(inputSettings));
 
         assertThat(exception.getMessage(), containsString("secure settings reload failed for one or more security component"));
-        // TODO validate suppressed exceptions
+        if (failRemoteClusterCredentialsReload) {
+            assertThat(exception.getSuppressed()[0].getMessage(), containsString("failed remote cluster credentials reload"));
+            if (failRealmsReload) {
+                assertThat(exception.getSuppressed()[1].getMessage(), containsString("failed jwt realms reload"));
+            }
+        } else {
+            assertThat(exception.getSuppressed()[0].getMessage(), containsString("failed jwt realms reload"));
+        }
         // Verify both called despite failure
         verify(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any());
         verify(mockedRealms).stream();

@@ -37,7 +37,7 @@ setup:
   - match: { indexed_document_count: 0 }
   - match: { indexed_document_volume: 0 }
   - match: { deleted_document_count: 0 }
-  - exists: id
+  - match: { id: $id }
   - exists: created_at
   - exists: last_seen
 
@@ -66,7 +66,7 @@ setup:
   - match: { indexed_document_count: 0 }
   - match: { indexed_document_volume: 0 }
   - match: { deleted_document_count: 0 }
-  - exists: id
+  - match: { id: $id }
   - exists: created_at
   - exists: last_seen
 
@@ -94,7 +94,7 @@ setup:
   - match: { indexed_document_count: 0 }
   - match: { indexed_document_volume: 0 }
   - match: { deleted_document_count: 0 }
-  - exists: id
+  - match: { id: $id }
   - exists: created_at
   - exists: last_seen
 

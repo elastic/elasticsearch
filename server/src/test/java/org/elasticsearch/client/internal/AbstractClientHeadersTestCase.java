@@ -22,7 +22,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -48,7 +48,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     private static final ActionType<?>[] ACTIONS = new ActionType<?>[] {
         // client actions
         GetAction.INSTANCE,
-        SearchAction.INSTANCE,
+        TransportSearchAction.TYPE,
         DeleteAction.INSTANCE,
         DeleteStoredScriptAction.INSTANCE,
         IndexAction.INSTANCE,
@@ -97,7 +97,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
         // choosing arbitrary top level actions to test
         client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
-        client.prepareSearch().execute(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
+        client.prepareSearch().execute(new AssertingActionListener<>(TransportSearchAction.TYPE.name(), client.threadPool()));
         client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
         client.admin()
             .cluster()

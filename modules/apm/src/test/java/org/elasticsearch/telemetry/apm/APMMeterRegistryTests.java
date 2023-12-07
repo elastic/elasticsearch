@@ -88,13 +88,13 @@ public class APMMeterRegistryTests extends ESTestCase {
     public void testMaxNameLength() {
         APMMeterService apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel);
         apmMeter.start();
-        int max_length = 63;
+        int max_length = 255;
         var counter = apmMeter.getMeterRegistry().registerLongCounter("a".repeat(max_length), "desc", "count");
         assertThat(counter, instanceOf(LongCounter.class));
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> apmMeter.getMeterRegistry().registerLongCounter("a".repeat(max_length + 1), "desc", "count")
         );
-        assertThat(iae.getMessage(), containsString("exceeds maximum length [63]"));
+        assertThat(iae.getMessage(), containsString("exceeds maximum length [255]"));
     }
 }

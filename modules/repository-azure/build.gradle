@@ -30,8 +30,8 @@ versions << [
   'stax2API': '4.2.1',
   'woodstox': '6.4.0',
 
-  'reactorNetty': '1.0.24',
-  'reactorCore': '3.4.23',
+  'reactorNetty': '1.0.39',
+  'reactorCore': '3.4.34',
   'reactiveStreams': '1.0.4',
 ]
 
@@ -105,6 +105,7 @@ tasks.named("thirdPartyAudit").configure {
     'io.micrometer.core.instrument.DistributionSummary',
     'io.micrometer.core.instrument.DistributionSummary$Builder',
     'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.Meter$Type',
     'io.micrometer.core.instrument.MeterRegistry',
     'io.micrometer.core.instrument.Metrics',
     'io.micrometer.core.instrument.Tag',
@@ -117,6 +118,7 @@ tasks.named("thirdPartyAudit").configure {
     'io.micrometer.core.instrument.search.Search',
     'io.micrometer.core.instrument.Gauge',
     'io.micrometer.core.instrument.Gauge$Builder',
+    'io.micrometer.context.ContextAccessor',
 
     // from reactor-core kotlin extensions (to be deprecated from the library at some point on 3.3.x release)
     'kotlin.collections.ArraysKt',

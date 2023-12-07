@@ -1,0 +1,5 @@
+pr: 102599
+summary: "Recreate the Elasticsearch private temporary directory if it doesn't exist when an ML job is opened"
+area: Machine Learning
+type: bug
+issues: []

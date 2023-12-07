@@ -44,6 +44,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
      *                            See also {@code JwtRealm#authenticate}.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
+    @SuppressWarnings("this-escape")
     public JwtAuthenticationToken(
         SignedJWT signedJWT,
         byte[] userCredentialsHash,

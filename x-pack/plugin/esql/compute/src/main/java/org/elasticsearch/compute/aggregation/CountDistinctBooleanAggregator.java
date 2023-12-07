@@ -86,10 +86,10 @@ public class CountDistinctBooleanAggregator {
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset) {
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             assert blocks.length >= offset + 2;
-            blocks[offset + 0] = BooleanBlock.newConstantBlockWith((bits & BIT_FALSE) != 0, 1);
-            blocks[offset + 1] = BooleanBlock.newConstantBlockWith((bits & BIT_TRUE) != 0, 1);
+            blocks[offset + 0] = driverContext.blockFactory().newConstantBooleanBlockWith((bits & BIT_FALSE) != 0, 1);
+            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith((bits & BIT_TRUE) != 0, 1);
         }
 
         @Override

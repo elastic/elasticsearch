@@ -44,10 +44,10 @@ public class HuggingFaceElserRequestTests extends ESTestCase {
         assertThat(inputList, contains("abc"));
     }
 
-    public static HuggingFaceElserRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {
+    public static HuggingFaceInferenceRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {
         var account = new HuggingFaceAccount(new URI(url), new SecureString(apiKey.toCharArray()));
-        var entity = new HuggingFaceElserRequestEntity(List.of(input));
+        var entity = new HuggingFaceInferenceRequestEntity(List.of(input));
 
-        return new HuggingFaceElserRequest(account, entity);
+        return new HuggingFaceInferenceRequest(account, entity);
     }
 }

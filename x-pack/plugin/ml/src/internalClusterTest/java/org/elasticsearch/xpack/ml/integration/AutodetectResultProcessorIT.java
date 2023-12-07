@@ -777,8 +777,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Refresh the annotations index so that recently indexed annotation docs are visible.
         indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
-            .execute()
-            .actionGet();
+            .get();
 
         SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME);
         List<Annotation> annotations = new ArrayList<>();

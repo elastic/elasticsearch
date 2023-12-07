@@ -293,6 +293,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
             desiredBalanceReconciler.clear();
+
+            desiredBalanceReconciler.unassignedShards.set(0);
+            desiredBalanceReconciler.totalAllocations.set(0);
+            desiredBalanceReconciler.undesiredAllocations.set(0);
         }
     }
 

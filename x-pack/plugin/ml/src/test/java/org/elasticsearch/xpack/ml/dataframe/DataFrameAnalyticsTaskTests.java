@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -188,7 +188,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(searchHits);
-        doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
         doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
@@ -217,7 +217,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
 
         InOrder inOrder = inOrder(client, runnable);
-        inOrder.verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        inOrder.verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
         inOrder.verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
         inOrder.verify(runnable).run();
         inOrder.verifyNoMoreInteractions();
@@ -284,7 +284,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(SearchHits.EMPTY_WITH_TOTAL_HITS);
-        doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
         doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
@@ -315,7 +315,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         if (nodeShuttingDown == false) {
             // Verify progress was persisted
             ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-            verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
+            verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
             verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
 
             IndexRequest indexRequest = indexRequestCaptor.getValue();

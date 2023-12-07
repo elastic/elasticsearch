@@ -56,20 +56,20 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.ParsedScrollId;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -746,11 +746,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        authorize(authentication, SearchAction.NAME, request);
+        authorize(authentication, TransportSearchAction.TYPE.name(), request);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(SearchAction.NAME),
+            eq(TransportSearchAction.TYPE.name()),
             eq(request),
             authzInfoRoles(Role.EMPTY.names())
         );
@@ -768,7 +768,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             when(parsedScrollId.hasLocalIndices()).thenReturn(hasLocalIndices);
             if (hasLocalIndices) {
                 assertThrowsAuthorizationException(
-                    () -> authorize(authentication, SearchScrollAction.NAME, searchScrollRequest),
+                    () -> authorize(authentication, TransportSearchScrollAction.TYPE.name(), searchScrollRequest),
                     "indices:data/read/scroll",
                     "test user"
                 );
@@ -780,11 +780,11 @@ public class AuthorizationServiceTests extends ESTestCase {
                     authzInfoRoles(Role.EMPTY.names())
                 );
             } else {
-                authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
+                authorize(authentication, TransportSearchScrollAction.TYPE.name(), searchScrollRequest);
                 verify(auditTrail).accessGranted(
                     eq(requestId),
                     eq(authentication),
-                    eq(SearchScrollAction.NAME),
+                    eq(TransportSearchScrollAction.TYPE.name()),
                     eq(searchScrollRequest),
                     authzInfoRoles(Role.EMPTY.names())
                 );
@@ -804,11 +804,15 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        assertThrowsAuthorizationException(() -> authorize(authentication, SearchAction.NAME, request), SearchAction.NAME, "test user");
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+            TransportSearchAction.TYPE.name(),
+            "test user"
+        );
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),
-            eq(SearchAction.NAME),
+            eq(TransportSearchAction.TYPE.name()),
             eq(request),
             authzInfoRoles(Role.EMPTY.names())
         );
@@ -825,11 +829,15 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        assertThrowsAuthorizationException(() -> authorize(authentication, SearchAction.NAME, request), SearchAction.NAME, "test user");
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+            TransportSearchAction.TYPE.name(),
+            "test user"
+        );
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),
-            eq(SearchAction.NAME),
+            eq(TransportSearchAction.TYPE.name()),
             eq(request),
             authzInfoRoles(Role.EMPTY.names())
         );
@@ -898,7 +906,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
             if (hasLocalIndices) {
                 assertThrowsAuthorizationException(
-                    () -> authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest),
+                    () -> authorize(authentication, TransportOpenPointInTimeAction.TYPE.name(), openPointInTimeRequest),
                     "indices:data/read/open_point_in_time",
                     "test user"
                 );
@@ -910,7 +918,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                     authzInfoRoles(Role.EMPTY.names())
                 );
             } else {
-                authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest);
+                authorize(authentication, TransportOpenPointInTimeAction.TYPE.name(), openPointInTimeRequest);
                 verify(auditTrail).accessGranted(
                     eq(requestId),
                     eq(authentication),
@@ -928,7 +936,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        authorize(authentication, ClosePointInTimeAction.NAME, closePointInTimeRequest);
+        authorize(authentication, TransportClosePointInTimeAction.TYPE.name(), closePointInTimeRequest);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
@@ -941,7 +949,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testUnknownRoleCausesDenial() {
         Tuple<String, TransportRequest> tuple = randomFrom(
-            asList(new Tuple<>(SearchAction.NAME, new SearchRequest()), new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()))
+            asList(
+                new Tuple<>(TransportSearchAction.TYPE.name(), new SearchRequest()),
+                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())
+            )
         );
         String action = tuple.v1();
         TransportRequest request = tuple.v2();
@@ -973,7 +984,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testServiceAccountDenial() {
         Tuple<String, TransportRequest> tuple = randomFrom(
-            asList(new Tuple<>(SearchAction.NAME, new SearchRequest()), new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()))
+            asList(
+                new Tuple<>(TransportSearchAction.TYPE.name(), new SearchRequest()),
+                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())
+            )
         );
         String action = tuple.v1();
         TransportRequest request = tuple.v2();
@@ -1037,7 +1051,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testThatRoleWithNoIndicesIsDenied() {
         Tuple<String, TransportRequest> tuple = randomFrom(
-            new Tuple<>(SearchAction.NAME, new SearchRequest()),
+            new Tuple<>(TransportSearchAction.TYPE.name(), new SearchRequest()),
             new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())
         );
         String action = tuple.v1();
@@ -1104,14 +1118,14 @@ public class AuthorizationServiceTests extends ESTestCase {
             );
 
             assertThrowsAuthorizationException(
-                () -> authorize(authentication, SearchAction.NAME, searchRequest),
-                SearchAction.NAME,
+                () -> authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest),
+                TransportSearchAction.TYPE.name(),
                 "test user"
             );
             verify(auditTrail).accessDenied(
                 eq(requestId),
                 eq(authentication),
-                eq(SearchAction.NAME),
+                eq(TransportSearchAction.TYPE.name()),
                 eq(searchRequest),
                 authzInfoRoles(new String[] { role.getName() })
             );
@@ -1135,12 +1149,17 @@ public class AuthorizationServiceTests extends ESTestCase {
                 assertFalse(indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
             });
             final CountDownLatch latch = new CountDownLatch(1);
-            authorizationService.authorize(authentication, SearchAction.NAME, searchRequest, new LatchedActionListener<>(listener, latch));
+            authorizationService.authorize(
+                authentication,
+                TransportSearchAction.TYPE.name(),
+                searchRequest,
+                new LatchedActionListener<>(listener, latch)
+            );
             latch.await();
             verify(auditTrail).accessGranted(
                 eq(requestId),
                 eq(authentication),
-                eq(SearchAction.NAME),
+                eq(TransportSearchAction.TYPE.name()),
                 eq(searchRequest),
                 authzInfoRoles(new String[] { role.getName() })
             );
@@ -1176,11 +1195,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             null
         );
         this.setFakeOriginatingAction = false;
-        authorize(authentication, SearchAction.NAME, searchRequest, true, () -> {
+        authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest, true, () -> {
             verify(rolesStore).getRoles(Mockito.same(authentication), Mockito.any());
             IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             // Successful search action authorization should set a parent authorization header.
-            assertThat(securityContext.getParentAuthorization().action(), equalTo(SearchAction.NAME));
+            assertThat(securityContext.getParentAuthorization().action(), equalTo(TransportSearchAction.TYPE.name()));
             // Within the action handler, execute a child action (the query phase of search)
             authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, false, () -> {
                 // This child action triggers a second interaction with the role store (which is cached)
@@ -1196,7 +1215,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(SearchAction.NAME),
+            eq(TransportSearchAction.TYPE.name()),
             eq(searchRequest),
             authzInfoRoles(new String[] { role.getName() })
         );
@@ -1223,11 +1242,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        authorize(authentication, ClearScrollAction.NAME, clearScrollRequest);
+        authorize(authentication, TransportClearScrollAction.NAME, clearScrollRequest);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(ClearScrollAction.NAME),
+            eq(TransportClearScrollAction.NAME),
             eq(clearScrollRequest),
             authzInfoRoles(new String[] { role.getName() })
         );
@@ -1236,11 +1255,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(parsedScrollId.hasLocalIndices()).thenReturn(true);
         final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
         when(searchScrollRequest.parseScrollId()).thenReturn(parsedScrollId);
-        authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
+        authorize(authentication, TransportSearchScrollAction.TYPE.name(), searchScrollRequest);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(SearchScrollAction.NAME),
+            eq(TransportSearchScrollAction.TYPE.name()),
             eq(searchScrollRequest),
             authzInfoRoles(new String[] { role.getName() })
         );
@@ -1415,14 +1434,14 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException securityException = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> authorize(authentication, SearchAction.NAME, request)
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request)
         );
         assertThat(
             securityException,
             throwableWithMessage(
                 containsString(
                     "["
-                        + SearchAction.NAME
+                        + TransportSearchAction.TYPE.name()
                         + "] is unauthorized"
                         + " for user ["
                         + user.principal()
@@ -1963,7 +1982,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(
             new Tuple<>(BulkAction.NAME + "[s]", new IndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
         );
-        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))));
+        requests.add(
+            new Tuple<>(
+                TransportSearchAction.TYPE.name(),
+                new SearchRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
+            )
+        );
         requests.add(
             new Tuple<>(
                 TermVectorsAction.NAME,
@@ -2050,7 +2074,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
 
         final SearchRequest searchRequest = new SearchRequest("_all");
-        authorize(authentication, SearchAction.NAME, searchRequest);
+        authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest);
         assertEquals(2, searchRequest.indices().length);
         assertEquals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(searchRequest.indices()));
     }
@@ -2144,7 +2168,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
-        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))));
+        requests.add(
+            new Tuple<>(
+                TransportSearchAction.TYPE.name(),
+                new SearchRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
+            )
+        );
         requests.add(
             new Tuple<>(
                 TermVectorsAction.NAME,
@@ -2274,7 +2303,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
-        String action = SearchAction.NAME;
+        String action = TransportSearchAction.TYPE.name();
         SearchRequest request = new SearchRequest("_all");
         authorize(authentication, action, request);
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(superuser.roles()));
@@ -2360,7 +2389,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
             case 1 -> {
                 // reindex, msearch, search template, and multi search template delegate to search
-                action = SearchAction.NAME;
+                action = TransportSearchAction.TYPE.name();
                 request = mockRequest;
             }
             case 2 -> {
@@ -2955,7 +2984,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
         return switch (randomIntBetween(0, 7)) {
             case 0 -> Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
-            case 1 -> Tuple.tuple(MultiSearchAction.NAME, new MultiSearchRequest().add(new SearchRequest()));
+            case 1 -> Tuple.tuple(TransportMultiSearchAction.TYPE.name(), new MultiSearchRequest().add(new SearchRequest()));
             case 2 -> Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
             case 3 -> Tuple.tuple(BulkAction.NAME, new BulkRequest().add(new DeleteRequest("index", "id")));
             case 4 -> Tuple.tuple("indices:data/read/mpercolate", new MockCompositeIndicesRequest());
@@ -3461,7 +3490,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testRoleRestrictionAccessDenial() {
         Tuple<String, TransportRequest> tuple = randomFrom(
-            asList(new Tuple<>(SearchAction.NAME, new SearchRequest()), new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()))
+            asList(
+                new Tuple<>(TransportSearchAction.TYPE.name(), new SearchRequest()),
+                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())
+            )
         );
         String action = tuple.v1();
         TransportRequest request = tuple.v2();

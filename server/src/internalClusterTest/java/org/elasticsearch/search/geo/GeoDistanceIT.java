@@ -109,8 +109,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testDistanceScript() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")
@@ -191,8 +190,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testGeoDistanceAggregation() throws IOException {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "TestPosition")

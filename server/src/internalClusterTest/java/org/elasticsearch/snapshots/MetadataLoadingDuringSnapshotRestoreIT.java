@@ -56,11 +56,11 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         createIndex("docs");
         indexRandom(
             true,
-            client().prepareIndex("docs").setId("1").setSource("rank", 1),
-            client().prepareIndex("docs").setId("2").setSource("rank", 2),
-            client().prepareIndex("docs").setId("3").setSource("rank", 3),
-            client().prepareIndex("others").setSource("rank", 4),
-            client().prepareIndex("others").setSource("rank", 5)
+            prepareIndex("docs").setId("1").setSource("rank", 1),
+            prepareIndex("docs").setId("2").setSource("rank", 2),
+            prepareIndex("docs").setId("3").setSource("rank", 3),
+            prepareIndex("others").setSource("rank", 4),
+            prepareIndex("others").setSource("rank", 5)
         );
 
         createRepository("repository", CountingMockRepositoryPlugin.TYPE);

@@ -55,6 +55,10 @@ setup:
 
 ---
 "Test traces-apm-* data stream indexing":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/102360"
+
   - do:
       index:
         index: traces-apm-testing
@@ -171,7 +175,7 @@ setup:
               full_name: double_metric
               mapping:
                 double_metric:
-                  type: float
+                  type: double
                   index: false
             summary_metric:
               full_name: summary_metric

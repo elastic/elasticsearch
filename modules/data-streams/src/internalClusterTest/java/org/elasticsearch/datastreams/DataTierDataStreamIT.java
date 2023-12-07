@@ -43,8 +43,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
 
-        var dsIndexName = client().prepareIndex(index)
-            .setCreate(true)
+        var dsIndexName = prepareIndex(index).setCreate(true)
             .setId("1")
             .setSource("@timestamp", "2020-09-09")
             .setWaitForActiveShards(0)

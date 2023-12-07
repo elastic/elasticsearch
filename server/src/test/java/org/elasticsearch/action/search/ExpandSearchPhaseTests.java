@@ -102,7 +102,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                         mSearchResponses.add(new MultiSearchResponse.Item(mockSearchPhaseContext.searchResponse.get(), null));
                     }
 
-                    listener.onResponse(
+                    ActionListener.respondAndRelease(
+                        listener,
                         new MultiSearchResponse(mSearchResponses.toArray(new MultiSearchResponse.Item[0]), randomIntBetween(1, 10000))
                     );
                 }
@@ -164,7 +165,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
-                listener.onResponse(
+                ActionListener.respondAndRelease(
+                    listener,
                     new MultiSearchResponse(
                         new MultiSearchResponse.Item[] {
                             new MultiSearchResponse.Item(null, new RuntimeException("boom")),

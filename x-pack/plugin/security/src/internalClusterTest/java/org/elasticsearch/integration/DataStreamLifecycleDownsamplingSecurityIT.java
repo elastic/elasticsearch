@@ -72,6 +72,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.metadata.ClusterChangedEventUtils.indicesCreated;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
@@ -151,11 +152,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(firstRoundDownsamplingIndex)
+            if (indicesCreated(event).contains(firstRoundDownsamplingIndex)
                 || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(firstRoundDownsamplingIndex))) {
                 witnessedDownsamplingIndices.add(firstRoundDownsamplingIndex);
             }
-            if (event.indicesCreated().contains(secondRoundDownsamplingIndex)) {
+            if (indicesCreated(event).contains(secondRoundDownsamplingIndex)) {
                 witnessedDownsamplingIndices.add(secondRoundDownsamplingIndex);
             }
         });
@@ -203,7 +204,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(secondRoundDownsamplingIndex)) {
+            if (indicesCreated(event).contains(secondRoundDownsamplingIndex)) {
                 witnessedDownsamplingIndices.add(secondRoundDownsamplingIndex);
             }
         });

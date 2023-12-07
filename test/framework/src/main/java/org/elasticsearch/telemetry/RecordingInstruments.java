@@ -10,12 +10,14 @@ package org.elasticsearch.telemetry;
 
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -166,6 +168,28 @@ public class RecordingInstruments {
         public void incrementBy(long inc, Map<String, Object> attributes) {
             call(inc, attributes);
         }
+    }
+
+    public static class RecordingAsyncLongCounter extends CallbackRecordingInstrument implements LongAsyncCounter {
+
+        public RecordingAsyncLongCounter(String name, Supplier<LongWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+            super(name, () -> {
+                var observation = observer.get();
+                return new Tuple<>(observation.value(), observation.attributes());
+            }, recorder);
+        }
+
+    }
+
+    public static class RecordingAsyncDoubleCounter extends CallbackRecordingInstrument implements DoubleAsyncCounter {
+
+        public RecordingAsyncDoubleCounter(String name, Supplier<DoubleWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+            super(name, () -> {
+                var observation = observer.get();
+                return new Tuple<>(observation.value(), observation.attributes());
+            }, recorder);
+        }
+
     }
 
     public static class RecordingLongGauge extends CallbackRecordingInstrument implements LongGauge {

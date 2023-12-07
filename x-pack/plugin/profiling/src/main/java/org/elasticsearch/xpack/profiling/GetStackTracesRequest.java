@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -38,47 +37,123 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids");
+    public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
+    public static final ParseField AWS_COST_FACTOR_FIELD = new ParseField("aws_cost_factor");
+    public static final ParseField CUSTOM_CO2_PER_KWH = new ParseField("co2_per_kwh");
+    public static final ParseField CUSTOM_DATACENTER_PUE = new ParseField("datacenter_pue");
+    public static final ParseField CUSTOM_PER_CORE_WATT_X86 = new ParseField("per_core_watt_x86");
+    public static final ParseField CUSTOM_PER_CORE_WATT_ARM64 = new ParseField("per_core_watt_arm64");
+    public static final ParseField CUSTOM_COST_PER_CORE_HOUR = new ParseField("cost_per_core_hour");
+    private static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private QueryBuilder query;
     private Integer sampleSize;
     private String indices;
     private String stackTraceIds;
+    private Double requestedDuration;
+    private Double awsCostFactor;
+    private Double customCO2PerKWH;
+    private Double customDatacenterPUE;
+    private Double customPerCoreWattX86;
+    private Double customPerCoreWattARM64;
+    private Double customCostPerCoreHour;
 
-    // We intentionally don't expose this field via the REST API but we can control behavior within Elasticsearch.
+    // We intentionally don't expose this field via the REST API, but we can control behavior within Elasticsearch.
     // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
     // sample counts by default and remove this flag.
     private Boolean adjustSampleCount;
 
     public GetStackTracesRequest() {
-        this(null, null, null, null);
+        this(null, null, null, null, null, null, null, null, null, null, null);
     }
 
-    public GetStackTracesRequest(Integer sampleSize, QueryBuilder query, String indices, String stackTraceIds) {
+    public GetStackTracesRequest(
+        Integer sampleSize,
+        Double requestedDuration,
+        Double awsCostFactor,
+        QueryBuilder query,
+        String indices,
+        String stackTraceIds,
+        Double customCO2PerKWH,
+        Double customDatacenterPUE,
+        Double customPerCoreWattX86,
+        Double customPerCoreWattARM64,
+        Double customCostPerCoreHour
+    ) {
         this.sampleSize = sampleSize;
+        this.requestedDuration = requestedDuration;
+        this.awsCostFactor = awsCostFactor;
         this.query = query;
         this.indices = indices;
         this.stackTraceIds = stackTraceIds;
+        this.customCO2PerKWH = customCO2PerKWH;
+        this.customDatacenterPUE = customDatacenterPUE;
+        this.customPerCoreWattX86 = customPerCoreWattX86;
+        this.customPerCoreWattARM64 = customPerCoreWattARM64;
+        this.customCostPerCoreHour = customCostPerCoreHour;
     }
 
     public GetStackTracesRequest(StreamInput in) throws IOException {
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.sampleSize = in.readOptionalInt();
+        this.requestedDuration = in.readOptionalDouble();
+        this.awsCostFactor = in.readOptionalDouble();
         this.adjustSampleCount = in.readOptionalBoolean();
         this.indices = in.readOptionalString();
         this.stackTraceIds = in.readOptionalString();
+        this.customCO2PerKWH = in.readOptionalDouble();
+        this.customDatacenterPUE = in.readOptionalDouble();
+        this.customPerCoreWattX86 = in.readOptionalDouble();
+        this.customPerCoreWattARM64 = in.readOptionalDouble();
+        this.customCostPerCoreHour = in.readOptionalDouble();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalInt(sampleSize);
+        out.writeOptionalDouble(requestedDuration);
+        out.writeOptionalDouble(awsCostFactor);
         out.writeOptionalBoolean(adjustSampleCount);
         out.writeOptionalString(indices);
         out.writeOptionalString(stackTraceIds);
+        out.writeOptionalDouble(customCO2PerKWH);
+        out.writeOptionalDouble(customDatacenterPUE);
+        out.writeOptionalDouble(customPerCoreWattX86);
+        out.writeOptionalDouble(customPerCoreWattARM64);
+        out.writeOptionalDouble(customCostPerCoreHour);
     }
 
     public Integer getSampleSize() {
-        return sampleSize;
+        return sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
+    }
+
+    public Double getRequestedDuration() {
+        return requestedDuration;
+    }
+
+    public Double getAwsCostFactor() {
+        return awsCostFactor;
+    }
+
+    public Double getCustomCO2PerKWH() {
+        return customCO2PerKWH;
+    }
+
+    public Double getCustomDatacenterPUE() {
+        return customDatacenterPUE;
+    }
+
+    public Double getCustomPerCoreWattX86() {
+        return customPerCoreWattX86;
+    }
+
+    public Double getCustomPerCoreWattARM64() {
+        return customPerCoreWattARM64;
+    }
+
+    public Double getCustomCostPerCoreHour() {
+        return customCostPerCoreHour;
     }
 
     public QueryBuilder getQuery() {
@@ -122,6 +197,20 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     this.indices = parser.text();
                 } else if (STACKTRACE_IDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.stackTraceIds = parser.text();
+                } else if (REQUESTED_DURATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.requestedDuration = parser.doubleValue();
+                } else if (AWS_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.awsCostFactor = parser.doubleValue();
+                } else if (CUSTOM_CO2_PER_KWH.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customCO2PerKWH = parser.doubleValue();
+                } else if (CUSTOM_DATACENTER_PUE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customDatacenterPUE = parser.doubleValue();
+                } else if (CUSTOM_PER_CORE_WATT_X86.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customPerCoreWattX86 = parser.doubleValue();
+                } else if (CUSTOM_PER_CORE_WATT_ARM64.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customPerCoreWattARM64 = parser.doubleValue();
+                } else if (CUSTOM_COST_PER_CORE_HOUR.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customCostPerCoreHour = parser.doubleValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -172,19 +261,25 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     validationException
                 );
             }
-            if (sampleSize == null) {
-                validationException = addValidationError(
-                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] is mandatory",
-                    validationException
-                );
-            } else if (sampleSize <= 0) {
-                validationException = addValidationError(
-                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] must be greater or equals than 1, got: " + sampleSize,
-                    validationException
-                );
+            validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
+        }
+        validationException = requirePositive(REQUESTED_DURATION_FIELD, requestedDuration, validationException);
+        validationException = requirePositive(AWS_COST_FACTOR_FIELD, awsCostFactor, validationException);
+        validationException = requirePositive(CUSTOM_CO2_PER_KWH, customCO2PerKWH, validationException);
+        validationException = requirePositive(CUSTOM_DATACENTER_PUE, customDatacenterPUE, validationException);
+        validationException = requirePositive(CUSTOM_PER_CORE_WATT_X86, customPerCoreWattX86, validationException);
+        validationException = requirePositive(CUSTOM_PER_CORE_WATT_ARM64, customPerCoreWattARM64, validationException);
+        validationException = requirePositive(CUSTOM_COST_PER_CORE_HOUR, customCostPerCoreHour, validationException);
+        return validationException;
+    }
+
+    private static ActionRequestValidationException requirePositive(ParseField field, Number value, ActionRequestValidationException e) {
+        if (value != null) {
+            if (value.doubleValue() <= 0.0d) {
+                return addValidationError("[" + field.getPreferredName() + "] must be greater than 0, got: " + value, e);
             }
         }
-        return validationException;
+        return e;
     }
 
     @Override
@@ -194,29 +289,31 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
             public String getDescription() {
                 // generating description lazily since the query could be large
                 StringBuilder sb = new StringBuilder();
-                if (indices == null) {
-                    sb.append("indices[]");
-                } else {
-                    sb.append("indices[").append(indices).append("]");
-                }
-                if (stackTraceIds == null) {
-                    sb.append("stackTraceIds[]");
-                } else {
-                    sb.append("stackTraceIds[").append(stackTraceIds).append("]");
-                }
-                if (sampleSize == null) {
-                    sb.append("sample_size[]");
-                } else {
-                    sb.append("sample_size[").append(sampleSize).append("]");
-                }
-                if (query == null) {
-                    sb.append(", query[]");
-                } else {
-                    sb.append(", query[").append(Strings.toString(query)).append("]");
-                }
+                appendField(sb, "indices", indices);
+                appendField(sb, "stacktrace_ids", stackTraceIds);
+                appendField(sb, "sample_size", sampleSize);
+                appendField(sb, "requested_duration", requestedDuration);
+                appendField(sb, "aws_cost_factor", awsCostFactor);
+                appendField(sb, "co2_per_kwh", customCO2PerKWH);
+                appendField(sb, "datacenter_pue", customDatacenterPUE);
+                appendField(sb, "per_core_watt_x86", customPerCoreWattX86);
+                appendField(sb, "per_core_watt_arm64", customPerCoreWattARM64);
+                appendField(sb, "cost_per_core_hour", customCostPerCoreHour);
+                appendField(sb, "query", query);
                 return sb.toString();
             }
         };
+    }
+
+    private static void appendField(StringBuilder sb, String name, Object value) {
+        if (sb.isEmpty() == false) {
+            sb.append(", ");
+        }
+        if (value == null) {
+            sb.append(name).append("[]");
+        } else {
+            sb.append(name).append("[").append(value).append("]");
+        }
     }
 
     @Override

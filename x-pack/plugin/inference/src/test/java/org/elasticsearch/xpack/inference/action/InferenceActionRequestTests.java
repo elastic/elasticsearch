@@ -12,6 +12,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.io.IOException;
 import java.util.ArrayList;

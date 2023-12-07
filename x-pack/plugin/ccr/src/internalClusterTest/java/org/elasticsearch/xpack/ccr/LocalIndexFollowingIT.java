@@ -47,7 +47,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
+            prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
@@ -59,7 +59,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < secondBatchNumDocs; i++) {
-            client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
+            prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -74,7 +74,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long thirdBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
-            client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
+            prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
@@ -99,7 +99,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         for (int i = 0; i < firstBatchNumDocs; i++) {
             BytesArray source = new BytesArray("{}");
             sourceSize += source.length();
-            client().prepareIndex("leader").setSource(source, XContentType.JSON).get();
+            prepareIndex("leader").setSource(source, XContentType.JSON).get();
         }
 
         ThreadPool nodeThreadPool = getInstanceFromNode(ThreadPool.class);
@@ -163,7 +163,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
         createIndex("logs-20200101", leaderIndexSettings);
-        client().prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
+        prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
             assertThat(
@@ -182,7 +182,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         // This new index should be picked up by auto follow coordinator
         createIndex("logs-20200102", leaderIndexSettings);
         // This new document should be replicated to follower index:
-        client().prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
+        prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
             assertThat(
@@ -207,7 +207,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         ensureGreen("index-1");
         int numDocs = between(1, 100);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("index-1").setSource("{}", XContentType.JSON).get();
+            prepareIndex("index-1").setSource("{}", XContentType.JSON).get();
         }
         client().execute(PutFollowAction.INSTANCE, getPutFollowRequest("index-1", "index-2")).get();
         assertBusy(() -> assertThat(client().prepareSearch("index-2").get().getHits().getTotalHits().value, equalTo((long) numDocs)));
@@ -221,7 +221,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             newDocs = numDocs + randomIntBetween(1, 100);
         }
         for (int i = 0; i < newDocs; i++) {
-            client().prepareIndex("index-0").setSource("{}", XContentType.JSON).get();
+            prepareIndex("index-0").setSource("{}", XContentType.JSON).get();
         }
         if (randomBoolean()) {
             client().admin().indices().prepareFlush("index-0").get();

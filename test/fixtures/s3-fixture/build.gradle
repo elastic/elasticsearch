@@ -6,24 +6,14 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.test.fixtures'
 
 description = 'Fixture for S3 Storage service'
-tasks.named("test").configure { enabled = false }
+//tasks.named("test").configure { enabled = false }
 
 dependencies {
   api project(':server')
-  testImplementation project(':test:framework')
-}
-
-tasks.named("preProcessFixture").configure {
-  dependsOn "jar", configurations.runtimeClasspath
-  doLast {
-    file("${testFixturesDir}/shared").mkdirs()
-    project.copy {
-      from jar
-      from configurations.runtimeClasspath
-      into "${testFixturesDir}/shared"
-    }
+  api("junit:junit:${versions.junit}") {
+    transitive = false
   }
+  testImplementation project(':test:framework')
 }

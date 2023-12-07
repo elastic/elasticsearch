@@ -1,0 +1,5 @@
+pr: 102779
+summary: Allow mismatched sort-by field types if there are no docs to sort
+area: Search
+type: bug
+issues: []

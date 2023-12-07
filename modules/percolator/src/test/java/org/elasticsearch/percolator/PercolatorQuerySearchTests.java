@@ -73,8 +73,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
 
     public void testPercolateScriptQuery() throws IOException {
         indicesAdmin().prepareCreate("index").setMapping("query", "type=percolator").get();
-        client().prepareIndex("index")
-            .setId("1")
+        prepareIndex("index").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -84,8 +83,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                     .endObject()
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute()
-            .actionGet();
+            .get();
         assertSearchHitsWithoutFailures(
             client().prepareSearch("index")
                 .setQuery(
@@ -126,8 +124,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                 .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false))
                 .setMapping(mapping)
         );
-        client().prepareIndex("test")
-            .setId("q1")
+        prepareIndex("test").setId("q1")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -215,8 +212,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         mapping.endObject();
         createIndex("test", indicesAdmin().prepareCreate("test").setMapping(mapping));
         Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "use_fielddata_please", Collections.emptyMap());
-        client().prepareIndex("test")
-            .setId("q1")
+        prepareIndex("test").setId("q1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", QueryBuilders.nestedQuery("employees", QueryBuilders.scriptQuery(script), ScoreMode.Avg))
@@ -258,8 +254,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
     public void testMapUnmappedFieldAsText() throws IOException {
         Settings.Builder settings = Settings.builder().put("index.percolator.map_unmapped_fields_as_text", true);
         createIndex("test", settings.build(), "query", "query", "type=percolator");
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject())
             .get();
         indicesAdmin().prepareRefresh().get();
@@ -290,12 +285,10 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             "type=percolator"
         );
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from("now-1h").to("now+1h")).endObject())
             .get();
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -307,8 +300,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .get();
 
         Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "1==1", Collections.emptyMap());
-        client().prepareIndex("test")
-            .setId("3")
+        prepareIndex("test").setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", boolQuery().filter(scriptQuery(script)).filter(rangeQuery("field2").from("now-1h").to("now+1h")))

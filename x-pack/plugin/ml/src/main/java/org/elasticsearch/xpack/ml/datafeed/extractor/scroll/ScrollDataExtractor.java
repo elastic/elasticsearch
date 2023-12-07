@@ -9,14 +9,12 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -85,6 +83,12 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     @Override
+    public void destroy() {
+        cancel();
+        clearScroll();
+    }
+
+    @Override
     public long getEndTime() {
         return context.end;
     }
@@ -118,12 +122,15 @@ class ScrollDataExtractor implements DataExtractor {
     protected InputStream initScroll(long startTimestamp) throws IOException {
         logger.debug("[{}] Initializing scroll with start time [{}]", context.jobId, startTimestamp);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
-        logger.debug("[{}] Search response was obtained", context.jobId);
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        scrollId = searchResponse.getScrollId();
-        SearchHit hits[] = searchResponse.getHits().getHits();
-        searchResponse = null;
-        return processAndConsumeSearchHits(hits);
+        try {
+            logger.debug("[{}] Search response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            scrollId = searchResponse.getScrollId();
+            SearchHit hits[] = searchResponse.getHits().getHits();
+            return processAndConsumeSearchHits(hits);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
@@ -133,11 +140,17 @@ class ScrollDataExtractor implements DataExtractor {
             client,
             searchRequestBuilder::get
         );
+        boolean success = false;
         try {
             checkForSkippedClusters(searchResponse);
+            success = true;
         } catch (ResourceNotFoundException e) {
             clearScrollLoggingExceptions(searchResponse.getScrollId());
             throw e;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
         }
         return searchResponse;
     }
@@ -148,7 +161,7 @@ class ScrollDataExtractor implements DataExtractor {
             .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), start, context.end))
             .runtimeMappings(context.runtimeMappings);
 
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE).setScroll(SCROLL_TIMEOUT)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client).setScroll(SCROLL_TIMEOUT)
             .setIndices(context.indices)
             .setIndicesOptions(context.indicesOptions)
             .setAllowPartialSearchResults(false)
@@ -209,23 +222,28 @@ class ScrollDataExtractor implements DataExtractor {
 
     private InputStream continueScroll() throws IOException {
         logger.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
-        SearchResponse searchResponse;
+        SearchResponse searchResponse = null;
         try {
-            searchResponse = executeSearchScrollRequest(scrollId);
-        } catch (SearchPhaseExecutionException searchExecutionException) {
-            if (searchHasShardFailure) {
-                throw searchExecutionException;
+            try {
+                searchResponse = executeSearchScrollRequest(scrollId);
+            } catch (SearchPhaseExecutionException searchExecutionException) {
+                if (searchHasShardFailure) {
+                    throw searchExecutionException;
+                }
+                logger.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
+                markScrollAsErrored();
+                searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
             }
-            logger.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
-            markScrollAsErrored();
-            searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
+            logger.debug("[{}] Search response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            scrollId = searchResponse.getScrollId();
+            SearchHit hits[] = searchResponse.getHits().getHits();
+            return processAndConsumeSearchHits(hits);
+        } finally {
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
         }
-        logger.debug("[{}] Search response was obtained", context.jobId);
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        scrollId = searchResponse.getScrollId();
-        SearchHit hits[] = searchResponse.getHits().getHits();
-        searchResponse = null;
-        return processAndConsumeSearchHits(hits);
     }
 
     void markScrollAsErrored() {
@@ -244,13 +262,19 @@ class ScrollDataExtractor implements DataExtractor {
             context.headers,
             ClientHelper.ML_ORIGIN,
             client,
-            () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
+            () -> new SearchScrollRequestBuilder(client).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
         );
+        boolean success = false;
         try {
             checkForSkippedClusters(searchResponse);
+            success = true;
         } catch (ResourceNotFoundException e) {
             clearScrollLoggingExceptions(searchResponse.getScrollId());
             throw e;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
         }
         return searchResponse;
     }
@@ -278,7 +302,7 @@ class ScrollDataExtractor implements DataExtractor {
                 context.headers,
                 ClientHelper.ML_ORIGIN,
                 client,
-                () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet()
+                () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
             );
         }
     }

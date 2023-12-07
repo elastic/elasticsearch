@@ -438,14 +438,4 @@ public class TransportNodesActionTests extends ESTestCase {
         }
     }
 
-    private static class OtherNodeResponse extends BaseNodeResponse {
-        OtherNodeResponse() {
-            super(mock(DiscoveryNode.class));
-        }
-
-        protected OtherNodeResponse(StreamInput in) throws IOException {
-            super(in);
-        }
-    }
-
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -134,6 +136,24 @@ public class DriverContextTests extends ESTestCase {
             equalTo(false)
         );
         finishedReleasables.stream().flatMap(Set::stream).forEach(Releasable::close);
+    }
+
+    public void testWaitForAsyncActions() {
+        DriverContext driverContext = new AssertingDriverContext();
+        driverContext.addAsyncAction();
+        driverContext.addAsyncAction();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        driverContext.waitForAsyncActions(future);
+        assertFalse(future.isDone());
+        driverContext.finish();
+        assertFalse(future.isDone());
+        IllegalStateException error = expectThrows(IllegalStateException.class, driverContext::addAsyncAction);
+        assertThat(error.getMessage(), equalTo("DriverContext was finished already"));
+        driverContext.removeAsyncAction();
+        assertFalse(future.isDone());
+        driverContext.removeAsyncAction();
+        assertTrue(future.isDone());
+        Releasables.closeExpectNoException(driverContext.getSnapshot());
     }
 
     static TestDriver newTestDriver(int unused) {

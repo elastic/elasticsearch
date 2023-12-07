@@ -961,13 +961,23 @@ public class SecurityTests extends ESTestCase {
     public void testReloadWithFailures() {
         final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
 
+        final boolean failRemoteClusterCredentialsReload = randomBoolean();
         final PlainActionFuture<ActionResponse.Empty> value = new PlainActionFuture<>();
-        value.onFailure(new Exception("bad potato"));
+        if (failRemoteClusterCredentialsReload) {
+            value.onFailure(new RuntimeException("failed remote cluster credentials reload"));
+        } else {
+            value.onResponse(ActionResponse.Empty.INSTANCE);
+        }
         final Client mockedClient = mock(Client.class);
+        when(mockedClient.execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any())).thenReturn(value);
 
         final Realms mockedRealms = mock(Realms.class);
-        when(mockedRealms.stream()).thenReturn(Stream.of());
-        when(mockedClient.execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any())).thenReturn(value);
+        final boolean failRealmsReload = (false == failRemoteClusterCredentialsReload) || randomBoolean();
+        if (failRealmsReload) {
+            when(mockedRealms.stream()).thenThrow(new RuntimeException("failed jwt realms reload"));
+        } else {
+            when(mockedRealms.stream()).thenReturn(Stream.of());
+        }
         security = new Security(settings, Collections.emptyList()) {
             @Override
             protected Client getClient() {
@@ -981,9 +991,10 @@ public class SecurityTests extends ESTestCase {
         };
 
         final Settings inputSettings = Settings.EMPTY;
-        var exception = expectThrows(ElasticsearchException.class, () -> security.reload(inputSettings));
+        final var exception = expectThrows(ElasticsearchException.class, () -> security.reload(inputSettings));
 
         assertThat(exception.getMessage(), containsString("secure settings reload failed for one or more security component"));
+        // TODO validate suppressed exceptions
         // Verify both called despite failure
         verify(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any());
         verify(mockedRealms).stream();

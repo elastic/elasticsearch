@@ -695,22 +695,13 @@ public interface DocValueFormat extends NamedWriteable {
          */
         @Override
         public Object format(BytesRef value) {
-            // NOTE: we need to do this copy to avoid encoding spurious bytes at the end of the
-            // BytesRef buffer. When sorting results the TermOrdValComparator will copy
-            // values using a BytesRefBuilder whose underlying bytes buffer is sized incorrectly,
-            // allocating more bytes than actually required. As a result of these additional bytes
-            // the Base 64 encoding might include spurious bytes (typically 0s) which result in
-            // additional unwanted TSID trailing characters.
             try {
                 // NOTE: if the tsid is a map of dimension key/value pairs (as it was before introducing
                 // tsid hashing) we just decode the map and return it.
                 return TimeSeriesIdFieldMapper.decodeTsidAsMap(value);
             } catch (IllegalArgumentException iaex) {
-                // NOTE: if decoding fails it means the tsid is not a map of dimension key/value pairs
-                // but a result of tsid hahsing. In this case we return its Base64 encoding.
-                byte[] bytes = new byte[value.length];
-                System.arraycopy(value.bytes, 0, bytes, 0, value.length);
-                return BASE64_ENCODER.encodeToString(bytes);
+                // NOTE: otherwise the _tsid field is just a hash and we can't decode it
+                return TimeSeriesIdFieldMapper.encodeTsid(value);
             }
         }
 

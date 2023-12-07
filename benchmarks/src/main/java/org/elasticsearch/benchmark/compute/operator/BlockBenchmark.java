@@ -33,8 +33,11 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -55,8 +58,9 @@ public class BlockBenchmark {
 
             for (String dataType : getParamValues("dataType")) {
                 for (String blockKind : getParamValues("blockKind")) {
-                    BenchmarkData data = buildBlocks(dataType, blockKind, totalPositions);
-                    run(dataType, data, actualCheckSums);
+                    BenchmarkBlocks data = buildBlocks(dataType, blockKind, totalPositions);
+                    int[][] traversalOrders = createTraversalOrders(data.blocks, false);
+                    run(dataType, data, traversalOrders, actualCheckSums);
                     assertCheckSums(data, actualCheckSums);
                 }
             }
@@ -69,9 +73,9 @@ public class BlockBenchmark {
         return BlockBenchmark.class.getField(parameterName).getAnnotationsByType(Param.class)[0].value();
     }
 
-    private record BenchmarkData(Block[] blocks, long[] checkSums) {};
+    private record BenchmarkBlocks(Block[] blocks, long[] checkSums) {};
 
-    private static BenchmarkData buildBlocks(String dataType, String blockKind, int totalPositions) {
+    private static BenchmarkBlocks buildBlocks(String dataType, String blockKind, int totalPositions) {
         Block[] blocks = new Block[NUM_BLOCKS_PER_ITERATION];
         long[] checkSums = new long[NUM_BLOCKS_PER_ITERATION];
 
@@ -143,10 +147,28 @@ public class BlockBenchmark {
             }
         }
 
-        return new BenchmarkData(blocks, checkSums);
+        return new BenchmarkBlocks(blocks, checkSums);
     }
 
-    private static void run(String dataType, BenchmarkData data, long[] resultCheckSums) {
+    private static int[][] createTraversalOrders(Block[] blocks, boolean randomized) {
+        int[][] orders = new int[blocks.length][];
+
+        for (int i = 0; i < blocks.length; i++) {
+            IntStream positionsStream = IntStream.range(0, blocks[i].getPositionCount());
+
+            if (randomized) {
+                List<Integer> positions = new java.util.ArrayList<>(positionsStream.boxed().toList());
+                Collections.shuffle(positions, random);
+                orders[i] = positions.stream().mapToInt(x -> x).toArray();
+            } else {
+                orders[i] = positionsStream.toArray();
+            }
+        }
+
+        return orders;
+    }
+
+    private static void run(String dataType, BenchmarkBlocks data, int[][] traversalOrders, long[] resultCheckSums) {
         switch (dataType) {
             case "int" -> {
                 // TODO benchmark random access in addition to sequential
@@ -155,7 +177,7 @@ public class BlockBenchmark {
                     long sum = 0;
 
                     int positionCount = block.getPositionCount();
-                    for (int position = 0; position < positionCount; position++) {
+                    for (int position : traversalOrders[blockIndex]) {
                         int start = block.getFirstValueIndex(position);
                         int end = start + block.getValueCount(position);
                         for (int i = start; i < end; i++) {
@@ -172,7 +194,7 @@ public class BlockBenchmark {
                     long sum = 0;
 
                     int positionCount = block.getPositionCount();
-                    for (int position = 0; position < positionCount; position++) {
+                    for (int position : traversalOrders[blockIndex]) {
                         int start = block.getFirstValueIndex(position);
                         int end = start + block.getValueCount(position);
                         for (int i = start; i < end; i++) {
@@ -189,7 +211,7 @@ public class BlockBenchmark {
         }
     }
 
-    private static void assertCheckSums(BenchmarkData data, long[] actualCheckSums) {
+    private static void assertCheckSums(BenchmarkBlocks data, long[] actualCheckSums) {
         for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
             if (actualCheckSums[blockIndex] != data.checkSums[blockIndex]) {
                 throw new AssertionError("checksums do not match for block [" + blockIndex + "]");
@@ -199,6 +221,10 @@ public class BlockBenchmark {
 
     private static int totalPositions(String blockLength) {
         return (int) ByteSizeValue.parseBytesSizeValue(blockLength, "block length").getBytes();
+    }
+
+    private static boolean isRandom(String accessType) {
+        return accessType.equalsIgnoreCase("random");
     }
 
     @Param({ "1K", "8K" })
@@ -211,19 +237,25 @@ public class BlockBenchmark {
     @Param({ "array", "vector" })
     public String blockKind;
 
-    private BenchmarkData data;
+    @Param({ "sequential", "random" })
+    public String accessType;
+
+    private BenchmarkBlocks data;
+
+    private int[][] traversalOrders;
 
     private final long[] actualCheckSums = new long[NUM_BLOCKS_PER_ITERATION];
 
     @Setup
-    public void buildBlocks() {
+    public void setup() {
         data = buildBlocks(dataType, blockKind, totalPositions(blockLength));
+        traversalOrders = createTraversalOrders(data.blocks, isRandom(accessType));
     }
 
     @Benchmark
     @OperationsPerInvocation(BlockBenchmark.NUM_BLOCKS_PER_ITERATION)
     public void run() {
-        run(dataType, data, actualCheckSums);
+        run(dataType, data, traversalOrders, actualCheckSums);
     }
 
     @TearDown(Level.Iteration)

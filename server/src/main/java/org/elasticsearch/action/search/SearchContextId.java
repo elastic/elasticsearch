@@ -110,6 +110,23 @@ public final class SearchContextId {
         }
     }
 
+    public static String[] decodeIndices(String id) {
+        try (
+            var decodedInputStream = Base64.getUrlDecoder().wrap(new ByteArrayInputStream(id.getBytes(StandardCharsets.ISO_8859_1)));
+            var in = new InputStreamStreamInput(decodedInputStream)
+        ) {
+            final TransportVersion version = TransportVersion.readVersion(in);
+            in.setTransportVersion(version);
+            final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
+                in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
+            );
+            return new SearchContextId(shards, Collections.emptyMap()).getActualIndices();
+        } catch (IOException e) {
+            assert false : e;
+            throw new IllegalArgumentException(e);
+        }
+    }
+
     private static void readShardsMapEntry(StreamInput in, Map<ShardId, SearchContextIdForNode> shards) throws IOException {
         shards.put(new ShardId(in), new SearchContextIdForNode(in));
     }

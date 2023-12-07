@@ -220,7 +220,7 @@ public class RestSearchAction extends BaseRestHandler {
         validateSearchRequest(request, searchRequest);
 
         if (searchRequest.pointInTimeBuilder() != null) {
-            preparePointInTime(searchRequest, request, namedWriteableRegistry);
+            preparePointInTime(searchRequest, request);
         } else {
             searchRequest.setCcsMinimizeRoundtrips(
                 request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
@@ -373,7 +373,7 @@ public class RestSearchAction extends BaseRestHandler {
         return null;
     }
 
-    static void preparePointInTime(SearchRequest request, RestRequest restRequest, NamedWriteableRegistry namedWriteableRegistry) {
+    static void preparePointInTime(SearchRequest request, RestRequest restRequest) {
         assert request.pointInTimeBuilder() != null;
         ActionRequestValidationException validationException = null;
         if (request.indices().length > 0) {
@@ -409,8 +409,8 @@ public class RestSearchAction extends BaseRestHandler {
             indicesOptions.ignoreThrottled()
         );
         request.indicesOptions(stricterIndicesOptions);
-        final SearchContextId searchContextId = request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
-        request.indices(searchContextId.getActualIndices());
+        var indices = SearchContextId.decodeIndices(request.pointInTimeBuilder().getEncodedId());
+        request.indices(indices);
     }
 
     /**

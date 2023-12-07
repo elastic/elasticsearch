@@ -224,19 +224,20 @@ public class CircuitBreakerTests extends ESTestCase {
             Aggregations aggs = new Aggregations(List.of(newInternalComposite()));
 
             SearchResponseSections internal = new SearchResponseSections(null, aggs, null, false, false, null, 0);
-            SearchResponse response = new SearchResponse(
-                internal,
-                null,
-                2,
-                0,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                Clusters.EMPTY,
-                searchRequest.pointInTimeBuilder().getEncodedId()
+            ActionListener.respondAndRelease(
+                listener,
+                (Response) new SearchResponse(
+                    internal,
+                    null,
+                    2,
+                    0,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    Clusters.EMPTY,
+                    searchRequest.pointInTimeBuilder().getEncodedId()
+                )
             );
-
-            listener.onResponse((Response) response);
         }
 
         private InternalComposite newInternalComposite() {

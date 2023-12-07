@@ -263,18 +263,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    public record StuffForNumericType(
-        Number min,
-        Number max,
-        BinaryOperator<Number> expected,
-        String evaluatorName
-    ) {}
+    public record StuffForNumericType(Number min, Number max, BinaryOperator<Number> expected, String evaluatorName) {}
 
-    public record AllTheTypeSpecificSettings(
-        StuffForNumericType intStuff,
-        StuffForNumericType longStuff,
-        StuffForNumericType doubleStuff
-    ) {
+    public record AllTheTypeSpecificSettings(StuffForNumericType intStuff, StuffForNumericType longStuff, StuffForNumericType doubleStuff) {
         public StuffForNumericType get(DataType type) {
             if (type == DataTypes.INTEGER) {
                 return intStuff;
@@ -334,7 +325,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (DataType rhsType : numericTypes) {
                 DataType expected = widen(lhsType, rhsType);
                 StuffForNumericType expectedTypeStuff = typeStuff.get(expected);
-                 String evaluator = expectedTypeStuff.evaluatorName()
+                String evaluator = expectedTypeStuff.evaluatorName()
                     + "["
                     + lhsName
                     + "="
@@ -344,16 +335,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     + "="
                     + getCastEvaluator("Attribute[channel=1]", rhsType, expected)
                     + "]";
-                 casesCrossProduct(
-                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
-                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
-                     getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
-                     // TODO: This doesn't really need to be a function
-                     (lt, rt) -> evaluator,
-                     warnings,
-                     suppliers,
-                     expected
-                 );
+                casesCrossProduct(
+                    (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
+                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                    // TODO: This doesn't really need to be a function
+                    (lt, rt) -> evaluator,
+                    warnings,
+                    suppliers,
+                    expected
+                );
             }
         }
 

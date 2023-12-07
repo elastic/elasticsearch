@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
@@ -52,7 +51,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     private static final int NUM_TOKENS = 10;
 
-    private static final Set<WeightedToken> WEIGHTED_TOKENS = Set.of(
+    private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(
         new TextExpansionResults.WeightedToken("foo", .42f),
         new TextExpansionResults.WeightedToken("bar", .05f),
         new TextExpansionResults.WeightedToken("baz", .74f)
@@ -187,7 +186,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testIllegalValues() {
-        Set<WeightedToken> weightedTokens = Set.of(new WeightedToken("foo", 1.0f));
+        List<WeightedToken> weightedTokens = List.of(new WeightedToken("foo", 1.0f));
         {
             NullPointerException e = expectThrows(
                 NullPointerException.class,
@@ -205,7 +204,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", Set.of(), null)
+                () -> new WeightedTokensQueryBuilder("field name", List.of(), null)
             );
             assertEquals("[weighted_tokens] requires at least one token", e.getMessage());
         }
@@ -232,27 +231,33 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         }
     }
 
-    public void testToXContent() throws IOException {
-        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz");
+    public void testToXContent() throws Exception {
+        QueryBuilder query = new WeightedTokensQueryBuilder("foo", List.of(new TextExpansionResults.WeightedToken("foo", .42f)), null);
         checkGeneratedJson("""
             {
-              "text_expansion": {
+              "weighted_tokens": {
                 "foo": {
-                  "model_text": "bar",
-                  "model_id": "baz"
+                  "tokens": {
+                      "foo": 0.42
+                    }
                 }
               }
             }""", query);
     }
 
-    public void testToXContentWithThresholds() throws IOException {
-        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new TokenPruningConfig(4, 0.4f, false));
+    public void testToXContentWithThresholds() throws Exception {
+        QueryBuilder query = new WeightedTokensQueryBuilder(
+            "foo",
+            List.of(new TextExpansionResults.WeightedToken("foo", .42f)),
+            new TokenPruningConfig(4, 0.4f, false)
+        );
         checkGeneratedJson("""
             {
-              "text_expansion": {
+              "weighted_tokens": {
                 "foo": {
-                  "model_text": "bar",
-                  "model_id": "baz",
+                  "tokens": {
+                      "foo": 0.42
+                  },
                   "pruning_config": {
                     "tokens_freq_ratio_threshold": 4.0,
                     "tokens_weight_threshold": 0.4
@@ -262,14 +267,19 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
             }""", query);
     }
 
-    public void testToXContentWithThresholdsAndOnlyScorePrunedTokens() throws IOException {
-        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz", new TokenPruningConfig(4, 0.4f, true));
+    public void testToXContentWithThresholdsAndOnlyScorePrunedTokens() throws Exception {
+        QueryBuilder query = new WeightedTokensQueryBuilder(
+            "foo",
+            List.of(new TextExpansionResults.WeightedToken("foo", .42f)),
+            new TokenPruningConfig(4, 0.4f, true)
+        );
         checkGeneratedJson("""
             {
-              "text_expansion": {
+              "weighted_tokens": {
                 "foo": {
-                  "model_text": "bar",
-                  "model_id": "baz",
+                  "tokens": {
+                      "foo": 0.42
+                  },
                   "pruning_config": {
                     "tokens_freq_ratio_threshold": 4.0,
                     "tokens_weight_threshold": 0.4,

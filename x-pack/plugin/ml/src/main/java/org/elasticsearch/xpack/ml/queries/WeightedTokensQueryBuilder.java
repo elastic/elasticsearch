@@ -30,9 +30,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
 
@@ -41,15 +41,15 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
 
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");
     private final String fieldName;
-    private final Set<WeightedToken> tokens;
+    private final List<WeightedToken> tokens;
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
 
-    public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens) {
+    public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
         this(fieldName, tokens, null);
     }
 
-    public WeightedTokensQueryBuilder(String fieldName, Set<WeightedToken> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
+    public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
         if (tokens.isEmpty()) {
@@ -61,7 +61,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     public WeightedTokensQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.tokens = in.readCollectionAsSet(WeightedToken::new);
+        this.tokens = in.readCollectionAsList(WeightedToken::new);
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
     }
 
@@ -211,7 +211,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     public static WeightedTokensQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         String fieldName = null;
-        Set<WeightedToken> tokens = new HashSet<>();
+        List<WeightedToken> tokens = new ArrayList<>();
         TokenPruningConfig tokenPruningConfig = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;

@@ -53,7 +53,7 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
                 builder.addString(entry.getKey(), (String) entry.getValue());
             }
             try {
-                var key = builder.withoutHash().toBytesRef();
+                var key = builder.buildLegacyTsid().toBytesRef();
                 bucketList.add(new InternalBucket(key, docCount, aggregations, keyed));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

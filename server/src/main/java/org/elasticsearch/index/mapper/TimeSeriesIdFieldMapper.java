@@ -135,8 +135,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
         final BytesRef timeSeriesId = getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ID_HASHING)
-            ? timeSeriesIdBuilder.withoutHash().toBytesRef()
-            : timeSeriesIdBuilder.withHash().toBytesRef();
+            ? timeSeriesIdBuilder.buildLegacyTsid().toBytesRef()
+            : timeSeriesIdBuilder.buildTsidHash().toBytesRef();
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
         TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId);
     }
@@ -172,7 +172,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         public static final int MAX_DIMENSIONS = 512;
 
-        private record DimensionDataHolder(BytesRef name, BytesReference value) {}
+        private record Dimension(BytesRef name, BytesReference value) {}
 
         private final Murmur3Hasher tsidHasher = new Murmur3Hasher(0);
 
@@ -181,7 +181,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
          * to build the _tsid field for the document.
          */
-        private final SortedSet<DimensionDataHolder> dimensions = new TreeSet<>(Comparator.comparing(o -> o.name));
+        private final SortedSet<Dimension> dimensions = new TreeSet<>(Comparator.comparing(o -> o.name));
         /**
          * Builds the routing. Used for building {@code _id}. If null then skipped.
          */
@@ -192,14 +192,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             this.routingBuilder = routingBuilder;
         }
 
-        public BytesReference withoutHash() throws IOException {
+        public BytesReference buildLegacyTsid() throws IOException {
             if (dimensions.isEmpty()) {
                 throw new IllegalArgumentException("Dimension fields are missing.");
             }
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeVInt(dimensions.size());
-                for (DimensionDataHolder entry : dimensions) {
+                for (Dimension entry : dimensions) {
                     out.writeBytesRef(entry.name);
                     entry.value.writeTo(out);
                 }
@@ -218,21 +218,21 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * The idea is to be able to place 'similar' time series close to each other. Two time series
          * are considered 'similar' if they share the same dimensions (names and values).
          */
-        public BytesReference withHash() throws IOException {
+        public BytesReference buildTsidHash() throws IOException {
             // NOTE: hash all dimension field names
             int numberOfDimensions = Math.min(MAX_DIMENSIONS, dimensions.size());
             int tsidHashIndex = 0;
             byte[] tsidHash = new byte[16 + 16 + 4 * numberOfDimensions];
 
             tsidHasher.reset();
-            for (final DimensionDataHolder dimension : dimensions) {
+            for (final Dimension dimension : dimensions) {
                 tsidHasher.update(dimension.name.bytes);
             }
             tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
             // NOTE: concatenate all dimension value hashes up to a certain number of dimensions
             int tsidHashStartIndex = tsidHashIndex;
-            for (final DimensionDataHolder dimension : dimensions) {
+            for (final Dimension dimension : dimensions) {
                 if ((tsidHashIndex - tsidHashStartIndex) >= 4 * numberOfDimensions) break;
                 final BytesRef dimensionValueBytesRef = dimension.value.toBytesRef();
                 ByteUtils.writeIntLE(
@@ -250,7 +250,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
             // NOTE: hash all dimension field allValues
             tsidHasher.reset();
-            for (final DimensionDataHolder dimension : dimensions) {
+            for (final Dimension dimension : dimensions) {
                 tsidHasher.update(dimension.value.toBytesRef().bytes);
             }
             tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
@@ -324,7 +324,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         private void add(String fieldName, BytesReference encoded) throws IOException {
-            final DimensionDataHolder dimension = new DimensionDataHolder(new BytesRef(fieldName), encoded);
+            final Dimension dimension = new Dimension(new BytesRef(fieldName), encoded);
             if (dimensions.contains(dimension)) {
                 throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
             }

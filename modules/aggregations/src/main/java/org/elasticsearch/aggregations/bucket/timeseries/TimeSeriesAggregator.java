@@ -155,7 +155,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     consumer.accept(doc, tsidBuilder);
                 }
 
-                BytesRef tsid = tsidBuilder.withoutHash().toBytesRef();
+                BytesRef tsid = tsidBuilder.buildLegacyTsid().toBytesRef();
                 long bucketOrdinal = bucketOrds.add(bucket, tsid);
                 if (bucketOrdinal < 0) { // already seen
                     bucketOrdinal = -1 - bucketOrdinal;

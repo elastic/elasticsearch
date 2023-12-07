@@ -117,7 +117,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 fields.add(new DoubleDocValuesField(metrics[i].toString(), (double) metrics[i + 1]));
             }
         }
-        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.withoutHash().toBytesRef()));
+        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.buildLegacyTsid().toBytesRef()));
         iw.addDocument(fields);
     }
 

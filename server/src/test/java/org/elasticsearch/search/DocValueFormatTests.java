@@ -378,7 +378,7 @@ public class DocValueFormatTests extends ESTestCase {
         timeSeriesIdBuilder.addString("string", randomAlphaOfLength(10));
         timeSeriesIdBuilder.addLong("long", randomLong());
         timeSeriesIdBuilder.addUnsignedLong("ulong", randomLong());
-        BytesRef expected = timeSeriesIdBuilder.withHash().toBytesRef();
+        BytesRef expected = timeSeriesIdBuilder.buildTsidHash().toBytesRef();
         byte[] expectedBytes = new byte[expected.length];
         System.arraycopy(expected.bytes, 0, expectedBytes, 0, expected.length);
         BytesRef actual = DocValueFormat.TIME_SERIES_ID.parseBytesRef(expected);

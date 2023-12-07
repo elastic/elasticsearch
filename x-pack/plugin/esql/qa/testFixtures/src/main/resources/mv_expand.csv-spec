@@ -318,7 +318,7 @@ a         | a
 
 
 // see https://github.com/elastic/elasticsearch/issues/102061
-sortMvExpand#[skip:-8.12.2]
+sortMvExpand#[skip:-8.12.99]
 row a = 1 | sort a | mv_expand a;
 
 a:integer

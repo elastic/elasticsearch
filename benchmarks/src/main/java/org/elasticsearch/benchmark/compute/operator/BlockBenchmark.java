@@ -171,7 +171,6 @@ public class BlockBenchmark {
     private static void run(String dataType, BenchmarkBlocks data, int[][] traversalOrders, long[] resultCheckSums) {
         switch (dataType) {
             case "int" -> {
-                // TODO benchmark random access in addition to sequential
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     IntBlock block = (IntBlock) data.blocks[blockIndex];
                     long sum = 0;

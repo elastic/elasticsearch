@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
@@ -527,13 +526,10 @@ public class ReadOnlyEngine extends Engine {
         ActionListener<Void> listener
     ) {
         ActionListener.run(listener, l -> {
-            try (ReleasableLock lock = readLock.acquire()) {
-                ensureOpen();
-                try {
-                    translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
-                } catch (final Exception e) {
-                    throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
-                }
+            try (var ignored = acquireEnsureOpenRef()) {
+                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
+            } catch (final Exception e) {
+                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
             }
             l.onResponse(null);
         });

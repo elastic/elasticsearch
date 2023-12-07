@@ -33,6 +33,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -43,8 +44,10 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -91,7 +94,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -123,10 +125,13 @@ public abstract class Engine implements Closeable {
     private final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
-    protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
-    protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
-    protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
+
+    private final AtomicBoolean isClosing = new AtomicBoolean();
+    private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
+    private final RefCounted ensureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
+    private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
+
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still
@@ -1859,28 +1864,56 @@ public abstract class Engine implements Closeable {
      */
     protected abstract void closeNoLock(String reason, CountDownLatch closedLatch);
 
+    protected final boolean isNotDrainedForClose() {
+        return ensureOpenRefs.hasReferences();
+    }
+
+    protected final Releasable acquireEnsureOpenRef() {
+        if (isClosing.get() || ensureOpenRefs.tryIncRef() == false) {
+            ensureOpen(); // throws "engine is closed" exception if we're actually closed, otherwise ...
+            throw new AlreadyClosedException(shardId + " engine is closing", failedEngine.get());
+        }
+        return Releasables.assertOnce(releaseEnsureOpenRef);
+    }
+
+    protected final void drainForClose() {
+        if (isClosing.compareAndSet(false, true)) {
+            releaseEnsureOpenRef.close();
+        }
+        final var future = new PlainActionFuture<Void>();
+        drainOnCloseListener.addListener(future);
+        try {
+            future.get();
+        } catch (ExecutionException e) {
+            logger.error("failure while draining operations on close", e);
+            assert false : e;
+            throw new IllegalStateException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("interrupted while draining operations on close");
+            throw new IllegalStateException(e);
+        }
+    }
+
     /**
      * Flush the engine (committing segments to disk and truncating the
      * translog) and close it.
      */
     public void flushAndClose() throws IOException {
         if (isClosed.get() == false) {
-            logger.trace("flushAndClose now acquire writeLock");
-            try (ReleasableLock lock = writeLock.acquire()) {
-                logger.trace("flushAndClose now acquired writeLock");
+            logger.trace("flushAndClose now draining ops");
+            drainForClose();
+            logger.trace("flushAndClose drained ops");
+            try {
+                logger.debug("flushing shard on close - this might take some time to sync files to disk");
                 try {
-                    logger.debug("flushing shard on close - this might take some time to sync files to disk");
-                    try {
-                        // TODO we might force a flush in the future since we have the write lock already even though recoveries
-                        // are running.
-                        // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
-                        flush(false, false, ActionListener.noop());
-                    } catch (AlreadyClosedException ex) {
-                        logger.debug("engine already closed - skipping flushAndClose");
-                    }
-                } finally {
-                    close(); // double close is not a problem
+                    // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
+                    flush(false, false, ActionListener.noop());
+                } catch (AlreadyClosedException ex) {
+                    logger.debug("engine already closed - skipping flushAndClose");
                 }
+            } finally {
+                close(); // double close is not a problem
             }
         }
         awaitPendingClose();
@@ -1889,11 +1922,10 @@ public abstract class Engine implements Closeable {
     @Override
     public void close() throws IOException {
         if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
-            logger.debug("close now acquiring writeLock");
-            try (ReleasableLock lock = writeLock.acquire()) {
-                logger.debug("close acquired writeLock");
-                closeNoLock("api", closedLatch);
-            }
+            logger.debug("close now draining ops");
+            drainForClose();
+            logger.debug("close drained ops");
+            closeNoLock("api", closedLatch);
         }
         awaitPendingClose();
     }

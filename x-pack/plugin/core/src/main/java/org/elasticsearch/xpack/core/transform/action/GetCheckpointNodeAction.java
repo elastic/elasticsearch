@@ -90,7 +90,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
         }
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest.ShardsRequest {
+    public static class Request extends ActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
         private final Set<ShardId> shards;
         private final OriginalIndices originalIndices;

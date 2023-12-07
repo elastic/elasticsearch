@@ -463,7 +463,7 @@ public abstract class TransportBroadcastByNodeAction<
         }.run(task, shards.iterator(), listener);
     }
 
-    public class NodeRequest extends TransportRequest implements IndicesRequest.ShardsRequest {
+    public class NodeRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
         private final Request indicesLevelRequest;
         private final List<ShardRouting> shards;
         private final String nodeId;

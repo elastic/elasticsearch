@@ -400,7 +400,7 @@ public class RBACEngine implements AuthorizationEngine {
 
                     IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup);
                     if (requestInfo.getAuthentication().isCrossClusterAccess()
-                        && request instanceof IndicesRequest.ShardsRequest shardsRequest
+                        && request instanceof IndicesRequest.RemoteClusterShardRequest shardsRequest
                         && shardsRequest.shards() != null) {
                         for (ShardId shardId : shardsRequest.shards()) {
                             if (shardId != null && shardIdAuthorized(shardsRequest, shardId, result.getIndicesAccessControl()) == false) {

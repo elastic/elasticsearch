@@ -26,7 +26,7 @@ import java.util.Set;
  * Internal terms enum request executed directly against a specific node, querying potentially many
  * shards in one request
  */
-public class NodeTermsEnumRequest extends TransportRequest implements IndicesRequest.ShardsRequest {
+public class NodeTermsEnumRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
 
     private final String field;
     private final String string;

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collection;
-import java.util.Collections;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -64,13 +63,18 @@ public interface IndicesRequest {
         }
     }
 
-    interface ShardsRequest extends IndicesRequest {
+    /**
+     * This subtype of request is for requests which may travel to remote clusters. These requests may need to provide additional
+     * information to the system on top of the indices the action relates to in order to be handled correctly in all cases.
+     */
+    interface RemoteClusterShardRequest extends IndicesRequest {
         /**
-         * Returns the shards this request is targeting directly, which may not align with the indices returned by {@code indices()}. This
-         * is mostly used by requests which fan out to a number of shards for the those fan-out requests.
+         * Returns the shards this action is targeting directly, which may not obviously align with the indices returned by
+         * {@code indices()}. This is mostly used by requests which fan out to a number of shards for the those fan-out requests.
+         *
+         * A default is intentionally not provided for this method. It is critical that this method be implemented correctly for all
+         * remote cluster requests,
          */
-        default Collection<ShardId> shards() {
-            return Collections.emptyList();
-        }
+        Collection<ShardId> shards();
     }
 }

@@ -335,7 +335,7 @@ public class EnrichLookupService {
         }
     }
 
-    private static class LookupRequest extends TransportRequest implements IndicesRequest.ShardsRequest {
+    private static class LookupRequest extends TransportRequest implements IndicesRequest.RemoteClusterShardRequest {
         private final String sessionId;
         private final ShardId shardId;
         private final String matchType;

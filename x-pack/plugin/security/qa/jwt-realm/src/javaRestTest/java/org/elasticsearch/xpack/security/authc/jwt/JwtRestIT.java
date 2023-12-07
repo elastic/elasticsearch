@@ -517,7 +517,7 @@ public class JwtRestIT extends ESRestTestCase {
         try {
             getSecurityClient(buildAndSignJwtForRealm2(principal), Optional.of(VALID_SHARED_SECRET)).authenticate();
 
-            // secret not update yet, so authentication fails
+            // secret not updated yet, so authentication fails
             final String newValidSharedSecret = "new-valid-secret";
             assertThat(
                 expectThrows(

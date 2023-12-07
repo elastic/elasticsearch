@@ -340,7 +340,7 @@ public class ClientHelperTests extends ESTestCase {
             assertThat(headers, not(hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything")));
 
             return client.search(new SearchRequest()).actionGet();
-        });
+        }).decRef();
     }
 
     /**
@@ -356,7 +356,7 @@ public class ClientHelperTests extends ESTestCase {
 
             consumer.accept(client.threadPool().getThreadContext().getHeaders());
             return client.search(new SearchRequest()).actionGet();
-        });
+        }).decRef();
     }
 
     public void testFilterSecurityHeaders() {

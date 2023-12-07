@@ -12,17 +12,17 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 public class SearchTransportAPMMetrics {
-    public static final String QUERY_CAN_MATCH_NODE_METRIC = "can_match";
-    public static final String DFS_ACTION_METRIC = "dfs_query_then_fetch/dfs_phase";
-    public static final String QUERY_ID_ACTION_METRIC = "dfs_query_then_fetch/query_phase";
-    public static final String QUERY_ACTION_METRIC = "query_then_fetch/query_phase";
-    public static final String FREE_CONTEXT_ACTION_METRIC = "release_context";
-    public static final String FETCH_ID_ACTION_METRIC = "fetch_phase";
-    public static final String QUERY_SCROLL_ACTION_METRIC = "scroll/query_phase";
-    public static final String FETCH_ID_SCROLL_ACTION_METRIC = "scroll/fetch_phase";
-    public static final String QUERY_FETCH_SCROLL_ACTION_METRIC = "scroll/query_and_fetch_phase";
-    public static final String FREE_CONTEXT_SCROLL_ACTION_METRIC = "scroll/release_context";
-    public static final String CLEAR_SCROLL_CONTEXTS_ACTION_METRIC = "scroll/release_contexts";
+    public static final String QUERY_CAN_MATCH_NODE_METRIC = "shards_can_match";
+    public static final String DFS_ACTION_METRIC = "dfs_query_then_fetch/shard_dfs_phase";
+    public static final String QUERY_ID_ACTION_METRIC = "dfs_query_then_fetch/shard_query_phase";
+    public static final String QUERY_ACTION_METRIC = "query_then_fetch/shard_query_phase";
+    public static final String FREE_CONTEXT_ACTION_METRIC = "shard_release_context";
+    public static final String FETCH_ID_ACTION_METRIC = "shard_fetch_phase";
+    public static final String QUERY_SCROLL_ACTION_METRIC = "scroll/shard_query_phase";
+    public static final String FETCH_ID_SCROLL_ACTION_METRIC = "scroll/shard_fetch_phase";
+    public static final String QUERY_FETCH_SCROLL_ACTION_METRIC = "scroll/shard_query_and_fetch_phase";
+    public static final String FREE_CONTEXT_SCROLL_ACTION_METRIC = "scroll/shard_release_context";
+    public static final String CLEAR_SCROLL_CONTEXTS_ACTION_METRIC = "scroll/shard_release_contexts";
 
     private final LongHistogram actionLatencies;
 

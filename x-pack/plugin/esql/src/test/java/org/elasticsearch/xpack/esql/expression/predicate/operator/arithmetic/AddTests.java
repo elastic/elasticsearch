@@ -172,9 +172,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
             )
         );
 
-
         // Cases that should generate warnings
-        /*
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {
             // Ensure we don't have an overflow
             int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
@@ -192,7 +190,6 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
         })));
 
-         */
         return parameterSuppliersFromTypedData(suppliers);
     }
 

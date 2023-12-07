@@ -19,8 +19,7 @@
             "path_match": [
               "message",
               "*.message"
-            ],
-            "match_mapping_type": "string"
+            ]
           }
         },
         {
@@ -46,8 +45,7 @@
               "*.message_id",
               "*registry.data.strings",
               "*url.path"
-            ],
-            "match_mapping_type": "string"
+            ]
           }
         },
         {
@@ -64,8 +62,7 @@
               "*.body.content",
               "*url.full",
               "*url.original"
-            ],
-            "match_mapping_type": "string"
+            ]
           }
         },
         {
@@ -81,8 +78,7 @@
             "match": [
               "*command_line",
               "*stack_trace"
-            ],
-            "match_mapping_type": "string"
+            ]
           }
         },
         {
@@ -107,8 +103,7 @@
               "email.subject",
               "vulnerability.description",
               "user_agent.original"
-            ],
-            "match_mapping_type": "string"
+            ]
           }
         },
         {

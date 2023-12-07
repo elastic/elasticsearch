@@ -1484,7 +1484,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
-                // skippedClusters.incrementAndGet();
             } else {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);

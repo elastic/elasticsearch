@@ -195,9 +195,10 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         String indexName = "test-usage";
         createTestIndex(indexName);
         Map<String, Object> fieldsMap = createTestDocument(false);
-        // Only non-root numeric "usage" fields should match ecs_usage_*_scaled_float;
-        // root fields and intermediate object fields should not match.
+        // Only non-root numeric (or coercable to numeric) "usage" fields should match
+        // ecs_usage_*_scaled_float; root fields and intermediate object fields should not match.
         fieldsMap.put("host.cpu.usage", 123); // should be mapped as scaled_float
+        fieldsMap.put("string.usage", "123"); // should also be mapped as scale_float
         fieldsMap.put("usage", 123);
         fieldsMap.put("root.usage.long", 123);
         fieldsMap.put("root.usage.float", 123.456);
@@ -207,6 +208,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         final Map<String, String> flatFieldMappings = new HashMap<>();
         processRawMappingsSubtree(rawMappings, flatFieldMappings, new HashMap<>(), "");
         assertEquals("scaled_float", flatFieldMappings.get("host.cpu.usage"));
+        assertEquals("scaled_float", flatFieldMappings.get("string.usage"));
         assertEquals("long", flatFieldMappings.get("usage"));
         assertEquals("long", flatFieldMappings.get("root.usage.long"));
         assertEquals("float", flatFieldMappings.get("root.usage.float"));

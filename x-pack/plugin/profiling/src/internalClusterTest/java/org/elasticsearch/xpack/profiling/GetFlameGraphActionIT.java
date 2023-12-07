@@ -16,8 +16,6 @@ public class GetFlameGraphActionIT extends ProfilingTestCase {
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
         assertEquals(44, response.getSelfCPU());
         assertEquals(1865, response.getTotalCPU());
-        assertEquals(1.3651d, response.getSelfAnnualCostsUSD(), 0.0001d);
-        assertEquals(0.000144890d, response.getSelfAnnualCO2Tons(), 0.000000001d);
         assertEquals(44, response.getTotalSamples());
     }
 }

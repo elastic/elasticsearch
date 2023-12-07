@@ -240,6 +240,8 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        request.incRef();
+        listener = ActionListener.runAfter(listener, request::decRef);
         threadPool.executor(executorFunction.apply(executorSelector, replica)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {

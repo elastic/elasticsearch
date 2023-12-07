@@ -12,8 +12,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -128,6 +130,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
      * set on the query.
      */
     private boolean shouldKeepToken(
+        IndexSearcher searcher,
         IndexReader reader,
         WeightedToken token,
         int fieldDocCount,
@@ -137,7 +140,9 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         if (this.tokenPruningConfig == null) {
             return true;
         }
-        int docFreq = reader.docFreq(new Term(fieldName, token.token()));
+        Term term = new Term(fieldName, token.token());
+        TermStatistics termStatistics = searcher.termStatistics(term, reader.docFreq(term), reader.totalTermFreq(term));
+        long docFreq = termStatistics.docFreq();
         if (docFreq == 0) {
             return false;
         }
@@ -154,6 +159,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
         var qb = new BooleanQuery.Builder();
         int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
+
         float bestWeight = 0f;
         for (var t : tokens) {
             bestWeight = Math.max(t.weight(), bestWeight);
@@ -163,7 +169,14 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against an empty field");
         }
         for (var token : tokens) {
-            boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight);
+            boolean keep = shouldKeepToken(
+                context.searcher(),
+                context.getIndexReader(),
+                token,
+                fieldDocCount,
+                averageTokenFreqRatio,
+                bestWeight
+            );
             if (this.tokenPruningConfig != null) {
                 keep ^= this.tokenPruningConfig.isOnlyScorePrunedTokens();
             }

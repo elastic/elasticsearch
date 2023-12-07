@@ -4166,11 +4166,11 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             protected void flushHoldingRef(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
                 if (shardStarted.get()) {
-                    super.flush(force, waitIfOngoing, ActionListener.noop());
+                    super.flushHoldingRef(force, waitIfOngoing, ActionListener.noop());
                     pendingListeners.add(listener);
                     safeAwait(flushExecutedBarrier);
                 } else {
-                    super.flush(force, waitIfOngoing, listener);
+                    super.flushHoldingRef(force, waitIfOngoing, listener);
                 }
             }
         });

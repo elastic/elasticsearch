@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.application.connector.Connector;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PostConnectorAction extends ActionType<PostConnectorAction.Response> {
@@ -44,7 +45,6 @@ public class PostConnectorAction extends ActionType<PostConnectorAction.Response
 
         @Nullable
         private final String description;
-        @Nullable
         private final String indexName;
         @Nullable
         private final Boolean isNative;
@@ -67,7 +67,7 @@ public class PostConnectorAction extends ActionType<PostConnectorAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             this.description = in.readOptionalString();
-            this.indexName = in.readOptionalString();
+            this.indexName = in.readString();
             this.isNative = in.readOptionalBoolean();
             this.language = in.readOptionalString();
             this.name = in.readOptionalString();
@@ -89,7 +89,7 @@ public class PostConnectorAction extends ActionType<PostConnectorAction.Response
 
         static {
             PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-            PARSER.declareString(optionalConstructorArg(), new ParseField("index_name"));
+            PARSER.declareString(constructorArg(), new ParseField("index_name"));
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("is_native"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("language"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
@@ -115,9 +115,7 @@ public class PostConnectorAction extends ActionType<PostConnectorAction.Response
                 if (description != null) {
                     builder.field("description", description);
                 }
-                if (indexName != null) {
-                    builder.field("index_name", indexName);
-                }
+                builder.field("index_name", indexName);
                 if (isNative != null) {
                     builder.field("is_native", isNative);
                 }
@@ -144,7 +142,7 @@ public class PostConnectorAction extends ActionType<PostConnectorAction.Response
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(description);
-            out.writeOptionalString(indexName);
+            out.writeString(indexName);
             out.writeOptionalBoolean(isNative);
             out.writeOptionalString(language);
             out.writeOptionalString(name);

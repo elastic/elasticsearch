@@ -1,0 +1,7 @@
+pr: 103111
+summary: "ES|Q: Implement `StickyLimit` plan and push LIMIT past MV_EXPAND"
+area: ES|QL
+type: bug
+issues:
+ - 102084
+ - 102061

@@ -1,0 +1,6 @@
+pr: 102934
+summary: Ensure transform updates only modify the expected transform task
+area: Transform
+type: bug
+issues:
+ - 102933

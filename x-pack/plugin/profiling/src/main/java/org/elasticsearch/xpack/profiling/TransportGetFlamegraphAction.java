@@ -99,8 +99,9 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
                 Integer addressOrLine = stackTrace.addressOrLines.get(i);
                 StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, EMPTY_STACKFRAME);
                 String executable = response.getExecutables().getOrDefault(fileId, "");
+                final boolean isLeafFrame = i == frameCount - 1;
 
-                for (Frame frame : stackFrame.frames()) {
+                stackFrame.forEach(frame -> {
                     String frameGroupId = FrameGroupID.create(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
 
                     int nodeId;
@@ -126,14 +127,14 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
                             frameGroupId
                         );
                     }
-                    if (i == frameCount - 1) {
+                    if (isLeafFrame && frame.last()) {
                         // Leaf frame: sum up counts for exclusive CPU.
                         builder.addSamplesExclusive(nodeId, samples);
                         builder.addAnnualCO2TonsExclusive(nodeId, annualCO2Tons);
                         builder.addAnnualCostsUSDExclusive(nodeId, annualCostsUSD);
                     }
                     builder.setCurrentNode(nodeId);
-                }
+                });
             }
         }
         return builder.build();
@@ -141,6 +142,7 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
 
     private static class FlamegraphBuilder {
         private int currentNode = 0;
+        // size is the number of nodes in the flamegraph
         private int size = 0;
         private long selfCPU;
         private long totalCPU;
@@ -148,6 +150,7 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
         private double totalAnnualCO2Tons;
         private double selfAnnualCostsUSD;
         private double totalAnnualCostsUSD;
+        // totalSamples is the total number of samples in the stacktraces
         private final long totalSamples;
         // Map: FrameGroupId -> NodeId
         private final List<Map<String, Integer>> edges;

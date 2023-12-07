@@ -13,7 +13,7 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -763,7 +763,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             client.prepareMultiGet()
                 .addIds(index.getName(), slice)
                 .setRealtime(realtime)
-                .execute(new ThreadedActionListener<>(responseExecutor, listener));
+                .execute(new RefCountAwareThreadedActionListener<>(responseExecutor, listener));
         }
     }
 

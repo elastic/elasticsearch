@@ -790,7 +790,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102899")
     public void testVectorSimilarity() {
         assertEquals(
             VectorSimilarityFunction.COSINE,
@@ -799,7 +798,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertEquals(
             VectorSimilarityFunction.COSINE,
             VectorSimilarity.COSINE.vectorSimilarityFunction(
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, DenseVectorFieldMapper.NORMALIZE_COSINE),
+                IndexVersionUtils.randomVersionBetween(
+                    random(),
+                    IndexVersions.V_8_0_0,
+                    IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.NORMALIZE_COSINE)
+                ),
                 ElementType.FLOAT
             )
         );

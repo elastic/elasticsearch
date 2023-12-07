@@ -685,26 +685,30 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {
-                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                            // we may have no response if item failed
-                            if (bulkItemResponse.getResponse() != null) {
-                                bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                        try (bulkShardRequest) {
+                            for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                                // we may have no response if item failed
+                                if (bulkItemResponse.getResponse() != null) {
+                                    bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                                }
+                                responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                             }
-                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                            maybeFinishHim();
                         }
-                        maybeFinishHim();
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        // create failures for all relevant requests
-                        for (BulkItemRequest request : requests) {
-                            final String indexName = request.index();
-                            DocWriteRequest<?> docWriteRequest = request.request();
-                            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
-                            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                        try (bulkShardRequest) {
+                            // create failures for all relevant requests
+                            for (BulkItemRequest request : requests) {
+                                final String indexName = request.index();
+                                DocWriteRequest<?> docWriteRequest = request.request();
+                                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
+                                responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                            }
+                            maybeFinishHim();
                         }
-                        maybeFinishHim();
                     }
 
                     private void maybeFinishHim() {

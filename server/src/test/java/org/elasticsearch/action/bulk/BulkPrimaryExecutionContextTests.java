@@ -31,30 +31,31 @@ import static org.mockito.Mockito.when;
 public class BulkPrimaryExecutionContextTests extends ESTestCase {
 
     public void testAbortedSkipped() {
-        BulkShardRequest shardRequest = generateRandomRequest();
+        try (BulkShardRequest shardRequest = generateRandomRequest()) {
 
-        ArrayList<DocWriteRequest<?>> nonAbortedRequests = new ArrayList<>();
-        for (BulkItemRequest request : shardRequest.items()) {
-            if (randomBoolean()) {
-                request.abort("index", new ElasticsearchException("bla"));
-            } else {
-                nonAbortedRequests.add(request.request());
+            ArrayList<DocWriteRequest<?>> nonAbortedRequests = new ArrayList<>();
+            for (BulkItemRequest request : shardRequest.items()) {
+                if (randomBoolean()) {
+                    request.abort("index", new ElasticsearchException("bla"));
+                } else {
+                    nonAbortedRequests.add(request.request());
+                }
             }
-        }
 
-        ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
-        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null); context
-            .hasMoreOperationsToExecute();) {
-            visitedRequests.add(context.getCurrent());
-            context.setRequestToExecute(context.getCurrent());
-            // using failures prevents caring about types
-            context.markOperationAsExecuted(
-                new Engine.IndexResult(new ElasticsearchException("bla"), 1, context.getRequestToExecute().id())
-            );
-            context.markAsCompleted(context.getExecutionResult());
-        }
+            ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
+            for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null); context
+                .hasMoreOperationsToExecute();) {
+                visitedRequests.add(context.getCurrent());
+                context.setRequestToExecute(context.getCurrent());
+                // using failures prevents caring about types
+                context.markOperationAsExecuted(
+                    new Engine.IndexResult(new ElasticsearchException("bla"), 1, context.getRequestToExecute().id())
+                );
+                context.markAsCompleted(context.getExecutionResult());
+            }
 
-        assertThat(visitedRequests, equalTo(nonAbortedRequests));
+            assertThat(visitedRequests, equalTo(nonAbortedRequests));
+        }
     }
 
     private BulkShardRequest generateRandomRequest() {
@@ -73,62 +74,63 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
 
     public void testTranslogLocation() {
 
-        BulkShardRequest shardRequest = generateRandomRequest();
+        try (BulkShardRequest shardRequest = generateRandomRequest()) {
 
-        Translog.Location expectedLocation = null;
-        final IndexShard primary = mock(IndexShard.class);
-        when(primary.shardId()).thenReturn(shardRequest.shardId());
+            Translog.Location expectedLocation = null;
+            final IndexShard primary = mock(IndexShard.class);
+            when(primary.shardId()).thenReturn(shardRequest.shardId());
 
-        long translogGen = 0;
-        long translogOffset = 0;
+            long translogGen = 0;
+            long translogOffset = 0;
 
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary);
-        while (context.hasMoreOperationsToExecute()) {
-            final Engine.Result result;
-            final DocWriteRequest<?> current = context.getCurrent();
-            final boolean failure = rarely();
-            if (frequently()) {
-                translogGen += randomIntBetween(1, 4);
-                translogOffset = 0;
-            } else {
-                translogOffset += randomIntBetween(200, 400);
+            BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary);
+            while (context.hasMoreOperationsToExecute()) {
+                final Engine.Result result;
+                final DocWriteRequest<?> current = context.getCurrent();
+                final boolean failure = rarely();
+                if (frequently()) {
+                    translogGen += randomIntBetween(1, 4);
+                    translogOffset = 0;
+                } else {
+                    translogOffset += randomIntBetween(200, 400);
+                }
+
+                Translog.Location location = new Translog.Location(translogGen, translogOffset, randomInt(200));
+                switch (current.opType()) {
+                    case INDEX, CREATE -> {
+                        context.setRequestToExecute(current);
+                        if (failure) {
+                            result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, current.id());
+                        } else {
+                            result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
+                        }
+                    }
+                    case UPDATE -> {
+                        context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
+                        if (failure) {
+                            result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1, current.id());
+                        } else {
+                            result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
+                        }
+                    }
+                    case DELETE -> {
+                        context.setRequestToExecute(current);
+                        if (failure) {
+                            result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1, 1, current.id());
+                        } else {
+                            result = new FakeDeleteResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, current.id());
+                        }
+                    }
+                    default -> throw new AssertionError("unknown type:" + current.opType());
+                }
+                if (failure == false) {
+                    expectedLocation = location;
+                }
+                context.markOperationAsExecuted(result);
+                context.markAsCompleted(context.getExecutionResult());
             }
 
-            Translog.Location location = new Translog.Location(translogGen, translogOffset, randomInt(200));
-            switch (current.opType()) {
-                case INDEX, CREATE -> {
-                    context.setRequestToExecute(current);
-                    if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, current.id());
-                    } else {
-                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
-                    }
-                }
-                case UPDATE -> {
-                    context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
-                    if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1, current.id());
-                    } else {
-                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
-                    }
-                }
-                case DELETE -> {
-                    context.setRequestToExecute(current);
-                    if (failure) {
-                        result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1, 1, current.id());
-                    } else {
-                        result = new FakeDeleteResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, current.id());
-                    }
-                }
-                default -> throw new AssertionError("unknown type:" + current.opType());
-            }
-            if (failure == false) {
-                expectedLocation = location;
-            }
-            context.markOperationAsExecuted(result);
-            context.markAsCompleted(context.getExecutionResult());
+            assertThat(context.getLocationToSync(), equalTo(expectedLocation));
         }
-
-        assertThat(context.getLocationToSync(), equalTo(expectedLocation));
     }
 }

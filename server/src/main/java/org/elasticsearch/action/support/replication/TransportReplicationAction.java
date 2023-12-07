@@ -782,7 +782,8 @@ public abstract class TransportReplicationAction<
             if (task != null) {
                 this.request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
-            this.listener = listener;
+            request.incRef();
+            this.listener = ActionListener.runAfter(listener, request::decRef);
             this.task = task;
             this.observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         }
@@ -1418,6 +1419,27 @@ public abstract class TransportReplicationAction<
         public String toString() {
             return "request: " + request + ", target allocation id: " + targetAllocationID + ", primary term: " + primaryTerm;
         }
+
+        @Override
+        public void incRef() {
+            request.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return request.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return request.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return request.hasReferences();
+        }
+
     }
 
     protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {

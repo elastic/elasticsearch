@@ -210,6 +210,8 @@ public abstract class TransportWriteAction<
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
     ) {
+        request.incRef();
+        listener = ActionListener.runAfter(listener, request::decRef);
         threadPool.executor(executorFunction.apply(executorSelector, primary)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {

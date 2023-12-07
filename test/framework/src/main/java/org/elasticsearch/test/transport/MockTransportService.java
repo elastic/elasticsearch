@@ -548,7 +548,7 @@ public class MockTransportService extends TransportService {
                     clonedRequest = reg.newRequest(bStream.bytes().streamInput());
                 }
                 assert clonedRequest.getClass().equals(request.getClass()) : clonedRequest + " vs " + request;
-
+                connection.addCloseListener(ActionListener.running(clonedRequest::decRef));
                 final RunOnce runnable = new RunOnce(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {

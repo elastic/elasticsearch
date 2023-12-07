@@ -302,6 +302,18 @@ public final class RestClientBuilder {
         return restClient;
     }
 
+    private static class NamePrefixingThreadFactory implements ThreadFactory {
+        // Use the same ThreadFactory instance for each thread created, so they get the same -pool-N- substring in their names
+        private final ThreadFactory innerThreadFactory = Executors.defaultThreadFactory();
+
+        @Override
+        public Thread newThread(Runnable runnable) {
+            final Thread thread = innerThreadFactory.newThread(runnable);
+            thread.setName(THREAD_NAME_PREFIX + thread.getName());
+            return thread;
+        }
+    }
+
     private CloseableHttpAsyncClient createHttpClient() {
         // default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
@@ -312,8 +324,6 @@ public final class RestClientBuilder {
         }
 
         try {
-            final ThreadFactory threadFactory = Executors.defaultThreadFactory();
-
             HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
                 .setDefaultRequestConfig(requestConfigBuilder.build())
                 // default settings for connection pooling may be too constraining
@@ -322,11 +332,7 @@ public final class RestClientBuilder {
                 .setSSLContext(SSLContext.getDefault())
                 .setUserAgent(USER_AGENT_HEADER_VALUE)
                 .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy())
-                .setThreadFactory(runnable -> {
-                    final Thread thread = threadFactory.newThread(runnable);
-                    thread.setName(THREAD_NAME_PREFIX + thread.getName());
-                    return thread;
-                });
+                .setThreadFactory(new NamePrefixingThreadFactory());
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }

@@ -12,4 +12,3 @@ include::{esql-specs}/docs.csv-spec[tag=dateExtract]
 |===
 include::{esql-specs}/docs.csv-spec[tag=dateExtract-result]
 |===
-

@@ -36,10 +36,10 @@ public class ApiKeyUserRoleDescriptorResolver {
             return;
         }
 
-        rolesStore.getRoleDescriptors(effectiveSubject, listener.delegateFailureAndWrap(this::handleRoleDescriptorsList));
+        rolesStore.getRoleDescriptors(effectiveSubject, listener.delegateFailureAndWrap(this::handleRoleDescriptors));
     }
 
-    private void handleRoleDescriptorsList(ActionListener<Set<RoleDescriptor>> listener, Set<RoleDescriptor> roleDescriptors) {
+    private void handleRoleDescriptors(ActionListener<Set<RoleDescriptor>> listener, Set<RoleDescriptor> roleDescriptors) {
         for (RoleDescriptor rd : roleDescriptors) {
             DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
         }

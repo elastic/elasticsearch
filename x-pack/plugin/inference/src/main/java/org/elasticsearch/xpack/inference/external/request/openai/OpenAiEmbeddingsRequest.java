@@ -19,10 +19,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
@@ -30,20 +32,23 @@ import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUt
 
 public class OpenAiEmbeddingsRequest implements Request {
 
+    private final Truncator truncator;
     private final OpenAiAccount account;
-    private final OpenAiEmbeddingsRequestEntity entity;
+    private final Truncator.TruncationResult truncationResult;
     private final URI uri;
-    private final boolean isTruncated;
+    private final OpenAiEmbeddingsTaskSettings taskSettings;
 
-    public OpenAiEmbeddingsRequest(OpenAiAccount account, OpenAiEmbeddingsRequestEntity entity) {
-        this(account, entity, false);
-    }
-
-    private OpenAiEmbeddingsRequest(OpenAiAccount account, OpenAiEmbeddingsRequestEntity entity, boolean hasBeenTruncated) {
+    public OpenAiEmbeddingsRequest(
+        Truncator truncator,
+        OpenAiAccount account,
+        Truncator.TruncationResult input,
+        OpenAiEmbeddingsTaskSettings taskSettings
+    ) {
+        this.truncator = Objects.requireNonNull(truncator);
         this.account = Objects.requireNonNull(account);
-        this.entity = Objects.requireNonNull(entity);
+        this.truncationResult = Objects.requireNonNull(input);
         this.uri = buildUri(this.account.url());
-        this.isTruncated = hasBeenTruncated;
+        this.taskSettings = Objects.requireNonNull(taskSettings);
     }
 
     private static URI buildUri(URI accountUri) {
@@ -57,7 +62,10 @@ public class OpenAiEmbeddingsRequest implements Request {
     public HttpRequestBase createRequest() {
         HttpPost httpPost = new HttpPost(uri);
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(entity).getBytes(StandardCharsets.UTF_8));
+        ByteArrayEntity byteEntity = new ByteArrayEntity(
+            Strings.toString(new OpenAiEmbeddingsRequestEntity(truncationResult.input(), taskSettings.model(), taskSettings.user()))
+                .getBytes(StandardCharsets.UTF_8)
+        );
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
@@ -78,15 +86,14 @@ public class OpenAiEmbeddingsRequest implements Request {
 
     @Override
     public Request truncate() {
-        var input = Truncator.truncate(entity.input(), 0.5);
-        var truncatedEntity = new OpenAiEmbeddingsRequestEntity(input, entity.model(), entity.user());
+        var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new OpenAiEmbeddingsRequest(account, truncatedEntity, true);
+        return new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, taskSettings);
     }
 
     @Override
-    public boolean isTruncated() {
-        return isTruncated;
+    public List<Boolean> getTruncationInfo() {
+        return truncationResult.truncated();
     }
 
     // default for testing

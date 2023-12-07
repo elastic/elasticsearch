@@ -12,6 +12,8 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 
 import java.io.IOException;
@@ -60,16 +62,19 @@ public class HuggingFaceInferenceRequestTests extends ESTestCase {
 
     public void testIsTruncated_ReturnsTrue() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abcd");
-        assertFalse(huggingFaceRequest.isTruncated());
+        assertFalse(huggingFaceRequest.getTruncationInfo().get(0));
 
         var truncatedRequest = huggingFaceRequest.truncate();
-        assertTrue(truncatedRequest.isTruncated());
+        assertTrue(truncatedRequest.getTruncationInfo().get(0));
     }
 
     public static HuggingFaceInferenceRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {
         var account = new HuggingFaceAccount(new URI(url), new SecureString(apiKey.toCharArray()));
-        var entity = new HuggingFaceInferenceRequestEntity(List.of(input));
 
-        return new HuggingFaceInferenceRequest(account, entity);
+        return new HuggingFaceInferenceRequest(
+            TruncatorTests.createTruncator(),
+            account,
+            new Truncator.TruncationResult(List.of(input), List.of(false))
+        );
     }
 }

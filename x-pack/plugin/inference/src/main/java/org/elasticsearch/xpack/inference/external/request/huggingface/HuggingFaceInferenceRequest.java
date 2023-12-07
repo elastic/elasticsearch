@@ -19,30 +19,30 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public class HuggingFaceInferenceRequest implements Request {
 
+    private final Truncator truncator;
     private final HuggingFaceAccount account;
-    private final HuggingFaceInferenceRequestEntity entity;
-    private final boolean isTruncated;
+    private final Truncator.TruncationResult truncationResult;
 
-    public HuggingFaceInferenceRequest(HuggingFaceAccount account, HuggingFaceInferenceRequestEntity entity) {
-        this(account, entity, false);
-    }
-
-    private HuggingFaceInferenceRequest(HuggingFaceAccount account, HuggingFaceInferenceRequestEntity entity, boolean isTruncated) {
+    public HuggingFaceInferenceRequest(Truncator truncator, HuggingFaceAccount account, Truncator.TruncationResult input) {
+        this.truncator = Objects.requireNonNull(truncator);
         this.account = Objects.requireNonNull(account);
-        this.entity = Objects.requireNonNull(entity);
-        this.isTruncated = isTruncated;
+        this.truncationResult = Objects.requireNonNull(input);
     }
 
     public HttpRequestBase createRequest() {
         HttpPost httpPost = new HttpPost(account.url());
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(entity).getBytes(StandardCharsets.UTF_8));
+        ByteArrayEntity byteEntity = new ByteArrayEntity(
+            Strings.toString(new HuggingFaceInferenceRequestEntity(truncationResult.input())).getBytes(StandardCharsets.UTF_8)
+        );
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
@@ -56,14 +56,13 @@ public class HuggingFaceInferenceRequest implements Request {
 
     @Override
     public Request truncate() {
-        var input = Truncator.truncate(entity.inputs(), 0.5);
-        var truncatedEntity = new HuggingFaceInferenceRequestEntity(input);
+        var truncateResult = truncator.truncate(truncationResult.input());
 
-        return new HuggingFaceInferenceRequest(account, truncatedEntity, true);
+        return new HuggingFaceInferenceRequest(truncator, account, truncateResult);
     }
 
     @Override
-    public boolean isTruncated() {
-        return isTruncated;
+    public List<Boolean> getTruncationInfo() {
+        return Collections.unmodifiableList(truncationResult.truncated());
     }
 }

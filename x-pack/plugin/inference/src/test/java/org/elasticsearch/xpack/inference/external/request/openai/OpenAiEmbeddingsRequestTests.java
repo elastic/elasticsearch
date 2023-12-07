@@ -13,7 +13,10 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.net.URI;
@@ -101,10 +104,10 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
 
     public void testIsTruncated_ReturnsTrue() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "secret", "abcd", "model", null);
-        assertFalse(request.isTruncated());
+        assertFalse(request.getTruncationInfo().get(0));
 
         var truncatedRequest = request.truncate();
-        assertTrue(truncatedRequest.isTruncated());
+        assertTrue(truncatedRequest.getTruncationInfo().get(0));
     }
 
     public static OpenAiEmbeddingsRequest createRequest(
@@ -120,6 +123,11 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         var account = new OpenAiAccount(uri, org, new SecureString(apiKey.toCharArray()));
         var entity = new OpenAiEmbeddingsRequestEntity(List.of(input), model, user);
 
-        return new OpenAiEmbeddingsRequest(account, entity);
+        return new OpenAiEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            account,
+            new Truncator.TruncationResult(List.of(input), List.of(false)),
+            new OpenAiEmbeddingsTaskSettings(model, user)
+        );
     }
 }

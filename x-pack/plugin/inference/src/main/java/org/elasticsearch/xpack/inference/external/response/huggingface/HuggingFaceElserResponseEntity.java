@@ -65,7 +65,7 @@ public class HuggingFaceElserResponseEntity {
 
             List<SparseEmbeddingResults.Embedding> parsedEmbeddings = XContentParserUtils.parseList(
                 jsonParser,
-                parser -> HuggingFaceElserResponseEntity.parseExpansionResult(request, parser)
+                (parser, index) -> HuggingFaceElserResponseEntity.parseExpansionResult(request, parser, index)
             );
 
             if (parsedEmbeddings.isEmpty()) {
@@ -76,7 +76,8 @@ public class HuggingFaceElserResponseEntity {
         }
     }
 
-    private static SparseEmbeddingResults.Embedding parseExpansionResult(Request request, XContentParser parser) throws IOException {
+    private static SparseEmbeddingResults.Embedding parseExpansionResult(Request request, XContentParser parser, int index)
+        throws IOException {
         XContentParser.Token token = parser.currentToken();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
@@ -90,7 +91,10 @@ public class HuggingFaceElserResponseEntity {
             weightedTokens.add(new SparseEmbeddingResults.WeightedToken(parser.currentName(), parser.floatValue()));
         }
 
-        return new SparseEmbeddingResults.Embedding(weightedTokens, request.isTruncated());
+        var truncationInfo = request.getTruncationInfo();
+        // prevent an out of bounds if for some reason the truncation list is smaller than the results
+        var isTruncated = index < truncationInfo.size() && truncationInfo.get(index);
+        return new SparseEmbeddingResults.Embedding(weightedTokens, isTruncated);
     }
 
     private HuggingFaceElserResponseEntity() {}

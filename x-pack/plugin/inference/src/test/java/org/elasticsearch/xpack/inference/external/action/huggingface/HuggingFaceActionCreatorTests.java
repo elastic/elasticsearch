@@ -18,6 +18,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -35,10 +36,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -150,7 +151,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                     threadPool,
                     mockThrottlerManager(),
                     // timeout as zero for no retries
-                    buildSettingsWithRetryFields(TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1), TimeValue.timeValueSeconds(0))
+                    buildSettingsWithRetryFields(
+                        TimeValue.timeValueMillis(1),
+                        TimeValue.timeValueMinutes(1),
+                        TimeValue.timeValueSeconds(0)
+                    ),
+                    TruncatorTests.createTruncator()
                 )
             );
             var action = actionCreator.create(model);
@@ -255,7 +261,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                     threadPool,
                     mockThrottlerManager(),
                     // timeout as zero for no retries
-                    buildSettingsWithRetryFields(TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1), TimeValue.timeValueSeconds(0))
+                    buildSettingsWithRetryFields(
+                        TimeValue.timeValueMillis(1),
+                        TimeValue.timeValueMinutes(1),
+                        TimeValue.timeValueSeconds(0)
+                    ),
+                    TruncatorTests.createTruncator()
                 )
             );
             var action = actionCreator.create(model);
@@ -347,6 +358,52 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                 var truncatedInputs = truncatedRequest.get("inputs");
                 assertThat(truncatedInputs, is(List.of("ab")));
             }
+        }
+    }
+
+    public void testExecute_TruncatesInputBeforeSending() throws IOException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                {
+                    "embeddings": [
+                        [
+                            -0.0123,
+                            0.123
+                        ]
+                    ]
+                {
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            // truncated to 1 token = 3 characters
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1);
+            var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(List.of("123456"), listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectation(List.of(List.of(-0.0123F, 0.123F)))));
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+            );
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+            var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
+            var initialInputs = initialRequestAsMap.get("inputs");
+            assertThat(initialInputs, is(List.of("123")));
+
         }
     }
 }

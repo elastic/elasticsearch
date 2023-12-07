@@ -55,7 +55,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
 
     public void testFromResponse_CreatesTextExpansionResults_ThatAreTruncated() throws IOException {
         var request = mock(Request.class);
-        when(request.isTruncated()).thenReturn(true);
+        when(request.getTruncationInfo()).thenReturn(List.of(true));
 
         String responseJson = """
             [

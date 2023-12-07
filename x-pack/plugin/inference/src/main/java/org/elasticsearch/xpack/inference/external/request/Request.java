@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request;
 import org.apache.http.client.methods.HttpRequestBase;
 
 import java.net.URI;
+import java.util.List;
 
 public interface Request {
     HttpRequestBase createRequest();
@@ -22,5 +23,9 @@ public interface Request {
      */
     Request truncate();
 
-    boolean isTruncated();
+    /**
+     * Returns a list of booleans indicating if the text input at that same array index was truncated in the request
+     * sent to the 3rd party server.
+     */
+    List<Boolean> getTruncationInfo();
 }

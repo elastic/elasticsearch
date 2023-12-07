@@ -544,9 +544,7 @@ setup:
 ---
 "Test frequent items on empty index":
   - skip:
-      features:
-        - "headers"
-        - "allowed_warnings"
+      features: headers
 
   - do:
       headers:

@@ -917,6 +917,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return (channel, channelPos, relativePos, len, progressUpdater) -> {
                     assert assertValidRegionAndLength(fileRegion, channelPos, len);
                     adjustedWriter.fillCacheRange(channel, channelPos, relativePos, len, progressUpdater);
+                    assert regionOwners.get(fileRegion.io) == fileRegion
+                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
                 };
             }
             return adjustedWriter;
@@ -932,7 +934,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             if (Assertions.ENABLED) {
                 return (channel, channelPos, relativePos, len) -> {
                     assert assertValidRegionAndLength(fileRegion, channelPos, len);
-                    return adjustedReader.onRangeAvailable(channel, channelPos, relativePos, len);
+                    final int bytesRead = adjustedReader.onRangeAvailable(channel, channelPos, relativePos, len);
+                    assert regionOwners.get(fileRegion.io) == fileRegion
+                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                    return bytesRead;
                 };
             }
             return adjustedReader;

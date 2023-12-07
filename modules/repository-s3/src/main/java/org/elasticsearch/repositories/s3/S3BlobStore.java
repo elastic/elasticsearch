@@ -46,6 +46,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
@@ -201,6 +202,7 @@ class S3BlobStore implements BlobStore {
                 repositoriesMetrics.throttleCounter().incrementBy(throttleCount, attributes);
                 repositoriesMetrics.throttleHistogram().record(throttleCount, attributes);
             }
+            repositoriesMetrics.httpRequestTimeInMicroHistogram().record(getHttpRequestTimeInMicros(request), attributes);
         }
 
         private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
@@ -237,6 +239,32 @@ class S3BlobStore implements BlobStore {
         } else {
             return count.longValue();
         }
+    }
+
+    /**
+     * Used for APM style metrics to measure statics about performance. This is not for billing.
+     */
+    private static long getHttpRequestTimeInMicros(Request<?> request) {
+        List<TimingInfo> requestTimesIncludingRetries;
+        requestTimesIncludingRetries = request.getAWSRequestMetrics()
+            .getTimingInfo()
+            .getAllSubMeasurements(AWSRequestMetrics.Field.HttpRequestTime.name());
+
+        // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
+        // (time to first byte). We calculate the time in micros for later use with an APM style counter (exposed as a long), rather than
+        // using the default double exposed by getTimeTakenMillisIfKnown().
+        long totalTimeInMicros = 0;
+        for (TimingInfo timingInfo : requestTimesIncludingRetries) {
+            var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
+            if (endTimeInNanos != null) {
+                totalTimeInMicros += TimeUnit.NANOSECONDS.toMicros(endTimeInNanos - timingInfo.getStartTimeNano());
+            }
+        }
+        if (totalTimeInMicros == 0) {
+            logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
+            return 0L;
+        }
+        return totalTimeInMicros;
     }
 
     @Override

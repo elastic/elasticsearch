@@ -113,7 +113,7 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
                 new TestCaseSupplier.TypedDataSupplier(
                     "<date string>",
                     // millis past "0001-01-01T00:00:00.000Z" to match the default formatter
-                    () -> new BytesRef(Instant.ofEpochMilli(randomLongBetween(-62135596800000L, Long.MAX_VALUE)).toString()),
+                    () -> new BytesRef(randomDateString(-62135596800000L, Long.MAX_VALUE)),
                     DataTypes.KEYWORD
                 )
             ),
@@ -128,7 +128,7 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
                 new TestCaseSupplier.TypedDataSupplier(
                     "<date string before 0001-01-01T00:00:00.000Z>",
                     // millis before "0001-01-01T00:00:00.000Z"
-                    () -> new BytesRef(Instant.ofEpochMilli(randomLongBetween(Long.MIN_VALUE, -62135596800001L)).toString()),
+                    () -> new BytesRef(randomDateString(Long.MIN_VALUE, -62135596800001L)),
                     DataTypes.KEYWORD
                 )
             ),
@@ -143,6 +143,15 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+    }
+
+    private static String randomDateString(long from, long to) {
+        String result = Instant.ofEpochMilli(randomLongBetween(from, to)).toString();
+        if (result.matches(".*:..Z")) {
+            // it's a zero millisecond date string, Instant.toString() will strip the milliseconds (and the parsing will fail)
+            return result.replace("Z", ".000Z");
+        }
+        return result;
     }
 
     @Override

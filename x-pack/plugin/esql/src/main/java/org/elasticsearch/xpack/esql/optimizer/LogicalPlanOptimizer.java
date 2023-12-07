@@ -1147,15 +1147,23 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     /**
      * The vast majority of aggs ignore null entries - this rule adds a filter to filter this entries out
      * to begin with.
-     * STATS x = min(a), y = sum(b) BY c
+     * STATS x = min(a), y = sum(b)
      * becomes
      * | WHERE a IS NOT NULL OR b IS NOT NULL
-     * | STATS x = min(a), y = sum(b) BY c
+     * | STATS x = min(a), y = sum(b)
+     *
+     * Unfortunately this optimization cannot be applied when grouping is necessary since it can filter out
+     * groups containing only null values
      */
     static class InferNonNullAggConstraint extends OptimizerRules.OptimizerRule<Aggregate> {
 
         @Override
         protected LogicalPlan rule(Aggregate aggregate) {
+            // only look at aggregates with default grouping
+            if (aggregate.groupings().size() > 0) {
+                return aggregate;
+            }
+
             LogicalPlan plan = aggregate;
             var aggs = aggregate.aggregates();
             Set<Expression> nonNullAggFields = Sets.newLinkedHashSetWithExpectedSize(aggs.size());
@@ -1173,40 +1181,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 }
             }
 
-            // Avoid adding a filter on fields that are included in the grouping column
-            // However pay attention to expressions and aliasing which might hide the field
-            // e.g. eval x = a | eval y = x + 1 | stats sum(a) by y
-
-            // 1. collect aliases
-            AttributeMap<Expression> aliases = new AttributeMap<>();
-            aggregate.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
-            // 2. look at the references and resolve their backing aliases
-            // since the alias might point to an expression containing multiple references, use a loop
-            var groupings = aggregate.groupings();
-            var rootGroupings = new AttributeSet();
-            for (Expression group : groupings) {
-                for (Attribute ref : group.references()) {
-                    // ignore constants
-                    if (ref.foldable() == false) {
-                        rootGroupings.addAll(resolveExpressionAsRootAttributes(ref, aliases));
-                    }
-                }
-            }
-            // 3. remove any field that matches a reference inside the grouping key
-            nonNullAggFields.removeIf(f -> {
-                AttributeSet set = resolveExpressionAsRootAttributes(f, aliases);
-                for (Attribute attr : set) {
-                    AttributeSet localSet = aliases.resolve(attr, attr).references();
-                    for (Expression resolveGroup : rootGroupings) {
-                        if (localSet.contains(resolveGroup)) {
-                            return true;
-                        }
-                    }
-                }
-                // no match, keep the field
-                return false;
-            });
-
             if (nonNullAggFields.size() > 0) {
                 Expression condition = Predicates.combineOr(
                     nonNullAggFields.stream().map(f -> (Expression) new IsNotNull(aggregate.source(), f)).toList()
@@ -1214,27 +1188,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 plan = aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), condition));
             }
             return plan;
-        }
-
-        /**
-         * The purpose of this method is to keep unrolling the expression to its references to get to the root fields
-         * that really matter for filtering.
-         */
-        private AttributeSet resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases) {
-            AttributeSet resolvedExpressions = new AttributeSet();
-            doResolve(exp, aliases, resolvedExpressions);
-            return resolvedExpressions;
-        }
-
-        private void doResolve(Expression exp, AttributeMap<Expression> aliases, AttributeSet attributes) {
-            for (Expression e : exp.references()) {
-                Expression resolved = aliases.resolve(e, e);
-                if (resolved instanceof Attribute a && resolved == e) {
-                    attributes.add(a);
-                } else {
-                    doResolve(resolved, aliases, attributes);
-                }
-            }
         }
     }
 

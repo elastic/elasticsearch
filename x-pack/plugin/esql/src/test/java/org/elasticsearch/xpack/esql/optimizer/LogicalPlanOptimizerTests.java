@@ -259,8 +259,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var group = as(agg.groupings().get(0), Attribute.class);
         assertThat(group, is(alias.toAttribute()));
         // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var from = as(filter.child(), EsRelation.class);
+        var from = as(agg.child(), EsRelation.class);
     }
 
     /**
@@ -771,9 +770,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         var stats = as(limit.child(), Aggregate.class);
-        // is not null filter caused by stats
-        var filter = as(stats.child(), Filter.class);
-        var topN = as(filter.child(), TopN.class);
+        var topN = as(stats.child(), TopN.class);
         as(topN.child(), EsRelation.class);
     }
 
@@ -2119,8 +2116,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[x{r}#7],[COUNT(emp_no{f}#18) AS cy, salary{f}#23 AS x]]
-     *   \_Filter[ISNOTNULL(emp_no{f}#18)]
-     *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *   \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testPruneEvalAliasOnAggGroupedByAlias() {
         var plan = plan("""
@@ -2139,20 +2135,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var x = aliased(aggs.get(1), FieldAttribute.class);
         assertThat(x.name(), is("salary"));
 
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("emp_no"));
-
-        var source = as(filter.child(), EsRelation.class);
+        var source = as(agg.child(), EsRelation.class);
     }
 
     /**
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[gender{f}#23],[COUNT(emp_no{f}#21) AS cy, MIN(salary{f}#26) AS cx, gender{f}#23]]
-     *   \_Filter[ISNOTNULL(emp_no{f}#21) OR ISNOTNULL(salary{f}#26)]
-     *     \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *   \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
      */
     public void testPruneEvalAliasOnAggGrouped() {
         var plan = plan("""
@@ -2172,16 +2162,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var by = as(aggs.get(2), FieldAttribute.class);
         assertThat(Expressions.name(by), is("gender"));
 
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var or = as(filter.condition(), Or.class);
-        var isNotNull = as(or.left(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("emp_no"));
-
-        isNotNull = as(or.right(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("salary"));
-
-        var source = as(filter.child(), EsRelation.class);
+        var source = as(agg.child(), EsRelation.class);
     }
 
     /**
@@ -2209,16 +2190,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var by = as(aggs.get(2), FieldAttribute.class);
         assertThat(Expressions.name(by), is("gender"));
 
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var or = as(filter.condition(), Or.class);
-        var isNotNull = as(or.left(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("emp_no"));
-
-        isNotNull = as(or.right(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("salary"));
-
-        var source = as(filter.child(), EsRelation.class);
+        var source = as(agg.child(), EsRelation.class);
     }
 
     /**
@@ -2246,12 +2218,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         aggFieldName(aggs.get(1), Min.class, "x");
         var by = as(aggs.get(2), FieldAttribute.class);
         assertThat(Expressions.name(by), is("gender"));
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("x"));
 
-        var eval = as(filter.child(), Eval.class);
+        var eval = as(agg.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("x"));
 
         var source = as(eval.child(), EsRelation.class);
@@ -2280,12 +2248,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         aggFieldName(aggs.get(1), Min.class, "x");
         var by = as(aggs.get(2), FieldAttribute.class);
         assertThat(Expressions.name(by), is("gender"));
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("x"));
 
-        var eval = as(filter.child(), Eval.class);
+        var eval = as(agg.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("x"));
         var source = as(eval.child(), EsRelation.class);
     }
@@ -2314,16 +2278,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var by = as(aggs.get(2), FieldAttribute.class);
         assertThat(Expressions.name(by), is("gender"));
 
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var or = as(filter.condition(), Or.class);
-        var isNotNull = as(or.left(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("z"));
-
-        isNotNull = as(or.right(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("x"));
-
-        var eval = as(filter.child(), Eval.class);
+        var eval = as(agg.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("x", "z"));
         var source = as(eval.child(), EsRelation.class);
     }
@@ -2332,8 +2287,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[gender{f}#15],[COUNT(salary{f}#18) AS cy, MIN(emp_no{f}#13) AS cx, gender{f}#15]]
-     *   \_Filter[ISNOTNULL(salary{f}#18) OR ISNOTNULL(emp_no{f}#13)]
-     *     \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     *   \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
     public void testPruneRenameOnAgg() {
         var plan = plan("""
@@ -2350,24 +2304,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         aggFieldName(aggs.get(0), Count.class, "salary");
         aggFieldName(aggs.get(1), Min.class, "emp_no");
 
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var or = as(filter.condition(), Or.class);
-        var isNotNull = as(or.left(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("salary"));
-
-        isNotNull = as(or.right(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("emp_no"));
-
-        var source = as(filter.child(), EsRelation.class);
+        var source = as(agg.child(), EsRelation.class);
     }
 
     /**
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[g{r}#7],[COUNT(salary{f}#20) AS cy, MIN(emp_no{f}#15) AS cx, gender{f}#17 AS g]]
-     *   \_Filter[ISNOTNULL(salary{f}#20) OR ISNOTNULL(emp_no{f}#15)]
-     *     \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
     public void testPruneRenameOnAggBy() {
         var plan = plan("""
@@ -2386,15 +2330,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var groupby = aliased(aggs.get(2), FieldAttribute.class);
         assertThat(Expressions.name(groupby), is("gender"));
 
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var or = as(filter.condition(), Or.class);
-        var isNotNull = as(or.left(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("salary"));
-        isNotNull = as(or.right(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("emp_no"));
-
-        var source = as(filter.child(), EsRelation.class);
+        var source = as(agg.child(), EsRelation.class);
     }
 
     /**
@@ -2488,9 +2424,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(aggs), contains("min", "max", "gender"));
         aggFieldName(aggs.get(0), Min.class, "salary");
         aggFieldName(aggs.get(1), Max.class, "salary");
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var from = as(filter.child(), EsRelation.class);
+        var from = as(agg.child(), EsRelation.class);
     }
 
     /**
@@ -2623,9 +2557,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.groupings()), contains("emp_no", "bar"));
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var from = as(filter.child(), EsRelation.class);
+        var from = as(agg.child(), EsRelation.class);
     }
 
     public void testLimitZeroUsesLocalRelation() {
@@ -2672,11 +2604,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.groupings()), contains("salary"));
         assertThat(Expressions.names(agg.aggregates()), contains("sum(emp_no)", "salary"));
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("emp_no"));
-        var from = as(filter.child(), EsRelation.class);
+        var from = as(agg.child(), EsRelation.class);
     }
 
     /**
@@ -2722,10 +2650,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[salary{f}#13],[SUM(emp_no{f}#8) AS sum(x), salary{f}#13]]
-     *   \_Filter[ISNOTNULL(emp_no{f}#8)]
-     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      */
-    public void testIsNotNullConstraintForStatsWithAlias() {
+    public void testIsNotNullConstraintSkippedForStatsWithAlias() {
         var plan = optimizedPlan("""
             from test
             | eval x = emp_no
@@ -2738,10 +2665,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(agg.aggregates()), contains("sum(x)", "salary"));
 
         // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("emp_no"));
-        var from = as(filter.child(), EsRelation.class);
+        var from = as(agg.child(), EsRelation.class);
     }
 
     /**
@@ -2776,8 +2700,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[gender{f}#11],[SUM(emp_no{f}#9) AS a, MIN(salary{f}#14) AS b, gender{f}#11]]
-     *   \_Filter[ISNOTNULL(emp_no{f}#9) OR ISNOTNULL(salary{f}#14)]
-     *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithGrouping() {
         var plan = optimizedPlan("""
@@ -2789,23 +2712,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("a", "b", "gender"));
 
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var or = as(filter.condition(), Or.class);
-        var isNotNull = as(or.left(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("emp_no"));
-        isNotNull = as(or.right(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("salary"));
-
-        var from = as(filter.child(), EsRelation.class);
+        var from = as(agg.child(), EsRelation.class);
     }
 
     /**
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[emp_no{f}#9],[SUM(emp_no{f}#9) AS a, MIN(salary{f}#14) AS b, emp_no{f}#9]]
-     *   \_Filter[ISNOTNULL(emp_no{f}#9) OR ISNOTNULL(salary{f}#14)]
-     *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithAndOnGrouping() {
         var plan = optimizedPlan("""
@@ -2817,12 +2731,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("a", "b", "emp_no"));
 
-        // non null filter for stats
-        var filter = as(agg.child(), Filter.class);
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.name(isNotNull.field()), is("salary"));
-
-        var from = as(filter.child(), EsRelation.class);
+        var from = as(agg.child(), EsRelation.class);
     }
 
     /**

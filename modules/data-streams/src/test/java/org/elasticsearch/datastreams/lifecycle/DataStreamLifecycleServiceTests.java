@@ -62,6 +62,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.datastreams.DataStreamFeatures;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -159,6 +162,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
+        DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> now);
         dataStreamLifecycleService = new DataStreamLifecycleService(
             Settings.EMPTY,
             client,
@@ -166,8 +170,15 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             clock,
             threadPool,
             () -> now,
-            new DataStreamLifecycleErrorStore(() -> now),
-            allocationService
+            errorStore,
+            allocationService,
+            new DataStreamLifecycleHealthInfoPublisher(
+                Settings.EMPTY,
+                client,
+                clusterService,
+                errorStore,
+                new FeatureService(List.of(new DataStreamFeatures()))
+            )
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -1383,6 +1394,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     public void testTrackingTimeStats() {
         AtomicLong now = new AtomicLong(0);
         long delta = randomLongBetween(10, 10000);
+        DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> Clock.systemUTC().millis());
         DataStreamLifecycleService service = new DataStreamLifecycleService(
             Settings.EMPTY,
             getTransportRequestsRecordingClient(),
@@ -1390,8 +1402,15 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             Clock.systemUTC(),
             threadPool,
             () -> now.getAndAdd(delta),
-            new DataStreamLifecycleErrorStore(() -> Clock.systemUTC().millis()),
-            mock(AllocationService.class)
+            errorStore,
+            mock(AllocationService.class),
+            new DataStreamLifecycleHealthInfoPublisher(
+                Settings.EMPTY,
+                getTransportRequestsRecordingClient(),
+                clusterService,
+                errorStore,
+                new FeatureService(List.of(new DataStreamFeatures()))
+            )
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));

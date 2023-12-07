@@ -58,6 +58,10 @@
 # result in less optimal vector performance
 20-:--add-modules=jdk.incubator.vector
 
+# REMOVE once bumped to a JDK greater than 21.0.1, https://github.com/elastic/elasticsearch/issues/103004
+19-21:-XX:CompileCommand=exclude,org.apache.lucene.util.MSBRadixSorter::computeCommonPrefixLengthAndBuildHistogram
+19-21:-XX:CompileCommand=exclude,org.apache.lucene.util.RadixSelector::computeCommonPrefixLengthAndBuildHistogram
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails; heap dumps

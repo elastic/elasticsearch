@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -19,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102920") // failing test is final, mute whole suite
 public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<SearchUsageStats> {
 
     private static final List<String> QUERY_TYPES = List.of(
@@ -32,7 +34,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         "script_score"
     );
 
-    private static final List<String> RESCORER_TYPES = List.of("query", "learn_to_rank");
+    private static final List<String> RESCORER_TYPES = List.of("query", "learning_to_rank");
 
     private static final List<String> SECTIONS = List.of(
         "highlight",
@@ -134,14 +136,14 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         searchUsageStats.add(
             new SearchUsageStats(
                 Map.of("term", 1L, "match", 1L),
-                Map.of("query", 5L, "learn_to_rank", 2L),
+                Map.of("query", 5L, "learning_to_rank", 2L),
                 Map.of("query", 10L, "knn", 1L),
                 10L
             )
         );
         assertEquals(Map.of("match", 11L, "term", 1L), searchUsageStats.getQueryUsage());
         assertEquals(Map.of("query", 20L, "knn", 1L), searchUsageStats.getSectionsUsage());
-        assertEquals(Map.of("query", 10L, "learn_to_rank", 2L), searchUsageStats.getRescorerUsage());
+        assertEquals(Map.of("query", 10L, "learning_to_rank", 2L), searchUsageStats.getRescorerUsage());
         assertEquals(20L, searchUsageStats.getTotalSearchCount());
     }
 

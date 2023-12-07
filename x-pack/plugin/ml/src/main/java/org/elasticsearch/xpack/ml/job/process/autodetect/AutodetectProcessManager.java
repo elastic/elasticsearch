@@ -658,6 +658,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                         // Don't leave a process with no persistent task hanging around
                                         processContext.newKillBuilder().setAwaitCompletion(false).setFinish(false).kill();
+                                        AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
+                                        if (communicator != null) {
+                                            communicator.releaseResources();
+                                        }
                                         processByAllocation.remove(jobTask.getAllocationId());
                                     }
                                 }

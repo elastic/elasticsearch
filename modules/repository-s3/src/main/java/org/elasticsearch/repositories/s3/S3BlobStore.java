@@ -187,19 +187,19 @@ class S3BlobStore implements BlobStore {
                 .map(List::size)
                 .orElse(0);
 
-            repositoriesMetrics.getOperationCounter().incrementBy(1, attributes);
+            repositoriesMetrics.operationCounter().incrementBy(1, attributes);
             if (numberOfAwsErrors == requestCount) {
-                repositoriesMetrics.getUnsuccessfulOperationCounter().incrementBy(1, attributes);
+                repositoriesMetrics.unsuccessfulOperationCounter().incrementBy(1, attributes);
             }
 
-            repositoriesMetrics.getRequestCounter().incrementBy(requestCount, attributes);
+            repositoriesMetrics.requestCounter().incrementBy(requestCount, attributes);
             if (exceptionCount > 0) {
-                repositoriesMetrics.getExceptionCounter().incrementBy(exceptionCount, attributes);
-                repositoriesMetrics.getExceptionHistogram().record(exceptionCount, attributes);
+                repositoriesMetrics.exceptionCounter().incrementBy(exceptionCount, attributes);
+                repositoriesMetrics.exceptionHistogram().record(exceptionCount, attributes);
             }
             if (throttleCount > 0) {
-                repositoriesMetrics.getThrottleCounter().incrementBy(throttleCount, attributes);
-                repositoriesMetrics.getThrottleHistogram().record(throttleCount, attributes);
+                repositoriesMetrics.throttleCounter().incrementBy(throttleCount, attributes);
+                repositoriesMetrics.throttleHistogram().record(throttleCount, attributes);
             }
         }
 

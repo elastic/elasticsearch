@@ -12,7 +12,15 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-public class RepositoriesMetrics {
+public record RepositoriesMetrics(
+    LongCounter requestCounter,
+    LongCounter exceptionCounter,
+    LongCounter throttleCounter,
+    LongCounter operationCounter,
+    LongCounter unsuccessfulOperationCounter,
+    LongHistogram exceptionHistogram,
+    LongHistogram throttleHistogram
+) {
 
     public static RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
 
@@ -24,62 +32,15 @@ public class RepositoriesMetrics {
     private static final String METRIC_EXCEPTIONS_HISTOGRAM = "es.repositories.exceptions.histogram";
     private static final String METRIC_THROTTLES_HISTOGRAM = "es.repositories.throttles.histogram";
 
-    private final LongCounter requestCounter;
-
-    private final LongCounter exceptionCounter;
-    private final LongCounter throttleCounter;
-    private final LongCounter operationCounter;
-    private final LongCounter unsuccessfulOperationCounter;
-    private final LongHistogram exceptionHistogram;
-    private final LongHistogram throttleHistogram;
-
     public RepositoriesMetrics(MeterRegistry meterRegistry) {
-        this.requestCounter = meterRegistry.registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
-        this.exceptionCounter = meterRegistry.registerLongCounter(METRIC_EXCEPTIONS_COUNT, "repository request exception counter", "unit");
-        this.throttleCounter = meterRegistry.registerLongCounter(METRIC_THROTTLES_COUNT, "repository request throttle counter", "unit");
-        this.operationCounter = meterRegistry.registerLongCounter(METRIC_OPERATIONS_COUNT, "repository operation counter", "unit");
-        this.unsuccessfulOperationCounter = meterRegistry.registerLongCounter(
-            METRIC_UNSUCCESSFUL_OPERATIONS_COUNT,
-            "repository unsuccessful operation counter",
-            "unit"
+        this(
+            meterRegistry.registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit"),
+            meterRegistry.registerLongCounter(METRIC_EXCEPTIONS_COUNT, "repository request exception counter", "unit"),
+            meterRegistry.registerLongCounter(METRIC_THROTTLES_COUNT, "repository request throttle counter", "unit"),
+            meterRegistry.registerLongCounter(METRIC_OPERATIONS_COUNT, "repository operation counter", "unit"),
+            meterRegistry.registerLongCounter(METRIC_UNSUCCESSFUL_OPERATIONS_COUNT, "repository unsuccessful operation counter", "unit"),
+            meterRegistry.registerLongHistogram(METRIC_EXCEPTIONS_HISTOGRAM, "repository request exception histogram", "unit"),
+            meterRegistry.registerLongHistogram(METRIC_THROTTLES_HISTOGRAM, "repository request throttle histogram", "unit")
         );
-        this.exceptionHistogram = meterRegistry.registerLongHistogram(
-            METRIC_EXCEPTIONS_HISTOGRAM,
-            "repository request exception histogram",
-            "unit"
-        );
-        this.throttleHistogram = meterRegistry.registerLongHistogram(
-            METRIC_THROTTLES_HISTOGRAM,
-            "repository request throttle histogram",
-            "unit"
-        );
-    }
-
-    public LongCounter getRequestCounter() {
-        return requestCounter;
-    }
-
-    public LongCounter getExceptionCounter() {
-        return exceptionCounter;
-    }
-
-    public LongCounter getThrottleCounter() {
-        return throttleCounter;
-    }
-
-    public LongCounter getOperationCounter() {
-        return operationCounter;
-    }
-
-    public LongCounter getUnsuccessfulOperationCounter() {
-        return unsuccessfulOperationCounter;
-    }
-
-    public LongHistogram getExceptionHistogram() {
-        return exceptionHistogram;
-    }
-
-    public LongHistogram getThrottleHistogram() {
-        return throttleHistogram;
     }
 }

@@ -87,6 +87,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     private final Instant lastSeen;
     @Nullable
     private final ConnectorSyncInfo syncInfo;
+    @Nullable
     private final String name;
     @Nullable
     private final ConnectorIngestPipeline pipeline;
@@ -318,7 +319,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             ObjectParser.ValueType.STRING_OR_NULL
         );
 
-        PARSER.declareString(optionalConstructorArg(), NAME_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), NAME_FIELD);
         PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> ConnectorIngestPipeline.fromXContent(p), null, PIPELINE_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> ConnectorScheduling.fromXContent(p), SCHEDULING_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), SERVICE_TYPE_FIELD);
@@ -552,7 +553,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
         private String indexName;
         private boolean isNative = false;
         private String language;
-
         private Instant lastSeen;
         private ConnectorSyncInfo syncInfo = new ConnectorSyncInfo.Builder().build();
         private String name;

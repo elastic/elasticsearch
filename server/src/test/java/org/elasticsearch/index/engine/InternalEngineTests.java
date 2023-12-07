@@ -690,7 +690,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             @Override
-            public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+            protected void flushHoldingRef(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
                 super.flush(force, waitIfOngoing, listener);
                 postFlushSegmentInfoGen.set(getLastCommittedSegmentInfos().getGeneration());
                 assertThat(getPreCommitSegmentGeneration(), equalTo(preCommitGen.get()));

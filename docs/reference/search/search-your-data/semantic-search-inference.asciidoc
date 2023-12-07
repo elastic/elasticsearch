@@ -42,7 +42,7 @@ PUT _inference/text_embedding/openai_embeddings <1>
 <2> The API key of your OpenAI account. You can find your OpenAI API keys in 
 your OpenAI account under the 
 https://platform.openai.com/api-keys[API keys section]. You need to provide 
-your API key only once. The <<get-inference-api>> does not retrieve your API 
+your API key only once. The <<get-inference-api>> does not return your API 
 key.
 <3> The name of the embedding model to use. You can find the list of OpenAI 
 embedding models 
@@ -92,8 +92,8 @@ the {infer} pipeline configuration in the next step.
 ==== Create an ingest pipeline with an inference processor
 
 Create an <<ingest,ingest pipeline>> with an
-<<inference-processor,{infer} processor>> to use the OpenAI model you referenced 
-in the {infer} task to infer against the data that is being ingested in the 
+<<inference-processor,{infer} processor>> and use the OpenAI model you created 
+above to infer against the data that is being ingested in the 
 pipeline.
 
 [source,console]
@@ -113,7 +113,7 @@ PUT _ingest/pipeline/openai_embeddings
   ]
 }
 --------------------------------------------------
-<1> The name of the inference task you created by using the 
+<1> The name of the inference model you created by using the 
 <<put-inference-api>>. 
 <2> Configuration object that defines the `input_field` for the {infer} process
 and the `output_field` that will contain the {infer} results.

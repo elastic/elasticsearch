@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -107,8 +108,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             Limiter.ONCE,
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
-            new ReplaceAliasingEvalWithProject()
+            new ReplaceAliasingEvalWithProject(),
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
+            new NullableSimplification()
         );
 
         var operators = new Batch<>(
@@ -1134,6 +1136,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
 
             return plan;
+        }
+    }
+
+    static class NullableSimplification extends OptimizerRules.NullableSimplification {
+
+        @Override
+        protected boolean skipExpression(Expression e) {
+            return e instanceof Coalesce;
         }
     }
 

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ql.optimizer;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.SurrogateFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
@@ -1782,6 +1785,108 @@ public final class OptimizerRules {
         // placeholder for non-null
         protected Expression nonNullify(Expression exp, Expression nonNullExp) {
             return exp;
+        }
+    }
+
+    /**
+     * Simplify IsNull/IsNotNull targets by resolving the underlying expression to its root fields with unknown
+     * nullability.
+     * e.g.
+     * (x + 1) / 2 IS NULL --> x IS NULL
+     * SUBSTRING(x, 3) > 4 IS NULL --> x IS NULL
+     * When dealing with multiple fields, the a conjunction/disjunction based on the predicate:
+     * (x + y) / 4 IS NULL --> x IS NULL OR x IS NULL
+     * (x + y) / 4 IS NOT NULL --> x IS NOT NULL AND y IS NOT NULL
+     * This handles the case of fields nested inside functions or expressions in order to avoid:
+     * - having to evaluate the whole expression
+     * - not pushing down the filter due to expression evaluation
+     * <br/>
+     * Implementation-wise this rule goes bottom-up, keeping an alias up to date to the current plan
+     * and then looks for replacing the target of the IS NULL / IS NOT NULL expressions accordingly.
+     */
+    public static class NullableSimplification extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            // the alias map is shared across the whole plan
+            AttributeMap<Expression> aliases = new AttributeMap<>();
+            // traverse bottom-up to pick up the aliases as we go
+            plan = plan.transformUp(p -> inspectPlan(p, aliases));
+            return plan;
+        }
+
+        private LogicalPlan inspectPlan(LogicalPlan plan, AttributeMap<Expression> aliases) {
+            // inspect just this plan properties
+            plan.forEachExpression(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
+            // now go about finding isNull/isNotNull
+            LogicalPlan newPlan = plan.transformExpressionsOnlyUp(UnaryScalarFunction.class, f -> simplifyExpression(f, aliases));
+            return newPlan;
+        }
+
+        private Expression simplifyExpression(UnaryScalarFunction function, AttributeMap<Expression> aliases) {
+            Expression result = function;
+            if (function instanceof IsNotNull || function instanceof IsNull) {
+                result = simplifyNullable(function, aliases);
+            }
+
+            return result;
+        }
+
+        private Expression simplifyNullable(UnaryScalarFunction function, AttributeMap<Expression> aliases) {
+            Expression result = function;
+            Set<Expression> refs = resolveExpressionAsRootAttributes(function.field(), aliases);
+            // no refs found or could not detect - return the original function
+            if (refs.size() > 0) {
+                boolean isNotNull = function instanceof IsNotNull;
+
+                java.util.function.Function<List<Expression>, Expression> combiner = isNotNull
+                    ? Predicates::combineAnd
+                    : Predicates::combineOr;
+
+                java.util.function.Function<Expression, Expression> constructor = e -> isNotNull
+                    ? new IsNotNull(function.source(), e)
+                    : new IsNull(function.source(), e);
+
+                // convert the list to a set
+                result = combiner.apply(refs.stream().map(constructor).toList());
+            }
+            return result;
+        }
+
+        /**
+         * Unroll the expression to its references to get to the root fields
+         * that really matter for filtering.
+         */
+        protected Set<Expression> resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases) {
+            Set<Expression> resolvedExpressions = new LinkedHashSet<>();
+            doResolve(exp, aliases, resolvedExpressions);
+            return resolvedExpressions;
+        }
+
+        private void doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
+            if (skipExpression(exp)) {
+                resolvedExpressions.add(exp);
+            } else {
+                // expression might be nullable, go after it
+                if (exp.nullable() != Nullability.FALSE) {
+                    for (Expression e : exp.references()) {
+                        Expression resolved = aliases.resolve(e, e);
+                        // found a root attribute, bail out
+                        if (resolved instanceof Attribute a && resolved == e) {
+                            resolvedExpressions.add(a);
+                        } else {
+                            // go further
+                            doResolve(resolved, aliases, resolvedExpressions);
+                        }
+                    }
+                } else {
+                    resolvedExpressions.add(exp);
+                }
+            }
+        }
+
+        protected boolean skipExpression(Expression e) {
+            return false;
         }
     }
 

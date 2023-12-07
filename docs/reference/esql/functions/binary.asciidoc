@@ -15,3 +15,6 @@ And these mathematical operators are supported:
 
 [.text-center]
 image::esql/functions/signature/add.svg[Embedded,opts=inline]
+
+[.text-center]
+image::esql/functions/signature/sub.svg[Embedded,opts=inline]

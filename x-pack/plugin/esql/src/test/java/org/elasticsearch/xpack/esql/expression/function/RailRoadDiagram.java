@@ -113,13 +113,18 @@ public class RailRoadDiagram {
      * on all clients.
      */
     private static String tightenStyles(String svg) {
-        return svg.replace(".c", "#guide .c").replace(".k", "#guide .k").replace(".s", "#guide .s");
+        for (String c : new String[] { "c", "k", "s", "j", "l" }) {
+            svg = svg.replace("." + c, "#guide ." + c);
+        }
+        return svg;
     }
 
     /**
      * Like a literal but with light grey text for a more muted appearance for syntax.
      */
     private static class Syntax extends Literal {
+        private static final String LITERAL_CLASS = "l";
+        private static final String SYNTAX_CLASS = "lsyn";
         private static final String LITERAL_TEXT_CLASS = "j";
         private static final String SYNTAX_TEXT_CLASS = "syn";
         private static final String SYNTAX_GREY = "8D8D8D";
@@ -133,13 +138,20 @@ public class RailRoadDiagram {
 
         @Override
         protected RRElement toRRElement(GrammarToRRDiagram grammarToRRDiagram) {
-            // This performs a monumentally rude hack to replace the text color of this element.
+            /*
+             * This performs a monumentally rude hack to replace the text color of this element.
+             * It renders a "literal" element but intercepts the layer that defines it's css class
+             * and replaces it with our own.
+             */
             return new RRText(RRText.Type.LITERAL, text, null) {
                 @Override
                 protected void toSVG(RRDiagramToSVG rrDiagramToSVG, int xOffset, int yOffset, RRDiagram.SvgContent svgContent) {
                     super.toSVG(rrDiagramToSVG, xOffset, yOffset, new RRDiagram.SvgContent() {
                         @Override
                         public String getDefinedCSSClass(String style) {
+                            if (style.equals(LITERAL_CLASS)) {
+                                return svgContent.getDefinedCSSClass(SYNTAX_CLASS);
+                            }
                             if (style.equals(LITERAL_TEXT_CLASS)) {
                                 return svgContent.getDefinedCSSClass(SYNTAX_TEXT_CLASS);
                             }
@@ -148,11 +160,18 @@ public class RailRoadDiagram {
 
                         @Override
                         public String setCSSClass(String cssClass, String definition) {
-                            if (false == cssClass.equals(LITERAL_TEXT_CLASS)) {
-                                return svgContent.setCSSClass(cssClass, definition);
+                            if (cssClass.equals(LITERAL_CLASS)) {
+                                svgContent.setCSSClass(cssClass, definition);
+                                return svgContent.setCSSClass(SYNTAX_CLASS, definition);
                             }
-                            svgContent.setCSSClass(cssClass, definition);
-                            return svgContent.setCSSClass(SYNTAX_TEXT_CLASS, definition.replace("fill:#000000", "fill:#" + SYNTAX_GREY));
+                            if (cssClass.equals(LITERAL_TEXT_CLASS)) {
+                                svgContent.setCSSClass(cssClass, definition);
+                                return svgContent.setCSSClass(
+                                    SYNTAX_TEXT_CLASS,
+                                    definition.replace("fill:#000000", "fill:#" + SYNTAX_GREY)
+                                );
+                            }
+                            return svgContent.setCSSClass(cssClass, definition);
                         }
 
                         @Override

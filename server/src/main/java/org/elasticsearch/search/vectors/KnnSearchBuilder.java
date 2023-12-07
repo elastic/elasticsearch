@@ -46,8 +46,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewriteable<KnnSearchBuilder> {
     private static final int NUM_CANDS_LIMIT = 10000;
-    private static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 2f;
-    private static final int NUM_CANDS_DEFAULT = 100;
+    private static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
+
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
     public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
@@ -347,7 +347,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         Integer requestSize = context.requestSize();
         int size = requestSize == null ? DEFAULT_SIZE : requestSize;
         int adjustedK = k == null ? size : k;
-        int adjustedNumCands = numCands == null ? Math.max(NUM_CANDS_DEFAULT, adjustedK) : numCands;
+        int adjustedNumCands = numCands == null ? (int) Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK, NUM_CANDS_LIMIT) : numCands;
         if (adjustedNumCands < adjustedK) {
             throw new IllegalArgumentException(
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"

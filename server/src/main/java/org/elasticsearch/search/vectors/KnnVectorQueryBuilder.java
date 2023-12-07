@@ -52,6 +52,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBuilder> {
     public static final String NAME = "knn";
     private static final int NUM_CANDS_LIMIT = 10_000;
+    private static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
+
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
@@ -251,7 +253,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         int requestSize = context.requestSize() == null ? DEFAULT_SIZE : context.requestSize();
-        int adjustedNumCands = numCands == null ? Math.min(Math.max(100, requestSize), NUM_CANDS_LIMIT) : numCands;
+        int adjustedNumCands = numCands == null ? (int) Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * requestSize, NUM_CANDS_LIMIT) : numCands;
         if (fieldType == null) {
             throw new IllegalArgumentException("field [" + fieldName + "] does not exist in the mapping");
         }

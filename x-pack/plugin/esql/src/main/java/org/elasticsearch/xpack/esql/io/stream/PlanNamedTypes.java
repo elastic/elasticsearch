@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.StickyLimit;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -266,6 +267,7 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, MvExpand.class, PlanNamedTypes::writeMvExpand, PlanNamedTypes::readMvExpand),
             of(LogicalPlan.class, OrderBy.class, PlanNamedTypes::writeOrderBy, PlanNamedTypes::readOrderBy),
             of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
+            of(LogicalPlan.class, StickyLimit.class, PlanNamedTypes::writeStickyLimit, PlanNamedTypes::readStickyLimit),
             of(LogicalPlan.class, TopN.class, PlanNamedTypes::writeTopN, PlanNamedTypes::readTopN),
             // Attributes
             of(Attribute.class, FieldAttribute.class, PlanNamedTypes::writeFieldAttribute, PlanNamedTypes::readFieldAttribute),
@@ -779,6 +781,16 @@ public final class PlanNamedTypes {
     }
 
     static void writeLimit(PlanStreamOutput out, Limit limit) throws IOException {
+        out.writeNoSource();
+        out.writeExpression(limit.limit());
+        out.writeLogicalPlanNode(limit.child());
+    }
+
+    static StickyLimit readStickyLimit(PlanStreamInput in) throws IOException {
+        return new StickyLimit(in.readSource(), in.readNamed(Expression.class), in.readLogicalPlanNode());
+    }
+
+    static void writeStickyLimit(PlanStreamOutput out, StickyLimit limit) throws IOException {
         out.writeNoSource();
         out.writeExpression(limit.limit());
         out.writeLogicalPlanNode(limit.child());

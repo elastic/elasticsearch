@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.StickyLimit;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -169,6 +170,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         MvExpand.class,
         OrderBy.class,
         Project.class,
+        StickyLimit.class,
         TopN.class
     );
 

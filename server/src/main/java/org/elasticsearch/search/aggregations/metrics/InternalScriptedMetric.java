@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -27,8 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.singletonList;
-
 public class InternalScriptedMetric extends InternalAggregation implements ScriptedMetric {
     final Script reduceScript;
     private final List<Object> aggregations;
@@ -45,30 +42,13 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
         reduceScript = in.readOptionalWriteable(Script::new);
-        if (in.getTransportVersion().before(TransportVersions.V_7_8_0)) {
-            aggregations = singletonList(in.readGenericValue());
-        } else {
-            aggregations = in.readCollectionAsList(StreamInput::readGenericValue);
-        }
+        aggregations = in.readCollectionAsList(StreamInput::readGenericValue);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(reduceScript);
-        if (out.getTransportVersion().before(TransportVersions.V_7_8_0)) {
-            if (aggregations.size() > 1) {
-                /*
-                 * If aggregations has more than one entry we're trying to
-                 * serialize an unreduced aggregation. This *should* only
-                 * happen when we're returning a scripted_metric over cross
-                 * cluster search.
-                 */
-                throw new IllegalArgumentException("scripted_metric doesn't support cross cluster search until 7.8.0");
-            }
-            out.writeGenericValue(aggregations.get(0));
-        } else {
-            out.writeCollection(aggregations, StreamOutput::writeGenericValue);
-        }
+        out.writeCollection(aggregations, StreamOutput::writeGenericValue);
     }
 
     @Override

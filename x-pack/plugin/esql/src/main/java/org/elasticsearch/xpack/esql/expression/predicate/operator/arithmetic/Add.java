@@ -35,7 +35,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddIntsEvaluator.Factory::new,
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
-            (s, lhs, rhs) -> new AddDoublesEvaluator.Factory(lhs, rhs),
+            (s, lhs, rhs) -> new AddDoublesEvaluator.Factory(source, lhs, rhs),
             AddDatetimesEvaluator.Factory::new
         );
     }

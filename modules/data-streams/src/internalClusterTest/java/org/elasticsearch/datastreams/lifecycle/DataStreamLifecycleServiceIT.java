@@ -46,6 +46,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
+import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
+import org.elasticsearch.health.node.DslErrorInfo;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -63,6 +66,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
@@ -77,7 +81,9 @@ import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -95,6 +101,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
         settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        // we'll test DSL errors reach the health node, so we're lowering the threshold over which we report errors
+        settings.put(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.getKey(), "3");
         return settings.build();
     }
 
@@ -394,8 +402,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         indexDocs(dataStreamName, 1);
 
+        String writeIndexName = getBackingIndices(dataStreamName).get(1);
         assertBusy(() -> {
-            String writeIndexName = getBackingIndices(dataStreamName).get(1);
             ErrorEntry writeIndexRolloverError = null;
             Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
@@ -408,6 +416,35 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
             assertThat(writeIndexRolloverError, is(notNullValue()));
             assertThat(writeIndexRolloverError.error(), containsString("maximum normal shards open"));
+
+            ExplainDataStreamLifecycleAction.Request explainRequest = new ExplainDataStreamLifecycleAction.Request(
+                new String[] { dataStreamName }
+            );
+            ExplainDataStreamLifecycleAction.Response response = client().execute(ExplainDataStreamLifecycleAction.INSTANCE, explainRequest)
+                .actionGet();
+            boolean found = false;
+            for (ExplainIndexDataStreamLifecycle index : response.getIndices()) {
+                if (index.getError() != null && index.getError().retryCount() > 3) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(found);
+        }, 30, TimeUnit.SECONDS);
+
+        // DSL should signal to the health node that there's an error in the store that's been retried at least 3 times
+        assertBusy(() -> {
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
+                FetchHealthInfoCacheAction.INSTANCE,
+                new FetchHealthInfoCacheAction.Request()
+            ).get();
+            DataStreamLifecycleHealthInfo dslHealthInfoOnHealthNode = healthNodeResponse.getHealthInfo().dslHealthInfo();
+            assertThat(dslHealthInfoOnHealthNode, is(not(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS)));
+            assertThat(dslHealthInfoOnHealthNode.dslErrorsInfo().size(), is(1));
+            DslErrorInfo errorInfo = dslHealthInfoOnHealthNode.dslErrorsInfo().get(0);
+
+            assertThat(errorInfo.indexName(), is(writeIndexName));
+            assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
         });
 
         // let's reset the cluster max shards per node limit to allow rollover to proceed and check the error store is empty
@@ -428,6 +465,16 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
                 assertThat(lifecycleService.getErrorStore().getError(previousWriteInddex), nullValue());
             }
+        });
+
+        // the error has been fixed so the health information shouldn't be reported anymore
+        assertBusy(() -> {
+            FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
+                FetchHealthInfoCacheAction.INSTANCE,
+                new FetchHealthInfoCacheAction.Request()
+            ).get();
+            DataStreamLifecycleHealthInfo dslHealthInfoOnHealthNode = healthNodeResponse.getHealthInfo().dslHealthInfo();
+            assertThat(dslHealthInfoOnHealthNode, is(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS));
         });
     }
 
@@ -470,7 +517,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
 
-        String firstGenerationIndex = getBackingIndices(dataStreamName).get(0);
+        List<String> dsBackingIndices = getBackingIndices(dataStreamName);
+        String firstGenerationIndex = dsBackingIndices.get(0);
+        String secondGenerationIndex = dsBackingIndices.get(1);
 
         // mark the first generation index as read-only so deletion fails when we enable the retention configuration
         updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenerationIndex);
@@ -493,13 +542,31 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
                 for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
                     recordedRetentionExecutionError = lifecycleService.getErrorStore().getError(firstGenerationIndex);
-                    if (recordedRetentionExecutionError != null) {
+                    if (recordedRetentionExecutionError != null && recordedRetentionExecutionError.retryCount() > 3) {
                         break;
                     }
                 }
 
                 assertThat(recordedRetentionExecutionError, is(notNullValue()));
                 assertThat(recordedRetentionExecutionError.error(), containsString("blocked by: [FORBIDDEN/5/index read-only (api)"));
+            });
+
+            // DSL should signal to the health node that there's an error in the store that's been retried at least 3 times
+            assertBusy(() -> {
+                FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
+                    FetchHealthInfoCacheAction.INSTANCE,
+                    new FetchHealthInfoCacheAction.Request()
+                ).get();
+                DataStreamLifecycleHealthInfo dslHealthInfoOnHealthNode = healthNodeResponse.getHealthInfo().dslHealthInfo();
+                assertThat(dslHealthInfoOnHealthNode, is(not(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS)));
+                // perhaps surprisingly rollover and delete are error-ing due to the read_only block on the first generation
+                // index which prevents metadata updates so rolling over the data stream is also blocked (note that both indices error at
+                // the same time so they'll have an equal retry count - the order becomes of the results, usually ordered by retry count,
+                // becomes non deterministic, hence the dynamic matching of index name)
+                assertThat(dslHealthInfoOnHealthNode.dslErrorsInfo().size(), is(2));
+                DslErrorInfo errorInfo = dslHealthInfoOnHealthNode.dslErrorsInfo().get(0);
+                assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
+                assertThat(List.of(firstGenerationIndex, secondGenerationIndex).contains(errorInfo.indexName()), is(true));
             });
 
             // let's mark the index as writeable and make sure it's deleted and the error store is empty
@@ -520,6 +587,16 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
                     assertThat(lifecycleService.getErrorStore().getError(firstGenerationIndex), nullValue());
                 }
+            });
+
+            // health info for DSL should be EMPTY as everything's healthy
+            assertBusy(() -> {
+                FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
+                    FetchHealthInfoCacheAction.INSTANCE,
+                    new FetchHealthInfoCacheAction.Request()
+                ).get();
+                DataStreamLifecycleHealthInfo dslHealthInfoOnHealthNode = healthNodeResponse.getHealthInfo().dslHealthInfo();
+                assertThat(dslHealthInfoOnHealthNode, is(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS));
             });
         } finally {
             // when the test executes successfully this will not be needed however, otherwise we need to make sure the index is

@@ -1064,18 +1064,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = prepareSearch().setTrackTotalHits(true)
-                        .setSize(0)
-                        .setQuery(matchAllQuery())
-                        .get()
-                        .getHits()
-                        .getTotalHits().value;
-
-                    if (count == lastKnownCount) {
-                        // no progress - try to refresh for the next time
-                        indicesAdmin().prepareRefresh().get();
+                    var resp = prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery()).get();
+                    try {
+                        long count = resp.getHits().getTotalHits().value;
+                        if (count == lastKnownCount) {
+                            // no progress - try to refresh for the next time
+                            indicesAdmin().prepareRefresh().get();
+                        }
+                        lastKnownCount = count;
+                    } finally {
+                        resp.decRef();
                     }
-                    lastKnownCount = count;
                 } catch (Exception e) { // count now acts like search and barfs if all shards failed...
                     logger.debug("failed to executed count", e);
                     throw e;

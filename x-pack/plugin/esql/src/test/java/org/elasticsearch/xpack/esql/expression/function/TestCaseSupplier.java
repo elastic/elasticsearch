@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -35,6 +36,10 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomCartesianPoint;
+import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -215,17 +220,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         IntFunction<Object> expectedValue,
         int lowerBound,
         int upperBound,
-        List<String> warnings
+        Function<Number, List<String>> expectedWarnings
     ) {
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            DataTypes.INTEGER,
             intCases(lowerBound, upperBound),
             expectedType,
             n -> expectedValue.apply(n.intValue()),
-            warnings
+            n -> expectedWarnings.apply(n.intValue())
         );
+    }
+
+    public static void forUnaryInt(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        IntFunction<Object> expectedValue,
+        int lowerBound,
+        int upperBound,
+        List<String> warnings
+    ) {
+        forUnaryInt(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
     }
 
     /**
@@ -238,17 +254,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         LongFunction<Object> expectedValue,
         long lowerBound,
         long upperBound,
-        List<String> warnings
+        Function<Number, List<String>> expectedWarnings
     ) {
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            DataTypes.LONG,
             longCases(lowerBound, upperBound),
             expectedType,
             n -> expectedValue.apply(n.longValue()),
-            warnings
+            expectedWarnings
         );
+    }
+
+    public static void forUnaryLong(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        LongFunction<Object> expectedValue,
+        long lowerBound,
+        long upperBound,
+        List<String> warnings
+    ) {
+        forUnaryLong(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
     }
 
     /**
@@ -261,17 +288,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<BigInteger, Object> expectedValue,
         BigInteger lowerBound,
         BigInteger upperBound,
-        List<String> warnings
+        Function<BigInteger, List<String>> expectedWarnings
     ) {
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            DataTypes.UNSIGNED_LONG,
             ulongCases(lowerBound, upperBound),
             expectedType,
             n -> expectedValue.apply((BigInteger) n),
-            warnings
+            n -> expectedWarnings.apply((BigInteger) n)
         );
+    }
+
+    public static void forUnaryUnsignedLong(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BigInteger, Object> expectedValue,
+        BigInteger lowerBound,
+        BigInteger upperBound,
+        List<String> warnings
+    ) {
+        forUnaryUnsignedLong(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
     }
 
     /**
@@ -286,14 +324,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         double upperBound,
         List<String> warnings
     ) {
+        forUnaryDouble(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
+    }
+
+    public static void forUnaryDouble(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        DoubleFunction<Object> expectedValue,
+        double lowerBound,
+        double upperBound,
+        DoubleFunction<List<String>> expectedWarnings
+    ) {
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            DataTypes.DOUBLE,
             doubleCases(lowerBound, upperBound),
             expectedType,
             n -> expectedValue.apply(n.doubleValue()),
-            warnings
+            n -> expectedWarnings.apply(n.doubleValue())
         );
     }
 
@@ -307,15 +356,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<Boolean, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(
-            suppliers,
-            expectedEvaluatorToString,
-            DataTypes.BOOLEAN,
-            booleanCases(),
-            expectedType,
-            v -> expectedValue.apply((Boolean) v),
-            warnings
-        );
+        unary(suppliers, expectedEvaluatorToString, booleanCases(), expectedType, v -> expectedValue.apply((Boolean) v), warnings);
     }
 
     /**
@@ -331,10 +372,49 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            DataTypes.DATETIME,
             dateCases(),
             expectedType,
             n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_POINT}.
+     */
+    public static void forUnaryGeoPoint(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Long, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            geoPointCases(),
+            expectedType,
+            n -> expectedValue.apply(n.longValue()),
+            warnings
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#CARTESIAN_POINT}.
+     */
+    public static void forUnaryCartesianPoint(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Long, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            cartesianPointCases(),
+            expectedType,
+            n -> expectedValue.apply(n.longValue()),
             warnings
         );
     }
@@ -349,15 +429,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(
-            suppliers,
-            expectedEvaluatorToString,
-            DataTypes.IP,
-            ipCases(),
-            expectedType,
-            v -> expectedValue.apply((BytesRef) v),
-            warnings
-        );
+        unary(suppliers, expectedEvaluatorToString, ipCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
     }
 
     /**
@@ -368,19 +440,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String expectedEvaluatorToString,
         DataType expectedType,
         Function<BytesRef, Object> expectedValue,
-        List<String> warnings
+        Function<BytesRef, List<String>> expectedWarnings
     ) {
-        for (DataType type : EsqlDataTypes.types().stream().filter(EsqlDataTypes::isString).toList()) {
+        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
             unary(
                 suppliers,
                 expectedEvaluatorToString,
-                type,
                 stringCases(type),
                 expectedType,
                 v -> expectedValue.apply((BytesRef) v),
-                warnings
+                v -> expectedWarnings.apply((BytesRef) v)
             );
         }
+    }
+
+    public static void forUnaryStrings(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        forUnaryStrings(suppliers, expectedEvaluatorToString, expectedType, expectedValue, unused -> warnings);
     }
 
     /**
@@ -396,7 +477,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unary(
             suppliers,
             expectedEvaluatorToString,
-            DataTypes.VERSION,
             versionCases(""),
             expectedType,
             v -> expectedValue.apply(new Version((BytesRef) v)),
@@ -407,31 +487,39 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
-        DataType inputType,
+        List<TypedDataSupplier> valueSuppliers,
+        DataType expectedOutputType,
+        Function<Number, Object> expectedValue,
+        Function<Number, List<String>> expectedWarnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            valueSuppliers,
+            expectedOutputType,
+            v -> expectedValue.apply((Number) v),
+            v -> expectedWarnings.apply((Number) v)
+        );
+    }
+
+    private static void unaryNumeric(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
         List<TypedDataSupplier> valueSuppliers,
         DataType expectedOutputType,
         Function<Number, Object> expected,
         List<String> warnings
     ) {
-        unary(
-            suppliers,
-            expectedEvaluatorToString,
-            inputType,
-            valueSuppliers,
-            expectedOutputType,
-            v -> expected.apply((Number) v),
-            warnings
-        );
+        unaryNumeric(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
-    private static void unary(
+    public static void unary(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
-        DataType inputType,
         List<TypedDataSupplier> valueSuppliers,
         DataType expectedOutputType,
-        Function<Object, Object> expected,
-        List<String> warnings
+        Function<Object, Object> expectedValue,
+        Function<Object, List<String>> expectedWarnings
     ) {
         for (TypedDataSupplier supplier : valueSuppliers) {
             suppliers.add(new TestCaseSupplier(supplier.name(), List.of(supplier.type()), () -> {
@@ -446,17 +534,29 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     List.of(typed),
                     expectedEvaluatorToString,
                     expectedOutputType,
-                    equalTo(expected.apply(value))
+                    equalTo(expectedValue.apply(value))
                 );
-                for (String warning : warnings) {
+                for (String warning : expectedWarnings.apply(value)) {
                     testCase = testCase.withWarning(warning);
                 }
                 return testCase;
             }));
         }
+
     }
 
-    private static List<TypedDataSupplier> intCases(int min, int max) {
+    public static void unary(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        List<TypedDataSupplier> valueSuppliers,
+        DataType expectedOutputType,
+        Function<Object, Object> expected,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
+    }
+
+    public static List<TypedDataSupplier> intCases(int min, int max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0 <= max && 0 >= min) {
             cases.add(new TypedDataSupplier("<0 int>", () -> 0, DataTypes.INTEGER));
@@ -480,7 +580,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> longCases(long min, long max) {
+    public static List<TypedDataSupplier> longCases(long min, long max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0L <= max && 0L >= min) {
             cases.add(new TypedDataSupplier("<0 long>", () -> 0L, DataTypes.LONG));
@@ -505,7 +605,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max) {
+    public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zero
@@ -545,7 +645,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> doubleCases(double min, double max) {
+    public static List<TypedDataSupplier> doubleCases(double min, double max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zeros
@@ -630,6 +730,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE),
                 DataTypes.DATETIME
             )
+        );
+    }
+
+    private static List<TypedDataSupplier> geoPointCases() {
+        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
+    }
+
+    private static List<TypedDataSupplier> cartesianPointCases() {
+        return List.of(
+            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsLong(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
         );
     }
 

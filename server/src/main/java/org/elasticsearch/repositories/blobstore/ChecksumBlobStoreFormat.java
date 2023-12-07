@@ -118,7 +118,7 @@ public final class ChecksumBlobStoreFormat<T> {
     public T read(String repoName, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
         throws IOException {
         String blobName = blobName(name);
-        try (InputStream in = blobContainer.readBlob(OperationPurpose.SNAPSHOT, blobName)) {
+        try (InputStream in = blobContainer.readBlob(OperationPurpose.SNAPSHOT_METADATA, blobName)) {
             return deserialize(repoName, namedXContentRegistry, in);
         }
     }
@@ -345,7 +345,7 @@ public final class ChecksumBlobStoreFormat<T> {
         throws IOException {
         final String blobName = blobName(name);
         blobContainer.writeMetadataBlob(
-            OperationPurpose.SNAPSHOT,
+            OperationPurpose.SNAPSHOT_METADATA,
             blobName,
             false,
             false,

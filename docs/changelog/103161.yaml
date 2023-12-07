@@ -1,0 +1,5 @@
+pr: 103161
+summary: Adding `RefCounted` method implementations to `BulkShardRequest`
+area: Ingest Node
+type: enhancement
+issues: []

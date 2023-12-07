@@ -25,10 +25,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final double samplingRate;
     private final long selfCPU;
     private final long totalCPU;
-    private final double selfAnnualCO2Tons;
-    private final double totalAnnualCO2Tons;
-    private final double selfAnnualCostsUSD;
-    private final double totalAnnualCostsUSD;
     private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;
@@ -68,10 +64,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         List<Double> annualCostsUSDExclusive,
         long selfCPU,
         long totalCPU,
-        double selfAnnualCO2Tons,
-        double totalAnnualCO2Tons,
-        double selfAnnualCostsUSD,
-        double totalAnnualCostsUSD,
         long totalSamples
     ) {
         this.size = size;
@@ -94,10 +86,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         this.annualCostsUSDExclusive = annualCostsUSDExclusive;
         this.selfCPU = selfCPU;
         this.totalCPU = totalCPU;
-        this.selfAnnualCO2Tons = selfAnnualCO2Tons;
-        this.totalAnnualCO2Tons = totalAnnualCO2Tons;
-        this.selfAnnualCostsUSD = selfAnnualCostsUSD;
-        this.totalAnnualCostsUSD = totalAnnualCostsUSD;
         this.totalSamples = totalSamples;
     }
 
@@ -170,22 +158,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return totalCPU;
     }
 
-    public double getSelfAnnualCostsUSD() {
-        return selfAnnualCostsUSD;
-    }
-
-    public double getTotalAnnualCostsUSD() {
-        return totalAnnualCostsUSD;
-    }
-
-    public double getSelfAnnualCO2Tons() {
-        return selfAnnualCO2Tons;
-    }
-
-    public double getTotalAnnualCO2Tons() {
-        return totalAnnualCO2Tons;
-    }
-
     public long getTotalSamples() {
         return totalSamples;
     }
@@ -236,10 +208,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
             Iterators.single((b, p) -> b.field("SamplingRate", samplingRate)),
             Iterators.single((b, p) -> b.field("SelfCPU", selfCPU)),
             Iterators.single((b, p) -> b.field("TotalCPU", totalCPU)),
-            Iterators.single((b, p) -> b.field("SelfAnnualCO2Tons", selfAnnualCO2Tons)),
-            Iterators.single((b, p) -> b.field("TotalAnnualCO2Tons", totalAnnualCO2Tons)),
-            Iterators.single((b, p) -> b.field("SelfAnnualCostsUSD", selfAnnualCostsUSD)),
-            Iterators.single((b, p) -> b.field("TotalAnnualCostsUSD", totalAnnualCostsUSD)),
             Iterators.single((b, p) -> b.field("TotalSamples", totalSamples)),
             ChunkedToXContentHelper.endObject()
         );

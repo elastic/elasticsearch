@@ -593,6 +593,17 @@ public class TransportSearchActionTests extends ESTestCase {
                     }),
                     latch
                 );
+                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                boolean useProgressListener = randomBoolean();
+                SearchProgressListener progressListener = SearchProgressListener.NOOP;
+                if (useProgressListener) {
+                    progressListener = new SearchProgressListener() {
+                        @Override
+                        protected void onCcsReduce(SearchResponse response) {
+                            incrementalResponses.add(response);
+                        }
+                    };
+                }
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -603,7 +614,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    SearchProgressListener.NOOP,
+                    progressListener,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -629,8 +640,18 @@ public class TransportSearchActionTests extends ESTestCase {
                         searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
                     );
                     assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
+                    if (useProgressListener && totalClusters > 1) {
+                        assertEquals(totalClusters, incrementalResponses.size());
+                    } else {
+                        // incremental merges are done iff more than one cluster is searched and a
+                        // non-NOOP SearchProgressListener is provided
+                        assertEquals(0, incrementalResponses.size());
+                    }
                 } finally {
                     searchResponse.decRef();
+                    for (SearchResponse incrementalResponse : incrementalResponses) {
+                        incrementalResponse.decRef();
+                    }
                 }
             }
             {
@@ -643,6 +664,18 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
+
+                boolean useProgressListener = randomBoolean();
+                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                SearchProgressListener progressListener = SearchProgressListener.NOOP;
+                if (useProgressListener) {
+                    progressListener = new SearchProgressListener() {
+                        @Override
+                        protected void onCcsReduce(SearchResponse response) {
+                            incrementalResponses.add(response);
+                        }
+                    };
+                }
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -653,7 +686,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    SearchProgressListener.NOOP,
+                    progressListener,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -670,6 +703,13 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
                 assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
+                if (useProgressListener && localIndices != null) {
+                    // the local index is the only search that succeeds in this sub-test
+                    // the remote clusters all send back failures, so no incremental responses from them
+                    assertEquals(1, incrementalResponses.size());
+                } else {
+                    assertEquals(0, incrementalResponses.size());
+                }
             }
 
             int numDisconnectedClusters = randomIntBetween(1, numClusters);
@@ -704,6 +744,18 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
+                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                boolean useProgressListener = randomBoolean();
+                SearchProgressListener progressListener = SearchProgressListener.NOOP;
+                if (useProgressListener) {
+                    progressListener = new SearchProgressListener() {
+                        @Override
+                        protected void onCcsReduce(SearchResponse response) {
+                            incrementalResponses.add(response);
+                        }
+                    };
+                }
+
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -714,7 +766,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    SearchProgressListener.NOOP,
+                    progressListener,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -731,6 +783,11 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
                 assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
+                if (useProgressListener) {
+                    assertEquals(totalClusters - numDisconnectedClusters, incrementalResponses.size());
+                } else {
+                    assertEquals(0, incrementalResponses.size());
+                }
             }
 
             // setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
@@ -754,6 +811,18 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
+                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                boolean useProgressListener = randomBoolean();
+                SearchProgressListener progressListener = SearchProgressListener.NOOP;
+                if (useProgressListener) {
+                    progressListener = new SearchProgressListener() {
+                        @Override
+                        protected void onCcsReduce(SearchResponse response) {
+                            incrementalResponses.add(response);
+                        }
+                    };
+                }
+
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -764,7 +833,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    SearchProgressListener.NOOP,
+                    progressListener,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -791,6 +860,11 @@ public class TransportSearchActionTests extends ESTestCase {
                     assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
                     assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                     assertEquals(successful == 0 ? 0 : successful + 1, searchResponse.getNumReducePhases());
+                    if (useProgressListener) {
+                        assertEquals(totalClusters - numDisconnectedClusters, incrementalResponses.size());
+                    } else {
+                        assertEquals(0, incrementalResponses.size());
+                    }
                 } finally {
                     searchResponse.decRef();
                 }

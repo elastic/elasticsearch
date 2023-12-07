@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -87,7 +87,7 @@ public class InternalUsersTests extends ESTestCase {
         checkClusterAccess(InternalUsers.XPACK_USER, role, randomFrom(sampleClusterActions), true);
 
         final List<String> sampleIndexActions = List.of(
-            GetAction.NAME,
+            TransportGetAction.TYPE.name(),
             BulkAction.NAME,
             RefreshAction.NAME,
             CreateIndexAction.NAME,
@@ -122,7 +122,7 @@ public class InternalUsersTests extends ESTestCase {
         checkClusterAccess(InternalUsers.XPACK_SECURITY_USER, role, randomFrom(sampleClusterActions), true);
 
         final List<String> sampleIndexActions = List.of(
-            GetAction.NAME,
+            TransportGetAction.TYPE.name(),
             BulkAction.NAME,
             RefreshAction.NAME,
             CreateIndexAction.NAME,
@@ -149,7 +149,7 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
 
         final List<String> sampleAllowedActions = List.of(
-            GetAction.NAME,
+            TransportGetAction.TYPE.name(),
             BulkAction.NAME,
             RefreshAction.NAME,
             CreateIndexAction.NAME,
@@ -180,7 +180,7 @@ public class InternalUsersTests extends ESTestCase {
         checkClusterAccess(InternalUsers.ASYNC_SEARCH_USER, role, ClusterStateAction.NAME, false);
 
         final List<String> sampleAllowedActions = List.of(
-            GetAction.NAME,
+            TransportGetAction.TYPE.name(),
             BulkAction.NAME,
             RefreshAction.NAME,
             CreateIndexAction.NAME,
@@ -212,7 +212,12 @@ public class InternalUsersTests extends ESTestCase {
         checkIndexAccess(role, randomFrom(sampleAllowedActions), ".ds-" + randomAlphaOfLengthBetween(4, 8), true);
         checkIndexAccess(role, randomFrom(sampleAllowedActions), INTERNAL_SECURITY_MAIN_INDEX_7, true);
 
-        final List<String> sampleDeniedActions = List.of(GetAction.NAME, BulkAction.NAME, PutMappingAction.NAME, DeleteIndexAction.NAME);
+        final List<String> sampleDeniedActions = List.of(
+            TransportGetAction.TYPE.name(),
+            BulkAction.NAME,
+            PutMappingAction.NAME,
+            DeleteIndexAction.NAME
+        );
         checkIndexAccess(role, randomFrom(sampleDeniedActions), randomAlphaOfLengthBetween(4, 8), false);
         checkIndexAccess(role, randomFrom(sampleDeniedActions), ".ds-" + randomAlphaOfLengthBetween(4, 8), false);
         checkIndexAccess(role, randomFrom(sampleDeniedActions), INTERNAL_SECURITY_MAIN_INDEX_7, false);

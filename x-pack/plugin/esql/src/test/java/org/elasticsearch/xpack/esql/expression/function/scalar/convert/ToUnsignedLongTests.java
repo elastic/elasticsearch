@@ -26,10 +26,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX_AS_DOUBLE;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 
 public class ToUnsignedLongTests extends AbstractFunctionTestCase {
     public ToUnsignedLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -47,7 +44,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             suppliers,
             read,
             DataTypes.UNSIGNED_LONG,
-            NumericUtils::asLongUnsigned,
+            (n) -> n,
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
             List.of()
@@ -57,7 +54,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             suppliers,
             evaluatorName.apply("Boolean"),
             DataTypes.UNSIGNED_LONG,
-            b -> b ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG,
+            b -> b ? BigInteger.ONE : BigInteger.ZERO,
             List.of()
         );
 
@@ -66,7 +63,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             suppliers,
             evaluatorName.apply("Long"),
             DataTypes.UNSIGNED_LONG,
-            instant -> asLongUnsigned(instant.toEpochMilli()),
+            instant -> BigInteger.valueOf(instant.toEpochMilli()),
             List.of()
         );
         // random strings that don't look like an unsigned_long
@@ -85,7 +82,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             suppliers,
             evaluatorName.apply("Double"),
             DataTypes.UNSIGNED_LONG,
-            d -> asLongUnsigned(BigDecimal.valueOf(d).toBigInteger()), // note: not: new BigDecimal(d).toBigInteger
+            d -> BigDecimal.valueOf(d).toBigInteger(), // note: not: new BigDecimal(d).toBigInteger
             0d,
             UNSIGNED_LONG_MAX_AS_DOUBLE,
             List.of()
@@ -122,7 +119,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             suppliers,
             evaluatorName.apply("Long"),
             DataTypes.UNSIGNED_LONG,
-            NumericUtils::asLongUnsigned,
+            (n) -> BigInteger.valueOf(n),
             0L,
             Long.MAX_VALUE,
             List.of()
@@ -146,7 +143,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             suppliers,
             evaluatorName.apply("Int"),
             DataTypes.UNSIGNED_LONG,
-            NumericUtils::asLongUnsigned,
+            (n) -> BigInteger.valueOf(n),
             0,
             Integer.MAX_VALUE,
             List.of()
@@ -180,7 +177,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
                 )
                 .toList(),
             DataTypes.UNSIGNED_LONG,
-            bytesRef -> asLongUnsigned(safeToUnsignedLong(((BytesRef) bytesRef).utf8ToString())),
+            bytesRef -> safeToUnsignedLong(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
         // strings of random doubles within unsigned_long's range
@@ -198,7 +195,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
                 )
                 .toList(),
             DataTypes.UNSIGNED_LONG,
-            bytesRef -> asLongUnsigned(safeToUnsignedLong(((BytesRef) bytesRef).utf8ToString())),
+            bytesRef -> safeToUnsignedLong(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
         // strings of random doubles outside unsigned_long's range, negative

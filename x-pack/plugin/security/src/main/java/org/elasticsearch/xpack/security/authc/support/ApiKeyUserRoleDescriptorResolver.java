@@ -37,10 +37,7 @@ public class ApiKeyUserRoleDescriptorResolver {
             return;
         }
 
-        rolesStore.getRoleDescriptorsList(
-            effectiveSubject,
-            listener.delegateFailureAndWrap(this::handleRoleDescriptorsList)
-        );
+        rolesStore.getRoleDescriptorsList(effectiveSubject, listener.delegateFailureAndWrap(this::handleRoleDescriptorsList));
     }
 
     private void handleRoleDescriptorsList(

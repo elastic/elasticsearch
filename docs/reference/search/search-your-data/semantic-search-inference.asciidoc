@@ -68,7 +68,7 @@ PUT openai-embeddings
         "type": "dense_vector", <2>
         "dims": 1536, <3>
         "element_type": "byte",
-        "similarity": "dot_product", <4>
+        "similarity": "dot_product" <4>
       },
       "content": { <5>
         "type": "text" <6>

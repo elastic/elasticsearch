@@ -39,7 +39,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * and synchronizing external data sources with Elasticsearch. Each Connector instance encapsulates
  * various settings and state information, including:
  * <ul>
- *     <li>A unique identifier for distinguishing different connectors.</li>
+ *     <li>A doc _id of the connector document.</li>
  *     <li>API key for authenticating with Elasticsearch, ensuring secure access.</li>
  *     <li>A configuration mapping which holds specific settings and parameters for the connector's operation.</li>
  *     <li>A {@link ConnectorCustomSchedule} object that defines custom scheduling.</li>
@@ -65,12 +65,11 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     public static final String NAME = Connector.class.getName().toUpperCase(Locale.ROOT);
 
+    @Nullable
     private final String connectorId;
     @Nullable
     private final String apiKeyId;
-    @Nullable
     private final Map<String, ConnectorConfiguration> configuration;
-    @Nullable
     private final Map<String, ConnectorCustomSchedule> customScheduling;
     @Nullable
     private final String description;
@@ -78,11 +77,9 @@ public class Connector implements NamedWriteable, ToXContentObject {
     private final String error;
     @Nullable
     private final ConnectorFeatures features;
-    @Nullable
     private final List<ConnectorFiltering> filtering;
     @Nullable
     private final String indexName;
-
     private final boolean isNative;
     @Nullable
     private final String language;
@@ -90,11 +87,9 @@ public class Connector implements NamedWriteable, ToXContentObject {
     private final Instant lastSeen;
     @Nullable
     private final ConnectorSyncInfo syncInfo;
-    @Nullable
     private final String name;
     @Nullable
     private final ConnectorIngestPipeline pipeline;
-    @Nullable
     private final ConnectorScheduling scheduling;
     @Nullable
     private final String serviceType;
@@ -151,22 +146,22 @@ public class Connector implements NamedWriteable, ToXContentObject {
     ) {
         this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
-        this.configuration = configuration;
-        this.customScheduling = customScheduling;
+        this.configuration = Objects.requireNonNull(configuration, "[configuration] cannot be null");
+        this.customScheduling = Objects.requireNonNull(customScheduling, "[custom_scheduling] cannot be null");
         this.description = description;
         this.error = error;
         this.features = features;
-        this.filtering = filtering;
-        this.indexName = indexName;
+        this.filtering = Objects.requireNonNull(filtering, "[filtering] cannot be null");
+        this.indexName = Objects.requireNonNull(indexName, "[index_name] cannot be null");
         this.isNative = isNative;
         this.language = language;
         this.lastSeen = lastSeen;
         this.syncInfo = syncInfo;
         this.name = name;
         this.pipeline = pipeline;
-        this.scheduling = scheduling;
+        this.scheduling = Objects.requireNonNull(scheduling, "[scheduling] cannot be null");
         this.serviceType = serviceType;
-        this.status = Objects.requireNonNull(status, "connector status cannot be null");
+        this.status = Objects.requireNonNull(status, "[status] cannot be null");
         this.syncCursor = syncCursor;
         this.syncNow = syncNow;
     }

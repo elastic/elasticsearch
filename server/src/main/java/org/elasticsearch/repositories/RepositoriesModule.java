@@ -42,7 +42,7 @@ public final class RepositoriesModule {
     public static final String METRIC_UNSUCCESSFUL_OPERATIONS_COUNT = "es.repositories.operations.unsuccessful.count";
     public static final String METRIC_EXCEPTIONS_HISTOGRAM = "es.repositories.exceptions.histogram";
     public static final String METRIC_THROTTLES_HISTOGRAM = "es.repositories.throttles.histogram";
-
+    public static final String HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM = "es.repositories.requests.http_request_time.histogram";
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(
@@ -55,6 +55,7 @@ public final class RepositoriesModule {
         RecoverySettings recoverySettings,
         TelemetryProvider telemetryProvider
     ) {
+        // TODO: refactor APM metrics into their own class, passed in as a dependency (e.g. see BlobCacheMetrics as an example).
         telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
         telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_EXCEPTIONS_COUNT, "repository request exception counter", "unit");
         telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_THROTTLES_COUNT, "repository operation counter", "unit");
@@ -66,6 +67,13 @@ public final class RepositoriesModule {
             .registerLongHistogram(METRIC_EXCEPTIONS_HISTOGRAM, "repository request exception histogram", "unit");
         telemetryProvider.getMeterRegistry()
             .registerLongHistogram(METRIC_THROTTLES_HISTOGRAM, "repository request throttle histogram", "unit");
+        telemetryProvider.getMeterRegistry()
+            .registerLongHistogram(
+                HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM,
+                "HttpRequestTime in microseconds expressed as as a histogram",
+                "micros"
+            );
+
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,

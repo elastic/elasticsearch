@@ -54,6 +54,10 @@ class GetStackTracesResponseBuilder {
         this.totalFrames = totalFrames;
     }
 
+    public void addTotalFrames(int numFrames) {
+        this.totalFrames += numFrames;
+    }
+
     public void setStackFrames(Map<String, StackFrame> stackFrames) {
         this.stackFrames = stackFrames;
     }

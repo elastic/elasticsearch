@@ -20,28 +20,83 @@ setup:
           id: test-connector
           job_type: full
           trigger_method: on_demand
+
   - set:  { id: id }
+
   - match: { id: $id }
 
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { connector.id: test-connector}
+  - match: { job_type: full }
+  - match: { trigger_method: on_demand }
+  - match: { status: pending }
+  - match: { total_document_count: 0 }
+  - match: { indexed_document_count: 0 }
+  - match: { indexed_document_volume: 0 }
+  - match: { deleted_document_count: 0 }
+  - exists: id
+  - exists: created_at
+  - exists: last_seen
+
+
 ---
-'Create connector sync job with missing job type':
+'Create connector sync job with missing job type - expect job type full as default':
   - do:
       connector_sync_job.post:
         body:
           id: test-connector
           trigger_method: on_demand
+
   - set:  { id: id }
+
   - match: { id: $id }
 
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { connector.id: test-connector }
+  - match: { job_type: full }
+  - match: { trigger_method: on_demand }
+  - match: { status: pending }
+  - match: { total_document_count: 0 }
+  - match: { indexed_document_count: 0 }
+  - match: { indexed_document_volume: 0 }
+  - match: { deleted_document_count: 0 }
+  - exists: id
+  - exists: created_at
+  - exists: last_seen
+
 ---
-'Create connector sync job with missing trigger method':
+'Create connector sync job with missing trigger method - expect trigger method on_demand as default':
   - do:
       connector_sync_job.post:
         body:
           id: test-connector
           job_type: full
+
   - set:  { id: id }
+
   - match: { id: $id }
+
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { connector.id: test-connector }
+  - match: { job_type: full }
+  - match: { trigger_method: on_demand }
+  - match: { status: pending }
+  - match: { total_document_count: 0 }
+  - match: { indexed_document_count: 0 }
+  - match: { indexed_document_volume: 0 }
+  - match: { deleted_document_count: 0 }
+  - exists: id
+  - exists: created_at
+  - exists: last_seen
 
 ---
 'Create connector sync job with non-existing connector id':

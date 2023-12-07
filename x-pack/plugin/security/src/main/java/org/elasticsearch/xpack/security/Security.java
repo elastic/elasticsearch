@@ -13,9 +13,9 @@ import io.netty.handler.codec.http.HttpUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -625,6 +625,14 @@ public class Security extends Plugin
 
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
+    }
+
+    protected Client getClient() {
+        return client.get();
+    }
+
+    protected Realms getRealms() {
+        return realms.get();
     }
 
     @Override
@@ -1898,27 +1906,33 @@ public class Security extends Plugin
     @Override
     public void reload(Settings settings) throws Exception {
         if (enabled) {
-            final List<Exception> exceptions = new ArrayList<>();
+            final List<Exception> reloadExceptions = new ArrayList<>();
             try {
                 reloadRemoteClusterCredentials(settings);
             } catch (Exception ex) {
-                exceptions.add(ex);
+                reloadExceptions.add(ex);
             }
 
             try {
                 reloadSharedSecretsForJwtRealms(settings);
             } catch (Exception ex) {
-                exceptions.add(ex);
+                reloadExceptions.add(ex);
             }
 
-            ExceptionsHelper.rethrowAndSuppress(exceptions);
+            if (false == reloadExceptions.isEmpty()) {
+                final var combinedException = new ElasticsearchException(
+                    "secure settings reload failed for one or more security component"
+                );
+                reloadExceptions.forEach(combinedException::addSuppressed);
+                throw combinedException;
+            }
         } else {
             ensureNoRemoteClusterCredentialsOnDisabledSecurity(settings);
         }
     }
 
     private void reloadSharedSecretsForJwtRealms(Settings settingsWithKeystore) {
-        realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
+        getRealms().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
             if (realm instanceof JwtRealm jwtRealm) {
                 jwtRealm.rotateClientSecret(
                     CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settingsWithKeystore)
@@ -1930,9 +1944,11 @@ public class Security extends Plugin
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
         // Accepting a blocking call here since the underlying action is local-only and only performs fast in-memory ops
         // (extracts a subset of passed in `settingsWithKeystore` and stores them in a map)
-        client.get()
-            .execute(ReloadRemoteClusterCredentialsAction.INSTANCE, new ReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore))
-            .actionGet();
+        // TODO wrap exception here?
+        getClient().execute(
+            ReloadRemoteClusterCredentialsAction.INSTANCE,
+            new ReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore)
+        ).actionGet();
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

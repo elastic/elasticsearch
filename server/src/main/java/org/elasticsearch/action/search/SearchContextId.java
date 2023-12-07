@@ -32,10 +32,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 public final class SearchContextId {
@@ -132,7 +132,8 @@ public final class SearchContextId {
     }
 
     public String[] getActualIndices() {
-        final Set<String> indices = new HashSet<>();
+        // ensure that the order is consistent
+        final Set<String> indices = new TreeSet<>();
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : shards().entrySet()) {
             final String indexName = entry.getKey().getIndexName();
             final String clusterAlias = entry.getValue().getClusterAlias();

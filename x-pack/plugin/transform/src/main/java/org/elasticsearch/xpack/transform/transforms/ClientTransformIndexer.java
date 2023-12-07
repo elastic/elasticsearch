@@ -529,6 +529,10 @@ class ClientTransformIndexer extends TransformIndexer {
         logger.trace("searchRequest: [{}]", searchRequest);
 
         PointInTimeBuilder pit = searchRequest.pointInTimeBuilder();
+        if (pit != null) {
+            // remove the indices from the request, they will be derived from the provided pit
+            searchRequest = new SearchRequest(searchRequest).indices(new String[0]);
+        }
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),

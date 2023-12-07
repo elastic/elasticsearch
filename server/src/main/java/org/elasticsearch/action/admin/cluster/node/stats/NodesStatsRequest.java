@@ -47,8 +47,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * for all nodes will be returned.
      */
     public NodesStatsRequest(String... nodesIds) {
-        super(nodesIds);
-        nodesStatsRequestParameters = new NodesStatsRequestParameters();
+        this(new NodesStatsRequestParameters(), nodesIds);
     }
 
     public NodesStatsRequest(NodesStatsRequestParameters nodesStatsRequestParameters, String... nodesIds) {

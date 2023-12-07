@@ -93,4 +93,9 @@ public interface LocalClusterHandle extends ClusterHandle {
      * Returns an {@link InputStream} for the given node log.
      */
     InputStream getNodeLog(int index, LogType logType);
+
+    /**
+     * Writes current keystore settings to key-store file on each node.
+     */
+    void writeToKeystoreFile();
 }

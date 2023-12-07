@@ -179,6 +179,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         return nodes.get(index).getLog(logType);
     }
 
+    @Override
+    public void writeToKeystoreFile() {
+        execute(() -> nodes.parallelStream().forEach(Node::writeToKeystoreFile));
+    }
+
     protected void waitUntilReady() {
         writeUnicastHostsFile();
         try {

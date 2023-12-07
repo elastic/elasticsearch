@@ -156,6 +156,12 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
         return handle.getNodeLog(index, logType);
     }
 
+    @Override
+    public void writeToKeystoreFile() {
+        checkHandle();
+        handle.writeToKeystoreFile();
+    }
+
     protected H getHandle() {
         return handle;
     }

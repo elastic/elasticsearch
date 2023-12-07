@@ -34,6 +34,7 @@ import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
@@ -883,9 +884,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo(
-                "index .ds-logs-app1-2023.12.06-000001 with [index.mode=time_series] has no routing path and no "
-                    + "dynamic templates with fields marked as [time_series_dimension]"
+            containsString(
+                "[index.mode=time_series] has no routing path and no " + "dynamic templates with fields marked as [time_series_dimension]"
             )
         );
     }

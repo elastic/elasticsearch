@@ -1094,23 +1094,33 @@ public class TransportSearchActionTests extends ESTestCase {
             assertEquals(-1, source.size());
             assertEquals(-1, source.from());
             assertNull(source.trackTotalHitsUpTo());
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
-                source,
-                timeProvider,
-                emptyReduceContextBuilder()
-            );
-            assertEquals(0, merger.from);
-            assertEquals(10, merger.size);
-            assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
-            assertEquals(0, source.from());
-            assertEquals(10, source.size());
-            assertNull(source.trackTotalHitsUpTo());
+            try (
+                SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
+                    source,
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                )
+            ) {
+                assertEquals(0, merger.from);
+                assertEquals(10, merger.size);
+                assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
+                assertEquals(0, source.from());
+                assertEquals(10, source.size());
+                assertNull(source.trackTotalHitsUpTo());
+            }
         }
         {
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(null, timeProvider, emptyReduceContextBuilder());
-            assertEquals(0, merger.from);
-            assertEquals(10, merger.size);
-            assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
+            try (
+                SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
+                    null,
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                )
+            ) {
+                assertEquals(0, merger.from);
+                assertEquals(10, merger.size);
+                assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
+            }
         }
         {
             SearchSourceBuilder source = new SearchSourceBuilder();
@@ -1120,17 +1130,20 @@ public class TransportSearchActionTests extends ESTestCase {
             source.size(originalSize);
             int trackTotalHitsUpTo = randomIntBetween(0, Integer.MAX_VALUE);
             source.trackTotalHitsUpTo(trackTotalHitsUpTo);
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
-                source,
-                timeProvider,
-                emptyReduceContextBuilder()
-            );
-            assertEquals(0, source.from());
-            assertEquals(originalFrom + originalSize, source.size());
-            assertEquals(trackTotalHitsUpTo, (int) source.trackTotalHitsUpTo());
-            assertEquals(originalFrom, merger.from);
-            assertEquals(originalSize, merger.size);
-            assertEquals(trackTotalHitsUpTo, merger.trackTotalHitsUpTo);
+            try (
+                SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
+                    source,
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                )
+            ) {
+                assertEquals(0, source.from());
+                assertEquals(originalFrom + originalSize, source.size());
+                assertEquals(trackTotalHitsUpTo, (int) source.trackTotalHitsUpTo());
+                assertEquals(originalFrom, merger.from);
+                assertEquals(originalSize, merger.size);
+                assertEquals(trackTotalHitsUpTo, merger.trackTotalHitsUpTo);
+            }
         }
     }
 

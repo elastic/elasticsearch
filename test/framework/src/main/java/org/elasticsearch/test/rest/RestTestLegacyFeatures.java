@@ -59,6 +59,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature ML_INDICES_HIDDEN = new NodeFeature("ml.indices_hidden");
     @UpdateForV9
     public static final NodeFeature ML_ANALYTICS_MAPPINGS = new NodeFeature("ml.analytics_mappings");
+    @UpdateForV9
+    public static final NodeFeature SLM_SUPPORTED = new NodeFeature("slm.supported");
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
@@ -78,7 +80,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(TRANSFORM_NEW_API_ENDPOINT, Version.V_7_5_0),
             entry(DATA_STREAMS_DATE_IN_INDEX_NAME, Version.V_7_11_0),
             entry(ML_INDICES_HIDDEN, Version.V_7_7_0),
-            entry(ML_ANALYTICS_MAPPINGS, Version.V_7_3_0)
+            entry(ML_ANALYTICS_MAPPINGS, Version.V_7_3_0),
+            entry(SLM_SUPPORTED, Version.V_7_4_0)
         );
     }
 }

@@ -294,7 +294,10 @@ public class ResultsPersisterService {
             client,
             () -> (isShutdown == false) && shouldRetry.get(),
             retryMsgHandler,
-            removeListener
+            removeListener.delegateFailure((l, r) -> {
+                r.mustIncRef();
+                l.onResponse(r);
+            })
         );
         onGoingRetryableSearchActions.put(key, mlRetryableAction);
         mlRetryableAction.run();

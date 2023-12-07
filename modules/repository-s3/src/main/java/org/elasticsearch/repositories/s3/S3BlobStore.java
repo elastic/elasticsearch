@@ -48,11 +48,13 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.RepositoriesModule.HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_COUNT;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_OPERATIONS_COUNT;
@@ -97,6 +99,7 @@ class S3BlobStore implements BlobStore {
     private final LongCounter unsuccessfulOperationCounter;
     private final LongHistogram exceptionHistogram;
     private final LongHistogram throttleHistogram;
+    private final LongHistogram httpRequestTimeInMicroHistogram;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
@@ -134,6 +137,7 @@ class S3BlobStore implements BlobStore {
         this.unsuccessfulOperationCounter = this.meterRegistry.getLongCounter(METRIC_UNSUCCESSFUL_OPERATIONS_COUNT);
         this.exceptionHistogram = this.meterRegistry.getLongHistogram(METRIC_EXCEPTIONS_HISTOGRAM);
         this.throttleHistogram = this.meterRegistry.getLongHistogram(METRIC_THROTTLES_HISTOGRAM);
+        this.httpRequestTimeInMicroHistogram = this.meterRegistry.getLongHistogram(HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM);
         s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
         threadPool.scheduleWithFixedDelay(() -> {
             var priorRetryStats = s3RequestRetryStats;
@@ -224,6 +228,7 @@ class S3BlobStore implements BlobStore {
                 throttleCounter.incrementBy(throttleCount, attributes);
                 throttleHistogram.record(throttleCount, attributes);
             }
+            httpRequestTimeInMicroHistogram.record(getHttpRequestTimeInMicros(request), attributes);
         }
 
         private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
@@ -260,6 +265,32 @@ class S3BlobStore implements BlobStore {
         } else {
             return count.longValue();
         }
+    }
+
+    /**
+     * Used for APM style metrics to measure statics about performance. This is not for billing.
+     */
+    private static long getHttpRequestTimeInMicros(Request<?> request) {
+        List<TimingInfo> requestTimesIncludingRetries;
+        requestTimesIncludingRetries = request.getAWSRequestMetrics()
+            .getTimingInfo()
+            .getAllSubMeasurements(AWSRequestMetrics.Field.HttpRequestTime.name());
+
+        // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
+        // (time to first byte). We calculate the time in micros for later use with an APM style counter (exposed as a long), rather than
+        // using the default double exposed by getTimeTakenMillisIfKnown().
+        long totalTimeInMicros = 0;
+        for (TimingInfo timingInfo : requestTimesIncludingRetries) {
+            var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
+            if (endTimeInNanos != null) {
+                totalTimeInMicros += TimeUnit.NANOSECONDS.toMicros(endTimeInNanos - timingInfo.getStartTimeNano());
+            }
+        }
+        if (totalTimeInMicros == 0) {
+            logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
+            return 0L;
+        }
+        return totalTimeInMicros;
     }
 
     @Override

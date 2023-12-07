@@ -766,7 +766,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         ActionListener<SearchResponse> originalListener
     ) {
-        return new CCSActionListener<>(clusterAlias, skipUnavailable, countDown, exceptions, clusters, originalListener) {
+        return new CCSActionListener<>(
+            clusterAlias,
+            skipUnavailable,
+            countDown,
+            exceptions,
+            clusters,
+            ActionListener.releaseAfter(originalListener, searchResponseMerger)
+        ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
                 // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
@@ -777,6 +784,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             @Override
             SearchResponse createFinalResponse() {
                 return searchResponseMerger.getMergedResponse(clusters);
+            }
+
+            @Override
+            protected void releaseResponse(SearchResponse searchResponse) {
+                searchResponse.decRef();
             }
         };
     }
@@ -1494,12 +1506,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         originalListener.onFailure(e);
                         return;
                     }
-                    originalListener.onResponse(response);
+                    try {
+                        originalListener.onResponse(response);
+                    } finally {
+                        releaseResponse(response);
+                    }
                 } else {
                     originalListener.onFailure(exceptions.get());
                 }
             }
         }
+
+        protected void releaseResponse(FinalResponse response) {}
 
         abstract FinalResponse createFinalResponse();
     }

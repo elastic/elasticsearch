@@ -122,7 +122,7 @@ public class Truncator {
         return truncate(text, length);
     }
 
-    public record TruncationEntry(String input, boolean truncated) {}
+    private record TruncationEntry(String input, boolean truncated) {}
 
     public record TruncationResult(List<String> input, List<Boolean> truncated) {}
 }

@@ -885,7 +885,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "[index.mode=time_series] has no routing path and no " + "dynamic templates with fields marked as [time_series_dimension]"
+                "[index.mode=time_series] has no routing path and no dynamic templates with fields marked as [time_series_dimension]"
             )
         );
     }

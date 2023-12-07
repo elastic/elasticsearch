@@ -672,11 +672,11 @@ public class IndexRoutingTests extends ESTestCase {
         int shards = between(2, 1000);
         IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicTemplates(
             IndexMetadata.builder("test")
-                .settings(settings(IndexVersion.current()).put(IndexMetadata.DYNAMIC_DIMENSION_NAMES.getKey(), "dynamic1,dynamic2"))
+                .settings(settings(IndexVersion.current()).put(IndexMetadata.DYNAMIC_DIMENSION_NAMES.getKey(), "dYnamic1,dynamiC2"))
                 .numberOfShards(shards)
                 .numberOfReplicas(1)
                 .build(),
-            Map.of("dimension1", "dynamic1", "dimension2", "dynamic2")
+            Map.of("dimension1", "dynAmic1", "dimension2", "dynamIc2")
         );
         assertIndexShard(
             routing,

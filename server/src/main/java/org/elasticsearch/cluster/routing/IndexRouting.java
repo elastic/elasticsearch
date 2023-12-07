@@ -298,7 +298,8 @@ public abstract class IndexRouting {
                 List<String> dynamicDimensionNames = metadata.getDynamicDimensionNames();
                 if (dynamicDimensionNames.isEmpty() == false) {
                     // Invert the dynamic template mapping to efficiently search for field type matches.
-                    Map<String, String> inverted = new TreeMap<>();
+                    // Dynamic dimension name matches are case-insensitive.
+                    Map<String, String> inverted = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
                     for (var entry : dynamicTemplates.entrySet()) {
                         inverted.put(entry.getValue(), entry.getKey());
                     }

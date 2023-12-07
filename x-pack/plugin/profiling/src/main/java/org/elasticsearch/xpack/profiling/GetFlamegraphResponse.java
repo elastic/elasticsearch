@@ -222,6 +222,22 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return totalCPU;
     }
 
+    public double getSelfAnnualCostsUSD() {
+        return selfAnnualCostsUSD;
+    }
+
+    public double getTotalAnnualCostsUSD() {
+        return totalAnnualCostsUSD;
+    }
+
+    public double getSelfAnnualCO2Tons() {
+        return selfAnnualCO2Tons;
+    }
+
+    public double getTotalAnnualCO2Tons() {
+        return totalAnnualCO2Tons;
+    }
+
     public long getTotalSamples() {
         return totalSamples;
     }

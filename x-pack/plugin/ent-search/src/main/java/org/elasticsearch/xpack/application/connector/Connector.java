@@ -257,31 +257,24 @@ public class Connector implements NamedWriteable, ToXContentObject {
     );
 
     static {
-        PARSER.declareString(optionalConstructorArg(), API_KEY_ID_FIELD);
-        PARSER.declareField(
+        PARSER.declareStringOrNull(optionalConstructorArg(), API_KEY_ID_FIELD);
+        PARSER.declareObject(
             optionalConstructorArg(),
             (p, c) -> p.map(HashMap::new, ConnectorConfiguration::fromXContent),
-            CONFIGURATION_FIELD,
-            ObjectParser.ValueType.OBJECT
+            CONFIGURATION_FIELD
         );
-        PARSER.declareField(
+        PARSER.declareObject(
             optionalConstructorArg(),
             (p, c) -> p.map(HashMap::new, ConnectorCustomSchedule::fromXContent),
-            CUSTOM_SCHEDULING_FIELD,
-            ObjectParser.ValueType.OBJECT
+            CUSTOM_SCHEDULING_FIELD
         );
-        PARSER.declareString(optionalConstructorArg(), DESCRIPTION_FIELD);
-        PARSER.declareString(optionalConstructorArg(), ERROR_FIELD);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorFeatures.fromXContent(p),
-            FEATURES_FIELD,
-            ObjectParser.ValueType.OBJECT
-        );
+        PARSER.declareStringOrNull(optionalConstructorArg(), DESCRIPTION_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), ERROR_FIELD);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> ConnectorFeatures.fromXContent(p), null, FEATURES_FIELD);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ConnectorFiltering.fromXContent(p), FILTERING_FIELD);
-        PARSER.declareString(optionalConstructorArg(), INDEX_NAME_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), INDEX_NAME_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), IS_NATIVE_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LANGUAGE_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), LANGUAGE_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
@@ -331,31 +324,16 @@ public class Connector implements NamedWriteable, ToXContentObject {
         );
 
         PARSER.declareString(optionalConstructorArg(), NAME_FIELD);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorIngestPipeline.fromXContent(p),
-            PIPELINE_FIELD,
-            ObjectParser.ValueType.OBJECT
-        );
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorScheduling.fromXContent(p),
-            SCHEDULING_FIELD,
-            ObjectParser.ValueType.OBJECT
-        );
-        PARSER.declareString(optionalConstructorArg(), SERVICE_TYPE_FIELD);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> ConnectorIngestPipeline.fromXContent(p), null, PIPELINE_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> ConnectorScheduling.fromXContent(p), SCHEDULING_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), SERVICE_TYPE_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> ConnectorStatus.connectorStatus(p.text()),
             STATUS_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (parser, context) -> parser.map(),
-            SYNC_CURSOR_FIELD,
-            ObjectParser.ValueType.OBJECT_OR_NULL
-        );
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, SYNC_CURSOR_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), SYNC_NOW_FIELD);
     }
 
@@ -375,59 +353,30 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
+            // The "id": connectorId is included in GET and LIST responses to provide the connector's docID.
+            // Note: This ID is not written to the Elasticsearch index; it's only for API response purposes.
             if (connectorId != null) {
                 builder.field(ID_FIELD.getPreferredName(), connectorId);
             }
-            if (apiKeyId != null) {
-                builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
-            }
-            if (configuration != null) {
-                builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
-            }
-            if (customScheduling != null) {
-                builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
-            }
-            if (description != null) {
-                builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
-            }
-            if (error != null) {
-                builder.field(ERROR_FIELD.getPreferredName(), error);
-            }
-            if (features != null) {
-                builder.field(FEATURES_FIELD.getPreferredName(), features);
-            }
-            if (filtering != null) {
-                builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
-            }
-            if (indexName != null) {
-                builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
-            }
+            builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
+            builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
+            builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
+            builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
+            builder.field(ERROR_FIELD.getPreferredName(), error);
+            builder.field(FEATURES_FIELD.getPreferredName(), features);
+            builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
+            builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
             builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
-            if (language != null) {
-                builder.field(LANGUAGE_FIELD.getPreferredName(), language);
-            }
+            builder.field(LANGUAGE_FIELD.getPreferredName(), language);
             builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
-            if (syncInfo != null) {
-                syncInfo.toXContent(builder, params);
-            }
-            if (name != null) {
-                builder.field(NAME_FIELD.getPreferredName(), name);
-            }
-            if (pipeline != null) {
-                builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
-            }
-            if (scheduling != null) {
-                builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
-            }
-            if (serviceType != null) {
-                builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
-            }
-            if (syncCursor != null) {
-                builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
-            }
+            syncInfo.toXContent(builder, params);
+            builder.field(NAME_FIELD.getPreferredName(), name);
+            builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
+            builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
+            builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
+            builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
             builder.field(STATUS_FIELD.getPreferredName(), status.toString());
             builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
-
         }
         builder.endObject();
         return builder;

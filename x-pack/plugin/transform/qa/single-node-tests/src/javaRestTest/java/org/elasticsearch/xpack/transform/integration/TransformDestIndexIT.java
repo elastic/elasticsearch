@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -20,6 +22,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransformDestIndexIT extends TransformRestTestCase {
 
@@ -138,6 +143,116 @@ public class TransformDestIndexIT extends TransformRestTestCase {
 
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));
+    }
+
+    public void testTransformDestIndexMappings_DeduceMappings() throws Exception {
+        testTransformDestIndexMappings("test_dest_index_mappings_deduce", true);
+    }
+
+    public void testTransformDestIndexMappings_NoDeduceMappings() throws Exception {
+        testTransformDestIndexMappings("test_dest_index_mappings_no_deduce", false);
+    }
+
+    private void testTransformDestIndexMappings(String transformId, boolean deduceMappings) throws Exception {
+        String destIndex = transformId + "-dest";
+
+        {
+            String destIndexTemplate = Strings.format("""
+                {
+                  "index_patterns": [ "%s*" ],
+                  "mappings": {
+                    "properties": {
+                      "timestamp": {
+                        "type": "date"
+                      },
+                      "reviewer": {
+                        "type": "keyword"
+                      },
+                      "avg_rating": {
+                        "type": "double"
+                      }
+                    }
+                  }
+                }""", destIndex);
+            Request createIndexTemplateRequest = new Request("PUT", "_template/test_dest_index_no_deduce_template");
+            createIndexTemplateRequest.setJsonEntity(destIndexTemplate);
+            createIndexTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
+            Map<String, Object> createIndexTemplateResponse = entityAsMap(client().performRequest(createIndexTemplateRequest));
+            assertThat(createIndexTemplateResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        }
+
+        // Verify that the destination index does not exist yet, even though the template already exists
+        assertFalse(indexExists(destIndex));
+
+        {
+            String config = Strings.format("""
+                {
+                  "dest": {
+                    "index": "%s"
+                  },
+                  "source": {
+                    "index": "%s"
+                  },
+                  "sync": {
+                    "time": {
+                      "field": "timestamp",
+                      "delay": "15m"
+                    }
+                  },
+                  "frequency": "1s",
+                  "pivot": {
+                    "group_by": {
+                      "timestamp": {
+                        "date_histogram": {
+                          "field": "timestamp",
+                          "fixed_interval": "10s"
+                        }
+                      },
+                      "reviewer": {
+                        "terms": {
+                          "field": "user_id"
+                        }
+                      }
+                    },
+                    "aggregations": {
+                      "avg_rating": {
+                        "avg": {
+                          "field": "stars"
+                        }
+                      }
+                    }
+                  },
+                  "settings": {
+                    "unattended": true,
+                    "deduce_mappings": %s
+                  }
+                }""", destIndex, REVIEWS_INDEX_NAME, deduceMappings);
+            createReviewsTransform(transformId, null, null, config);
+
+            startTransform(transformId);
+            waitForTransformCheckpoint(transformId, 1);
+        }
+
+        // Verify that the destination index now exists and has correct mappings from the template
+        assertTrue(indexExists(destIndex));
+        assertThat(
+            getIndexMappingAsMap(destIndex),
+            is(
+                equalTo(
+                    Map.of(
+                        "properties",
+                        Map.of(
+                            "avg_rating",
+                            Map.of("type", "double"),
+                            "reviewer",
+                            Map.of("type", "keyword"),
+                            "timestamp",
+                            Map.of("type", "date")
+                        )
+                    )
+                )
+            )
+        );
     }
 
     private static void assertAliases(String index, String... aliases) throws IOException {

@@ -550,7 +550,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
-        index: empty_store
+        index: unavailable-data
         body:
           mappings:
             properties:
@@ -567,7 +567,7 @@ setup:
 
   - do:
       search:
-        index: empty_store
+        index: unavailable-data
         body: >
           {
             "size": 0,

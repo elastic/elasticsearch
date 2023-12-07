@@ -93,7 +93,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         );
         assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
         assertThat(doc.rootDoc().getField("b").numericValue(), equalTo(100L));
-        assertEquals(TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)), "AWE");
+        assertEquals(TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)), "AWE");
     }
 
     public void testDisabledInStandardMode() throws Exception {
@@ -138,7 +138,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             docMapper,
             b -> b.field("a", "foo").field("b", "bar").field("c", "baz").startObject("o").field("e", "bort").endObject()
         );
-        assertEquals(TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()), "AWE");
+        assertEquals(TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput()), "AWE");
     }
 
     @SuppressWarnings("unchecked")
@@ -151,7 +151,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         }));
 
         ParsedDocument doc = parseDocument(docMapper, b -> b.field(fire, "hot").field(coffee, "good"));
-        Object tsid = TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes));
+        Object tsid = TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes));
         assertEquals(tsid, "A-I");
     }
 
@@ -162,7 +162,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         }));
 
         ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", "more_than_1024_bytes".repeat(52)));
-        assertEquals(TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)), "AQ");
+        assertEquals(TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)), "AQ");
     }
 
     @SuppressWarnings("unchecked")
@@ -173,7 +173,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
         String theWordLong = "長い";
         ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", theWordLong.repeat(200)));
-        assertEquals(TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)), "AQ");
+        assertEquals(TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)), "AQ");
     }
 
     public void testKeywordNull() throws IOException {
@@ -212,7 +212,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.field("c", "baz");
             b.startObject("o").field("e", 1234).endObject();
         });
-        assertEquals(TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()), "AWFs");
+        assertEquals(TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput()), "AWFs");
     }
 
     public void testLongInvalidString() throws IOException {
@@ -264,7 +264,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.field("c", "baz");
             b.startObject("o").field("e", Integer.MIN_VALUE).endObject();
         });
-        assertEquals(TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()), "AWFs");
+        assertEquals(TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput()), "AWFs");
     }
 
     public void testIntegerInvalidString() throws IOException {
@@ -320,7 +320,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.field("c", "baz");
             b.startObject("o").field("e", Short.MIN_VALUE).endObject();
         });
-        assertEquals(TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()), "AWFs");
+        assertEquals(TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput()), "AWFs");
     }
 
     public void testShortInvalidString() throws IOException {
@@ -376,7 +376,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.field("c", "baz");
             b.startObject("o").field("e", (int) Byte.MIN_VALUE).endObject();
         });
-        assertEquals(TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()), "AWFs");
+        assertEquals(TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput()), "AWFs");
     }
 
     public void testByteInvalidString() throws IOException {
@@ -432,7 +432,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.field("c", "baz");
             b.startObject("o").field("e", "255.255.255.1").endObject();
         });
-        assertEquals(TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)), "AWFz");
+        assertEquals(TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)), "AWFz");
     }
 
     public void testIpInvalidString() throws IOException {
@@ -467,7 +467,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             }
         });
 
-        Object tsid = TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes));
+        Object tsid = TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes));
         assertEquals(
             tsid,
             "AWJzA2ZvbwJkMHPwBm1hbnkgd29yZHMgbWFueSB3b3JkcyBtYW55IHdvcmRzIG1hbnkgd29yZHMgbWFueSB3b3JkcyBtYW55IHdvcmRzIG1hbnkgd"

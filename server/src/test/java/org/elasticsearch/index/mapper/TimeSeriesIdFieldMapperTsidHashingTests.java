@@ -85,7 +85,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", "value").field("b", 100).field("c", 500));
         assertEquals(
             "30CO74tuRyatuMXEvNJvbu4OOPE_BPY6XRQDNqrFfRGnHvkCRkdF1g",
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
+            TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
         );
     }
 
@@ -133,7 +133,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         );
         assertEquals(
             "S3oqtElkKwgW-mWA1nr9gK_2Gi60D5a0AuSISsBYPmjw-qWQ7YI-3A",
-            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput())
+            TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput())
         );
     }
 
@@ -149,7 +149,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         ParsedDocument doc = parseDocument(docMapper, b -> b.field(fire, "hot").field(coffee, "good"));
         assertEquals(
             "A-nLhW-M69syDAiaaHLtCp6MBeMMqVDqgBVXpLViGUOdgCAZniSp6A",
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
+            TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
         );
     }
 
@@ -162,7 +162,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", "more_than_1024_bytes".repeat(52)));
         assertEquals(
             "FlVJQe85E3Mv4Ekz_gxSa71kNSgI7Z7KeQP6VlsQZzmG4ohj",
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
+            TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
         );
     }
 
@@ -176,7 +176,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", theWordLong.repeat(200)));
         assertEquals(
             "FlVJQe85E3Mv4Ekz_gxSa0zjd_qfoPhsUMih0si8XDmP_VV7",
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
+            TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
         );
     }
 
@@ -218,7 +218,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         });
         assertEquals(
             "iI8WAECVhaC5BYgDlkz8OK2bjW9KuknL3XBrYDfJ_rolBiDD3_cY-Gu6cUA",
-            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput())
+            TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput())
         );
     }
 
@@ -273,7 +273,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         });
         assertEquals(
             "iI8WAECVhaC5BYgDlkz8OK2bjW9KuknL1fIRUB0-Ns-fIV82SmmaBGvMBFc",
-            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput())
+            TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput())
         );
     }
 
@@ -332,7 +332,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         });
         assertEquals(
             "iI8WAECVhaC5BYgDlkz8OK2bjW9KuknLJgBZj8kLWyz4_fSeI5hcDbH2Quo",
-            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput())
+            TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput())
         );
     }
 
@@ -391,7 +391,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         });
         assertEquals(
             "iI8WAECVhaC5BYgDlkz8OK2bjW9KuknLKCuqhxFhxsmpAlmUjJPOtj1L020",
-            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput())
+            TimeSeriesIdFieldMapper.encodeTsid(new BytesArray(tsid).streamInput())
         );
     }
 
@@ -450,7 +450,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
         });
         assertEquals(
             "iI8WAECVhaC5BYgDlkz8OAus6VZKuknLs_NO7CBqqZuzDo7PTQiv_wLD1eY",
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
+            TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
         );
     }
 
@@ -492,7 +492,7 @@ public class TimeSeriesIdFieldMapperTsidHashingTests extends MetadataMapperTestC
                 + "Bk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZN"
                 + "YqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKl"
                 + "Bk1ipQZNYqUGTWKlBk1ipQZNYqUGTWKlBk1ipQZNYqUGTxUG_ass830ZjEXx7y5eiMg",
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
+            TimeSeriesIdFieldMapper.encodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes))
         );
     }
 

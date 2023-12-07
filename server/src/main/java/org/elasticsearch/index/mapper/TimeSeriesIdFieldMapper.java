@@ -158,7 +158,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     /**
      * Decode the {@code _tsid} into a human readable map.
      */
-    public static Object decodeTsid(StreamInput in) {
+    public static Object encodeTsid(StreamInput in) {
         try {
             return base64Encode(in.readBytesRef());
         } catch (IOException e) {
@@ -332,7 +332,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static Object decodeTsid(final BytesRef bytesRef) {
+    public static Object encodeTsid(final BytesRef bytesRef) {
         return base64Encode(bytesRef);
     }
 

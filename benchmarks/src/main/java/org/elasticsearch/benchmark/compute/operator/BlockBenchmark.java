@@ -45,9 +45,160 @@ import java.util.concurrent.TimeUnit;
 public class BlockBenchmark {
     public static final int NUM_BLOCKS_PER_ITERATION = 1024;
 
+    private static final Random random = new Random();
+
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
-        // TODO
+        try {
+            int totalPositions = 10;
+            long[] actualCheckSums = new long[NUM_BLOCKS_PER_ITERATION];
+
+            for (String dataType : getParamValues("dataType")) {
+                for (String blockKind : getParamValues("blockKind")) {
+                    BenchmarkData data = buildBlocks(dataType, blockKind, totalPositions);
+                    run(dataType, data, actualCheckSums);
+                    assertCheckSums(data, actualCheckSums);
+                }
+            }
+        } catch (NoSuchFieldException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static String[] getParamValues(String parameterName) throws NoSuchFieldException {
+        return BlockBenchmark.class.getField(parameterName).getAnnotationsByType(Param.class)[0].value();
+    }
+
+    private record BenchmarkData(Block[] blocks, long[] checkSums) {};
+
+    private static BenchmarkData buildBlocks(String dataType, String blockKind, int totalPositions) {
+        Block[] blocks = new Block[NUM_BLOCKS_PER_ITERATION];
+        long[] checkSums = new long[NUM_BLOCKS_PER_ITERATION];
+
+        switch (dataType) {
+            case "int" -> {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    int[] values = new int[totalPositions];
+                    long sum = 0;
+                    for (int i = 0; i < totalPositions; i++) {
+                        values[i] = random.nextInt();
+                        sum += values[i];
+                    }
+                    checkSums[blockIndex] = sum;
+
+                    switch (blockKind) {
+                        case "array" -> {
+                            // TODO: bench with MVs and with nulls
+                            blocks[blockIndex] = new IntArrayBlock(
+                                values,
+                                totalPositions,
+                                null,
+                                null,
+                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+                            );
+                        }
+                        case "vector" -> {
+                            // TODO: more vector kinds
+                            IntVector vector = new IntArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock();
+                        }
+                        default -> {
+                            throw new IllegalStateException();
+                        }
+                    }
+                }
+            }
+            case "long" -> {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    long[] values = new long[totalPositions];
+                    long sum = 0L;
+                    for (int i = 0; i < totalPositions; i++) {
+                        values[i] = random.nextLong();
+                        sum += values[i];
+                    }
+                    checkSums[blockIndex] = sum;
+
+                    switch (blockKind) {
+                        case "array" -> {
+                            blocks[blockIndex] = new LongArrayBlock(
+                                values,
+                                totalPositions,
+                                null,
+                                null,
+                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+                            );
+                        }
+                        case "vector" -> {
+                            LongVector vector = new LongArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock();
+                        }
+                        default -> {
+                            throw new IllegalStateException();
+                        }
+                    }
+                }
+            }
+            default -> {
+                throw new IllegalStateException();
+            }
+        }
+
+        return new BenchmarkData(blocks, checkSums);
+    }
+
+    private static void run(String dataType, BenchmarkData data, long[] resultCheckSums) {
+        switch (dataType) {
+            case "int" -> {
+                // TODO benchmark random access in addition to sequential
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    IntBlock block = (IntBlock) data.blocks[blockIndex];
+                    long sum = 0;
+
+                    int positionCount = block.getPositionCount();
+                    for (int position = 0; position < positionCount; position++) {
+                        int start = block.getFirstValueIndex(position);
+                        int end = start + block.getValueCount(position);
+                        for (int i = start; i < end; i++) {
+                            sum += block.getInt(i);
+                        }
+                    }
+
+                    resultCheckSums[blockIndex] = sum;
+                }
+            }
+            case "long" -> {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    LongBlock block = (LongBlock) data.blocks[blockIndex];
+                    long sum = 0;
+
+                    int positionCount = block.getPositionCount();
+                    for (int position = 0; position < positionCount; position++) {
+                        int start = block.getFirstValueIndex(position);
+                        int end = start + block.getValueCount(position);
+                        for (int i = start; i < end; i++) {
+                            sum += block.getLong(i);
+                        }
+                    }
+
+                    resultCheckSums[blockIndex] = sum;
+                }
+            }
+            default -> {
+                throw new IllegalStateException();
+            }
+        }
+    }
+
+    private static void assertCheckSums(BenchmarkData data, long[] actualCheckSums) {
+        for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+            if (actualCheckSums[blockIndex] != data.checkSums[blockIndex]) {
+                throw new AssertionError("checksums do not match for block [" + blockIndex + "]");
+            }
+        }
+    }
+
+    private static int totalPositions(String blockLength) {
+        return (int) ByteSizeValue.parseBytesSizeValue(blockLength, "block length").getBytes();
     }
 
     @Param({ "1K", "8K" })
@@ -60,139 +211,23 @@ public class BlockBenchmark {
     @Param({ "array", "vector" })
     public String blockKind;
 
+    private BenchmarkData data;
+
+    private final long[] actualCheckSums = new long[NUM_BLOCKS_PER_ITERATION];
+
     @Setup
     public void buildBlocks() {
-        switch (dataType) {
-            case "int" -> {
-                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
-                    int[] values = new int[totalPositions()];
-                    long sum = 0;
-                    for (int i = 0; i < totalPositions(); i++) {
-                        values[i] = random.nextInt();
-                        sum += values[i];
-                    }
-                    expectedCheckSums[blockIndex] = sum;
-
-                    switch (blockKind) {
-                        case "array" -> {
-                            // TODO: bench with MVs and with nulls
-                            blocks[blockIndex] = new IntArrayBlock(
-                                values,
-                                totalPositions(),
-                                null,
-                                null,
-                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
-                            );
-                        }
-                        case "vector" -> {
-                            // TODO: more vector kinds
-                            IntVector vector = new IntArrayVector(values, totalPositions());
-                            blocks[blockIndex] = vector.asBlock();
-                        }
-                        default -> {
-                            throw new IllegalStateException();
-                        }
-                    }
-                }
-            }
-            case "long" -> {
-                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
-                    long[] values = new long[totalPositions()];
-                    long sum = 0L;
-                    for (int i = 0; i < totalPositions(); i++) {
-                        values[i] = random.nextLong();
-                        sum += values[i];
-                    }
-                    expectedCheckSums[blockIndex] = sum;
-
-                    switch (blockKind) {
-                        case "array" -> {
-                            blocks[blockIndex] = new LongArrayBlock(
-                                values,
-                                totalPositions(),
-                                null,
-                                null,
-                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
-                            );
-                        }
-                        case "vector" -> {
-                            LongVector vector = new LongArrayVector(values, totalPositions());
-                            blocks[blockIndex] = vector.asBlock();
-                        }
-                        default -> {
-                            throw new IllegalStateException();
-                        }
-                    }
-                }
-            }
-            default -> {
-                throw new IllegalStateException();
-            }
-        }
+        data = buildBlocks(dataType, blockKind, totalPositions(blockLength));
     }
 
     @Benchmark
     @OperationsPerInvocation(BlockBenchmark.NUM_BLOCKS_PER_ITERATION)
     public void run() {
-        int totalPositions = totalPositions();
-        switch (dataType) {
-            case "int" -> {
-                // TODO benchmark random access in addition to sequential
-                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
-                    IntBlock block = (IntBlock) blocks[blockIndex];
-                    long sum = 0;
-
-                    int positionCount = block.getPositionCount();
-                    for (int position = 0; position < positionCount; position++) {
-                        int start = block.getFirstValueIndex(position);
-                        int end = start + block.getValueCount(position);
-                        for (int i = start; i < end; i++) {
-                            sum += block.getInt(i);
-                        }
-                    }
-
-                    actualCheckSums[blockIndex] = sum;
-                }
-            }
-            case "long" -> {
-                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
-                    LongBlock block = (LongBlock) blocks[blockIndex];
-                    long sum = 0;
-
-                    int positionCount = block.getPositionCount();
-                    for (int position = 0; position < positionCount; position++) {
-                        int start = block.getFirstValueIndex(position);
-                        int end = start + block.getValueCount(position);
-                        for (int i = start; i < end; i++) {
-                            sum += block.getLong(i);
-                        }
-                    }
-
-                    actualCheckSums[blockIndex] = sum;
-                }
-            }
-            default -> {
-                throw new IllegalStateException();
-            }
-        }
+        run(dataType, data, actualCheckSums);
     }
 
     @TearDown(Level.Iteration)
     public void assertCheckSums() {
-        for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
-            if (actualCheckSums[blockIndex] != expectedCheckSums[blockIndex]) {
-                throw new AssertionError("checksums do not match for block [" + blockIndex + "]");
-            }
-        }
-    }
-
-    private final Random random = new Random();
-
-    private final Block[] blocks = new Block[NUM_BLOCKS_PER_ITERATION];
-    private final long[] expectedCheckSums = new long[NUM_BLOCKS_PER_ITERATION];
-    private final long[] actualCheckSums = new long[NUM_BLOCKS_PER_ITERATION];
-
-    private int totalPositions() {
-        return (int) ByteSizeValue.parseBytesSizeValue(blockLength, "block length").getBytes();
+        assertCheckSums(data, actualCheckSums);
     }
 }

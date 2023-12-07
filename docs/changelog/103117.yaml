@@ -1,0 +1,5 @@
+pr: 103117
+summary: Use variable template version in `generic_ingestion_pipeline.json`
+area: Application
+type: bug
+issues: []

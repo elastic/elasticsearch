@@ -708,7 +708,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                         StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
                         if (stackFrame.isEmpty() == false) {
                             if (stackFrames.putIfAbsent(frame.getId(), stackFrame) == null) {
-                                totalInlineFrames.addAndGet(stackFrame.size() - 1); // -1 to only count inlined frames
+                                totalInlineFrames.addAndGet(stackFrame.inlineFrameCount());
                             }
                         } else {
                             log.trace("Stack frame with id [{}] has no properties.", frame.getId());
@@ -748,7 +748,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
-                builder.totalFrames += totalInlineFrames.get();
+                builder.addTotalFrames(totalInlineFrames.get());
                 log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
                 log.debug(watch::report);
                 submitListener.onResponse(builder.build());

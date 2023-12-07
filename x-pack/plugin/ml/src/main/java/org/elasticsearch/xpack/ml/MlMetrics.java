@@ -282,6 +282,12 @@ public class MlMetrics implements ClusterStateListener {
             firstTime = false;
             nativeMemLimit = findNativeMemoryLimit(currentState.nodes().getLocalNode(), clusterService.getClusterSettings());
             mustRecalculateFreeMem = true;
+            // Install a listener to recalculate limit and free in response to settings changes.
+            // This isn't done in the constructor, but instead only after the three usage variables
+            // have been populated. Doing this means that immediately after startup, when the stats
+            // are inaccurate, they'll _all_ be zero. Installing the settings listeners immediately
+            // could mean that free would be misleadingly set based on zero usage when actual usage
+            // is _not_ zero.
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(USE_AUTO_MACHINE_MEMORY_PERCENT, s -> memoryLimitClusterSettingUpdated());
             clusterService.getClusterSettings()

@@ -42,4 +42,14 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
+
+    public static HuggingFaceEmbeddingsModel createModel(String url, String apiKey, int tokenLimit, int dimensions) {
+        return new HuggingFaceEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new HuggingFaceServiceSettings(createUri(url), null, dimensions, tokenLimit),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
 }

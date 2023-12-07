@@ -66,10 +66,12 @@ PUT openai-embeddings
     "properties": {
       "content_embedding": { <1>
         "type": "dense_vector", <2>
-        "dims": 1536 <3>
+        "dims": 1536, <3>
+        "element_type": "byte",
+        "similarity": "dot_product", <4>
       },
-      "content": { <4>
-        "type": "text" <5>
+      "content": { <5>
+        "type": "text" <6>
       }
     }
   }
@@ -81,10 +83,14 @@ in the {infer} pipeline configuration in the next step.
 <3> The output dimensions of the model. Find this value in the 
 https://platform.openai.com/docs/guides/embeddings/embedding-models[OpenAI documentation] 
 of the model you use.
-<4> The name of the field from which to create the sparse vector representation.
+<4> The faster` dot_product` function can be used to calculate similarity 
+because OpenAI embeddings are normalised to unit length. You can check the 
+https://platform.openai.com/docs/guides/embeddings/which-distance-function-should-i-use[OpenAI docs]
+about which similarity function to use. 
+<5> The name of the field from which to create the sparse vector representation.
 In this example, the name of the field is `content`. It must be referenced in 
 the {infer} pipeline configuration in the next step.
-<5> The field type which is text in this example.
+<6> The field type which is text in this example.
 
 
 [discrete]
@@ -173,6 +179,11 @@ POST _reindex?wait_for_completion=false
 number makes the update of the reindexing process quicker which enables you to
 follow the progress closely and detect errors early.
 
+NOTE: The 
+https://platform.openai.com/account/limits[rate limit of your OpenAI account] 
+may affect the throughput of the reindexing process. If this happens, change 
+`size` to `3` or a similar value in magnitude.
+
 The call returns a task ID to monitor the progress:
 
 [source,console]
@@ -180,11 +191,6 @@ The call returns a task ID to monitor the progress:
 GET _tasks/<task_id>
 ----
 // TEST[skip:TBD]
-
-NOTE: The 
-https://platform.openai.com/account/limits[rate limit of your OpenAI account] 
-may affect the throughput of the reindexing process. If this happens, change 
-`size` to `3` or a similar value in magnitude.
 
 You can also cancel the reindexing process if you don't want to wait until the 
 reindexing process is fully complete which might take hours:

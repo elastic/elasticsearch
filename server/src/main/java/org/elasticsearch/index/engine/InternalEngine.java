@@ -518,7 +518,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
-        try (ReleasableLock ignored = writeLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
@@ -1941,7 +1941,7 @@ public class InternalEngine extends Engine {
     }
 
     private NoOpResult innerNoOp(final NoOp noOp) throws IOException {
-        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
+        assert readLock.isHeldByCurrentThread();
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {

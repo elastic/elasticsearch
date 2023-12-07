@@ -196,6 +196,7 @@ index without timestamp with pipeline:
 dynamic dimensions:
   - skip:
       version: " - 8.11.99"
+      features: "default_shards"
       reason: "Support for dynamic dimensions was added in 8.12"
   - do:
       indices.put_index_template:
@@ -272,6 +273,7 @@ dynamic dimensions:
 dynamic dimensions with routing path:
   - skip:
       version: " - 8.11.99"
+      features: "default_shards"
       reason: "Support for dynamic dimensions was added in 8.12"
   - do:
       indices.put_index_template:

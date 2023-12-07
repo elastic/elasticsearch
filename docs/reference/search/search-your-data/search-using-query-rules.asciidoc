@@ -174,6 +174,9 @@ PUT /_query_rules/my-ruleset
 
 The API response returns a results of `created` or `updated` depending on whether this was a new or edited ruleset.
 
+NOTE: There is a limit of 100 rules per ruleset.
+This can be increased up to 1000 using the `xpack.applications.rules.max_rules_per_ruleset` cluster setting.
+
 [source,console-result]
 ----
 {
@@ -217,3 +220,8 @@ GET /my-index-000001/_search
 
 This rule query will match against `rule1` in the defined query ruleset, and will convert the organic query into a pinned query with `id1` and `id2` pinned as the top hits.
 Any other matches from the organic query will be returned below the pinned results.
+
+It's possible to have multiple rules in a ruleset match a single `rule_query`. In this case, the pinned documents are returned in the following order:
+
+- Where the matching rule appears in the ruleset
+- If multiple documents are specified in a single rule, in the order they are specified

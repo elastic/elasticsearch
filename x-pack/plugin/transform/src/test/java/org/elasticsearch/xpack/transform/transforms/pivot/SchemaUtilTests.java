@@ -218,6 +218,28 @@ public class SchemaUtilTests extends ESTestCase {
         }
     }
 
+    public void testIsNumericType() {
+        assertFalse(SchemaUtil.isNumericType(null));
+        assertFalse(SchemaUtil.isNumericType("non-existing"));
+        assertTrue(SchemaUtil.isNumericType("double"));
+        assertTrue(SchemaUtil.isNumericType("integer"));
+        assertTrue(SchemaUtil.isNumericType("long"));
+        assertFalse(SchemaUtil.isNumericType("date"));
+        assertFalse(SchemaUtil.isNumericType("date_nanos"));
+        assertFalse(SchemaUtil.isNumericType("keyword"));
+    }
+
+    public void testIsDateType() {
+        assertFalse(SchemaUtil.isDateType(null));
+        assertFalse(SchemaUtil.isDateType("non-existing"));
+        assertFalse(SchemaUtil.isDateType("double"));
+        assertFalse(SchemaUtil.isDateType("integer"));
+        assertFalse(SchemaUtil.isDateType("long"));
+        assertTrue(SchemaUtil.isDateType("date"));
+        assertTrue(SchemaUtil.isDateType("date_nanos"));
+        assertFalse(SchemaUtil.isDateType("keyword"));
+    }
+
     private static class FieldCapsMockClient extends NoOpClient {
         FieldCapsMockClient(ThreadPool threadPool) {
             super(threadPool);

@@ -10,8 +10,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -542,7 +542,7 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     private void assertThatIndexRequestHasOperation(Client client, DocWriteRequest.OpType operation) {
         var indexRequestArg = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestArg.capture(), any());
+        verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestArg.capture(), any());
         assertThat(indexRequestArg.getValue().opType(), Matchers.is(operation));
     }
 

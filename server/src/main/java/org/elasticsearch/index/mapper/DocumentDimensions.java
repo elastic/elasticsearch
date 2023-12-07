@@ -24,8 +24,8 @@ public interface DocumentDimensions {
     /**
      * Build an index's DocumentDimensions using its settings and provided dynamic templates, if any.
      */
-    static DocumentDimensions from(IndexSettings indexSettings, Map<String, String> dynamicTemplates) {
-        return indexSettings.getMode().buildDocumentDimensions(indexSettings, dynamicTemplates);
+    static DocumentDimensions from(IndexSettings indexSettings, Map<String, String> dynamicTemplates, MappingLookup mappingLookup) {
+        return indexSettings.getMode().buildDocumentDimensions(indexSettings, dynamicTemplates, mappingLookup);
     }
 
     /**

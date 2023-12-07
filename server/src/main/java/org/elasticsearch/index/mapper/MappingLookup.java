@@ -468,6 +468,22 @@ public final class MappingLookup {
     }
 
     /**
+     * Returns the names of the fields that are marked as dimensions.
+     * @return a list containing the matching field names.
+     */
+    public List<String> getDimensions() {
+        List<String> dimensions = new ArrayList<>();
+        for (Mapper mapper : fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper) {
+                if (fieldMapper.fieldType().isDimension()) {
+                    dimensions.add(fieldMapper.name());
+                }
+            }
+        }
+        return dimensions;
+    }
+
+    /**
      * Key for the lookup to be used in caches.
      */
     public CacheKey cacheKey() {

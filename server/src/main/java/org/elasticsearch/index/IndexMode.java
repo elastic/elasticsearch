@@ -104,7 +104,11 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings, Map<String, String> dynamicTemplates) {
+        public DocumentDimensions buildDocumentDimensions(
+            IndexSettings settings,
+            Map<String, String> dynamicTemplates,
+            MappingLookup mappingLookup
+        ) {
             return new DocumentDimensions.OnlySingleValueAllowed();
         }
 
@@ -199,12 +203,28 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings, Map<String, String> dynamicTemplates) {
-            var routing = (IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadataAndDynamicTemplates(
-                settings.getIndexMetadata(),
-                dynamicTemplates
-            );
-            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
+        public DocumentDimensions buildDocumentDimensions(
+            IndexSettings settings,
+            Map<String, String> dynamicTemplates,
+            MappingLookup mappingLookup
+        ) {
+            IndexRouting routing = null;
+            if (settings.getValue(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES) == false) {
+                routing = IndexRouting.fromIndexMetadata(settings.getIndexMetadata());
+            } else if (dynamicTemplates.isEmpty() == false) {
+                routing = IndexRouting.fromIndexMetadataAndDynamicTemplates(settings.getIndexMetadata(), dynamicTemplates);
+            } else {
+                // The information about dynamic templates is not available during translog replay. At this point, the mapping is
+                // expected to contain all fields marked as dimensions.
+                List<String> dimensions = mappingLookup.getDimensions();
+                if (dimensions.isEmpty() == false) {
+                    routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(settings.getIndexMetadata(), dimensions);
+                }
+            }
+            if (routing instanceof IndexRouting.ExtractFromSource efs) {
+                return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(efs.builder());
+            }
+            throw new IllegalStateException("failed to retrieve dimensions for time-series index " + settings.getIndex().getName());
         }
 
         @Override
@@ -332,7 +352,11 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings, Map<String, String> dynamicTemplates);
+    public abstract DocumentDimensions buildDocumentDimensions(
+        IndexSettings settings,
+        Map<String, String> dynamicTemplates,
+        MappingLookup mappingLookup
+    );
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.

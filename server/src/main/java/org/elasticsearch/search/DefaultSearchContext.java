@@ -34,7 +34,6 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -914,14 +913,7 @@ final class DefaultSearchContext extends SearchContext {
                 // If the TSDS supports dynamic metrics and dimensions, some dimensions (or even all of them) may not be included in the
                 // routing path. In this case, they can be retrieved from the index mapping as they're initialized through dynamic template
                 // fields with `time_series_dimension` annotations.
-                List<String> dynamicDimensions = new ArrayList<>();
-                for (var mapper : indexService.mapperService().documentMapper().mappers().fieldMappers()) {
-                    if (mapper instanceof FieldMapper fieldMapper) {
-                        if (fieldMapper.fieldType().isDimension()) {
-                            dynamicDimensions.add(fieldMapper.name());
-                        }
-                    }
-                }
+                List<String> dynamicDimensions = indexService.mapperService().mappingLookup().getDimensions();
                 if (dynamicDimensions.isEmpty() == false) {
                     indexRouting = IndexRouting.fromIndexMetadataAndDynamicDimensions(indexService.getMetadata(), dynamicDimensions);
                     routingPaths = IndexRouting.mergeDimensions(routingPaths, dynamicDimensions);

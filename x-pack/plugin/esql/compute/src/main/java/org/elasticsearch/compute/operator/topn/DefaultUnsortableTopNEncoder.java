@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.lang.invoke.MethodHandles;
@@ -136,6 +137,26 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
         bytes.offset += Double.BYTES;
         bytes.length -= Double.BYTES;
         return v;
+    }
+
+    @Override
+    public void encodePoint(SpatialPoint value, BreakingBytesRefBuilder bytesRefBuilder) {
+        bytesRefBuilder.grow(bytesRefBuilder.length() + Double.BYTES * 2);
+        DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value.getX());
+        DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length() + Double.BYTES, value.getY());
+        bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES * 2);
+    }
+
+    @Override
+    public SpatialPoint decodePoint(BytesRef bytes) {
+        if (bytes.length < Double.BYTES * 2) {
+            throw new IllegalArgumentException("not enough bytes");
+        }
+        double x = (double) DOUBLE.get(bytes.bytes, bytes.offset);
+        double y = (double) DOUBLE.get(bytes.bytes, bytes.offset + Double.BYTES);
+        bytes.offset += Double.BYTES * 2;
+        bytes.length -= Double.BYTES * 2;
+        return new SpatialPoint(x, y);
     }
 
     @Override

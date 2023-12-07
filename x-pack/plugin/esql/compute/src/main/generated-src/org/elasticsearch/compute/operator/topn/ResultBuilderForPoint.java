@@ -8,46 +8,30 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-$if(Point)$
 import org.elasticsearch.common.geo.SpatialPoint;
-$endif$
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.PointBlock;
 
-class ResultBuilderFor$Type$ implements ResultBuilder {
-    private final $Type$Block.Builder builder;
+class ResultBuilderForPoint implements ResultBuilder {
+    private final PointBlock.Builder builder;
 
     private final boolean inKey;
-
-$if(BytesRef)$
-    private final TopNEncoder encoder;
-
-    private final BytesRef scratch = new BytesRef();
-$endif$
 
     /**
      * The value previously set by {@link #decodeKey}.
      */
-    private $type$ key;
+    private SpatialPoint key;
 
-    ResultBuilderFor$Type$(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
-$if(BytesRef)$
-        this.encoder = encoder;
-$else$
+    ResultBuilderForPoint(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
-$endif$
         this.inKey = inKey;
-        this.builder = $Type$Block.newBlockBuilder(initialSize, blockFactory);
+        this.builder = PointBlock.newBlockBuilder(initialSize, blockFactory);
     }
 
     @Override
     public void decodeKey(BytesRef keys) {
         assert inKey;
-$if(BytesRef)$
-        key = encoder.toSortable().decodeBytesRef(keys, scratch);
-$else$
-        key = TopNEncoder.DEFAULT_SORTABLE.decode$Type$(keys);
-$endif$
+        key = TopNEncoder.DEFAULT_SORTABLE.decodePoint(keys);
     }
 
     @Override
@@ -57,33 +41,29 @@ $endif$
             case 0 -> {
                 builder.appendNull();
             }
-            case 1 -> builder.append$Type$(inKey ? key : readValueFromValues(values));
+            case 1 -> builder.appendPoint(inKey ? key : readValueFromValues(values));
             default -> {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
-                    builder.append$Type$(readValueFromValues(values));
+                    builder.appendPoint(readValueFromValues(values));
                 }
                 builder.endPositionEntry();
             }
         }
     }
 
-    private $type$ readValueFromValues(BytesRef values) {
-$if(BytesRef)$
-        return encoder.toUnsortable().decodeBytesRef(values, scratch);
-$else$
-        return TopNEncoder.DEFAULT_UNSORTABLE.decode$Type$(values);
-$endif$
+    private SpatialPoint readValueFromValues(BytesRef values) {
+        return TopNEncoder.DEFAULT_UNSORTABLE.decodePoint(values);
     }
 
     @Override
-    public $Type$Block build() {
+    public PointBlock build() {
         return builder.build();
     }
 
     @Override
     public String toString() {
-        return "ResultBuilderFor$Type$[inKey=" + inKey + "]";
+        return "ResultBuilderForPoint[inKey=" + inKey + "]";
     }
 
     @Override

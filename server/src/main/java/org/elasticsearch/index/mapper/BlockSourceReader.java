@@ -13,6 +13,10 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -176,7 +180,23 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         protected void append(BlockLoader.Builder builder, Object v) {
-            ((BlockLoader.PointBuilder) builder).appendPoint((SpatialPoint) v);
+            if (v instanceof SpatialPoint point) {
+                ((BlockLoader.PointBuilder) builder).appendPoint((SpatialPoint) v);
+            } else if (v instanceof String wkt) {
+                try {
+                    // TODO: figure out why this is not already happening in the GeoPointFieldMapper
+                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+                    if (geometry instanceof Point point) {
+                        ((BlockLoader.PointBuilder) builder).appendPoint(new SpatialPoint(point.getX(), point.getY()));
+                    } else {
+                        throw new IllegalArgumentException("Cannot convert geometry into point:: " + geometry.type());
+                    }
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Failed to parse point geometry: " + e.getMessage(), e);
+                }
+            } else {
+                throw new IllegalArgumentException("Unsupported source type for point: " + v.getClass().getSimpleName());
+            }
         }
 
         @Override

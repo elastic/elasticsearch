@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
@@ -67,6 +68,28 @@ public abstract class SortableTopNEncoder implements TopNEncoder {
         bytes.offset += Double.BYTES;
         bytes.length -= Double.BYTES;
         return v;
+    }
+
+    @Override
+    public final void encodePoint(SpatialPoint value, BreakingBytesRefBuilder bytesRefBuilder) {
+        bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES * 2);
+        long xi = NumericUtils.doubleToSortableLong(value.getX());
+        long yi = NumericUtils.doubleToSortableLong(value.getY());
+        NumericUtils.longToSortableBytes(xi, bytesRefBuilder.bytes(), bytesRefBuilder.length());
+        NumericUtils.longToSortableBytes(yi, bytesRefBuilder.bytes(), bytesRefBuilder.length() + Long.BYTES);
+        bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES * 2);
+    }
+
+    @Override
+    public final SpatialPoint decodePoint(BytesRef bytes) {
+        if (bytes.length < Double.BYTES * 2) {
+            throw new IllegalArgumentException("not enough bytes");
+        }
+        double x = NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes.bytes, bytes.offset));
+        double y = NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes.bytes, bytes.offset + Long.BYTES));
+        bytes.offset += Double.BYTES * 2;
+        bytes.length -= Double.BYTES * 2;
+        return new SpatialPoint(x, y);
     }
 
     @Override

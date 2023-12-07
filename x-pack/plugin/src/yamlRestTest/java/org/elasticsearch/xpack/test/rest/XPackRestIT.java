@@ -47,6 +47,9 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
         .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
+        .setting("tracing.apm.enabled", "true")
+        .setting("tracing.apm.agent.metrics_interval", "60s")
+        .setting("tracing.apm.agent.transaction_sample_rate", "0.01")
         .build();
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {

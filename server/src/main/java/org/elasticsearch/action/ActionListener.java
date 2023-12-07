@@ -16,6 +16,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 import java.util.ArrayList;
@@ -306,6 +307,18 @@ public interface ActionListener<Response> {
         } catch (RuntimeException ex) {
             assert false : ex;
             throw ex;
+        }
+    }
+
+    /**
+     * Shorthand for resolving given {@code listener} with given {@code response} and decrementing the response's ref count by one
+     * afterwards.
+     */
+    static <R extends RefCounted> void respondAndRelease(ActionListener<R> listener, R response) {
+        try {
+            listener.onResponse(response);
+        } finally {
+            response.decRef();
         }
     }
 

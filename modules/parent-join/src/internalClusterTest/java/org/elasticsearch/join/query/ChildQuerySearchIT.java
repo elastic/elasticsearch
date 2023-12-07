@@ -305,7 +305,6 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     constantScoreQuery(hasParentQuery("parent", termQuery("p_field", parentToChildrenEntry.getKey()), false))
                 ).setSize(numChildDocsPerParent),
                 response -> {
-                    assertNoFailures(response);
                     Set<String> childIds = parentToChildrenEntry.getValue();
                     assertThat(response.getHits().getTotalHits().value, equalTo((long) childIds.size()));
                     for (int i = 0; i < response.getHits().getTotalHits().value; i++) {

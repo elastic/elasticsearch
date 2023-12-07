@@ -82,6 +82,11 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
     }
 
     @Override
+    public List<? extends InferenceResults> transformToCoordinationFormat() {
+        return transformToLegacyFormat();
+    }
+
+    @Override
     public List<? extends InferenceResults> transformToLegacyFormat() {
         return embeddings.stream()
             .map(

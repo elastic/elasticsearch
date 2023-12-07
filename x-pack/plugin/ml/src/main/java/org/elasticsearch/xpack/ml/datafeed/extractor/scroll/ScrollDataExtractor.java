@@ -122,12 +122,15 @@ class ScrollDataExtractor implements DataExtractor {
     protected InputStream initScroll(long startTimestamp) throws IOException {
         logger.debug("[{}] Initializing scroll with start time [{}]", context.jobId, startTimestamp);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
-        logger.debug("[{}] Search response was obtained", context.jobId);
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        scrollId = searchResponse.getScrollId();
-        SearchHit hits[] = searchResponse.getHits().getHits();
-        searchResponse = null;
-        return processAndConsumeSearchHits(hits);
+        try {
+            logger.debug("[{}] Search response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            scrollId = searchResponse.getScrollId();
+            SearchHit hits[] = searchResponse.getHits().getHits();
+            return processAndConsumeSearchHits(hits);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
@@ -137,11 +140,17 @@ class ScrollDataExtractor implements DataExtractor {
             client,
             searchRequestBuilder::get
         );
+        boolean success = false;
         try {
             checkForSkippedClusters(searchResponse);
+            success = true;
         } catch (ResourceNotFoundException e) {
             clearScrollLoggingExceptions(searchResponse.getScrollId());
             throw e;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
         }
         return searchResponse;
     }
@@ -213,23 +222,28 @@ class ScrollDataExtractor implements DataExtractor {
 
     private InputStream continueScroll() throws IOException {
         logger.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
-        SearchResponse searchResponse;
+        SearchResponse searchResponse = null;
         try {
-            searchResponse = executeSearchScrollRequest(scrollId);
-        } catch (SearchPhaseExecutionException searchExecutionException) {
-            if (searchHasShardFailure) {
-                throw searchExecutionException;
+            try {
+                searchResponse = executeSearchScrollRequest(scrollId);
+            } catch (SearchPhaseExecutionException searchExecutionException) {
+                if (searchHasShardFailure) {
+                    throw searchExecutionException;
+                }
+                logger.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
+                markScrollAsErrored();
+                searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
             }
-            logger.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
-            markScrollAsErrored();
-            searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
+            logger.debug("[{}] Search response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            scrollId = searchResponse.getScrollId();
+            SearchHit hits[] = searchResponse.getHits().getHits();
+            return processAndConsumeSearchHits(hits);
+        } finally {
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
         }
-        logger.debug("[{}] Search response was obtained", context.jobId);
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        scrollId = searchResponse.getScrollId();
-        SearchHit hits[] = searchResponse.getHits().getHits();
-        searchResponse = null;
-        return processAndConsumeSearchHits(hits);
     }
 
     void markScrollAsErrored() {
@@ -250,11 +264,17 @@ class ScrollDataExtractor implements DataExtractor {
             client,
             () -> new SearchScrollRequestBuilder(client).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
         );
+        boolean success = false;
         try {
             checkForSkippedClusters(searchResponse);
+            success = true;
         } catch (ResourceNotFoundException e) {
             clearScrollLoggingExceptions(searchResponse.getScrollId());
             throw e;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
         }
         return searchResponse;
     }

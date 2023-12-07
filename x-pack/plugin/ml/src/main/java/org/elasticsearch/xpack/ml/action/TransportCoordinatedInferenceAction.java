@@ -182,7 +182,7 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
     }
 
     static InferModelAction.Response translateInferenceServiceResponse(InferenceServiceResults inferenceResults) {
-        var legacyResults = new ArrayList<InferenceResults>(inferenceResults.transformToLegacyFormat());
+        var legacyResults = new ArrayList<InferenceResults>(inferenceResults.transformToCoordinationFormat());
         return new InferModelAction.Response(legacyResults, null, false);
     }
 }

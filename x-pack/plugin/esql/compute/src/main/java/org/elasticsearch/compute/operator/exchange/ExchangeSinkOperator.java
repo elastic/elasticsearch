@@ -73,10 +73,9 @@ public class ExchangeSinkOperator extends SinkOperator {
     }
 
     @Override
-    public void addInput(Page page) {
+    protected void doAddInput(Page page) {
         pagesAccepted++;
-        var newPage = transformer.apply(page);
-        sink.addPage(newPage);
+        sink.addPage(transformer.apply(page));
     }
 
     @Override

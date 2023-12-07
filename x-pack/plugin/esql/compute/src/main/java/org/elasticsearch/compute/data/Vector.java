@@ -48,7 +48,16 @@ public interface Vector extends Accountable, Releasable {
     boolean isConstant();
 
     /** The block factory associated with this vector. */
+    // TODO: Renaming this to owningBlockFactory
     BlockFactory blockFactory();
+
+    /**
+     * Before passing a Vector to another Driver, it is necessary to switch the owning block factory to its parent, which is associated
+     * with the global circuit breaker. This ensures that when the new driver releases this Vector, it returns memory directly to the
+     * parent block factory instead of the local block factory of this Block. This is important because the local block factory is
+     * not thread safe and doesn't support simultaneous access by more than one thread.
+     */
+    void allowPassingToDifferentDriver();
 
     /**
      * Builds {@link Vector}s. Typically, you use one of it's direct supinterfaces like {@link IntVector.Builder}.

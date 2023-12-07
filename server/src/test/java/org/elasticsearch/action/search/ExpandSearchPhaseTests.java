@@ -102,15 +102,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                         mSearchResponses.add(new MultiSearchResponse.Item(mockSearchPhaseContext.searchResponse.get(), null));
                     }
 
-                    var response = new MultiSearchResponse(
-                        mSearchResponses.toArray(new MultiSearchResponse.Item[0]),
-                        randomIntBetween(1, 10000)
+                    ActionListener.respondAndRelease(
+                        listener,
+                        new MultiSearchResponse(mSearchResponses.toArray(new MultiSearchResponse.Item[0]), randomIntBetween(1, 10000))
                     );
-                    try {
-                        listener.onResponse(response);
-                    } finally {
-                        response.decRef();
-                    }
                 }
             };
 
@@ -170,17 +165,15 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
-                var response = new MultiSearchResponse(
-                    new MultiSearchResponse.Item[] {
-                        new MultiSearchResponse.Item(null, new RuntimeException("boom")),
-                        new MultiSearchResponse.Item(searchResponse, null) },
-                    randomIntBetween(1, 10000)
+                ActionListener.respondAndRelease(
+                    listener,
+                    new MultiSearchResponse(
+                        new MultiSearchResponse.Item[] {
+                            new MultiSearchResponse.Item(null, new RuntimeException("boom")),
+                            new MultiSearchResponse.Item(searchResponse, null) },
+                        randomIntBetween(1, 10000)
+                    )
                 );
-                try {
-                    listener.onResponse(response);
-                } finally {
-                    response.decRef();
-                }
             }
         };
 

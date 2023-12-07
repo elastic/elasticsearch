@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 import javax.net.ssl.SSLContext;
 
@@ -50,6 +52,8 @@ public final class RestClientBuilder {
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
+
+    static final String THREAD_NAME_PREFIX = "elasticsearch-rest-client-";
 
     public static final String VERSION;
     static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
@@ -308,6 +312,8 @@ public final class RestClientBuilder {
         }
 
         try {
+            final ThreadFactory threadFactory = Executors.defaultThreadFactory();
+
             HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
                 .setDefaultRequestConfig(requestConfigBuilder.build())
                 // default settings for connection pooling may be too constraining
@@ -315,7 +321,12 @@ public final class RestClientBuilder {
                 .setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
                 .setUserAgent(USER_AGENT_HEADER_VALUE)
-                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
+                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy())
+                .setThreadFactory(runnable -> {
+                    final Thread thread = threadFactory.newThread(runnable);
+                    thread.setName(THREAD_NAME_PREFIX + thread.getName());
+                    return thread;
+                });
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }

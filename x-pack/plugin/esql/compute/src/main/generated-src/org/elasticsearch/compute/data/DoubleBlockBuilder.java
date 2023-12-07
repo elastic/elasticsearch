@@ -9,6 +9,10 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
@@ -18,38 +22,78 @@ import java.util.Arrays;
  */
 final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlock.Builder {
 
-    private double[] values;
+    private interface DoubleValues extends Releasable {
+        void setValue(int index, double value);
+    }
+
+    private static class PrimitiveDoubleValues implements DoubleValues {
+        double[] array;
+
+        PrimitiveDoubleValues(double[] array) {
+            this.array = array;
+        }
+
+        @Override
+        public void setValue(int index, double value) {
+            array[index] = value;
+        }
+
+        @Override
+        public void close() {
+
+        }
+    }
+
+    private static class ArrayDoubleValues implements DoubleValues {
+        final BigArrays bigArrays;
+        DoubleArray array;
+
+        ArrayDoubleValues(BigArrays bigArrays, long size) {
+            this.bigArrays = bigArrays;
+            this.array = bigArrays.newDoubleArray(size, false);
+        }
+
+        @Override
+        public void setValue(int index, double value) {
+            array.set(index, value);
+        }
+
+        void grow(int minSize) {
+            array = bigArrays.grow(array, minSize);
+        }
+
+        @Override
+        public void close() {
+            array.close();
+        }
+
+        long ramBytesUsed() {
+            return array.ramBytesUsed();
+        }
+    }
+
+    private DoubleValues values;
 
     DoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
-        values = new double[initialSize];
+        long initialBytes = estimateBytesForDoubleArray(initialSize);
+        if (initialBytes <= blockFactory.maxPrimitiveArrayBytes()) {
+            adjustBreaker(initialBytes);
+            values = new PrimitiveDoubleValues(new double[initialSize]);
+        } else {
+            values = new ArrayDoubleValues(blockFactory.bigArrays(), initialSize);
+        }
     }
 
     @Override
     public DoubleBlockBuilder appendDouble(double value) {
         ensureCapacity();
-        values[valueCount] = value;
+        values.setValue(valueCount, value);
         hasNonNullValue = true;
         valueCount++;
         updatePosition();
         return this;
-    }
-
-    @Override
-    protected int elementSize() {
-        return Double.BYTES;
-    }
-
-    @Override
-    protected int valuesLength() {
-        return values.length;
-    }
-
-    @Override
-    protected void growValuesArray(int newSize) {
-        values = Arrays.copyOf(values, newSize);
     }
 
     @Override
@@ -179,35 +223,104 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         return this;
     }
 
+    private DoubleBlock buildFromBigArrays(ArrayDoubleValues values) {
+        assert estimatedBytes == 0 || firstValueIndexes != null;
+        final DoubleBlock theBlock;
+        if (isDense() && singleValued()) {
+            theBlock = new DoubleBigArrayVector(values.array, positionCount, blockFactory).asBlock();
+        } else {
+            theBlock = new DoubleBigArrayBlock(values.array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+        }
+        /*
+        * Update the breaker with the actual bytes used.
+        * We pass false below even though we've used the bytes. That's weird,
+        * but if we break here we will throw away the used memory, letting
+        * it be deallocated. The exception will bubble up and the builder will
+        * still technically be open, meaning the calling code should close it
+        * which will return all used memory to the breaker.
+        */
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.ramBytesUsed(), false);
+        return theBlock;
+    }
+
     @Override
     public DoubleBlock build() {
         try {
             finish();
-            DoubleBlock theBlock;
-            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-                theBlock = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes);
+            final DoubleBlock theBlock;
+            if (values instanceof ArrayDoubleValues arrayValues) {
+                theBlock = buildFromBigArrays(arrayValues);
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
-                }
-                if (isDense() && singleValued()) {
-                    theBlock = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();
+                double[] array = ((PrimitiveDoubleValues) values).array;
+                if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                    theBlock = blockFactory.newConstantDoubleBlockWith(array[0], 1, estimatedBytes);
                 } else {
-                    theBlock = blockFactory.newDoubleArrayBlock(
-                        values,
-                        positionCount,
-                        firstValueIndexes,
-                        nullsMask,
-                        mvOrdering,
-                        estimatedBytes
-                    );
+                    int currentLength = array.length;
+                    // TODO: should be ANDed instead?
+                    if (currentLength - valueCount > 1024 || valueCount < (currentLength / 2)) {
+                        adjustBreaker(estimateBytesForDoubleArray(valueCount));
+                        array = Arrays.copyOf(array, valueCount);
+                        adjustBreaker(estimateBytesForDoubleArray(currentLength));
+                    }
+                    if (isDense() && singleValued()) {
+                        theBlock = blockFactory.newDoubleArrayVector(array, positionCount, estimatedBytes).asBlock();
+                    } else {
+                        theBlock = blockFactory.newDoubleArrayBlock(
+                            array,
+                            positionCount,
+                            firstValueIndexes,
+                            nullsMask,
+                            mvOrdering,
+                            estimatedBytes
+                        );
+                    }
                 }
             }
+            values = null;
             built();
             return theBlock;
         } catch (CircuitBreakingException e) {
             close();
             throw e;
         }
+    }
+
+    @Override
+    protected void ensureCapacity() {
+        if (values instanceof ArrayDoubleValues array) {
+            array.grow(valueCount + 1);
+            return;
+        }
+        final double[] array = ((PrimitiveDoubleValues) values).array;
+        final int currentLength = array.length;
+        if (valueCount < currentLength) {
+            return;
+        }
+        final int newSize = currentLength + (currentLength >> 1);  // trivially, grows array by 50%
+        final long newEstimatedBytes = estimateBytesForDoubleArray(newSize);
+        if (newEstimatedBytes <= blockFactory.maxPrimitiveArrayBytes()) {
+            // extend the primitive array
+            adjustBreaker(newEstimatedBytes);
+            values = new PrimitiveDoubleValues(Arrays.copyOf(array, newSize));
+            adjustBreaker(-estimateBytesForDoubleArray(currentLength));
+            return;
+        } else {
+            // switch to a big array
+            values = new ArrayDoubleValues(blockFactory.bigArrays(), valueCount + 1);
+            for (int i = 0; i < currentLength; i++) {
+                // TODO: bulk copy
+                values.setValue(i, array[i]);
+            }
+            adjustBreaker(-estimateBytesForDoubleArray(currentLength));
+        }
+    }
+
+    static long estimateBytesForDoubleArray(long arraySize) {
+        return RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + arraySize * (long) Double.BYTES;
+    }
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
     }
 }

@@ -651,7 +651,7 @@ public class BlockFactoryTests extends ESTestCase {
     public void testOwningFactoryOfVectorBlock() {
         BlockFactory parentFactory = blockFactory(ByteSizeValue.ofBytes(between(1024, 4096)));
         LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(parentFactory.breaker(), between(0, 1024), between(0, 1024));
-        BlockFactory localFactory = new BlockFactory(localBreaker, bigArrays, parentFactory);
+        BlockFactory localFactory = new BlockFactory(localBreaker, bigArrays, BlockFactory.DEFAULT_MAX_PRIMITIVE_ARRAY_SIZE, parentFactory);
         int numValues = between(2, 10);
         try (var builder = localFactory.newIntVectorBuilder(numValues)) {
             for (int i = 0; i < numValues; i++) {

@@ -9,6 +9,10 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
@@ -18,38 +22,78 @@ import java.util.Arrays;
  */
 final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Builder {
 
-    private int[] values;
+    private interface IntValues extends Releasable {
+        void setValue(int index, int value);
+    }
+
+    private static class PrimitiveIntValues implements IntValues {
+        int[] array;
+
+        PrimitiveIntValues(int[] array) {
+            this.array = array;
+        }
+
+        @Override
+        public void setValue(int index, int value) {
+            array[index] = value;
+        }
+
+        @Override
+        public void close() {
+
+        }
+    }
+
+    private static class ArrayIntValues implements IntValues {
+        final BigArrays bigArrays;
+        IntArray array;
+
+        ArrayIntValues(BigArrays bigArrays, long size) {
+            this.bigArrays = bigArrays;
+            this.array = bigArrays.newIntArray(size, false);
+        }
+
+        @Override
+        public void setValue(int index, int value) {
+            array.set(index, value);
+        }
+
+        void grow(int minSize) {
+            array = bigArrays.grow(array, minSize);
+        }
+
+        @Override
+        public void close() {
+            array.close();
+        }
+
+        long ramBytesUsed() {
+            return array.ramBytesUsed();
+        }
+    }
+
+    private IntValues values;
 
     IntBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
-        values = new int[initialSize];
+        long initialBytes = estimateBytesForIntArray(initialSize);
+        if (initialBytes <= blockFactory.maxPrimitiveArrayBytes()) {
+            adjustBreaker(initialBytes);
+            values = new PrimitiveIntValues(new int[initialSize]);
+        } else {
+            values = new ArrayIntValues(blockFactory.bigArrays(), initialSize);
+        }
     }
 
     @Override
     public IntBlockBuilder appendInt(int value) {
         ensureCapacity();
-        values[valueCount] = value;
+        values.setValue(valueCount, value);
         hasNonNullValue = true;
         valueCount++;
         updatePosition();
         return this;
-    }
-
-    @Override
-    protected int elementSize() {
-        return Integer.BYTES;
-    }
-
-    @Override
-    protected int valuesLength() {
-        return values.length;
-    }
-
-    @Override
-    protected void growValuesArray(int newSize) {
-        values = Arrays.copyOf(values, newSize);
     }
 
     @Override
@@ -179,35 +223,104 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
         return this;
     }
 
+    private IntBlock buildFromBigArrays(ArrayIntValues values) {
+        assert estimatedBytes == 0 || firstValueIndexes != null;
+        final IntBlock theBlock;
+        if (isDense() && singleValued()) {
+            theBlock = new IntBigArrayVector(values.array, positionCount, blockFactory).asBlock();
+        } else {
+            theBlock = new IntBigArrayBlock(values.array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+        }
+        /*
+        * Update the breaker with the actual bytes used.
+        * We pass false below even though we've used the bytes. That's weird,
+        * but if we break here we will throw away the used memory, letting
+        * it be deallocated. The exception will bubble up and the builder will
+        * still technically be open, meaning the calling code should close it
+        * which will return all used memory to the breaker.
+        */
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.ramBytesUsed(), false);
+        return theBlock;
+    }
+
     @Override
     public IntBlock build() {
         try {
             finish();
-            IntBlock theBlock;
-            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-                theBlock = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes);
+            final IntBlock theBlock;
+            if (values instanceof ArrayIntValues arrayValues) {
+                theBlock = buildFromBigArrays(arrayValues);
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
-                }
-                if (isDense() && singleValued()) {
-                    theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
+                int[] array = ((PrimitiveIntValues) values).array;
+                if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                    theBlock = blockFactory.newConstantIntBlockWith(array[0], 1, estimatedBytes);
                 } else {
-                    theBlock = blockFactory.newIntArrayBlock(
-                        values,
-                        positionCount,
-                        firstValueIndexes,
-                        nullsMask,
-                        mvOrdering,
-                        estimatedBytes
-                    );
+                    int currentLength = array.length;
+                    // TODO: should be ANDed instead?
+                    if (currentLength - valueCount > 1024 || valueCount < (currentLength / 2)) {
+                        adjustBreaker(estimateBytesForIntArray(valueCount));
+                        array = Arrays.copyOf(array, valueCount);
+                        adjustBreaker(estimateBytesForIntArray(currentLength));
+                    }
+                    if (isDense() && singleValued()) {
+                        theBlock = blockFactory.newIntArrayVector(array, positionCount, estimatedBytes).asBlock();
+                    } else {
+                        theBlock = blockFactory.newIntArrayBlock(
+                            array,
+                            positionCount,
+                            firstValueIndexes,
+                            nullsMask,
+                            mvOrdering,
+                            estimatedBytes
+                        );
+                    }
                 }
             }
+            values = null;
             built();
             return theBlock;
         } catch (CircuitBreakingException e) {
             close();
             throw e;
         }
+    }
+
+    @Override
+    protected void ensureCapacity() {
+        if (values instanceof ArrayIntValues array) {
+            array.grow(valueCount + 1);
+            return;
+        }
+        final int[] array = ((PrimitiveIntValues) values).array;
+        final int currentLength = array.length;
+        if (valueCount < currentLength) {
+            return;
+        }
+        final int newSize = currentLength + (currentLength >> 1);  // trivially, grows array by 50%
+        final long newEstimatedBytes = estimateBytesForIntArray(newSize);
+        if (newEstimatedBytes <= blockFactory.maxPrimitiveArrayBytes()) {
+            // extend the primitive array
+            adjustBreaker(newEstimatedBytes);
+            values = new PrimitiveIntValues(Arrays.copyOf(array, newSize));
+            adjustBreaker(-estimateBytesForIntArray(currentLength));
+            return;
+        } else {
+            // switch to a big array
+            values = new ArrayIntValues(blockFactory.bigArrays(), valueCount + 1);
+            for (int i = 0; i < currentLength; i++) {
+                // TODO: bulk copy
+                values.setValue(i, array[i]);
+            }
+            adjustBreaker(-estimateBytesForIntArray(currentLength));
+        }
+    }
+
+    static long estimateBytesForIntArray(long arraySize) {
+        return RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + arraySize * (long) Integer.BYTES;
+    }
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
     }
 }

@@ -60,8 +60,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
 
     protected void writeNullValue() {} // default is a no-op for array backed builders - since they have default value.
 
-    /** The length of the internal values array. */
-    protected abstract int valuesLength();
+    protected abstract void ensureCapacity();
 
     @Override
     public AbstractBlockBuilder beginPositionEntry() {
@@ -129,22 +128,6 @@ abstract class AbstractBlockBuilder implements Block.Builder {
         estimatedBytes = 0;
     }
 
-    protected abstract void growValuesArray(int newSize);
-
-    /** The number of bytes used to represent each value element. */
-    protected abstract int elementSize();
-
-    protected final void ensureCapacity() {
-        int valuesLength = valuesLength();
-        if (valueCount < valuesLength) {
-            return;
-        }
-        int newSize = calculateNewArraySize(valuesLength);
-        adjustBreaker(newSize * elementSize());
-        growValuesArray(newSize);
-        adjustBreaker(-valuesLength * elementSize());
-    }
-
     @Override
     public final void close() {
         if (closed == false) {
@@ -158,11 +141,6 @@ abstract class AbstractBlockBuilder implements Block.Builder {
      * Called when first {@link #close() closed}.
      */
     protected void extraClose() {}
-
-    static int calculateNewArraySize(int currentSize) {
-        // trivially, grows array by 50%
-        return currentSize + (currentSize >> 1);
-    }
 
     protected void adjustBreaker(long deltaBytes) {
         blockFactory.adjustBreaker(deltaBytes, false);

@@ -7,15 +7,12 @@
 package org.elasticsearch.xpack.security.action.saml;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
@@ -26,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
@@ -135,25 +131,25 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         doAnswer(invocationOnMock -> {
-            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
+            GetRequestBuilder builder = new GetRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareGet(nullable(String.class), nullable(String.class));
         doAnswer(invocationOnMock -> {
-            IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
+            IndexRequestBuilder builder = new IndexRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]);
             return builder;
         }).when(client).prepareIndex(nullable(String.class));
         doAnswer(invocationOnMock -> {
-            UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
+            UpdateRequestBuilder builder = new UpdateRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareUpdate(nullable(String.class), nullable(String.class));
         doAnswer(invocationOnMock -> {
-            BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
+            BulkRequestBuilder builder = new BulkRequestBuilder(client);
             return builder;
         }).when(client).prepareBulk();
-        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
+        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client));
         doAnswer(invocationOnMock -> {
             ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
             MultiGetResponse response = mock(MultiGetResponse.class);

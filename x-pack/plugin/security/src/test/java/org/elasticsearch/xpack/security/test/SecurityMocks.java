@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.test;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
@@ -103,7 +102,7 @@ public final class SecurityMocks {
     }
 
     public static void mockGetRequest(Client client, String indexAliasName, String documentId, GetResult result) {
-        final GetRequestBuilder requestBuilder = new GetRequestBuilder(client, GetAction.INSTANCE);
+        final GetRequestBuilder requestBuilder = new GetRequestBuilder(client);
         requestBuilder.setIndex(indexAliasName);
         requestBuilder.setId(documentId);
         when(client.prepareGet(indexAliasName, documentId)).thenReturn(requestBuilder);
@@ -125,7 +124,7 @@ public final class SecurityMocks {
     }
 
     public static void mockGetRequestException(Client client, Exception e) {
-        when(client.prepareGet(anyString(), anyString())).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
+        when(client.prepareGet(anyString(), anyString())).thenReturn(new GetRequestBuilder(client));
         doAnswer(inv -> {
             @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) inv.getArguments()[1];
@@ -207,7 +206,7 @@ public final class SecurityMocks {
             Assert.assertThat(inv.getArguments(), arrayWithSize(1));
             final Object requestIndex = inv.getArguments()[0];
             Assert.assertThat(requestIndex, instanceOf(String.class));
-            return new IndexRequestBuilder(client, IndexAction.INSTANCE).setIndex((String) requestIndex);
+            return new IndexRequestBuilder(client).setIndex((String) requestIndex);
         }).when(client).prepareIndex(anyString());
         doAnswer(inv -> {
             Assert.assertThat(inv.getArguments(), arrayWithSize(3));

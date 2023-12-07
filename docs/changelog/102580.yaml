@@ -1,0 +1,6 @@
+pr: 102580
+summary: Fix DISSECT with empty patterns
+area: ES|QL
+type: bug
+issues:
+ - 102577

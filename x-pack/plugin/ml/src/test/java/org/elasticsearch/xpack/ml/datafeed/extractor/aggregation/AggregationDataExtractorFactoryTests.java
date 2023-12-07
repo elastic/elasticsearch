@@ -86,6 +86,7 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
         return new AggregationDataExtractorFactory(
             client,
             datafeedConfigBuilder.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter

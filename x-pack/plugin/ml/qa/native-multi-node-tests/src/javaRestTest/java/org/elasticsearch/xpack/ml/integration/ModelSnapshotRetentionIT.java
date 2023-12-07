@@ -13,8 +13,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -190,7 +190,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
     private List<String> getDocIdsFromSearch(SearchRequest searchRequest) throws Exception {
         List<String> docIds = new ArrayList<>();
-        assertResponse(client().execute(SearchAction.INSTANCE, searchRequest), searchResponse -> {
+        assertResponse(client().execute(TransportSearchAction.TYPE, searchRequest), searchResponse -> {
             assertThat(searchResponse.getHits(), notNullValue());
             for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                 docIds.add(searchHit.getId());

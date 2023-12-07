@@ -8,11 +8,11 @@
 
 package org.elasticsearch.similarity;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -52,14 +52,14 @@ public class SimilarityIT extends ESIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse bm25SearchResponse = prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).get();
-        assertThat(bm25SearchResponse.getHits().getTotalHits().value, equalTo(1L));
-        float bm25Score = bm25SearchResponse.getHits().getHits()[0].getScore();
-
-        SearchResponse booleanSearchResponse = prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).get();
-        assertThat(booleanSearchResponse.getHits().getTotalHits().value, equalTo(1L));
-        float defaultScore = booleanSearchResponse.getHits().getHits()[0].getScore();
-
-        assertThat(bm25Score, not(equalTo(defaultScore)));
+        assertResponse(prepareSearch().setQuery(matchQuery("field1", "quick brown fox")), bm25SearchResponse -> {
+            assertThat(bm25SearchResponse.getHits().getTotalHits().value, equalTo(1L));
+            float bm25Score = bm25SearchResponse.getHits().getHits()[0].getScore();
+            assertResponse(prepareSearch().setQuery(matchQuery("field2", "quick brown fox")), booleanSearchResponse -> {
+                assertThat(booleanSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                float defaultScore = booleanSearchResponse.getHits().getHits()[0].getScore();
+                assertThat(bm25Score, not(equalTo(defaultScore)));
+            });
+        });
     }
 }

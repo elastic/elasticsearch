@@ -18,9 +18,6 @@
         "api_key_id": {
           "type": "keyword"
         },
-        "connector_id": {
-          "type": "keyword"
-        },
         "configuration": {
           "type": "object"
         },

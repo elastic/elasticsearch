@@ -268,8 +268,8 @@ public abstract class AggregatorBase extends Aggregator {
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
             subAggregatorbyName = Maps.newMapWithExpectedSize(subAggregators.length);
-            for (int i = 0; i < subAggregators.length; i++) {
-                subAggregatorbyName.put(subAggregators[i].name(), subAggregators[i]);
+            for (Aggregator subAggregator : subAggregators) {
+                subAggregatorbyName.put(subAggregator.name(), subAggregator);
             }
         }
         return subAggregatorbyName.get(aggName);

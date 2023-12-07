@@ -11,11 +11,11 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -179,7 +179,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         TimeValue delay,
         Tuple<Long, Long> expectedRangeQueryBounds
     ) throws InterruptedException {
-        doAnswer(withResponse(newSearchResponse(totalHits))).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(newSearchResponse(totalHits))).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
         String transformId = getTestName();
         TransformConfig transformConfig = newTransformConfigWithDateHistogram(
             transformId,
@@ -200,7 +200,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
 
         ArgumentCaptor<SearchRequest> searchRequestArgumentCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        verify(client).execute(eq(SearchAction.INSTANCE), searchRequestArgumentCaptor.capture(), any());
+        verify(client).execute(eq(TransportSearchAction.TYPE), searchRequestArgumentCaptor.capture(), any());
         SearchRequest searchRequest = searchRequestArgumentCaptor.getValue();
         BoolQueryBuilder boolQuery = (BoolQueryBuilder) searchRequest.source().query();
         RangeQueryBuilder rangeQuery = (RangeQueryBuilder) boolQuery.filter().get(1);

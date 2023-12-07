@@ -23,7 +23,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.LoggingChunkedRestResponseBody;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -40,7 +39,7 @@ import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
  * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
  */
-public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
+public class DefaultRestChannel extends AbstractRestChannel {
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";

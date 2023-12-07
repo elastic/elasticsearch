@@ -55,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -953,7 +954,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             indexDoc(testIndex, Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(prepareSearch(testIndex).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(prepareSearch(testIndex).setSize(0), 100);
 
         logger.info("--> start relocations");
         allowNodes(testIndex, 1);
@@ -1078,7 +1079,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101876")
     public void testMasterFailoverOnFinalizationLoop() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();

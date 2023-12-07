@@ -262,10 +262,6 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
     }
 
-    private void throwNotConfiguredCorrectlyException() {
-        throw new IllegalArgumentException("Audit of third party dependencies is not configured correctly");
-    }
-
     /**
      * Ideally we would do unpacking already via artifact transform and keep unpacked jars across builds.
      * At the moment transform target folder is not configurable and forbidden CLI only takes one common

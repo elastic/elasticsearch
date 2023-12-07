@@ -1,0 +1,14 @@
+pr: 102093
+summary: Add byte quantization for float vectors in HNSW 
+area: Vector Search
+type: feature
+issues: []
+highlight:
+  title: Add new `int8_hsnw` index type for int8 quantization for HNSW
+  body: |-
+    This commit adds a new index type called `int8_hnsw`. This index will
+    automatically quantized float32 values into int8 byte values. While
+    this increases disk usage by 25%, it reduces memory required for 
+    fast HNSW search by 75%. Dramatically reducing the resource overhead
+    required for dense vector search.
+  notable: true

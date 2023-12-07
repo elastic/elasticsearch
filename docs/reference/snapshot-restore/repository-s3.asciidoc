@@ -133,6 +133,12 @@ settings belong in the `elasticsearch.yml` file.
 
     The port of a proxy to connect to S3 through.
 
+`proxy.scheme`::
+
+    The scheme to use for the proxy connection to S3. Valid values are either `http` or `https`.
+    Defaults to `http`. This setting allows to specify the protocol used for communication with the
+    proxy server
+
 `proxy.username` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     The username to connect to the `proxy.host` with.

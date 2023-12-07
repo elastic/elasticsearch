@@ -49,7 +49,6 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -1845,11 +1844,12 @@ public class DataStreamIT extends ESIntegTestCase {
         if (fail) {
             String expectedErrorMessage = "no such index [" + dataStream + "]";
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+                assertResponse((MultiSearchRequestBuilder) requestBuilder, multiSearchResponse -> {
+                    assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                    assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
+                    assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+                });
             } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
                 Exception e = expectThrows(IndexNotFoundException.class, requestBuilder::get);
                 assertThat(e.getMessage(), equalTo(expectedErrorMessage));
@@ -1861,8 +1861,10 @@ public class DataStreamIT extends ESIntegTestCase {
             if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
                 assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
+                assertResponse(
+                    (MultiSearchRequestBuilder) requestBuilder,
+                    multiSearchResponse -> assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false))
+                );
             } else {
                 requestBuilder.get();
             }

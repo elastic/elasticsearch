@@ -1,0 +1,5 @@
+pr: 102716
+summary: Fix leaking blocks in `BlockUtils`
+area: ES|QL
+type: bug
+issues: []

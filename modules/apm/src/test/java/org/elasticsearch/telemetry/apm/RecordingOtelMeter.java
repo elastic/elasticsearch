@@ -110,14 +110,34 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public ObservableLongCounter buildWithCallback(Consumer<ObservableLongMeasurement> callback) {
-            unimplemented();
-            return null;
+            LongAsyncCounterRecorder longAsyncCounter = new LongAsyncCounterRecorder(name, callback);
+            recorder.register(longAsyncCounter, longAsyncCounter.getInstrument(), name, description, unit);
+            callbacks.add(longAsyncCounter);
+            return longAsyncCounter;
         }
 
         @Override
         public ObservableLongMeasurement buildObserver() {
             unimplemented();
             return null;
+        }
+    }
+
+    private class LongAsyncCounterRecorder extends AbstractInstrument implements ObservableLongCounter, Callback, OtelInstrument {
+        final Consumer<ObservableLongMeasurement> callback;
+
+        LongAsyncCounterRecorder(String name, Consumer<ObservableLongMeasurement> callback) {
+            super(name, InstrumentType.LONG_ASYNC_COUNTER);
+            this.callback = callback;
+        }
+
+        @Override
+        public void close() {
+            callbacks.remove(this);
+        }
+
+        public void doCall() {
+            callback.accept(new LongMeasurementRecorder(name, instrument));
         }
     }
 
@@ -172,14 +192,34 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public ObservableDoubleCounter buildWithCallback(Consumer<ObservableDoubleMeasurement> callback) {
-            unimplemented();
-            return null;
+            DoubleAsyncCounterRecorder doubleAsyncCounter = new DoubleAsyncCounterRecorder(name, callback);
+            recorder.register(doubleAsyncCounter, doubleAsyncCounter.getInstrument(), name, description, unit);
+            callbacks.add(doubleAsyncCounter);
+            return doubleAsyncCounter;
         }
 
         @Override
         public ObservableDoubleMeasurement buildObserver() {
             unimplemented();
             return null;
+        }
+    }
+
+    private class DoubleAsyncCounterRecorder extends AbstractInstrument implements ObservableDoubleCounter, Callback, OtelInstrument {
+        final Consumer<ObservableDoubleMeasurement> callback;
+
+        DoubleAsyncCounterRecorder(String name, Consumer<ObservableDoubleMeasurement> callback) {
+            super(name, InstrumentType.DOUBLE_ASYNC_COUNTER);
+            this.callback = callback;
+        }
+
+        @Override
+        public void close() {
+            callbacks.remove(this);
+        }
+
+        public void doCall() {
+            callback.accept(new DoubleMeasurementRecorder(name, instrument));
         }
     }
 

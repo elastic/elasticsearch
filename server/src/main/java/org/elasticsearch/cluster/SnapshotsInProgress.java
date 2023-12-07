@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -221,11 +222,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.<ToXContent>concat(
-            Iterators.single((builder, params) -> builder.startArray("snapshots")),
-            asStream().iterator(),
-            Iterators.single((builder, params) -> builder.endArray())
-        );
+        return Iterators.concat(ChunkedToXContentHelper.startArray("snapshots"), asStream().iterator(), ChunkedToXContentHelper.endArray());
     }
 
     @Override
@@ -346,14 +343,20 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 assert entry.repository().equals(repository) : "mismatched repository " + entry + " tracked under " + repository;
                 for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId().entrySet()) {
                     final RepositoryShardId sid = shard.getKey();
+                    final ShardSnapshotStatus shardSnapshotStatus = shard.getValue();
                     assert assertShardStateConsistent(
                         entriesForRepository,
                         assignedShards,
                         queuedShards,
                         sid.indexName(),
                         sid.shardId(),
-                        shard.getValue()
+                        shardSnapshotStatus
                     );
+
+                    assert entry.state() != State.ABORTED
+                        || shardSnapshotStatus.state == ShardState.ABORTED
+                        || shardSnapshotStatus.state().completed()
+                        : sid + " is in state " + shardSnapshotStatus.state() + " in aborted snapshot " + entry.snapshot;
                 }
             }
             // make sure in-flight-shard-states can be built cleanly for the entries without tripping assertions

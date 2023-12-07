@@ -19,6 +19,8 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
     public static final String NAME = "empty";
 
+    public static final EmptyConfigUpdate INSTANCE = new EmptyConfigUpdate();
+
     public static MlConfigVersion minimumSupportedVersion() {
         return MlConfigVersion.V_7_9_0;
     }

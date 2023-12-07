@@ -11,7 +11,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -28,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -55,17 +55,18 @@ public class IndexActionIT extends ESIntegTestCase {
             for (int j = 0; j < numOfChecks; j++) {
                 try {
                     logger.debug("running search with all types");
-                    SearchResponse response = prepareSearch("test").get();
-                    if (response.getHits().getTotalHits().value != numOfDocs) {
-                        final String message = "Count is "
-                            + response.getHits().getTotalHits().value
-                            + " but "
-                            + numOfDocs
-                            + " was expected. "
-                            + ElasticsearchAssertions.formatShardStatus(response);
-                        logger.error("{}. search response: \n{}", message, response);
-                        fail(message);
-                    }
+                    assertResponse(prepareSearch("test"), response -> {
+                        if (response.getHits().getTotalHits().value != numOfDocs) {
+                            final String message = "Count is "
+                                + response.getHits().getTotalHits().value
+                                + " but "
+                                + numOfDocs
+                                + " was expected. "
+                                + ElasticsearchAssertions.formatShardStatus(response);
+                            logger.error("{}. search response: \n{}", message, response);
+                            fail(message);
+                        }
+                    });
                 } catch (Exception e) {
                     logger.error("search for all docs types failed", e);
                     if (firstError == null) {
@@ -74,17 +75,18 @@ public class IndexActionIT extends ESIntegTestCase {
                 }
                 try {
                     logger.debug("running search with a specific type");
-                    SearchResponse response = prepareSearch("test").get();
-                    if (response.getHits().getTotalHits().value != numOfDocs) {
-                        final String message = "Count is "
-                            + response.getHits().getTotalHits().value
-                            + " but "
-                            + numOfDocs
-                            + " was expected. "
-                            + ElasticsearchAssertions.formatShardStatus(response);
-                        logger.error("{}. search response: \n{}", message, response);
-                        fail(message);
-                    }
+                    assertResponse(prepareSearch("test"), response -> {
+                        if (response.getHits().getTotalHits().value != numOfDocs) {
+                            final String message = "Count is "
+                                + response.getHits().getTotalHits().value
+                                + " but "
+                                + numOfDocs
+                                + " was expected. "
+                                + ElasticsearchAssertions.formatShardStatus(response);
+                            logger.error("{}. search response: \n{}", message, response);
+                            fail(message);
+                        }
+                    });
                 } catch (Exception e) {
                     logger.error("search for all docs of a specific type failed", e);
                     if (firstError == null) {

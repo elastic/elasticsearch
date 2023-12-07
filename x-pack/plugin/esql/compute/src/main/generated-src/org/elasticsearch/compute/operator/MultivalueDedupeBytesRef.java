@@ -150,8 +150,8 @@ public class MultivalueDedupeBytesRef {
      * Dedupe values and build a {@link IntBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount())) {
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, BytesRefHash hash) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);

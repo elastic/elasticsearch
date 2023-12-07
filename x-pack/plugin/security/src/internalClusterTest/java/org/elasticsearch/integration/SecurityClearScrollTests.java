@@ -28,6 +28,7 @@ import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -78,8 +79,8 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         for (int i = 0; i < count; i++) {
             multiSearchRequestBuilder.add(prepareSearch("index").setScroll("10m").setSize(1));
         }
-        MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-        scrollIds = getScrollIds(multiSearchResponse);
+        scrollIds = new ArrayList<>();
+        assertResponse(multiSearchRequestBuilder, multiSearchResponse -> scrollIds.addAll(getScrollIds(multiSearchResponse)));
     }
 
     @After

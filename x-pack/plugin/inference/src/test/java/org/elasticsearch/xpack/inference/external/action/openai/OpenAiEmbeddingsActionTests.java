@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -25,13 +25,11 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
@@ -40,6 +38,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.equalTo;
@@ -100,20 +99,12 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
             var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(List.of("abc"), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
+            var result = listener.actionGet(TIMEOUT);
 
-            assertThat(
-                result.asMap(),
-                is(
-                    Map.of(
-                        TextEmbeddingResults.TEXT_EMBEDDING,
-                        List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
-                    )
-                )
-            );
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -144,7 +135,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
-        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -165,7 +156,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
-        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -186,7 +177,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
-        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -200,7 +191,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
-        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -214,7 +205,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
-        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

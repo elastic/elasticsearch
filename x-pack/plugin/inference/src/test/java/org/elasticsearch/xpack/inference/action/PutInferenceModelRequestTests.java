@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 
 public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCase<PutInferenceModelAction.Request> {
     @Override

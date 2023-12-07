@@ -750,3 +750,35 @@ c:long | a:long
 1      | 1
 ;
 
+docsGettingStartedStats
+// tag::gs-stats[]
+FROM sample_data
+| STATS median_duration = MEDIAN(event_duration)
+// end::gs-stats[]
+;
+
+median_duration:double
+2764889.0
+;
+
+docsGettingStartedTwoStats
+// tag::gs-two-stats[]
+FROM sample_data
+| STATS median_duration = MEDIAN(event_duration), max_duration = MAX(event_duration)
+// end::gs-two-stats[]
+;
+
+median_duration:double | max_duration:long
+2764889.0      |8268153   
+;
+
+docsGettingStartedStatsBy
+// tag::gs-stats-by[]
+FROM sample_data
+| STATS median_duration = MEDIAN(event_duration) BY client_ip
+// end::gs-stats-by[]
+| LIMIT 0
+;
+
+median_duration:double | client_ip:ip
+;

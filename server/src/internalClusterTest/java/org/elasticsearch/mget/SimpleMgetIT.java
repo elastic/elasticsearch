@@ -170,7 +170,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 assertThat(((Map<String, Object>) source.get("included")).size(), equalTo(1));
                 assertThat(((Map<String, Object>) source.get("included")), hasKey("field"));
             } else {
-                assertThat(responseItem.getResponse().getSourceAsBytes(), nullValue());
+                assertThat(responseItem.getResponse().getSourceAsBytesRef(), nullValue());
             }
         }
     }

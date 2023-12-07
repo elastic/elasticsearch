@@ -143,7 +143,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     );
                 }
             };
-            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
+            ActionListener.respondAndRelease(listener, processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
         }, listener::onFailure));
     }
 

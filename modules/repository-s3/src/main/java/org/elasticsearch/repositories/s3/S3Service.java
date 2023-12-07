@@ -221,6 +221,7 @@ class S3Service implements Closeable {
             // TODO: remove this leniency, these settings should exist together and be validated
             clientConfiguration.setProxyHost(clientSettings.proxyHost);
             clientConfiguration.setProxyPort(clientSettings.proxyPort);
+            clientConfiguration.setProxyProtocol(clientSettings.proxyScheme);
             clientConfiguration.setProxyUsername(clientSettings.proxyUsername);
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }

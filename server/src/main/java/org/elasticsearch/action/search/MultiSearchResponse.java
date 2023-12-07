@@ -19,8 +19,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -58,7 +61,12 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         private final SearchResponse response;
         private final Exception exception;
 
-        public Item(SearchResponse response, Exception exception) {
+        /**
+         *
+         * @param response search response that is considered owned by this instance after this constructor returns or {@code null}
+         * @param exception exception in case of search failure
+         */
+        public Item(@Nullable SearchResponse response, @Nullable Exception exception) {
             this.response = response;
             this.exception = exception;
         }
@@ -134,19 +142,58 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     private final Item[] items;
     private final long tookInMillis;
 
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            for (int i = 0; i < items.length; i++) {
+                Item item = items[i];
+                var r = item.response;
+                if (r != null) {
+                    r.decRef();
+                    items[i] = null;
+                }
+            }
+        }
+    });
+
     public MultiSearchResponse(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(Item::new, Item[]::new);
         tookInMillis = in.readVLong();
     }
 
+    /**
+     * @param items individual search responses, the elements in this array are considered as owned by this instance for ref-counting
+     *              purposes if their {@link Item#response} is non-null
+     */
     public MultiSearchResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;
     }
 
     @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    @Override
     public Iterator<Item> iterator() {
+        assert hasReferences();
         return Iterators.forArray(items);
     }
 
@@ -154,6 +201,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
      * The list of responses, the order is the same as the one provided in the request.
      */
     public Item[] getResponses() {
+        assert hasReferences();
         return this.items;
     }
 
@@ -166,12 +214,14 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         out.writeArray(items);
         out.writeVLong(tookInMillis);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        assert hasReferences();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             Iterators.single((b, p) -> b.field("took", tookInMillis).startArray(Fields.RESPONSES)),

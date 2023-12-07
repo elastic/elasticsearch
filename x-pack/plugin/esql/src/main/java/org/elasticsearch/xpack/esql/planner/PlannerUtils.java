@@ -215,10 +215,10 @@ public class PlannerUtils {
             return ElementType.DOC;
         }
         if (dataType == EsqlDataTypes.GEO_POINT) {
-            return ElementType.LONG;
+            return ElementType.POINT;
         }
         if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
-            return ElementType.LONG;
+            return ElementType.POINT;
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }

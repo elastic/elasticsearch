@@ -473,6 +473,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  valueExtractorInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForDouble.java"
   }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  valueExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForPoint.java"
+  }
   File resultBuilderInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/topn/X-ResultBuilder.java.st")
   template {
     it.properties = bytesRefProperties
@@ -498,5 +503,10 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile =  resultBuilderInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForDouble.java"
+  }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  resultBuilderInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForPoint.java"
   }
 }

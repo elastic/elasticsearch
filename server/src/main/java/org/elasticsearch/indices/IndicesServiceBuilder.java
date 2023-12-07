@@ -234,8 +234,6 @@ public class IndicesServiceBuilder {
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-
-
         return new IndicesService(this);
     }
 }

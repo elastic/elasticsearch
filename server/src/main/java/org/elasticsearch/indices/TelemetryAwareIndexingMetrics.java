@@ -8,66 +8,49 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.concurrent.atomic.AtomicLong;
+import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 
 public class TelemetryAwareIndexingMetrics implements IndexingOperationListener {
 
-    private static final Logger logger = LogManager.getLogger(TelemetryAwareIndexingMetrics.class);
+    private final LongCounter indexingTotalCountMetric;
+    private final LongGaugeMetric indexingDurationTimeMetric;
+    private final LongCounter indexingFailuresCountMetric;
+    private final LongCounter deletionTotalCountMetric;
+    private final LongGaugeMetric deletionDurationTimeMetric;
+    private final LongCounter deletionFailuresCountMetric;
 
-    public static final Setting<TimeValue> TELEMETRY_INDEXING_METRICS_TIME_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "telemetry.indexing.metrics.time.interval",
-        TimeValue.timeValueSeconds(5),
-        Setting.Property.NodeScope
-    );
+    public TelemetryAwareIndexingMetrics(final TelemetryProvider telemetryProvider) {
 
-    private final ThreadPool threadPool;
-    private final TimeValue interval;
-    private final LongCounter indexedDocsTotalMetric;
-    private final AtomicLong indexedDocsCountAggregator = new AtomicLong(0);
-    private volatile boolean isPublishingEnabled;
+        this.indexingTotalCountMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter("es.indices.docs.indexing.total", "Total count of successfully indexed documents", "Count");
 
-    public TelemetryAwareIndexingMetrics(final Settings settings, final ThreadPool threadPool, final TelemetryProvider telemetryProvider) {
-        this.threadPool = threadPool;
-        this.interval = TELEMETRY_INDEXING_METRICS_TIME_INTERVAL_SETTING.get(settings);
-        this.indexedDocsTotalMetric = telemetryProvider.getMeterRegistry()
-            .registerLongCounter("es.indices.docs.indexed.total", "Total number of successfully indexed documents", "Count");
-    }
+        this.indexingDurationTimeMetric = LongGaugeMetric.create(
+            telemetryProvider.getMeterRegistry(),
+            "es.indices.docs.indexing.time",
+            "Document indexing operation duration time",
+            "Millis"
+        );
 
-    public void start() {
-        isPublishingEnabled = true;
-        publish();
-    }
+        this.indexingFailuresCountMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter("es.indices.docs.indexing.failures.count", "Count of document indexing failures", "Count");
 
-    public void stop() {
-        isPublishingEnabled = false;
-    }
+        this.deletionTotalCountMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter("es.indices.docs.deletion.total", "Total count of successfully deleted documents", "Count");
 
-    private void publish() {
-        if (isPublishingEnabled == false) {
-            return;
-        }
-        doPublish();
-        threadPool.scheduleUnlessShuttingDown(interval, threadPool.executor(ThreadPool.Names.MANAGEMENT), this::publish);
-    }
+        this.deletionDurationTimeMetric = LongGaugeMetric.create(
+            telemetryProvider.getMeterRegistry(),
+            "es.indices.docs.deletion.time",
+            "Document deletion operation duration time",
+            "Millis"
+        );
 
-    private void doPublish() {
-        final long value = indexedDocsCountAggregator.get();
-        if (logger.isDebugEnabled()) {
-            logger.debug("Publishing 'indexedDocsTotalMetric' : {} ", value);
-        }
-        this.indexedDocsTotalMetric.incrementBy(value);
+        this.deletionFailuresCountMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter("es.indices.docs.deletion.failures.count", "Count of document deletion failures", "Count");
     }
 
     @Override
@@ -75,11 +58,44 @@ public class TelemetryAwareIndexingMetrics implements IndexingOperationListener 
         switch (result.getResultType()) {
             case SUCCESS -> {
                 if (index.origin().isRecovery() == false) {
-                    indexedDocsCountAggregator.incrementAndGet();
+                    indexingTotalCountMetric.increment();
+
+                    long durationTimeMillis = result.getTook();
+                    indexingDurationTimeMetric.set(durationTimeMillis);
                 }
             }
             case FAILURE -> postIndex(shardId, index, result.getFailure());
-            default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
+            default -> throw new IllegalArgumentException("Unknown result type: " + result.getResultType());
+        }
+    }
+
+    @Override
+    public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
+        if (index.origin().isRecovery() == false) {
+            indexingFailuresCountMetric.increment();
+        }
+    }
+
+    @Override
+    public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
+        switch (result.getResultType()) {
+            case SUCCESS -> {
+                if (delete.origin().isRecovery() == false) {
+                    deletionTotalCountMetric.increment();
+
+                    long durationTimeMillis = result.getTook();
+                    deletionDurationTimeMetric.set(durationTimeMillis);
+                }
+            }
+            case FAILURE -> postDelete(shardId, delete, result.getFailure());
+            default -> throw new IllegalArgumentException("Unknown result type: " + result.getResultType());
+        }
+    }
+
+    @Override
+    public void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {
+        if (delete.origin().isRecovery() == false) {
+            deletionFailuresCountMetric.increment();
         }
     }
 }

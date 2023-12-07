@@ -269,9 +269,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
         // Start watching for timestamp fields
         clusterService.addStateApplier(timestampFieldMapperService);
-
-        // Start collecting and pushing apm indexing metrics
-        telemetryAwareIndexingMetrics.start();
     }
 
     @SuppressWarnings("this-escape")
@@ -381,7 +378,7 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
 
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
-        this.telemetryAwareIndexingMetrics = new TelemetryAwareIndexingMetrics(settings, threadPool, builder.telemetryProvider);
+        this.telemetryAwareIndexingMetrics = new TelemetryAwareIndexingMetrics(builder.telemetryProvider);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -394,7 +391,6 @@ public class IndicesService extends AbstractLifecycleComponent
     protected void doStop() {
         clusterService.removeApplier(timestampFieldMapperService);
         timestampFieldMapperService.doStop();
-        telemetryAwareIndexingMetrics.stop();
 
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
 

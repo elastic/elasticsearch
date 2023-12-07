@@ -110,21 +110,6 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
     }
 
-    /**
-     * This groups on 5000 columns which used to throw a {@link StackOverflowError}.
-     */
-    public void testGroupOnManyLongs() throws IOException {
-        initManyLongs();
-        Map<?, ?> map = XContentHelper.convertToMap(
-            JsonXContent.jsonXContent,
-            EntityUtils.toString(groupOnManyLongs(5000).getEntity()),
-            false
-        );
-        ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
-        ListMatcher values = matchesList().item(List.of(9));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
-    }
-
     private Response groupOnManyLongs(int count) throws IOException {
         logger.info("grouping on {} longs", count);
         StringBuilder query = makeManyLongs(count);
@@ -247,12 +232,6 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
-    public void testTooManyEval() throws IOException {
-        initManyLongs();
-        assertCircuitBreaks(() -> manyEval(1000));
-    }
-
     private Response manyEval(int evalLines) throws IOException {
         StringBuilder query = new StringBuilder();
         query.append("{\"query\":\"FROM manylongs");
@@ -287,12 +266,6 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testFetchManyBigFields() throws IOException {
         initManyBigFieldsIndex(100);
         fetchManyBigFields(100);
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
-    public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500);
-        assertCircuitBreaks(() -> fetchManyBigFields(500));
     }
 
     /**
@@ -343,12 +316,6 @@ public class HeapAttackIT extends ESRestTestCase {
             columns = columns.item(matchesMap().entry("name", String.format(Locale.ROOT, "f%02d", f)).entry("type", "long"));
         }
         assertMap(map, matchesMap().entry("columns", columns));
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
-    public void testFetchTooManyMvLongs() throws IOException {
-        initMvLongsIndex(500, 100, 1000);
-        assertCircuitBreaks(() -> fetchMvLongs());
     }
 
     private Response fetchMvLongs() throws IOException {

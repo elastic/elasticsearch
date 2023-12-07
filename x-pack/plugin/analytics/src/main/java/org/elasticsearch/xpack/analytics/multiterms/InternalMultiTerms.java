@@ -583,9 +583,15 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         InternalMultiTerms that = (InternalMultiTerms) o;
         return requiredSize == that.requiredSize
             && minDocCount == that.minDocCount

@@ -118,13 +118,21 @@ public class HttpResponse implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         HttpResponse that = (HttpResponse) o;
 
-        if (status != that.status) return false;
-        if (headers.equals(that.headers) == false) return false;
+        if (status != that.status) {
+            return false;
+        }
+        if (headers.equals(that.headers) == false) {
+            return false;
+        }
         return Objects.equals(body, that.body);
     }
 

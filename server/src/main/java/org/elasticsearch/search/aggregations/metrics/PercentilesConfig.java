@@ -95,8 +95,12 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
 
         PercentilesConfig other = (PercentilesConfig) obj;
         return method.equals(other.getMethod());
@@ -253,9 +257,15 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-            if (super.equals(obj) == false) return false;
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            if (super.equals(obj) == false) {
+                return false;
+            }
 
             TDigest other = (TDigest) obj;
             return compression == other.getCompression() && Objects.equals(executionHint, other.executionHint);
@@ -381,9 +391,15 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-            if (super.equals(obj) == false) return false;
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            if (super.equals(obj) == false) {
+                return false;
+            }
 
             Hdr other = (Hdr) obj;
             return numberOfSignificantValueDigits == other.getNumberOfSignificantValueDigits();

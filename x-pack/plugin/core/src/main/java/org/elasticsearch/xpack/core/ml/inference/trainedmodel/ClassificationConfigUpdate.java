@@ -156,8 +156,12 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate, NamedX
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ClassificationConfigUpdate that = (ClassificationConfigUpdate) o;
         return Objects.equals(numTopClasses, that.numTopClasses)
             && Objects.equals(topClassesResultsField, that.topClassesResultsField)

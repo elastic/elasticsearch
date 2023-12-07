@@ -310,8 +310,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DesiredNode that = (DesiredNode) o;
         return equalsWithoutProcessorsSpecification(that)
             && Objects.equals(processorsRange, that.processorsRange)

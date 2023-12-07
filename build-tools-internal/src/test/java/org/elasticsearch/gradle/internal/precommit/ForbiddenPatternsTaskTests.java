@@ -113,7 +113,9 @@ public class ForbiddenPatternsTaskTests {
         file.getParentFile().mkdirs();
         file.createNewFile();
 
-        if (lines.length != 0) Files.write(file.toPath(), Arrays.asList(lines), StandardCharsets.UTF_8);
+        if (lines.length != 0) {
+            Files.write(file.toPath(), Arrays.asList(lines), StandardCharsets.UTF_8);
+        }
     }
 
     private void checkAndAssertTaskSuccessful(ForbiddenPatternsTask task) throws IOException {

@@ -53,8 +53,12 @@ public class GetSecretResponse extends ActionResponse implements ToXContentObjec
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetSecretResponse that = (GetSecretResponse) o;
         return Objects.equals(id, that.id) && Objects.equals(value, that.value);
     }

@@ -61,12 +61,18 @@ public class IntervalSchedule implements Schedule {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         IntervalSchedule schedule = (IntervalSchedule) o;
 
-        if (interval.equals(schedule.interval) == false) return false;
+        if (interval.equals(schedule.interval) == false) {
+            return false;
+        }
 
         return true;
     }
@@ -181,12 +187,18 @@ public class IntervalSchedule implements Schedule {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Interval interval = (Interval) o;
 
-            if (unit.millis(duration) != interval.unit.millis(interval.duration)) return false;
+            if (unit.millis(duration) != interval.unit.millis(interval.duration)) {
+                return false;
+            }
 
             return true;
         }

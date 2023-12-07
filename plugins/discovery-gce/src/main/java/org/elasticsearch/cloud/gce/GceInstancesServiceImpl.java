@@ -191,7 +191,9 @@ public class GceInstancesServiceImpl implements GceInstancesService {
     public synchronized Compute client() {
         if (refreshInterval != null && refreshInterval.millis() != 0) {
             if (client != null && (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
-                if (logger.isTraceEnabled()) logger.trace("using cache to retrieve client");
+                if (logger.isTraceEnabled()) {
+                    logger.trace("using cache to retrieve client");
+                }
                 return client;
             }
             lastRefresh = System.currentTimeMillis();

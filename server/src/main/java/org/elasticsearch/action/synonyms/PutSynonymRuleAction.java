@@ -107,8 +107,12 @@ public class PutSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(synonymsSetId, request.synonymsSetId) && Objects.equals(synonymRule, request.synonymRule);
         }

@@ -91,8 +91,12 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PainlessContextConstructorInfo that = (PainlessContextConstructorInfo) o;
         return Objects.equals(declaring, that.declaring) && Objects.equals(parameters, that.parameters);
     }

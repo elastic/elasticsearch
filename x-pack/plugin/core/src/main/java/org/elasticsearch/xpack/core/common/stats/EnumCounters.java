@@ -100,8 +100,12 @@ public class EnumCounters<E extends Enum<E>> implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         EnumCounters<?> that = (EnumCounters<?>) o;
         return Arrays.equals(toArray(), that.toArray()) && Arrays.equals(enums, that.enums);
     }

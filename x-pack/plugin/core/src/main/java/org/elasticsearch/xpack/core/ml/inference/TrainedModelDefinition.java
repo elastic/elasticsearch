@@ -123,8 +123,12 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TrainedModelDefinition that = (TrainedModelDefinition) o;
         return Objects.equals(trainedModel, that.trainedModel) && Objects.equals(preProcessors, that.preProcessors);
     }

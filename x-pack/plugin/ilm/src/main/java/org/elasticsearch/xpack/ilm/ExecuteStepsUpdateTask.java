@@ -290,8 +290,12 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ExecuteStepsUpdateTask that = (ExecuteStepsUpdateTask) o;
         return policy.equals(that.policy) && index.equals(that.index) && Objects.equals(startStep, that.startStep);
     }

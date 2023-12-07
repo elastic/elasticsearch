@@ -88,8 +88,12 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request that = (Request) o;
             return Objects.equals(query, that.query) && Objects.equals(pageParams, that.pageParams);
         }
@@ -153,8 +157,12 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response that = (Response) o;
             return queryPage.equals(that.queryPage);
         }

@@ -140,13 +140,21 @@ public final class CompareCondition extends AbstractCompareCondition {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         CompareCondition condition = (CompareCondition) o;
 
-        if (Objects.equals(path, condition.path) == false) return false;
-        if (op != condition.op) return false;
+        if (Objects.equals(path, condition.path) == false) {
+            return false;
+        }
+        if (op != condition.op) {
+            return false;
+        }
         return Objects.equals(value, condition.value);
     }
 

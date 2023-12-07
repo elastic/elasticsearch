@@ -95,8 +95,12 @@ public class PersistJobAction extends ActionType<PersistJobAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response that = (Response) o;
             return this.persisted == that.persisted;
         }

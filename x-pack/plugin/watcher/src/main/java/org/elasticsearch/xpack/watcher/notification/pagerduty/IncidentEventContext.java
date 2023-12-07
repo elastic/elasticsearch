@@ -54,8 +54,12 @@ public class IncidentEventContext implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         IncidentEventContext that = (IncidentEventContext) o;
 
@@ -228,8 +232,12 @@ public class IncidentEventContext implements ToXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Template that = (Template) o;
             return Objects.equals(type, that.type)

@@ -108,7 +108,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         @Override
         public void onIndexModule(IndexModule indexModule) {
             indexModule.addSettingsUpdateConsumer(DUMMY_SETTING, (s) -> {}, (s) -> {
-                if (s.equals("boom")) throw new IllegalArgumentException("this setting goes boom");
+                if (s.equals("boom")) {
+                    throw new IllegalArgumentException("this setting goes boom");
+                }
             });
         }
 

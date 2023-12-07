@@ -138,8 +138,12 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TextEmbeddingQueryVectorBuilder that = (TextEmbeddingQueryVectorBuilder) o;
         return Objects.equals(modelId, that.modelId) && Objects.equals(modelText, that.modelText);
     }

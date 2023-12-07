@@ -199,8 +199,9 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get())
+            while (shouldRun.get()) {
                 ;
+            }
         });
         threadRunning.await();
         node.close();
@@ -223,8 +224,9 @@ public class NodeTests extends ESTestCase {
             }
             try {
                 threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                    while (shouldRun.get())
+                    while (shouldRun.get()) {
                         ;
+                    }
                 });
             } catch (RejectedExecutionException e) {
                 assertThat(e.getMessage(), containsString("[Terminated,"));
@@ -263,8 +265,9 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get())
+            while (shouldRun.get()) {
                 ;
+            }
         });
         threadRunning.await();
         node.close();

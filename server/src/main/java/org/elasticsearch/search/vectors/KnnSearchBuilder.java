@@ -332,8 +332,12 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         KnnSearchBuilder that = (KnnSearchBuilder) o;
         return k == that.k
             && numCands == that.numCands

@@ -137,8 +137,12 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ServiceAccountToken that = (ServiceAccountToken) o;
         return tokenId.equals(that.tokenId) && secret.equals(that.secret);
     }
@@ -198,8 +202,12 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ServiceAccountTokenId that = (ServiceAccountTokenId) o;
             return accountId.equals(that.accountId) && tokenName.equals(that.tokenName);
         }

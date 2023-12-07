@@ -68,8 +68,12 @@ public class CompositeTrustConfig implements SslTrustConfig {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CompositeTrustConfig that = (CompositeTrustConfig) o;
         return configs.equals(that.configs);
     }

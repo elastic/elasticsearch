@@ -916,7 +916,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static boolean terminate(ExecutorService service, long timeout, TimeUnit timeUnit) {
         if (service != null) {
             service.shutdown();
-            if (awaitTermination(service, timeout, timeUnit)) return true;
+            if (awaitTermination(service, timeout, timeUnit)) {
+                return true;
+            }
             service.shutdownNow();
             return awaitTermination(service, timeout, timeUnit);
         }

@@ -46,8 +46,12 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ProfileHasPrivilegesResponse that = (ProfileHasPrivilegesResponse) o;
         // Only compare the keys (profile uids) of the errors, actual error types do not matter
         return hasPrivilegeUids.equals(that.hasPrivilegeUids) && errors.keySet().equals(that.errors.keySet());

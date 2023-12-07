@@ -156,9 +156,15 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     @Override
     @SuppressWarnings("unchecked")
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         AbstractRangeBuilder<AB, R> other = (AbstractRangeBuilder<AB, R>) obj;
         return Objects.equals(ranges, other.ranges) && Objects.equals(keyed, other.keyed);
     }

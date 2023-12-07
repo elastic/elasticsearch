@@ -1005,7 +1005,9 @@ public class Cron implements ToXContentFragment {
                 if (c == '-') {
                     ValueSet vs = getValue(0, s, i + 1);
                     lastdayOffset = vs.value;
-                    if (lastdayOffset > 30) throw illegalArgument("offset from last day must be <= 30 at pos [{}]", i + 1);
+                    if (lastdayOffset > 30) {
+                        throw illegalArgument("offset from last day must be <= 30 at pos [{}]", i + 1);
+                    }
                     i = vs.pos;
                 }
                 if (s.length() > i) {
@@ -1053,7 +1055,9 @@ public class Cron implements ToXContentFragment {
 
         if (c == 'L') {
             if (type == DAY_OF_WEEK) {
-                if (val < 1 || val > 7) throw illegalArgument("Day-of-Week values must be between 1 and 7");
+                if (val < 1 || val > 7) {
+                    throw illegalArgument("Day-of-Week values must be between 1 and 7");
+                }
                 lastdayOfWeek = true;
             } else {
                 throw illegalArgument("'L' option is not valid here. at pos [{}]", i);
@@ -1070,10 +1074,12 @@ public class Cron implements ToXContentFragment {
             } else {
                 throw illegalArgument("'W' option is not valid here. at pos [{}]", i);
             }
-            if (val > 31) throw illegalArgument(
-                "the 'W' option does not make sense with values larger than 31 (max number of days in a month) at " + "pos [{}]",
-                i
-            );
+            if (val > 31) {
+                throw illegalArgument(
+                    "the 'W' option does not make sense with values larger than 31 (max number of days in a month) at " + "pos [{}]",
+                    i
+                );
+            }
             TreeSet<Integer> set = getSet(type);
             set.add(val);
             i++;

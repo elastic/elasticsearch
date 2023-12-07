@@ -115,8 +115,12 @@ public class EnsembleSizeInfo implements TrainedModelSizeInfo {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         EnsembleSizeInfo that = (EnsembleSizeInfo) o;
         return numOperations == that.numOperations
             && numOutputProcessorWeights == that.numOutputProcessorWeights

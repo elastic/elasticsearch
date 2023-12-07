@@ -78,8 +78,12 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             NodeResponse that = (NodeResponse) o;
             return Objects.equals(getDeprecationIssues(), that.getDeprecationIssues()) && Objects.equals(getNode(), that.getNode());
         }

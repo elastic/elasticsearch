@@ -31,9 +31,15 @@ final class IndexVersionValue extends VersionValue {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         IndexVersionValue that = (IndexVersionValue) o;
         return Objects.equals(translogLocation, that.translogLocation);
     }

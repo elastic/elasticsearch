@@ -218,9 +218,15 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         VariableWidthHistogramAggregationBuilder other = (VariableWidthHistogramAggregationBuilder) obj;
         return Objects.equals(numBuckets, other.numBuckets)
             && Objects.equals(shardSize, other.shardSize)

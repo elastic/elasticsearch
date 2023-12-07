@@ -144,12 +144,18 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         PipelineConfiguration that = (PipelineConfiguration) o;
 
-        if (id.equals(that.id) == false) return false;
+        if (id.equals(that.id) == false) {
+            return false;
+        }
         return getConfigAsMap().equals(that.getConfigAsMap());
 
     }

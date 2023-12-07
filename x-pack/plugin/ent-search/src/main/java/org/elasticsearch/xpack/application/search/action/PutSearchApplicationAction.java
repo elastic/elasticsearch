@@ -92,8 +92,12 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request that = (Request) o;
             return Objects.equals(searchApp, that.searchApp) && create == that.create;
         }
@@ -168,8 +172,12 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response that = (Response) o;
             return Objects.equals(result, that.result);
         }

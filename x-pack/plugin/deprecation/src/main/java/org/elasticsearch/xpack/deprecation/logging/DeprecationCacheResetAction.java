@@ -89,8 +89,12 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response that = (Response) o;
             return Objects.equals(getNodes(), that.getNodes()) && Objects.equals(failures(), that.failures());
         }

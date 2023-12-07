@@ -50,8 +50,12 @@ public class DateRangeIncludingNowQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (sameClassAs(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (sameClassAs(o) == false) {
+            return false;
+        }
         DateRangeIncludingNowQuery that = (DateRangeIncludingNowQuery) o;
         return Objects.equals(in, that.in);
     }

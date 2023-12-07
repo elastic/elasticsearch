@@ -27,8 +27,12 @@ public class Dissect extends RegexExtract {
         // appendSeparator are equal ( and DissectParser uses reference equality )
         @Override
         public boolean equals(Object other) {
-            if (this == other) return true;
-            if (other == null || getClass() != other.getClass()) return false;
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
             Parser that = (Parser) other;
             return Objects.equals(this.pattern, that.pattern) && Objects.equals(this.appendSeparator, that.appendSeparator);
         }
@@ -56,9 +60,15 @@ public class Dissect extends RegexExtract {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         Dissect dissect = (Dissect) o;
         return Objects.equals(parser, dissect.parser);
     }

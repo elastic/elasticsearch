@@ -39,8 +39,12 @@ public class PutPipelineResponse extends ActionResponse {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PutPipelineResponse that = (PutPipelineResponse) o;
         return status == that.status;
     }

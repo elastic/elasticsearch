@@ -1061,8 +1061,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SnapshotInfo that = (SnapshotInfo) o;
         return startTime == that.startTime
             && endTime == that.endTime
@@ -1151,8 +1155,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             IndexSnapshotDetails that = (IndexSnapshotDetails) o;
             return shardCount == that.shardCount && maxSegmentsPerShard == that.maxSegmentsPerShard && size.equals(that.size);
         }

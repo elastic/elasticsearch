@@ -445,7 +445,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public boolean isRecoveryFinalized() {
         SearchableSnapshotRecoveryState recoveryState = this.recoveryState;
-        if (recoveryState == null) return false;
+        if (recoveryState == null) {
+            return false;
+        }
         RecoveryState.Stage stage = recoveryState.getStage();
         return stage == RecoveryState.Stage.DONE || stage == RecoveryState.Stage.FINALIZE;
     }

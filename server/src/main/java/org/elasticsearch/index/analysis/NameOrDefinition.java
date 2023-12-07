@@ -87,8 +87,12 @@ public class NameOrDefinition implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         NameOrDefinition that = (NameOrDefinition) o;
         return Objects.equals(name, that.name) && Objects.equals(definition, that.definition);
     }

@@ -117,8 +117,12 @@ public class CircuitBreakerMetrics {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CircuitBreakerMetrics that = (CircuitBreakerMetrics) o;
         return Objects.equals(registry, that.registry)
             && Objects.equals(parentTripCountTotal, that.parentTripCountTotal)

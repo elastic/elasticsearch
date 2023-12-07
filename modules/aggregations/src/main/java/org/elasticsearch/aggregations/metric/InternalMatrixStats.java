@@ -292,9 +292,15 @@ public class InternalMatrixStats extends InternalAggregation {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
 
         InternalMatrixStats other = (InternalMatrixStats) obj;
         return Objects.equals(this.stats, other.stats) && Objects.equals(this.results, other.results);

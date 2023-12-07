@@ -55,12 +55,18 @@ public class PublishResponse implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         PublishResponse response = (PublishResponse) o;
 
-        if (term != response.term) return false;
+        if (term != response.term) {
+            return false;
+        }
         return version == response.version;
     }
 

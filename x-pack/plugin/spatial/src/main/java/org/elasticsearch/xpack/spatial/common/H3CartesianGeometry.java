@@ -32,8 +32,12 @@ class H3CartesianGeometry extends LatLonGeometry {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         H3CartesianGeometry that = (H3CartesianGeometry) o;
         return h3 == that.h3;
     }

@@ -253,7 +253,9 @@ public final class SearchPhaseController {
 
     private static Sort checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
         Sort sort = new Sort(firstSortFields);
-        if (results.size() < 2) return sort;
+        if (results.size() < 2) {
+            return sort;
+        }
 
         SortField.Type[] firstTypes = null;
         boolean isFirstResult = true;
@@ -676,7 +678,9 @@ public final class SearchPhaseController {
         boolean firstResult = true;
         for (SearchPhaseResult entry : queryResults) {
             DocValueFormat[] formats = entry.queryResult().sortValueFormats();
-            if (formats == null) return;
+            if (formats == null) {
+                return;
+            }
             if (firstResult) {
                 firstResult = false;
                 ulFormats = new boolean[formats.length];

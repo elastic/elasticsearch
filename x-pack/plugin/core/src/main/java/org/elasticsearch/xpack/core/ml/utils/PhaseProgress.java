@@ -80,8 +80,12 @@ public class PhaseProgress implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PhaseProgress that = (PhaseProgress) o;
         return Objects.equals(phase, that.phase) && progressPercent == that.progressPercent;
     }

@@ -193,8 +193,12 @@ public class AVLTreeDigest extends AbstractTDigest {
             return Double.NaN;
         }
         if (values.size() == 1) {
-            if (x < values.mean(values.first())) return 0;
-            if (x > values.mean(values.first())) return 1;
+            if (x < values.mean(values.first())) {
+                return 0;
+            }
+            if (x > values.mean(values.first())) {
+                return 1;
+            }
             return 0.5;
         } else {
             if (x < min) {

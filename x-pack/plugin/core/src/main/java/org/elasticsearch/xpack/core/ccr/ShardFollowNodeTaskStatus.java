@@ -571,8 +571,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
 
     @Override
     public boolean equals(final Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         final ShardFollowNodeTaskStatus that = (ShardFollowNodeTaskStatus) o;
         String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         String otherFatalExceptionMessage = that.fatalException != null ? that.fatalException.getMessage() : null;

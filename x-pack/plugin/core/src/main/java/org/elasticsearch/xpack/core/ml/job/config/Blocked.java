@@ -104,8 +104,12 @@ public class Blocked implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Blocked that = (Blocked) o;
         return Objects.equals(reason, that.reason) && Objects.equals(taskId, that.taskId);

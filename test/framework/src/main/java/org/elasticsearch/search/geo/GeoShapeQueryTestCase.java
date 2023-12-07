@@ -185,7 +185,9 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
 
     protected GeometryCollection<Geometry> makeRandomGeometryCollectionWithoutCircle(Geometry... extra) {
         GeometryCollection<Geometry> randomCollection = GeometryTestUtils.randomGeometryCollectionWithoutCircle(false);
-        if (extra.length == 0) return randomCollection;
+        if (extra.length == 0) {
+            return randomCollection;
+        }
 
         List<Geometry> geometries = new ArrayList<>();
         for (Geometry geometry : randomCollection) {

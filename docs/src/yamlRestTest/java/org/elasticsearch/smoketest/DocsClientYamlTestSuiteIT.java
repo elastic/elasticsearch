@@ -163,7 +163,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
         if (false == "".equals(templates)) {
             for (String template : templates.split("\n")) {
-                if (isXPackTemplate(template)) continue;
+                if (isXPackTemplate(template)) {
+                    continue;
+                }
                 if ("".equals(template)) {
                     throw new IllegalStateException("empty template in templates list:\n" + templates);
                 }

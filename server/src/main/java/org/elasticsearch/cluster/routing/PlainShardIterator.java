@@ -39,8 +39,12 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ShardIterator that = (ShardIterator) o;
         return shardId.equals(that.shardId());
     }

@@ -63,8 +63,12 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         FieldCapabilitiesNodeResponse that = (FieldCapabilitiesNodeResponse) o;
         return Objects.equals(indexResponses, that.indexResponses)
             && Objects.equals(failures, that.failures)

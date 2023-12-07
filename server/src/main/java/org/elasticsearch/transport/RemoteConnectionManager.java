@@ -133,8 +133,9 @@ public class RemoteConnectionManager implements ConnectionManager {
     public Transport.Connection getAnyRemoteConnection() {
         List<DiscoveryNode> localConnectedNodes = this.connectedNodes;
         long curr;
-        while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE)
+        while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE) {
             ;
+        }
         if (localConnectedNodes.isEmpty() == false) {
             DiscoveryNode nextNode = localConnectedNodes.get(Math.floorMod(curr, localConnectedNodes.size()));
             try {

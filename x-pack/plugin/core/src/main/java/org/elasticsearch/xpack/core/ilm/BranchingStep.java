@@ -104,9 +104,15 @@ public class BranchingStep extends ClusterStateActionStep {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         BranchingStep that = (BranchingStep) o;
         return super.equals(o)
             && Objects.equals(nextStepKeyOnFalse, that.nextStepKeyOnFalse)

@@ -403,7 +403,9 @@ public final class SearchHit implements Writeable, ToXContentObject {
     * Adds a new DocumentField to the map in case both parameters are not null.
     * */
     public void setDocumentField(String fieldName, DocumentField field) {
-        if (fieldName == null || field == null) return;
+        if (fieldName == null || field == null) {
+            return;
+        }
         this.documentFields.put(fieldName, field);
     }
 

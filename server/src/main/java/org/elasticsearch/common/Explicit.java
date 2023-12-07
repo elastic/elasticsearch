@@ -58,8 +58,12 @@ public class Explicit<T> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Explicit<?> explicit1 = (Explicit<?>) o;
         return explicit == explicit1.explicit && Objects.equals(value, explicit1.value);
     }

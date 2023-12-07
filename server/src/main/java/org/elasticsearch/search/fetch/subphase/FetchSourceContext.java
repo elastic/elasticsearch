@@ -234,14 +234,24 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         FetchSourceContext that = (FetchSourceContext) o;
 
-        if (fetchSource != that.fetchSource) return false;
-        if (Arrays.equals(excludes, that.excludes) == false) return false;
-        if (Arrays.equals(includes, that.includes) == false) return false;
+        if (fetchSource != that.fetchSource) {
+            return false;
+        }
+        if (Arrays.equals(excludes, that.excludes) == false) {
+            return false;
+        }
+        if (Arrays.equals(includes, that.includes) == false) {
+            return false;
+        }
 
         return true;
     }

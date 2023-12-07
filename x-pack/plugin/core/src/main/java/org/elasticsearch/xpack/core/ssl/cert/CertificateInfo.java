@@ -148,8 +148,12 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CertificateInfo that = (CertificateInfo) o;
         return hasPrivateKey == that.hasPrivateKey
             && Objects.equals(path, that.path)

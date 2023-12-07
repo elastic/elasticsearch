@@ -136,8 +136,12 @@ public class DeleteRollupJobAction extends ActionType<DeleteRollupJobAction.Resp
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             DeleteRollupJobAction.Response response = (DeleteRollupJobAction.Response) o;
             return super.equals(o) && acknowledged == response.acknowledged;
         }

@@ -270,8 +270,12 @@ public class SnapshotStatus implements ChunkedToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         SnapshotStatus that = (SnapshotStatus) o;
         return Objects.equals(snapshot, that.snapshot)

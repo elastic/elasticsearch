@@ -94,8 +94,12 @@ public class FilteringValidationInfo implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         FilteringValidationInfo that = (FilteringValidationInfo) o;
         return Objects.equals(validationErrors, that.validationErrors) && validationState == that.validationState;
     }

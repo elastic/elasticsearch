@@ -45,8 +45,12 @@ public abstract class ExecutableInput<I extends Input, R extends Input.Result> i
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         ExecutableInput<?, ?> that = (ExecutableInput<?, ?>) o;
 

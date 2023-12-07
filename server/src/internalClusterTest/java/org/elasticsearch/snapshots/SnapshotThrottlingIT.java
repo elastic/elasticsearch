@@ -99,8 +99,12 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
             Tuple<Long, Long> pauses = testThrottledRepository("0", "0", compressRepo);
             snapshotPauseViaRecovery += pauses.v1();
             restorePauseViaRecovery += pauses.v2();
-            if (throttleSnapshotViaRecovery) assertThat(snapshotPauseViaRecovery, greaterThan(0L));
-            if (throttleRestoreViaRecovery) assertThat(restorePauseViaRecovery, greaterThan(0L));
+            if (throttleSnapshotViaRecovery) {
+                assertThat(snapshotPauseViaRecovery, greaterThan(0L));
+            }
+            if (throttleRestoreViaRecovery) {
+                assertThat(restorePauseViaRecovery, greaterThan(0L));
+            }
         }
 
         // Throttle snapshot and/or restore separately with 5kb rate limit, which is much less than half of the potential recovery rate
@@ -115,11 +119,15 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
             long restorePause = pauses.v2();
             if (throttleSnapshot) {
                 assertThat(snapshotPause, greaterThan(0L));
-                if (throttleSnapshotViaRecovery) assertThat(snapshotPause, greaterThan(snapshotPauseViaRecovery * 2));
+                if (throttleSnapshotViaRecovery) {
+                    assertThat(snapshotPause, greaterThan(snapshotPauseViaRecovery * 2));
+                }
             }
             if (throttleRestore) {
                 assertThat(restorePause, greaterThan(0L));
-                if (throttleRestoreViaRecovery) assertThat(restorePause, greaterThan(restorePauseViaRecovery * 2));
+                if (throttleRestoreViaRecovery) {
+                    assertThat(restorePause, greaterThan(restorePauseViaRecovery * 2));
+                }
             }
         }
     }
@@ -151,7 +159,9 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                     + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=100mb] per second, thus the repository "
                     + "rate limit will be superseded by the recovery rate limit"
             );
-            if (nodeBandwidthSettingsSet) snapshotExpectation.setExpectSeen();
+            if (nodeBandwidthSettingsSet) {
+                snapshotExpectation.setExpectSeen();
+            }
             mockLogAppender.addExpectation(snapshotExpectation);
 
             MockLogAppender.SeenEventExpectation restoreExpectation = new MockLogAppender.SeenEventExpectation(

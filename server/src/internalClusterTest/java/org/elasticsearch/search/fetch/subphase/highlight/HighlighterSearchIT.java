@@ -3709,7 +3709,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         }
                     }
                     return true;
-                } else return false;
+                } else {
+                    return false;
+                }
             }
         }
 

@@ -125,8 +125,12 @@ public class RestClusterGetSettingsResponse implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RestClusterGetSettingsResponse that = (RestClusterGetSettingsResponse) o;
         return Objects.equals(transientSettings, that.transientSettings)
             && Objects.equals(persistentSettings, that.persistentSettings)

@@ -450,8 +450,12 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CreateSnapshotRequest that = (CreateSnapshotRequest) o;
         return partial == that.partial
             && includeGlobalState == that.includeGlobalState

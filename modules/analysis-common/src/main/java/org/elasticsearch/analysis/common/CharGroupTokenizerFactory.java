@@ -62,7 +62,9 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory {
         int len = s.length();
         char c = s.charAt(0);
         if (c == '\\') {
-            if (1 >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
+            if (1 >= len) {
+                throw new RuntimeException("Invalid escaped char in [" + s + "]");
+            }
             c = s.charAt(1);
             switch (c) {
                 case '\\':

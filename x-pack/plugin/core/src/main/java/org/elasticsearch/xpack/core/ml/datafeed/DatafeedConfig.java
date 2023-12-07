@@ -856,8 +856,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Builder builder = (Builder) o;
             return Objects.equals(id, builder.id)
                 && Objects.equals(jobId, builder.jobId)

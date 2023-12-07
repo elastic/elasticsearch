@@ -232,8 +232,12 @@ public class StoreKeyConfig implements SslKeyConfig {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         StoreKeyConfig that = (StoreKeyConfig) o;
         return this.keystorePath.equals(that.keystorePath)
             && this.type.equals(that.type)

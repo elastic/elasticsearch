@@ -267,8 +267,12 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return flushed == response.flushed && Objects.equals(lastFinalizedBucketEnd, response.lastFinalizedBucketEnd);
         }

@@ -56,8 +56,12 @@ public class Grok extends RegexExtract {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Parser parser = (Parser) o;
             return Objects.equals(pattern, parser.pattern);
         }
@@ -109,9 +113,15 @@ public class Grok extends RegexExtract {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         Grok grok = (Grok) o;
         return Objects.equals(parser, grok.parser);
     }

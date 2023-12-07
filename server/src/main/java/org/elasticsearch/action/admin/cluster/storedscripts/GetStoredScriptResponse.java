@@ -120,8 +120,12 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetStoredScriptResponse that = (GetStoredScriptResponse) o;
         return Objects.equals(id, that.id) && Objects.equals(source, that.source);
     }

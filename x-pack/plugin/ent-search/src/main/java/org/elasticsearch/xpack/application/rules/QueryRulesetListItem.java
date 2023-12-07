@@ -109,8 +109,12 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         QueryRulesetListItem that = (QueryRulesetListItem) o;
         return ruleTotalCount == that.ruleTotalCount
             && Objects.equals(rulesetId, that.rulesetId)

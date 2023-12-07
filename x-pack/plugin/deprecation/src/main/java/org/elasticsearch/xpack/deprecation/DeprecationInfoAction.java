@@ -224,8 +224,12 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues)
                 && Objects.equals(nodeSettingsIssues, response.nodeSettingsIssues)
@@ -377,8 +381,12 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Arrays.equals(indices, request.indices);
         }

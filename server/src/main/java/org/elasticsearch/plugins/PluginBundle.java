@@ -78,8 +78,12 @@ public class PluginBundle {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PluginBundle bundle = (PluginBundle) o;
         return Objects.equals(plugin, bundle.plugin);
     }

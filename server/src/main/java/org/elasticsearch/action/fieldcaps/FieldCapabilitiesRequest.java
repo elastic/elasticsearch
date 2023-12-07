@@ -235,8 +235,12 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         FieldCapabilitiesRequest that = (FieldCapabilitiesRequest) o;
         return includeUnmapped == that.includeUnmapped
             && mergeResults == that.mergeResults

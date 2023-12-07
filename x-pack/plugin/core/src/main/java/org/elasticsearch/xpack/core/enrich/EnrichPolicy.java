@@ -235,8 +235,12 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         EnrichPolicy policy = (EnrichPolicy) o;
         return type.equals(policy.type)
             && Objects.equals(query, policy.query)
@@ -288,8 +292,12 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             QuerySource that = (QuerySource) o;
             return query.equals(that.query) && contentType == that.contentType;
         }
@@ -390,8 +398,12 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             NamedPolicy that = (NamedPolicy) o;
             return name.equals(that.name) && policy.equals(that.policy);
         }

@@ -178,9 +178,15 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         BucketSortPipelineAggregationBuilder other = (BucketSortPipelineAggregationBuilder) obj;
         return Objects.equals(sorts, other.sorts)
             && Objects.equals(from, other.from)

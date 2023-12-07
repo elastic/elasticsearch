@@ -215,8 +215,12 @@ public class ZeroShotClassificationConfig implements NlpConfig {
 
     @Override
     public boolean equals(Object o) {
-        if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == this) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         ZeroShotClassificationConfig that = (ZeroShotClassificationConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)

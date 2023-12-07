@@ -151,8 +151,12 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         FieldDataStats that = (FieldDataStats) o;
         return memorySize == that.memorySize
             && evictions == that.evictions
@@ -212,8 +216,12 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             GlobalOrdinalsStats that = (GlobalOrdinalsStats) o;
             return buildTimeMillis == that.buildTimeMillis && Objects.equals(fieldGlobalOrdinalsStats, that.fieldGlobalOrdinalsStats);
         }

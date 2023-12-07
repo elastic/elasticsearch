@@ -67,17 +67,39 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("Values must contains at least one value.");
         }
         for (int i = 0; i < values.length; i++) {
-            if (values[i] == null) continue;
-            if (values[i] instanceof String) continue;
-            if (values[i] instanceof Text) continue;
-            if (values[i] instanceof Long) continue;
-            if (values[i] instanceof Integer) continue;
-            if (values[i] instanceof Short) continue;
-            if (values[i] instanceof Byte) continue;
-            if (values[i] instanceof Double) continue;
-            if (values[i] instanceof Float) continue;
-            if (values[i] instanceof Boolean) continue;
-            if (values[i] instanceof BigInteger) continue;
+            if (values[i] == null) {
+                continue;
+            }
+            if (values[i] instanceof String) {
+                continue;
+            }
+            if (values[i] instanceof Text) {
+                continue;
+            }
+            if (values[i] instanceof Long) {
+                continue;
+            }
+            if (values[i] instanceof Integer) {
+                continue;
+            }
+            if (values[i] instanceof Short) {
+                continue;
+            }
+            if (values[i] instanceof Byte) {
+                continue;
+            }
+            if (values[i] instanceof Double) {
+                continue;
+            }
+            if (values[i] instanceof Float) {
+                continue;
+            }
+            if (values[i] instanceof Boolean) {
+                continue;
+            }
+            if (values[i] instanceof BigInteger) {
+                continue;
+            }
             throw new IllegalArgumentException("Can't handle " + SEARCH_AFTER + " field value of type [" + values[i].getClass() + "]");
         }
         sortValues = new Object[values.length];

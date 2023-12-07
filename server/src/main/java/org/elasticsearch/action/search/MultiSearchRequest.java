@@ -151,8 +151,12 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         MultiSearchRequest that = (MultiSearchRequest) o;
         return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests
             && Objects.equals(requests, that.requests)

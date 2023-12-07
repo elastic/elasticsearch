@@ -41,8 +41,12 @@ public final class SimilarityProvider {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SimilarityProvider that = (SimilarityProvider) o;
         /**
          * We check <code>name</code> only because the <code>similarity</code> is

@@ -302,9 +302,15 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
 
         InternalComposite that = (InternalComposite) obj;
         return Objects.equals(size, that.size)

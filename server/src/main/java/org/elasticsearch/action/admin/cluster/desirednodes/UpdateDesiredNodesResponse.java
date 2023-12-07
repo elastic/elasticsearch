@@ -67,8 +67,12 @@ public class UpdateDesiredNodesResponse extends ActionResponse implements ToXCon
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         UpdateDesiredNodesResponse that = (UpdateDesiredNodesResponse) o;
         return replacedExistingHistoryId == that.replacedExistingHistoryId && dryRun == that.dryRun;
     }

@@ -762,7 +762,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         private SingleForecast forecast(Metadata metadata, DataStream stream, long forecastWindow, long now) {
             List<Index> indices = stream.getIndices();
-            if (dataStreamAllocatedToNodes(metadata, indices) == false) return null;
+            if (dataStreamAllocatedToNodes(metadata, indices) == false) {
+                return null;
+            }
             long minCreationDate = Long.MAX_VALUE;
             long totalSize = 0;
             int count = 0;
@@ -1105,8 +1107,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ReactiveReason that = (ReactiveReason) o;
             return unassigned == that.unassigned
                 && assigned == that.assigned

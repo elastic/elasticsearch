@@ -73,7 +73,9 @@ public interface NodeSelector {
         public void select(Iterable<Node> nodes) {
             for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                 Node node = itr.next();
-                if (node.getRoles() == null) continue;
+                if (node.getRoles() == null) {
+                    continue;
+                }
                 if (node.getRoles().isMasterEligible()
                     && false == node.getRoles().canContainData()
                     && false == node.getRoles().isIngest()) {

@@ -119,11 +119,15 @@ public class IndexableBinaryStringToolsTests extends LuceneTestCase {
             originalComparison = originalComparison < 0 ? -1 : originalComparison > 0 ? 1 : 0;
 
             int encodedLen1 = IndexableBinaryStringTools.getEncodedLength(originalArray1, 0, numBytes1);
-            if (encodedLen1 > encoded1.length) encoded1 = new char[ArrayUtil.oversize(encodedLen1, Character.BYTES)];
+            if (encodedLen1 > encoded1.length) {
+                encoded1 = new char[ArrayUtil.oversize(encodedLen1, Character.BYTES)];
+            }
             IndexableBinaryStringTools.encode(originalArray1, 0, numBytes1, encoded1, 0, encodedLen1);
 
             int encodedLen2 = IndexableBinaryStringTools.getEncodedLength(original2, 0, numBytes2);
-            if (encodedLen2 > encoded2.length) encoded2 = new char[ArrayUtil.oversize(encodedLen2, Character.BYTES)];
+            if (encodedLen2 > encoded2.length) {
+                encoded2 = new char[ArrayUtil.oversize(encodedLen2, Character.BYTES)];
+            }
             IndexableBinaryStringTools.encode(original2, 0, numBytes2, encoded2, 0, encodedLen2);
 
             int encodedComparison = new String(encoded1, 0, encodedLen1).compareTo(new String(encoded2, 0, encodedLen2));
@@ -202,7 +206,9 @@ public class IndexableBinaryStringToolsTests extends LuceneTestCase {
             }
 
             int encodedLen = IndexableBinaryStringTools.getEncodedLength(binary, 0, numBytes);
-            if (encoded.length < encodedLen) encoded = new char[ArrayUtil.oversize(encodedLen, Character.BYTES)];
+            if (encoded.length < encodedLen) {
+                encoded = new char[ArrayUtil.oversize(encodedLen, Character.BYTES)];
+            }
             IndexableBinaryStringTools.encode(binary, 0, numBytes, encoded, 0, encodedLen);
 
             int decodedLen = IndexableBinaryStringTools.getDecodedLength(encoded, 0, encodedLen);

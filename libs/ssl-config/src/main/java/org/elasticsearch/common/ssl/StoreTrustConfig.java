@@ -136,8 +136,12 @@ public final class StoreTrustConfig implements SslTrustConfig {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         StoreTrustConfig that = (StoreTrustConfig) o;
         return truststorePath.equals(that.truststorePath)
             && Arrays.equals(password, that.password)

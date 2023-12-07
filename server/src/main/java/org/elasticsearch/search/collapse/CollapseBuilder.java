@@ -168,13 +168,21 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         CollapseBuilder that = (CollapseBuilder) o;
 
-        if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
-        if (field.equals(that.field) == false) return false;
+        if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) {
+            return false;
+        }
+        if (field.equals(that.field) == false) {
+            return false;
+        }
         return Objects.equals(innerHits, that.innerHits);
     }
 

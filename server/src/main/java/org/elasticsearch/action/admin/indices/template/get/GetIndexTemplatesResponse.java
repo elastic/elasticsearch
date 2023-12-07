@@ -47,8 +47,12 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetIndexTemplatesResponse that = (GetIndexTemplatesResponse) o;
         return Objects.equals(indexTemplates, that.indexTemplates);
     }

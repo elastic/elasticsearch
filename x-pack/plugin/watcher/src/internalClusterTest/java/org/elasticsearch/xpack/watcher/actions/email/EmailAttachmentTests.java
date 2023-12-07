@@ -101,7 +101,9 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
     public List<String> getAttachments(MimeMessage message) throws Exception {
         Object content = message.getContent();
-        if (content instanceof String) return null;
+        if (content instanceof String) {
+            return null;
+        }
 
         if (content instanceof Multipart multipart) {
             List<String> result = new ArrayList<>();

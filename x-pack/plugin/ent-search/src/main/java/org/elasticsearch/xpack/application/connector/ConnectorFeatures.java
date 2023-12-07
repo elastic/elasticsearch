@@ -148,8 +148,12 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConnectorFeatures features = (ConnectorFeatures) o;
         return Objects.equals(documentLevelSecurityEnabled, features.documentLevelSecurityEnabled)
             && Objects.equals(filteringAdvancedConfigEnabled, features.filteringAdvancedConfigEnabled)
@@ -267,8 +271,12 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             FeatureEnabled that = (FeatureEnabled) o;
             return enabled == that.enabled;
         }
@@ -341,8 +349,12 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             SyncRulesFeatures that = (SyncRulesFeatures) o;
             return Objects.equals(syncRulesAdvancedEnabled, that.syncRulesAdvancedEnabled)
                 && Objects.equals(syncRulesBasicEnabled, that.syncRulesBasicEnabled);

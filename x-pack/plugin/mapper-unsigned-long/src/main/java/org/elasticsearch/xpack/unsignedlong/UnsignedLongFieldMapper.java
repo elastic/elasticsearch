@@ -152,7 +152,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         private String parseNullValueAsString(Object o) {
-            if (o == null) return null;
+            if (o == null) {
+                return null;
+            }
             try {
                 parseUnsignedLong(o); // confirm that null_value is a proper unsigned_long
                 return (o instanceof BytesRef) ? ((BytesRef) o).utf8ToString() : o.toString();
@@ -294,15 +296,21 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
                 Long lt = parseLowerRangeTerm(lowerTerm, includeLower);
-                if (lt == null) return new MatchNoDocsQuery();
+                if (lt == null) {
+                    return new MatchNoDocsQuery();
+                }
                 l = unsignedToSortableSignedLong(lt);
             }
             if (upperTerm != null) {
                 Long ut = parseUpperRangeTerm(upperTerm, includeUpper);
-                if (ut == null) return new MatchNoDocsQuery();
+                if (ut == null) {
+                    return new MatchNoDocsQuery();
+                }
                 u = unsignedToSortableSignedLong(ut);
             }
-            if (l > u) return new MatchNoDocsQuery();
+            if (l > u) {
+                return new MatchNoDocsQuery();
+            }
 
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {
@@ -474,7 +482,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         static Long parseLowerRangeTerm(Object value, boolean include) {
             if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                 long longValue = ((Number) value).longValue();
-                if (longValue < 0) return 0L; // limit lowerTerm to min value for unsigned long: 0
+                if (longValue < 0) {
+                    return 0L; // limit lowerTerm to min value for unsigned long: 0
+                }
                 if (include == false) { // start from the next value
                     // for unsigned long, the next value for Long.MAX_VALUE is -9223372036854775808L
                     longValue = longValue == Long.MAX_VALUE ? Long.MIN_VALUE : ++longValue;
@@ -511,7 +521,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         static Long parseUpperRangeTerm(Object value, boolean include) {
             if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                 long longValue = ((Number) value).longValue();
-                if ((longValue < 0) || (longValue == 0 && include == false)) return null; // upperTerm is below minimum
+                if ((longValue < 0) || (longValue == 0 && include == false)) {
+                    return null; // upperTerm is below minimum
+                }
                 longValue = include ? longValue : --longValue;
                 return longValue;
             }
@@ -626,7 +638,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         boolean isNullValue = false;
         if (numericValue == null) {
             numericValue = nullValueIndexed;
-            if (numericValue == null) return;
+            if (numericValue == null) {
+                return;
+            }
             isNullValue = true;
         } else {
             numericValue = unsignedToSortableSignedLong(numericValue);

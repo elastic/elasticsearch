@@ -373,13 +373,21 @@ public abstract class ScheduleTestCase extends ESTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             HourAndMinute that = (HourAndMinute) o;
 
-            if (hour != that.hour) return false;
-            if (minute != that.minute) return false;
+            if (hour != that.hour) {
+                return false;
+            }
+            if (minute != that.minute) {
+                return false;
+            }
 
             return true;
         }

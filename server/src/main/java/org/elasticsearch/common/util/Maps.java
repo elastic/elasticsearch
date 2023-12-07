@@ -354,8 +354,12 @@ public class Maps {
         @Override
         @SuppressWarnings("rawtypes")
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Map.Entry) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof Map.Entry) == false) {
+                return false;
+            }
             Map.Entry that = (Map.Entry) o;
             return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
         }

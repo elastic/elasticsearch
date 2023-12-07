@@ -255,7 +255,9 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
                 mid = (lo + hi) >>> 1;
             }
             // No candidate range found, return current lo
-            if (lo > hi) return lo;
+            if (lo > hi) {
+                return lo;
+            }
 
             // binary search the lower bound
             int startLo = lo, startHi = mid;

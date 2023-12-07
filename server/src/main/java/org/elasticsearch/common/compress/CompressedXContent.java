@@ -229,8 +229,12 @@ public final class CompressedXContent implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         CompressedXContent that = (CompressedXContent) o;
         return sha256.equals(that.sha256);

@@ -112,8 +112,12 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConnectorIngestPipeline that = (ConnectorIngestPipeline) o;
         return Objects.equals(extractBinaryContent, that.extractBinaryContent)
             && Objects.equals(name, that.name)

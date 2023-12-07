@@ -228,8 +228,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
         return Arrays.equals(indices, that.indices)
             && Objects.equals(responseMap, that.responseMap)

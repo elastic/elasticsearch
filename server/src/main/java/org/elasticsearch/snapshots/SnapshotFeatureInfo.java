@@ -91,8 +91,12 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof SnapshotFeatureInfo) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof SnapshotFeatureInfo) == false) {
+            return false;
+        }
         SnapshotFeatureInfo that = (SnapshotFeatureInfo) o;
         return getPluginName().equals(that.getPluginName()) && getIndices().equals(that.getIndices());
     }

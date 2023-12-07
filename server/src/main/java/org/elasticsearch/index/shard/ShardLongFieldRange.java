@@ -101,9 +101,15 @@ public class ShardLongFieldRange implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (this == EMPTY || this == UNKNOWN || o == EMPTY || o == UNKNOWN) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (this == EMPTY || this == UNKNOWN || o == EMPTY || o == UNKNOWN) {
+            return false;
+        }
         final ShardLongFieldRange that = (ShardLongFieldRange) o;
         return min == that.min && max == that.max;
     }

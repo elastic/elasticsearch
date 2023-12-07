@@ -120,8 +120,12 @@ public final class QueryPragmas implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         QueryPragmas pragmas = (QueryPragmas) o;
         return settings.equals(pragmas.settings);
     }

@@ -60,8 +60,12 @@ public final class NodeMetadata {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         NodeMetadata that = (NodeMetadata) o;
         return nodeId.equals(that.nodeId)
             && nodeVersion.equals(that.nodeVersion)

@@ -72,8 +72,12 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SynonymUpdateResponse response = (SynonymUpdateResponse) o;
         return updateStatus == response.updateStatus && Objects.equals(reloadAnalyzersResponse, response.reloadAnalyzersResponse);
     }

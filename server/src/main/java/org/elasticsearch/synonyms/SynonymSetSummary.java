@@ -63,8 +63,12 @@ public class SynonymSetSummary implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SynonymSetSummary that = (SynonymSetSummary) o;
         return Objects.equals(name, that.name) && Objects.equals(count, that.count);
     }

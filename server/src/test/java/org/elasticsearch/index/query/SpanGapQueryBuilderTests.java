@@ -58,7 +58,9 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
             Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
             for (SpanQuery spanQuery : spanNearQuery.getClauses()) {
                 SpanQueryBuilder spanQB = spanQueryBuilderIterator.next();
-                if (spanQB instanceof SpanGapQueryBuilder) continue;
+                if (spanQB instanceof SpanGapQueryBuilder) {
+                    continue;
+                }
                 assertThat(spanQuery, equalTo(spanQB.toQuery(context)));
             }
         } else if (query instanceof SpanTermQuery) {

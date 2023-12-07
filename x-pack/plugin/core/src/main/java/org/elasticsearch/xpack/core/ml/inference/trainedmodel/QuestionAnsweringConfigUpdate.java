@@ -183,8 +183,12 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
 
     @Override
     public boolean equals(Object o) {
-        if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == this) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         QuestionAnsweringConfigUpdate that = (QuestionAnsweringConfigUpdate) o;
         return Objects.equals(numTopClasses, that.numTopClasses)

@@ -72,9 +72,15 @@ public class Vertex implements ToXContentFragment {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null) return false;
-        if (getClass() != obj.getClass()) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
         Vertex other = (Vertex) obj;
         return depth == other.depth
             && weight == other.weight

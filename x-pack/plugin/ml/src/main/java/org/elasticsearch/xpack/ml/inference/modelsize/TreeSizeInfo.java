@@ -86,8 +86,12 @@ public class TreeSizeInfo implements Accountable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TreeSizeInfo treeSizeInfo = (TreeSizeInfo) o;
         return numNodes == treeSizeInfo.numNodes && numLeaves == treeSizeInfo.numLeaves && numClasses == treeSizeInfo.numClasses;
     }

@@ -91,8 +91,12 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PainlessContextFieldInfo that = (PainlessContextFieldInfo) o;
         return Objects.equals(declaring, that.declaring) && Objects.equals(name, that.name) && Objects.equals(type, that.type);
     }

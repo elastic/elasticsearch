@@ -94,8 +94,12 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         EnterpriseSearchFeatureSetUsage that = (EnterpriseSearchFeatureSetUsage) o;
         return Objects.equals(searchApplicationsUsage, that.searchApplicationsUsage)
             && Objects.equals(analyticsCollectionsUsage, that.analyticsCollectionsUsage)

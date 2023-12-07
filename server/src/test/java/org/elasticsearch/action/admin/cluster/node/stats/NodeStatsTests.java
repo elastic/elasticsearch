@@ -502,7 +502,9 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(ScriptCacheStats scriptCacheStats) {
-        if (scriptCacheStats == null) return 0;
+        if (scriptCacheStats == null) {
+            return 0;
+        }
 
         var chunks = 4;
         if (scriptCacheStats.general() != null) {

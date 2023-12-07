@@ -89,8 +89,12 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskPa
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SnapshotUpgradeTaskParams params = (SnapshotUpgradeTaskParams) o;
         return Objects.equals(jobId, params.jobId) && Objects.equals(snapshotId, params.snapshotId);
     }

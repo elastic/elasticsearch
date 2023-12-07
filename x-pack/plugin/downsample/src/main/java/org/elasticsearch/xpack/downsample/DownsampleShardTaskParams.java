@@ -113,8 +113,12 @@ public record DownsampleShardTaskParams(
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DownsampleShardTaskParams that = (DownsampleShardTaskParams) o;
         return indexStartTimeMillis == that.indexStartTimeMillis
             && indexEndTimeMillis == that.indexEndTimeMillis

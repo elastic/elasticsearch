@@ -142,8 +142,12 @@ public class RegressionStats implements AnalysisStats {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RegressionStats that = (RegressionStats) o;
         return Objects.equals(jobId, that.jobId)
             && Objects.equals(timestamp, that.timestamp)

@@ -272,8 +272,12 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         NGram nGram = (NGram) o;
         return start == nGram.start
             && length == nGram.length

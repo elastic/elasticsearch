@@ -107,8 +107,12 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         HealthMetadata that = (HealthMetadata) o;
         return Objects.equals(diskMetadata, that.diskMetadata) && Objects.equals(shardLimitsMetadata, that.shardLimitsMetadata);
     }
@@ -332,8 +336,12 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Disk disk = (Disk) o;
             return Objects.equals(describeHighWatermark(), disk.describeHighWatermark())
                 && Objects.equals(highMaxHeadroom, disk.highMaxHeadroom)

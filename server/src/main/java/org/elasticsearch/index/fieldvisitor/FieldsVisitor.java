@@ -178,7 +178,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public void reset() {
-        if (fieldsValues != null) fieldsValues.clear();
+        if (fieldsValues != null) {
+            fieldsValues.clear();
+        }
         source = null;
         id = null;
 

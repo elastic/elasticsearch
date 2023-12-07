@@ -139,8 +139,12 @@ public class GeoIpDownloaderStatsAction {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response that = (Response) o;
             return Objects.equals(getNodes(), that.getNodes()) && Objects.equals(failures(), that.failures());
         }
@@ -214,8 +218,12 @@ public class GeoIpDownloaderStatsAction {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             NodeResponse that = (NodeResponse) o;
             return stats.equals(that.stats)
                 && databases.equals(that.databases)

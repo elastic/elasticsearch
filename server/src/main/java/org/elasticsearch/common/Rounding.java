@@ -339,7 +339,9 @@ public abstract class Rounding implements Writeable {
 
         public Builder(TimeValue interval) {
             this.unit = null;
-            if (interval.millis() < 1) throw new IllegalArgumentException("Zero or negative time interval not supported");
+            if (interval.millis() < 1) {
+                throw new IllegalArgumentException("Zero or negative time interval not supported");
+            }
             this.interval = interval.millis();
         }
 
@@ -943,7 +945,9 @@ public abstract class Rounding implements Writeable {
         private final ZoneId timeZone;
 
         TimeIntervalRounding(long interval, ZoneId timeZone) {
-            if (interval < 1) throw new IllegalArgumentException("Zero or negative time interval not supported");
+            if (interval < 1) {
+                throw new IllegalArgumentException("Zero or negative time interval not supported");
+            }
             this.interval = interval;
             this.timeZone = timeZone;
         }

@@ -216,8 +216,12 @@ public class ScriptCache {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             CacheKey cacheKey = (CacheKey) o;
             return Objects.equals(lang, cacheKey.lang)
                 && Objects.equals(idOrCode, cacheKey.idOrCode)
@@ -307,8 +311,12 @@ public class ScriptCache {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             CompilationRate that = (CompilationRate) o;
             return count == that.count && Objects.equals(time, that.time);
         }

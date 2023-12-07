@@ -143,9 +143,15 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         NormalizePipelineAggregationBuilder other = (NormalizePipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format) && Objects.equals(method, other.method);
     }

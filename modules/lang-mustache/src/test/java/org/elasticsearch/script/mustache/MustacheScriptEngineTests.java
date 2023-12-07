@@ -426,7 +426,9 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 return true;
         }
 
-        if (c < '\u002F') return true;
+        if (c < '\u002F') {
+            return true;
+        }
         return false;
     }
 }

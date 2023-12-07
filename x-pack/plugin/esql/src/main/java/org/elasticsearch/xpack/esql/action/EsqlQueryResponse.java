@@ -222,8 +222,12 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         EsqlQueryResponse that = (EsqlQueryResponse) o;
         return Objects.equals(columns, that.columns)
             && columnar == that.columnar

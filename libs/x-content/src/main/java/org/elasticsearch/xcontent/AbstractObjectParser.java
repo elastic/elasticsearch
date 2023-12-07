@@ -299,8 +299,11 @@ public abstract class AbstractObjectParser<Value, Context> {
         ContextParser<Context, T> objectParser,
         ParseField field
     ) {
-        declareField(
-            (value, list) -> { if (list != null) consumer.accept(value, list); },
+        declareField((value, list) -> {
+            if (list != null) {
+                consumer.accept(value, list);
+            }
+        },
             (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, c, objectParser),
             field,
             ValueType.OBJECT_ARRAY_OR_NULL

@@ -366,8 +366,12 @@ public class Regression implements DataFrameAnalysis {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Regression that = (Regression) o;
         return Objects.equals(dependentVariable, that.dependentVariable)
             && Objects.equals(boostedTreeParams, that.boostedTreeParams)

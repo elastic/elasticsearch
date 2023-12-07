@@ -1086,8 +1086,12 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
         }
 
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Job.Builder that = (Job.Builder) o;
             return Objects.equals(this.id, that.id)

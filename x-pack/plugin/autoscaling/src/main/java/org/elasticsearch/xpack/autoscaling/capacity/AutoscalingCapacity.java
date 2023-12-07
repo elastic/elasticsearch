@@ -169,8 +169,12 @@ public class AutoscalingCapacity implements ToXContentObject, Writeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             AutoscalingResources that = (AutoscalingResources) o;
             return Objects.equals(storage, that.storage)
                 && Objects.equals(memory, that.memory)
@@ -242,8 +246,12 @@ public class AutoscalingCapacity implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         AutoscalingCapacity capacity = (AutoscalingCapacity) o;
         return total.equals(capacity.total) && Objects.equals(node, capacity.node);
     }

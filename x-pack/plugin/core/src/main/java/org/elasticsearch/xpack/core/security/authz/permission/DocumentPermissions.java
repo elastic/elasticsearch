@@ -243,8 +243,12 @@ public final class DocumentPermissions implements CacheKey {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DocumentPermissions that = (DocumentPermissions) o;
         return Objects.equals(listOfQueries, that.listOfQueries);
     }

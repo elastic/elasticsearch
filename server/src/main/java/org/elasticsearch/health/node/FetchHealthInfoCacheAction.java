@@ -73,8 +73,12 @@ public class FetchHealthInfoCacheAction extends ActionType<FetchHealthInfoCacheA
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             FetchHealthInfoCacheAction.Response response = (FetchHealthInfoCacheAction.Response) o;
             return healthInfo.equals(response.healthInfo);
         }

@@ -81,8 +81,12 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(config, request.config);
         }
@@ -165,8 +169,12 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
 
         @Override
         public boolean equals(Object other) {
-            if (this == other) return true;
-            if (other == null || getClass() != other.getClass()) return false;
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
 
             Response that = (Response) other;
             return Objects.equals(featureValues, that.featureValues);

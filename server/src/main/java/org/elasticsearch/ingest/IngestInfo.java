@@ -68,8 +68,12 @@ public class IngestInfo implements ReportingService.Info {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         IngestInfo that = (IngestInfo) o;
         return Objects.equals(processors, that.processors);
     }

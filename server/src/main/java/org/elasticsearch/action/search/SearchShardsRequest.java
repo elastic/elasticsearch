@@ -160,8 +160,12 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchShardsRequest request = (SearchShardsRequest) o;
         return Arrays.equals(indices, request.indices)
             && Objects.equals(indicesOptions, request.indicesOptions)

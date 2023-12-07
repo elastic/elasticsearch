@@ -290,8 +290,12 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ClusterInfo that = (ClusterInfo) o;
         return leastAvailableSpaceUsage.equals(that.leastAvailableSpaceUsage)
             && mostAvailableSpaceUsage.equals(that.mostAvailableSpaceUsage)

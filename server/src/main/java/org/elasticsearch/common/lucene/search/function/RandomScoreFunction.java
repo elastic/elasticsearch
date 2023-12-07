@@ -47,7 +47,9 @@ public class RandomScoreFunction extends ScoreFunction {
         if (fieldData != null) {
             LeafFieldData leafData = fieldData.load(ctx);
             values = leafData.getBytesValues();
-            if (values == null) throw new NullPointerException("failed to get fielddata");
+            if (values == null) {
+                throw new NullPointerException("failed to get fielddata");
+            }
         } else {
             values = null;
         }

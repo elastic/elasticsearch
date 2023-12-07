@@ -102,8 +102,12 @@ public class TextTemplate implements ToXContent {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         TextTemplate template1 = (TextTemplate) o;
         return Objects.equals(script, template1.script) && Objects.equals(inlineTemplate, template1.inlineTemplate);

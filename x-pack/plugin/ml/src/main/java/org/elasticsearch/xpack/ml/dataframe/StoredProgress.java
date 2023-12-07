@@ -54,8 +54,12 @@ public class StoredProgress implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || o.getClass().equals(getClass()) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || o.getClass().equals(getClass()) == false) {
+            return false;
+        }
         StoredProgress that = (StoredProgress) o;
         return Objects.equals(progress, that.progress);
     }

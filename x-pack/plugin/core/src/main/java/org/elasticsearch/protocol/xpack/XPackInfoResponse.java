@@ -92,8 +92,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
     @Override
     public boolean equals(Object other) {
-        if (other == null || other.getClass() != getClass()) return false;
-        if (this == other) return true;
+        if (other == null || other.getClass() != getClass()) {
+            return false;
+        }
+        if (this == other) {
+            return true;
+        }
         XPackInfoResponse rhs = (XPackInfoResponse) other;
         return Objects.equals(buildInfo, rhs.buildInfo)
             && Objects.equals(licenseInfo, rhs.licenseInfo)
@@ -191,8 +195,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
         @Override
         public boolean equals(Object other) {
-            if (other == null || other.getClass() != getClass()) return false;
-            if (this == other) return true;
+            if (other == null || other.getClass() != getClass()) {
+                return false;
+            }
+            if (this == other) {
+                return true;
+            }
             LicenseInfo rhs = (LicenseInfo) other;
             return Objects.equals(uid, rhs.uid)
                 && Objects.equals(type, rhs.type)
@@ -265,8 +273,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
         @Override
         public boolean equals(Object other) {
-            if (other == null || other.getClass() != getClass()) return false;
-            if (this == other) return true;
+            if (other == null || other.getClass() != getClass()) {
+                return false;
+            }
+            if (this == other) {
+                return true;
+            }
             BuildInfo rhs = (BuildInfo) other;
             return Objects.equals(hash, rhs.hash) && Objects.equals(timestamp, rhs.timestamp);
         }
@@ -327,8 +339,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
         @Override
         public boolean equals(Object other) {
-            if (other == null || other.getClass() != getClass()) return false;
-            if (this == other) return true;
+            if (other == null || other.getClass() != getClass()) {
+                return false;
+            }
+            if (this == other) {
+                return true;
+            }
             FeatureSetsInfo rhs = (FeatureSetsInfo) other;
             return Objects.equals(featureSets, rhs.featureSets);
         }
@@ -402,8 +418,12 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
             @Override
             public boolean equals(Object other) {
-                if (other == null || other.getClass() != getClass()) return false;
-                if (this == other) return true;
+                if (other == null || other.getClass() != getClass()) {
+                    return false;
+                }
+                if (this == other) {
+                    return true;
+                }
                 FeatureSet rhs = (FeatureSet) other;
                 return Objects.equals(name, rhs.name) && available == rhs.available && enabled == rhs.enabled;
             }

@@ -115,8 +115,12 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ModelConfigurations model = (ModelConfigurations) o;
         return Objects.equals(modelId, model.modelId)
             && taskType == model.taskType

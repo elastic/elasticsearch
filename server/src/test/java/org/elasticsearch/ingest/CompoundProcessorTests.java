@@ -473,7 +473,9 @@ public class CompoundProcessorTests extends ESTestCase {
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(true, List.of(processors), List.of(), relativeTimeProvider);
         executeCompound(compoundProcessor, ingestDocument, (result, e) -> {
-            if (e != null) fail("CompoundProcessor threw exception despite ignoreFailure being true");
+            if (e != null) {
+                fail("CompoundProcessor threw exception despite ignoreFailure being true");
+            }
         });
         for (int i = 0; i < processors.length; i++) {
             assertThat(
@@ -596,7 +598,9 @@ public class CompoundProcessorTests extends ESTestCase {
 
     private TestProcessor getTestProcessor(String tag, boolean isAsync, boolean shouldThrowException) {
         return new TestProcessor(tag, "test-processor", null, ingestDocument -> {
-            if (shouldThrowException) throw new RuntimeException("Intentionally failing");
+            if (shouldThrowException) {
+                throw new RuntimeException("Intentionally failing");
+            }
         }) {
             @Override
             public boolean isAsync() {

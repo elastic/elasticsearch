@@ -169,8 +169,12 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof NodesShutdownMetadata) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof NodesShutdownMetadata) == false) {
+            return false;
+        }
         NodesShutdownMetadata that = (NodesShutdownMetadata) o;
         return nodes.equals(that.nodes);
     }

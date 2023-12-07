@@ -44,8 +44,12 @@ public class GetServiceAccountRequest extends ActionRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetServiceAccountRequest that = (GetServiceAccountRequest) o;
         return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName);
     }

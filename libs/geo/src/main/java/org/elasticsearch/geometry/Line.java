@@ -129,8 +129,12 @@ public class Line implements Geometry {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Line line = (Line) o;
         return Arrays.equals(y, line.y) && Arrays.equals(x, line.x) && Arrays.equals(z, line.z);
     }

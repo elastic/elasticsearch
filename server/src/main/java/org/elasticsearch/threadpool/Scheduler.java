@@ -276,7 +276,9 @@ public interface Scheduler {
 
         @Override
         protected void afterExecute(Runnable r, Throwable t) {
-            if (t != null) return;
+            if (t != null) {
+                return;
+            }
             // Scheduler only allows Runnable's so we expect no checked exceptions here. If anyone uses submit directly on `this`, we
             // accept the wrapped exception in the output.
             if (r instanceof RunnableFuture && ((RunnableFuture<?>) r).isDone()) {

@@ -91,8 +91,12 @@ public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamL
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response other = (Response) o;
             return Objects.equals(runDuration, other.runDuration)
                 && Objects.equals(timeBetweenStarts, other.timeBetweenStarts)

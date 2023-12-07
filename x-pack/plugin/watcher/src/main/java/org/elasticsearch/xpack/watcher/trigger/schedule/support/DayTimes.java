@@ -169,13 +169,21 @@ public final class DayTimes implements Times {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         DayTimes time = (DayTimes) o;
 
-        if (Arrays.equals(hour, time.hour) == false) return false;
-        if (Arrays.equals(minute, time.minute) == false) return false;
+        if (Arrays.equals(hour, time.hour) == false) {
+            return false;
+        }
+        if (Arrays.equals(minute, time.minute) == false) {
+            return false;
+        }
 
         return true;
     }

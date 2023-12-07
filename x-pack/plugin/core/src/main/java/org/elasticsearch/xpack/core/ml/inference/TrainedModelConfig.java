@@ -568,8 +568,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TrainedModelConfig that = (TrainedModelConfig) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(modelType, that.modelType)
@@ -1192,8 +1196,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             LazyModelDefinition that = (LazyModelDefinition) o;
             return Objects.equals(compressedRepresentation, that.compressedRepresentation)
                 && Objects.equals(parsedDefinition, that.parsedDefinition);

@@ -182,8 +182,12 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(jobId, request.jobId)
                 && Objects.equals(categoryId, request.categoryId)

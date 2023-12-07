@@ -68,8 +68,12 @@ public final class RestrictedTrustConfig implements SslTrustConfig {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         RestrictedTrustConfig that = (RestrictedTrustConfig) o;
         return this.groupConfigPath.equals(that.groupConfigPath) && this.delegate.equals(that.delegate);

@@ -186,8 +186,12 @@ public class GeoIpDownloaderStats implements Task.Status {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GeoIpDownloaderStats that = (GeoIpDownloaderStats) o;
         return successfulDownloads == that.successfulDownloads
             && failedDownloads == that.failedDownloads

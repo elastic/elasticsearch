@@ -78,8 +78,12 @@ public class SearchSortValuesAndFormats implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchSortValuesAndFormats that = (SearchSortValuesAndFormats) o;
         return Arrays.equals(rawSortValues, that.rawSortValues)
             && Arrays.equals(formattedSortValues, that.formattedSortValues)

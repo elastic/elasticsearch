@@ -255,8 +255,9 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
      * Consumes and closes the given {@link InputStream}
      */
     protected static void drainInputStream(final InputStream inputStream) throws IOException {
-        while (inputStream.read(BUFFER) >= 0)
+        while (inputStream.read(BUFFER) >= 0) {
             ;
+        }
     }
 
     /**

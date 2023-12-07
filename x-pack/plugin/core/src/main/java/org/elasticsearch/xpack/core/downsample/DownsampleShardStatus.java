@@ -275,8 +275,12 @@ public class DownsampleShardStatus implements Task.Status {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DownsampleShardStatus that = (DownsampleShardStatus) o;
         return rollupStart == that.rollupStart
             && numReceived == that.numReceived

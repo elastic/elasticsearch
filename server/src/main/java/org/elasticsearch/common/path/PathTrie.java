@@ -105,7 +105,9 @@ public class PathTrie<T> {
         }
 
         private synchronized void insert(String[] path, int index, T value) {
-            if (index >= path.length) return;
+            if (index >= path.length) {
+                return;
+            }
 
             String token = path[index];
             String key = token;
@@ -140,7 +142,9 @@ public class PathTrie<T> {
         }
 
         private synchronized void insertOrUpdate(String[] path, int index, T value, BiFunction<T, T, T> updater) {
-            if (index >= path.length) return;
+            if (index >= path.length) {
+                return;
+            }
 
             String token = path[index];
             String key = token;
@@ -185,7 +189,9 @@ public class PathTrie<T> {
         }
 
         public T retrieve(String[] path, int index, Map<String, String> params, TrieMatchingMode trieMatchingMode) {
-            if (index >= path.length) return null;
+            if (index >= path.length) {
+                return null;
+            }
 
             String token = path[index];
             TrieNode node = children.get(token);

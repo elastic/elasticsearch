@@ -87,8 +87,12 @@ public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJob
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(pageParams, request.pageParams)
                 && Objects.equals(connectorId, request.connectorId)
@@ -158,8 +162,12 @@ public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJob
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return Objects.equals(queryPage, response.queryPage);
         }

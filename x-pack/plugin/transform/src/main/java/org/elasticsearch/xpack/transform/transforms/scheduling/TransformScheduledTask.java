@@ -87,8 +87,12 @@ final class TransformScheduledTask {
 
     @Override
     public boolean equals(Object other) {
-        if (this == other) return true;
-        if (other == null || getClass() != other.getClass()) return false;
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
         TransformScheduledTask that = (TransformScheduledTask) other;
         return Objects.equals(this.transformId, that.transformId)
             && Objects.equals(this.frequency, that.frequency)

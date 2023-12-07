@@ -151,8 +151,12 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ElserMlNodeServiceSettings that = (ElserMlNodeServiceSettings) o;
         return numAllocations == that.numAllocations && numThreads == that.numThreads && Objects.equals(modelVariant, that.modelVariant);
     }

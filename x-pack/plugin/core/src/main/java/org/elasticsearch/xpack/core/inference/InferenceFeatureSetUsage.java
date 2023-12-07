@@ -73,8 +73,12 @@ public class InferenceFeatureSetUsage extends XPackFeatureSet.Usage {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ModelStats that = (ModelStats) o;
             return count == that.count && Objects.equals(service, that.service) && taskType == that.taskType;
         }

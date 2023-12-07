@@ -95,11 +95,17 @@ public class TriggeredWatch implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         TriggeredWatch entry = (TriggeredWatch) o;
-        if (id.equals(entry.id) == false) return false;
+        if (id.equals(entry.id) == false) {
+            return false;
+        }
 
         return true;
     }

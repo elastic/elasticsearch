@@ -121,20 +121,28 @@ public class FilterAllocationDecider extends AllocationDecider {
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         decision = shouldIndexFilter(indexMetadata, node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
     }
 
     private Decision shouldFilter(IndexMetadata indexMd, DiscoveryNode node, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         decision = shouldIndexFilter(indexMd, node, allocation);
-        if (decision != null) return decision;
+        if (decision != null) {
+            return decision;
+        }
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
     }

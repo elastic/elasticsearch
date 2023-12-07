@@ -65,13 +65,21 @@ public final class CategoryQueryContext implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         CategoryQueryContext that = (CategoryQueryContext) o;
 
-        if (isPrefix != that.isPrefix) return false;
-        if (boost != that.boost) return false;
+        if (isPrefix != that.isPrefix) {
+            return false;
+        }
+        if (boost != that.boost) {
+            return false;
+        }
         return Objects.equals(category, that.category);
 
     }

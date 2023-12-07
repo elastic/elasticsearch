@@ -23,8 +23,12 @@ import java.util.Objects;
 public record PagedResult<T extends Writeable>(long totalResults, T[] pageResults) {
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         @SuppressWarnings("unchecked")
         PagedResult<T> that = (PagedResult<T>) o;
         return totalResults == that.totalResults && Arrays.equals(pageResults, that.pageResults);

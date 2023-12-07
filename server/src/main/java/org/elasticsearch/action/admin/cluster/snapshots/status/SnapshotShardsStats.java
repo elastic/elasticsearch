@@ -158,16 +158,30 @@ public class SnapshotShardsStats implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         SnapshotShardsStats that = (SnapshotShardsStats) o;
 
-        if (initializingShards != that.initializingShards) return false;
-        if (startedShards != that.startedShards) return false;
-        if (finalizingShards != that.finalizingShards) return false;
-        if (doneShards != that.doneShards) return false;
-        if (failedShards != that.failedShards) return false;
+        if (initializingShards != that.initializingShards) {
+            return false;
+        }
+        if (startedShards != that.startedShards) {
+            return false;
+        }
+        if (finalizingShards != that.finalizingShards) {
+            return false;
+        }
+        if (doneShards != that.doneShards) {
+            return false;
+        }
+        if (failedShards != that.failedShards) {
+            return false;
+        }
         return totalShards == that.totalShards;
     }
 

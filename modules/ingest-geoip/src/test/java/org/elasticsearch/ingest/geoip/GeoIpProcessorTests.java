@@ -594,7 +594,9 @@ public class GeoIpProcessorTests extends ESTestCase {
                     do {
                         final byte[] bytes = new byte[1 << 10];
                         final int read = is.read(bytes);
-                        if (read == -1) break;
+                        if (read == -1) {
+                            break;
+                        }
                         bytesRead += read;
                     } while (true);
                     return bytesRead;

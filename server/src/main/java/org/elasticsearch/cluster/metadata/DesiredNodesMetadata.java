@@ -100,8 +100,12 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DesiredNodesMetadata that = (DesiredNodesMetadata) o;
         return Objects.equals(latestDesiredNodes, that.latestDesiredNodes);
     }

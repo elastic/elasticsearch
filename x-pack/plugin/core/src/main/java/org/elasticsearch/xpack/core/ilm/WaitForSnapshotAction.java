@@ -90,8 +90,12 @@ public class WaitForSnapshotAction implements LifecycleAction {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         WaitForSnapshotAction that = (WaitForSnapshotAction) o;
         return policy.equals(that.policy);
     }

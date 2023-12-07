@@ -78,8 +78,12 @@ public class RoutingStateAndReason implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RoutingStateAndReason that = (RoutingStateAndReason) o;
         return Objects.equals(reason, that.reason) && state == that.state;
     }

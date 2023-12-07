@@ -166,8 +166,12 @@ public class Processors implements Writeable, Comparable<Processors>, ToXContent
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Processors that = (Processors) o;
         return Double.compare(that.count, count) == 0;
     }

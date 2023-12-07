@@ -260,8 +260,12 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             AucRocPoint that = (AucRocPoint) o;
             return tpr == that.tpr && fpr == that.fpr && threshold == that.threshold;
         }
@@ -338,8 +342,12 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Result that = (Result) o;
             return value == that.value && Objects.equals(curve, that.curve);
         }

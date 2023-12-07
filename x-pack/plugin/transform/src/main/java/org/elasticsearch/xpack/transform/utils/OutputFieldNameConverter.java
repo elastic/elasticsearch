@@ -12,7 +12,10 @@ public final class OutputFieldNameConverter {
     private OutputFieldNameConverter() {}
 
     public static String fromDouble(double d) {
-        if (d == (long) d) return String.valueOf((long) d);
-        else return String.valueOf(d).replace('.', '_');
+        if (d == (long) d) {
+            return String.valueOf((long) d);
+        } else {
+            return String.valueOf(d).replace('.', '_');
+        }
     }
 }

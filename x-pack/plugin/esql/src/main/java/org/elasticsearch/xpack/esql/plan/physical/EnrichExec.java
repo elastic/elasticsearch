@@ -95,9 +95,15 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         EnrichExec that = (EnrichExec) o;
         return Objects.equals(matchField, that.matchField)
             && Objects.equals(policyName, that.policyName)

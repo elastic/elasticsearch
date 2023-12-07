@@ -98,8 +98,12 @@ public class ConfigurationValidation implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConfigurationValidation that = (ConfigurationValidation) o;
         return Objects.equals(constraint, that.constraint) && type == that.type;
     }

@@ -52,9 +52,15 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         GeoPointScriptFieldGeoShapeQuery that = (GeoPointScriptFieldGeoShapeQuery) o;
         return relation == that.relation && Arrays.equals(geometries, that.geometries);
     }

@@ -72,8 +72,12 @@ public class ConfigurationSelectOption implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConfigurationSelectOption that = (ConfigurationSelectOption) o;
         return Objects.equals(label, that.label) && Objects.equals(value, that.value);
     }

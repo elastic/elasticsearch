@@ -46,8 +46,12 @@ public final class CommitStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CommitStats that = (CommitStats) o;
         return userData.equals(that.userData) && generation == that.generation && Objects.equals(id, that.id) && numDocs == that.numDocs;
     }

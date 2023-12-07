@@ -118,8 +118,12 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RegressionConfig that = (RegressionConfig) o;
         return Objects.equals(this.resultsField, that.resultsField)
             && Objects.equals(this.numTopFeatureImportanceValues, that.numTopFeatureImportanceValues);

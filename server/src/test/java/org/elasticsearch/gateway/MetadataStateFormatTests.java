@@ -734,15 +734,27 @@ public class MetadataStateFormatTests extends ESTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             DummyState that = (DummyState) o;
 
-            if (aBoolean != that.aBoolean) return false;
-            if (Double.compare(that.aDouble, aDouble) != 0) return false;
-            if (aInt != that.aInt) return false;
-            if (aLong != that.aLong) return false;
+            if (aBoolean != that.aBoolean) {
+                return false;
+            }
+            if (Double.compare(that.aDouble, aDouble) != 0) {
+                return false;
+            }
+            if (aInt != that.aInt) {
+                return false;
+            }
+            if (aLong != that.aLong) {
+                return false;
+            }
             return string.equals(that.string);
 
         }

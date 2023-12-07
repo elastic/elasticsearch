@@ -159,9 +159,13 @@ public class ConstructingObjectParser<Value, Context> extends AbstractObjectPars
 
             StringBuilder message = null;
             for (int i = 0; i < constructorArgs.length; i++) {
-                if (constructorArgs[i] != null) continue;
+                if (constructorArgs[i] != null) {
+                    continue;
+                }
                 ConstructorArgInfo arg = constructorArgInfos.get(i);
-                if (false == arg.required) continue;
+                if (false == arg.required) {
+                    continue;
+                }
                 if (message == null) {
                     message = new StringBuilder("Required [").append(arg.field);
                 } else {

@@ -126,7 +126,9 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
 
     @Override
     public boolean equals(Object o) {
-        if (super.equals(o) == false) return false;
+        if (super.equals(o) == false) {
+            return false;
+        }
         BucketCorrelationAggregationBuilder that = (BucketCorrelationAggregationBuilder) o;
         return Objects.equals(correlationFunction, that.correlationFunction);
     }

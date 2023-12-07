@@ -93,9 +93,15 @@ public class AsyncBranchingStep extends AsyncActionStep {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         AsyncBranchingStep that = (AsyncBranchingStep) o;
         return super.equals(o)
             && Objects.equals(nextStepKeyOnFalse, that.nextStepKeyOnFalse)

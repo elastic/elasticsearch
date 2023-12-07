@@ -100,8 +100,12 @@ public class SnapshotUpgradeTaskState implements PersistentTaskState {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SnapshotUpgradeTaskState that = (SnapshotUpgradeTaskState) o;
         return allocationId == that.allocationId && state == that.state && Objects.equals(reason, that.reason);
     }

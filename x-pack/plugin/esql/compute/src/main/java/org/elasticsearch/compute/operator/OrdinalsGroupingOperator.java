@@ -362,8 +362,12 @@ public class OrdinalsGroupingOperator implements Operator {
                 success = true;
             } finally {
                 if (success == false) {
-                    if (bitArray != null) Releasables.close(bitArray);
-                    if (groupingAggregators != null) Releasables.close(groupingAggregators);
+                    if (bitArray != null) {
+                        Releasables.close(bitArray);
+                    }
+                    if (groupingAggregators != null) {
+                        Releasables.close(groupingAggregators);
+                    }
                 }
             }
         }

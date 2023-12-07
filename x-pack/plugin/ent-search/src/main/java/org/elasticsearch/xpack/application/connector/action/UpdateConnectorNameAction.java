@@ -146,8 +146,12 @@ public class UpdateConnectorNameAction extends ActionType<UpdateConnectorNameAct
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(connectorId, request.connectorId)
                 && Objects.equals(name, request.name)
@@ -195,8 +199,12 @@ public class UpdateConnectorNameAction extends ActionType<UpdateConnectorNameAct
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response that = (Response) o;
             return Objects.equals(result, that.result);
         }

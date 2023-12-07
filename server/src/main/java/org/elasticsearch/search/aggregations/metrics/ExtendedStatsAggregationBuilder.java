@@ -128,9 +128,15 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         ExtendedStatsAggregationBuilder other = (ExtendedStatsAggregationBuilder) obj;
         return Objects.equals(sigma, other.sigma);
     }

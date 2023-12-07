@@ -57,8 +57,12 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             }
 
             public boolean equals(Object obj) {
-                if (this == obj) return true;
-                if (obj == null || getClass() != obj.getClass()) return false;
+                if (this == obj) {
+                    return true;
+                }
+                if (obj == null || getClass() != obj.getClass()) {
+                    return false;
+                }
                 BucketBounds that = (BucketBounds) obj;
                 return min == that.min && max == that.max;
             }
@@ -417,7 +421,9 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             int endIdx = range.endIdx;
             int startIdx = range.startIdx;
 
-            if (startIdx == endIdx) continue;
+            if (startIdx == endIdx) {
+                continue;
+            }
 
             List<Bucket> toMerge = new ArrayList<>();
             for (int idx = endIdx; idx > startIdx; idx--) {
@@ -577,9 +583,15 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
 
         InternalVariableWidthHistogram that = (InternalVariableWidthHistogram) obj;
         return Objects.equals(buckets, that.buckets)

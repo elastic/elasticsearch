@@ -55,8 +55,12 @@ public final class IpPrefixAggregator extends BucketsAggregator {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             IpPrefix ipPrefix = (IpPrefix) o;
             return isIpv6 == ipPrefix.isIpv6
                 && prefixLength == ipPrefix.prefixLength

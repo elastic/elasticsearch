@@ -61,8 +61,9 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         PARSER.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
-            for (Range range : ranges)
+            for (Range range : ranges) {
                 agg.addRange(range);
+            }
         }, (p, c) -> IpRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
     }
 
@@ -392,9 +393,15 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         IpRangeAggregationBuilder that = (IpRangeAggregationBuilder) obj;
         return keyed == that.keyed && ranges.equals(that.ranges);
     }

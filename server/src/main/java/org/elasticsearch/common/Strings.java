@@ -351,7 +351,9 @@ public class Strings {
      * @return the set of tokens
      */
     public static Set<String> tokenizeByCommaToSet(final String s) {
-        if (s == null) return Collections.emptySet();
+        if (s == null) {
+            return Collections.emptySet();
+        }
         return tokenizeToCollection(s, ",", HashSet::new);
     }
 
@@ -363,8 +365,11 @@ public class Strings {
      * @see String#split(String)
      */
     public static String[] splitStringByCommaToArray(final String s) {
-        if (s == null || s.isEmpty()) return Strings.EMPTY_ARRAY;
-        else return s.split(",");
+        if (s == null || s.isEmpty()) {
+            return Strings.EMPTY_ARRAY;
+        } else {
+            return s.split(",");
+        }
     }
 
     /**

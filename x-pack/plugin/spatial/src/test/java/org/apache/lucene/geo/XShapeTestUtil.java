@@ -127,7 +127,9 @@ public class XShapeTestUtil {
     }
 
     private static XYPolygon validatePolygon(XYPolygon polygon) {
-        if (validPolygon(polygon)) return polygon;
+        if (validPolygon(polygon)) {
+            return polygon;
+        }
         throw new IllegalArgumentException("Invalid polygon: " + polygon);
     }
 
@@ -176,7 +178,9 @@ public class XShapeTestUtil {
                 yArray[i] = yList.get(i);
             }
             XYPolygon polygon = new XYPolygon(xArray, yArray);
-            if (validPolygon(polygon)) return polygon;
+            if (validPolygon(polygon)) {
+                return polygon;
+            }
         }
     }
 
@@ -221,7 +225,9 @@ public class XShapeTestUtil {
     private static boolean sameValues(float[] values) {
         int consecutiveSame = 0;
         for (int i = 1; i < values.length; i++) {
-            if (Math.abs(values[i] - values[i - 1]) <= MIN_DIFF) consecutiveSame++;
+            if (Math.abs(values[i] - values[i - 1]) <= MIN_DIFF) {
+                consecutiveSame++;
+            }
         }
         return consecutiveSame > values.length / 2;
     }

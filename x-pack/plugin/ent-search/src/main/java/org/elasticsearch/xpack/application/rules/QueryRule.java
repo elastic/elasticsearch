@@ -257,8 +257,12 @@ public class QueryRule implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         QueryRule queryRule = (QueryRule) o;
         return Objects.equals(id, queryRule.id)
             && type == queryRule.type

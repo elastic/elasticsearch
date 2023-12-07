@@ -29,8 +29,12 @@ public class PublishRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof PublishRequest) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof PublishRequest) == false) {
+            return false;
+        }
 
         PublishRequest that = (PublishRequest) o;
 

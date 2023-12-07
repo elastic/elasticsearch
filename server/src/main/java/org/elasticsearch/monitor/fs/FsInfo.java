@@ -263,37 +263,49 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         }
 
         public long operations() {
-            if (previousReadsCompleted == -1 || previousWritesCompleted == -1) return -1;
+            if (previousReadsCompleted == -1 || previousWritesCompleted == -1) {
+                return -1;
+            }
 
             return (currentReadsCompleted - previousReadsCompleted) + (currentWritesCompleted - previousWritesCompleted);
         }
 
         public long readOperations() {
-            if (previousReadsCompleted == -1) return -1;
+            if (previousReadsCompleted == -1) {
+                return -1;
+            }
 
             return (currentReadsCompleted - previousReadsCompleted);
         }
 
         public long writeOperations() {
-            if (previousWritesCompleted == -1) return -1;
+            if (previousWritesCompleted == -1) {
+                return -1;
+            }
 
             return (currentWritesCompleted - previousWritesCompleted);
         }
 
         public long readKilobytes() {
-            if (previousSectorsRead == -1) return -1;
+            if (previousSectorsRead == -1) {
+                return -1;
+            }
 
             return (currentSectorsRead - previousSectorsRead) / 2;
         }
 
         public long writeKilobytes() {
-            if (previousSectorsWritten == -1) return -1;
+            if (previousSectorsWritten == -1) {
+                return -1;
+            }
 
             return (currentSectorsWritten - previousSectorsWritten) / 2;
         }
 
         public long ioTimeInMillis() {
-            if (previousIOTime == -1) return -1;
+            if (previousIOTime == -1) {
+                return -1;
+            }
 
             return (currentIOTime - previousIOTime);
         }

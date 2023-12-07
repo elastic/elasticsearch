@@ -169,8 +169,12 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             FixedReason that = (FixedReason) o;
             return nodes == that.nodes
                 && Objects.equals(storage, that.storage)

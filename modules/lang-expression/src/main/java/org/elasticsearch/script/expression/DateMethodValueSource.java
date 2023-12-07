@@ -62,13 +62,21 @@ class DateMethodValueSource extends FieldDataValueSource {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
 
         DateMethodValueSource that = (DateMethodValueSource) o;
 
-        if (calendarType != that.calendarType) return false;
+        if (calendarType != that.calendarType) {
+            return false;
+        }
         return methodName.equals(that.methodName);
 
     }

@@ -265,8 +265,12 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof ClusterFeatures == false) return false;
-        if (this == obj) return true;
+        if (obj instanceof ClusterFeatures == false) {
+            return false;
+        }
+        if (this == obj) {
+            return true;
+        }
 
         ClusterFeatures that = (ClusterFeatures) obj;
         return nodeFeatures.equals(that.nodeFeatures);

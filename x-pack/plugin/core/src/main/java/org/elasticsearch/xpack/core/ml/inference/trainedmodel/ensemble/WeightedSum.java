@@ -123,8 +123,12 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         WeightedSum that = (WeightedSum) o;
         return Arrays.equals(weights, that.weights);
     }

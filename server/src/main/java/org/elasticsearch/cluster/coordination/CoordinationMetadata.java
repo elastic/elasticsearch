@@ -147,14 +147,24 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof CoordinationMetadata) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof CoordinationMetadata) == false) {
+            return false;
+        }
 
         CoordinationMetadata that = (CoordinationMetadata) o;
 
-        if (term != that.term) return false;
-        if (lastCommittedConfiguration.equals(that.lastCommittedConfiguration) == false) return false;
-        if (lastAcceptedConfiguration.equals(that.lastAcceptedConfiguration) == false) return false;
+        if (term != that.term) {
+            return false;
+        }
+        if (lastCommittedConfiguration.equals(that.lastCommittedConfiguration) == false) {
+            return false;
+        }
+        if (lastAcceptedConfiguration.equals(that.lastAcceptedConfiguration) == false) {
+            return false;
+        }
         return votingConfigExclusions.equals(that.votingConfigExclusions);
     }
 
@@ -296,8 +306,12 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             VotingConfigExclusion that = (VotingConfigExclusion) o;
             return Objects.equals(nodeId, that.nodeId) && Objects.equals(nodeName, that.nodeName);
         }
@@ -366,8 +380,12 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             VotingConfiguration that = (VotingConfiguration) o;
             return Objects.equals(nodeIds, that.nodeIds);
         }

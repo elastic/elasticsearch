@@ -259,8 +259,12 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchApplication app = (SearchApplication) o;
         return name.equals(app.name)
             && Objects.equals(analyticsCollectionName, app.analyticsCollectionName)

@@ -207,8 +207,12 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             TestParams that = (TestParams) o;
             return Objects.equals(executorNodeAttr, that.executorNodeAttr)
                 && Objects.equals(responseNode, that.responseNode)

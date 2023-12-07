@@ -209,17 +209,25 @@ public class LogConfigurator {
                 }
                 // Hack the new pattern into place
                 for (String name : properties.stringPropertyNames()) {
-                    if (false == name.endsWith(".pattern")) continue;
+                    if (false == name.endsWith(".pattern")) {
+                        continue;
+                    }
                     // Null is weird here but we can't do anything with it so ignore it
                     String value = properties.getProperty(name);
-                    if (value == null) continue;
+                    if (value == null) {
+                        continue;
+                    }
                     // Tests don't need to be changed
-                    if (value.contains("%test_thread_info")) continue;
+                    if (value.contains("%test_thread_info")) {
+                        continue;
+                    }
                     /*
                      * Patterns without a marker are sufficiently customized
                      * that we don't have an opinion about them.
                      */
-                    if (false == value.contains("%marker")) continue;
+                    if (false == value.contains("%marker")) {
+                        continue;
+                    }
                     if (false == value.contains("%node_name")) {
                         locationsWithDeprecatedPatterns.add(source.getLocation());
                         properties.setProperty(name, value.replace("%marker", "[%node_name]%marker "));

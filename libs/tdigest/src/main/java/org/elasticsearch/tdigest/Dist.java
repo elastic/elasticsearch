@@ -36,8 +36,12 @@ public class Dist {
         }
         if (length == 1) {
             double value = elementGetter.apply(0);
-            if (x < value) return 0;
-            if (x > value) return 1;
+            if (x < value) {
+                return 0;
+            }
+            if (x > value) {
+                return 1;
+            }
             return 0.5;
         }
 

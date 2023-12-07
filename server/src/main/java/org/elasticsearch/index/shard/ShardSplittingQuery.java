@@ -186,12 +186,18 @@ final class ShardSplittingQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (sameClassAs(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (sameClassAs(o) == false) {
+            return false;
+        }
 
         ShardSplittingQuery that = (ShardSplittingQuery) o;
 
-        if (shardId != that.shardId) return false;
+        if (shardId != that.shardId) {
+            return false;
+        }
         return indexMetadata.equals(that.indexMetadata);
     }
 

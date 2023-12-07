@@ -52,9 +52,15 @@ public class RestExecuteWatchActionTests extends ESTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("id", randomId);
         // make sure we test true/false/no params
-        if (recordExecution != null) params.put("record_execution", recordExecution);
-        if (ignoreCondition != null) params.put("ignore_condition", ignoreCondition);
-        if (debugCondition != null) params.put("debug", debugCondition);
+        if (recordExecution != null) {
+            params.put("record_execution", recordExecution);
+        }
+        if (ignoreCondition != null) {
+            params.put("ignore_condition", ignoreCondition);
+        }
+        if (debugCondition != null) {
+            params.put("debug", debugCondition);
+        }
 
         builder.withParams(params);
         return builder.build();

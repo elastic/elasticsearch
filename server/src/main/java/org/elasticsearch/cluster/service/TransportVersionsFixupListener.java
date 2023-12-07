@@ -148,7 +148,9 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster() == false) return; // only if we're master
+        if (event.localNodeMaster() == false) {
+            return; // only if we're master
+        }
 
         // if the min node version > 8.8.0, and the cluster state has some transport versions == 8.8.0,
         // then refresh all inferred transport versions to their real versions

@@ -88,8 +88,12 @@ public abstract class InternalGeoGridBucket extends InternalMultiBucketAggregati
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         InternalGeoGridBucket bucket = (InternalGeoGridBucket) o;
         return hashAsLong == bucket.hashAsLong && docCount == bucket.docCount && Objects.equals(aggregations, bucket.aggregations);
     }

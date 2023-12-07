@@ -245,9 +245,15 @@ public abstract class GenericPointParser<T> {
         boolean xy = x && y;
         boolean geojson = coordinates && type;
         var found = new ArrayList<String>();
-        if (geohash) found.add("geohash");
-        if (xy) found.add(xField + "/" + yField);
-        if (geojson) found.add("GeoJSON");
+        if (geohash) {
+            found.add("geohash");
+        }
+        if (xy) {
+            found.add(xField + "/" + yField);
+        }
+        if (geojson) {
+            found.add("GeoJSON");
+        }
         if (found.size() > 1) {
             throw new ElasticsearchParseException("fields matching more than one point format found: {}", found);
         } else if (geohash) {

@@ -279,7 +279,9 @@ public class BoundedGeoHexGridTilerTests extends ESTestCase {
         }
 
         private static double posLon(double value) {
-            if (value < 0) return value + 360;
+            if (value < 0) {
+                return value + 360;
+            }
             return value;
         }
 

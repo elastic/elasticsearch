@@ -119,8 +119,12 @@ public class SystemIndexMigrationTaskState implements PersistentTaskState {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof SystemIndexMigrationTaskState) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof SystemIndexMigrationTaskState) == false) {
+            return false;
+        }
         SystemIndexMigrationTaskState that = (SystemIndexMigrationTaskState) o;
         return currentIndex.equals(that.currentIndex)
             && currentFeature.equals(that.currentFeature)

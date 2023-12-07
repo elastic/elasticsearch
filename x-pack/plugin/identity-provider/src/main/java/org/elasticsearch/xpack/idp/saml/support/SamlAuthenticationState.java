@@ -99,8 +99,12 @@ public class SamlAuthenticationState implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SamlAuthenticationState that = (SamlAuthenticationState) o;
         return Objects.equals(requestedNameidFormat, that.requestedNameidFormat) && Objects.equals(authnRequestId, that.authnRequestId);
     }

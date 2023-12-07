@@ -147,8 +147,12 @@ public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatur
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof SingleFeatureMigrationResult) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof SingleFeatureMigrationResult) == false) {
+            return false;
+        }
         SingleFeatureMigrationResult that = (SingleFeatureMigrationResult) o;
         // Exception is intentionally not checked here
         return successful == that.successful && Objects.equals(failedIndexName, that.failedIndexName);

@@ -74,8 +74,12 @@ public class ChangePointBucket extends InternalMultiBucketAggregation.InternalBu
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ChangePointBucket that = (ChangePointBucket) o;
         return docCount == that.docCount && Objects.equals(key, that.key) && Objects.equals(aggregations, that.aggregations);
     }

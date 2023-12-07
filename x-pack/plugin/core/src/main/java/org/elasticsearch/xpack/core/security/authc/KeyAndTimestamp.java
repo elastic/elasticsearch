@@ -51,12 +51,18 @@ public final class KeyAndTimestamp implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         KeyAndTimestamp that = (KeyAndTimestamp) o;
 
-        if (timestamp != that.timestamp) return false;
+        if (timestamp != that.timestamp) {
+            return false;
+        }
         return key.equals(that.key);
     }
 

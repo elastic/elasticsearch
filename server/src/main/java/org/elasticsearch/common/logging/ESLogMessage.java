@@ -86,12 +86,16 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     }
 
     public static String inQuotes(String s) {
-        if (s == null) return inQuotes("");
+        if (s == null) {
+            return inQuotes("");
+        }
         return "\"" + s + "\"";
     }
 
     public static String inQuotes(Object s) {
-        if (s == null) return inQuotes("");
+        if (s == null) {
+            return inQuotes("");
+        }
         return inQuotes(s.toString());
     }
 

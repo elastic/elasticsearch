@@ -358,8 +358,12 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CustomWordEmbedding that = (CustomWordEmbedding) o;
         return Objects.equals(fieldName, that.fieldName)
             && Objects.equals(destField, that.destField)

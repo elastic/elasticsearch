@@ -70,8 +70,12 @@ public class ListConnectorAction extends ActionType<ListConnectorAction.Response
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ListConnectorAction.Request that = (ListConnectorAction.Request) o;
             return Objects.equals(pageParams, that.pageParams);
         }
@@ -134,8 +138,12 @@ public class ListConnectorAction extends ActionType<ListConnectorAction.Response
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ListConnectorAction.Response that = (ListConnectorAction.Response) o;
             return queryPage.equals(that.queryPage);
         }

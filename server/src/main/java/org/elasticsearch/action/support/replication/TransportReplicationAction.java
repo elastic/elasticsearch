@@ -1221,8 +1221,12 @@ public abstract class TransportReplicationAction<
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ReplicaResponse that = (ReplicaResponse) o;
             return localCheckpoint == that.localCheckpoint && globalCheckpoint == that.globalCheckpoint;
         }

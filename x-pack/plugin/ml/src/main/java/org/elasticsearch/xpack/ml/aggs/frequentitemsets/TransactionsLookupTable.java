@@ -63,7 +63,9 @@ public class TransactionsLookupTable implements Accountable, Releasable {
 
         for (int i = set.wordsInUse - 1; i >= 0; i--) {
             final long word = longs.get(startOffset + i);
-            if ((word & set.words[i]) != set.words[i]) return false;
+            if ((word & set.words[i]) != set.words[i]) {
+                return false;
+            }
         }
 
         return true;

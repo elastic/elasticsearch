@@ -165,8 +165,11 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, Multi
                 shapes.add(jtsGeometry(polygon.toPolygonS4J(FACTORY)));
             }
         }
-        if (shapes.size() == 1) return shapes.get(0);
-        else return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
+        if (shapes.size() == 1) {
+            return shapes.get(0);
+        } else {
+            return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
+        }
         // note: ShapeCollection is probably faster than a Multi* geom.
     }
 

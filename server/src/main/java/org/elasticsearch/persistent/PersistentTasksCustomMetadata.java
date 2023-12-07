@@ -175,8 +175,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PersistentTasksCustomMetadata that = (PersistentTasksCustomMetadata) o;
         return lastAllocationId == that.lastAllocationId && Objects.equals(tasks, that.tasks);
     }
@@ -276,8 +280,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Assignment that = (Assignment) o;
             return Objects.equals(executorNode, that.executorNode) && Objects.equals(explanation, that.explanation);
         }
@@ -381,8 +389,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             PersistentTask<?> that = (PersistentTask<?>) o;
             return Objects.equals(id, that.id)
                 && allocationId == that.allocationId

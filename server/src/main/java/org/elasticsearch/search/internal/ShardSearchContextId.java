@@ -59,8 +59,12 @@ public final class ShardSearchContextId implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ShardSearchContextId other = (ShardSearchContextId) o;
         return id == other.id && sessionId.equals(other.sessionId) && Objects.equals(searcherId, other.searcherId);
     }

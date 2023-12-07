@@ -31,7 +31,9 @@ public class PaginationAnalyticsEventField {
     );
 
     private static int requirePositiveInt(int i, String field) {
-        if (i < 0) throw new IllegalArgumentException(Strings.format("field [%s] must be positive", field));
+        if (i < 0) {
+            throw new IllegalArgumentException(Strings.format("field [%s] must be positive", field));
+        }
         return i;
     }
 

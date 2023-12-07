@@ -367,8 +367,12 @@ public interface AuthorizationEngine {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             PrivilegesToCheck that = (PrivilegesToCheck) o;
             return runDetailedCheck == that.runDetailedCheck
                 && Arrays.equals(cluster, that.cluster)
@@ -435,8 +439,12 @@ public interface AuthorizationEngine {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             PrivilegesCheckResult that = (PrivilegesCheckResult) o;
             return allChecksSuccess == that.allChecksSuccess && Objects.equals(details, that.details);
         }

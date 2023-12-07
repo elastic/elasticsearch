@@ -89,8 +89,12 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ShardId shardId1 = (ShardId) o;
         return shardId == shardId1.shardId && index.equals(shardId1.index);
     }

@@ -55,9 +55,15 @@ public class SecurityFilesTests extends ESTestCase {
         Files.write(path, "foo".getBytes(StandardCharsets.UTF_8));
 
         Set<PosixFilePermission> perms = Sets.newHashSet(OWNER_READ, OWNER_WRITE);
-        if (randomBoolean()) perms.add(OWNER_EXECUTE);
-        if (randomBoolean()) perms.add(GROUP_EXECUTE);
-        if (randomBoolean()) perms.add(OTHERS_EXECUTE);
+        if (randomBoolean()) {
+            perms.add(OWNER_EXECUTE);
+        }
+        if (randomBoolean()) {
+            perms.add(GROUP_EXECUTE);
+        }
+        if (randomBoolean()) {
+            perms.add(OTHERS_EXECUTE);
+        }
 
         Files.setPosixFilePermissions(path, perms);
 

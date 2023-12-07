@@ -372,8 +372,12 @@ public class MergingDigest extends AbstractTDigest {
             return Double.NaN;
         }
         if (lastUsedCell == 1) {
-            if (x < min) return 0;
-            if (x > max) return 1;
+            if (x < min) {
+                return 0;
+            }
+            if (x > max) {
+                return 1;
+            }
             return 0.5;
         } else {
             if (x < min) {

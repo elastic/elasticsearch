@@ -50,7 +50,9 @@ class ItemSetBitSet implements Cloneable {
 
     ItemSetBitSet(int nbits) {
         // nbits can't be negative; size 0 is OK
-        if (nbits < 0) throw new NegativeArraySizeException("nbits < 0: " + nbits);
+        if (nbits < 0) {
+            throw new NegativeArraySizeException("nbits < 0: " + nbits);
+        }
 
         initWords(nbits);
     }
@@ -63,7 +65,9 @@ class ItemSetBitSet implements Cloneable {
     }
 
     void set(int bitIndex) {
-        if (bitIndex < 0) throw new IndexOutOfBoundsException("bitIndex < 0: " + bitIndex);
+        if (bitIndex < 0) {
+            throw new IndexOutOfBoundsException("bitIndex < 0: " + bitIndex);
+        }
 
         int wordIndex = wordIndex(bitIndex);
         expandTo(wordIndex);
@@ -77,17 +81,23 @@ class ItemSetBitSet implements Cloneable {
     }
 
     boolean get(int bitIndex) {
-        if (bitIndex < 0) throw new IndexOutOfBoundsException("bitIndex < 0: " + bitIndex);
+        if (bitIndex < 0) {
+            throw new IndexOutOfBoundsException("bitIndex < 0: " + bitIndex);
+        }
 
         int wordIndex = wordIndex(bitIndex);
         return (wordIndex < wordsInUse) && ((words[wordIndex] & (1L << bitIndex)) != 0);
     }
 
     void clear(int bitIndex) {
-        if (bitIndex < 0) throw new IndexOutOfBoundsException("bitIndex < 0: " + bitIndex);
+        if (bitIndex < 0) {
+            throw new IndexOutOfBoundsException("bitIndex < 0: " + bitIndex);
+        }
 
         int wordIndex = wordIndex(bitIndex);
-        if (wordIndex >= wordsInUse) return;
+        if (wordIndex >= wordsInUse) {
+            return;
+        }
 
         final long oldWord = words[wordIndex];
 
@@ -156,16 +166,24 @@ class ItemSetBitSet implements Cloneable {
     }
 
     int nextSetBit(int fromIndex) {
-        if (fromIndex < 0) throw new IndexOutOfBoundsException("fromIndex < 0: " + fromIndex);
+        if (fromIndex < 0) {
+            throw new IndexOutOfBoundsException("fromIndex < 0: " + fromIndex);
+        }
 
         int u = wordIndex(fromIndex);
-        if (u >= wordsInUse) return -1;
+        if (u >= wordsInUse) {
+            return -1;
+        }
 
         long word = words[u] & (WORD_MASK << fromIndex);
 
         while (true) {
-            if (word != 0) return (u * BITS_PER_WORD) + Long.numberOfTrailingZeros(word);
-            if (++u == wordsInUse) return -1;
+            if (word != 0) {
+                return (u * BITS_PER_WORD) + Long.numberOfTrailingZeros(word);
+            }
+            if (++u == wordsInUse) {
+                return -1;
+            }
             word = words[u];
         }
     }
@@ -232,11 +250,16 @@ class ItemSetBitSet implements Cloneable {
         }
 
         final ItemSetBitSet set = (ItemSetBitSet) obj;
-        if (wordsInUse != set.wordsInUse) return false;
+        if (wordsInUse != set.wordsInUse) {
+            return false;
+        }
 
         // Check words in use by both BitSets
-        for (int i = 0; i < wordsInUse; i++)
-            if (words[i] != set.words[i]) return false;
+        for (int i = 0; i < wordsInUse; i++) {
+            if (words[i] != set.words[i]) {
+                return false;
+            }
+        }
 
         return true;
     }
@@ -266,8 +289,11 @@ class ItemSetBitSet implements Cloneable {
     private void recalculateWordsInUse() {
         // Traverse the bitset until a used word is found
         int i;
-        for (i = wordsInUse - 1; i >= 0; i--)
-            if (words[i] != 0) break;
+        for (i = wordsInUse - 1; i >= 0; i--) {
+            if (words[i] != 0) {
+                break;
+            }
+        }
 
         wordsInUse = i + 1; // The new logical size
     }

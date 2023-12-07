@@ -185,8 +185,12 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ShutdownShardMigrationStatus that = (ShutdownShardMigrationStatus) o;
         return startedShards == that.startedShards
             && relocatingShards == that.relocatingShards

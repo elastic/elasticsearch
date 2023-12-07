@@ -120,8 +120,12 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         ReportingAttachment otherAttachment = (ReportingAttachment) o;
         return Objects.equals(id, otherAttachment.id)

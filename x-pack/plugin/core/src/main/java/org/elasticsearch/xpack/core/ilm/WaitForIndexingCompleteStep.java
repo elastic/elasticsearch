@@ -84,8 +84,12 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             IndexingNotCompleteInfo info = (IndexingNotCompleteInfo) o;
             return Objects.equals(getMessage(), info.getMessage());
         }

@@ -75,8 +75,12 @@ public class PerClassSingleValue implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PerClassSingleValue that = (PerClassSingleValue) o;
         return Objects.equals(this.className, that.className) && this.value == that.value;
     }

@@ -81,8 +81,12 @@ public class RequestCacheStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RequestCacheStats that = (RequestCacheStats) o;
         return memorySize == that.memorySize && evictions == that.evictions && hitCount == that.hitCount && missCount == that.missCount;
     }

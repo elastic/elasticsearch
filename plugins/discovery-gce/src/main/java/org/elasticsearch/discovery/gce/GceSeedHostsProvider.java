@@ -102,7 +102,9 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
         if (refreshInterval.millis() != 0) {
             if (cachedDynamicHosts != null
                 && (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
-                if (logger.isTraceEnabled()) logger.trace("using cache to retrieve node list");
+                if (logger.isTraceEnabled()) {
+                    logger.trace("using cache to retrieve node list");
+                }
                 return cachedDynamicHosts;
             }
             lastRefresh = System.currentTimeMillis();
@@ -209,7 +211,9 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                     }
 
                     // If we have both public and private, we can stop here
-                    if (ip_private != null && ip_public != null) break;
+                    if (ip_private != null && ip_public != null) {
+                        break;
+                    }
                 }
 
                 try {

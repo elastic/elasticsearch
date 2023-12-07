@@ -109,8 +109,12 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         NodeEnrollmentResponse that = (NodeEnrollmentResponse) o;
         return httpCaKey.equals(that.httpCaKey)
             && httpCaCert.equals(that.httpCaCert)

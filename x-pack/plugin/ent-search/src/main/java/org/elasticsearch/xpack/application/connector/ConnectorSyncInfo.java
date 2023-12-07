@@ -136,8 +136,12 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConnectorSyncInfo that = (ConnectorSyncInfo) o;
         return Objects.equals(lastAccessControlSyncError, that.lastAccessControlSyncError)
             && Objects.equals(lastAccessControlSyncScheduledAt, that.lastAccessControlSyncScheduledAt)

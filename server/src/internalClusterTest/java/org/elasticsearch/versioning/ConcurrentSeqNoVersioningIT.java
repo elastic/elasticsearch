@@ -316,8 +316,12 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Version version = (Version) o;
             return primaryTerm == version.primaryTerm && seqNo == version.seqNo;
         }
@@ -330,7 +334,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         @Override
         public int compareTo(Version other) {
             int termCompare = Long.compare(primaryTerm, other.primaryTerm);
-            if (termCompare != 0) return termCompare;
+            if (termCompare != 0) {
+                return termCompare;
+            }
             return Long.compare(seqNo, other.seqNo);
         }
 
@@ -766,7 +772,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     private Version futureVersion(Version version) {
         Version futureVersion = version.nextSeqNo(randomIntBetween(1, 10));
-        if (randomBoolean()) futureVersion = futureVersion.nextTerm();
+        if (randomBoolean()) {
+            futureVersion = futureVersion.nextTerm();
+        }
         return futureVersion;
     }
 }

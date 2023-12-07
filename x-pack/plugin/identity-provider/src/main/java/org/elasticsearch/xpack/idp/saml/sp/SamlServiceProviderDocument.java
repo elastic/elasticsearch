@@ -66,8 +66,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             final Privileges that = (Privileges) o;
             return Objects.equals(resource, that.resource) && Objects.equals(rolePatterns, that.rolePatterns);
         }
@@ -105,8 +109,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             final AttributeNames that = (AttributeNames) o;
             return Objects.equals(principal, that.principal)
                 && Objects.equals(email, that.email)
@@ -203,8 +211,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             final Certificates that = (Certificates) o;
             return Objects.equals(serviceProviderSigning, that.serviceProviderSigning)
                 && Objects.equals(identityProviderSigning, that.identityProviderSigning)
@@ -355,8 +367,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         final SamlServiceProviderDocument that = (SamlServiceProviderDocument) o;
         return Objects.equals(docId, that.docId)
             && Objects.equals(name, that.name)

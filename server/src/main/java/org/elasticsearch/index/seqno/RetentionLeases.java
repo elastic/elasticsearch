@@ -261,8 +261,12 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         final RetentionLeases that = (RetentionLeases) o;
         return primaryTerm == that.primaryTerm && version == that.version && Objects.equals(leases, that.leases);
     }

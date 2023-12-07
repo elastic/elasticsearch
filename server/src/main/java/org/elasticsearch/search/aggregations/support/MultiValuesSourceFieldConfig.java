@@ -256,8 +256,12 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         MultiValuesSourceFieldConfig that = (MultiValuesSourceFieldConfig) o;
         return Objects.equals(fieldName, that.fieldName)
             && Objects.equals(missing, that.missing)

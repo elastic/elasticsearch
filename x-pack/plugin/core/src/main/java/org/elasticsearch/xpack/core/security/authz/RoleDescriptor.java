@@ -317,19 +317,39 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         RoleDescriptor that = (RoleDescriptor) o;
 
-        if (name.equals(that.name) == false) return false;
-        if (Arrays.equals(clusterPrivileges, that.clusterPrivileges) == false) return false;
-        if (Arrays.equals(configurableClusterPrivileges, that.configurableClusterPrivileges) == false) return false;
-        if (Arrays.equals(indicesPrivileges, that.indicesPrivileges) == false) return false;
-        if (Arrays.equals(applicationPrivileges, that.applicationPrivileges) == false) return false;
-        if (metadata.equals(that.getMetadata()) == false) return false;
-        if (Arrays.equals(runAs, that.runAs) == false) return false;
-        if (Arrays.equals(remoteIndicesPrivileges, that.remoteIndicesPrivileges) == false) return false;
+        if (name.equals(that.name) == false) {
+            return false;
+        }
+        if (Arrays.equals(clusterPrivileges, that.clusterPrivileges) == false) {
+            return false;
+        }
+        if (Arrays.equals(configurableClusterPrivileges, that.configurableClusterPrivileges) == false) {
+            return false;
+        }
+        if (Arrays.equals(indicesPrivileges, that.indicesPrivileges) == false) {
+            return false;
+        }
+        if (Arrays.equals(applicationPrivileges, that.applicationPrivileges) == false) {
+            return false;
+        }
+        if (metadata.equals(that.getMetadata()) == false) {
+            return false;
+        }
+        if (Arrays.equals(runAs, that.runAs) == false) {
+            return false;
+        }
+        if (Arrays.equals(remoteIndicesPrivileges, that.remoteIndicesPrivileges) == false) {
+            return false;
+        }
         return restriction.equals(that.restriction);
     }
 
@@ -1043,12 +1063,18 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             RemoteIndicesPrivileges that = (RemoteIndicesPrivileges) o;
 
-            if (false == indicesPrivileges.equals(that.indicesPrivileges)) return false;
+            if (false == indicesPrivileges.equals(that.indicesPrivileges)) {
+                return false;
+            }
             return Arrays.equals(remoteClusters, that.remoteClusters);
         }
 
@@ -1272,16 +1298,30 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             IndicesPrivileges that = (IndicesPrivileges) o;
 
-            if (Arrays.equals(indices, that.indices) == false) return false;
-            if (allowRestrictedIndices != that.allowRestrictedIndices) return false;
-            if (Arrays.equals(privileges, that.privileges) == false) return false;
-            if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
-            if (Arrays.equals(deniedFields, that.deniedFields) == false) return false;
+            if (Arrays.equals(indices, that.indices) == false) {
+                return false;
+            }
+            if (allowRestrictedIndices != that.allowRestrictedIndices) {
+                return false;
+            }
+            if (Arrays.equals(privileges, that.privileges) == false) {
+                return false;
+            }
+            if (Arrays.equals(grantedFields, that.grantedFields) == false) {
+                return false;
+            }
+            if (Arrays.equals(deniedFields, that.deniedFields) == false) {
+                return false;
+            }
             return Objects.equals(query, that.query);
         }
 
@@ -1607,8 +1647,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Restriction that = (Restriction) o;
             return Arrays.equals(workflows, that.workflows);
         }

@@ -154,9 +154,13 @@ public final class IOUtils {
                 }
                 // Backoff/retry in case another process is accessing the file
                 times++;
-                if (ioe == null) ioe = new IOException();
+                if (ioe == null) {
+                    ioe = new IOException();
+                }
                 ioe.addSuppressed(x);
-                if (times > MAX_RETRY_DELETE_TIMES) throw ioe;
+                if (times > MAX_RETRY_DELETE_TIMES) {
+                    throw ioe;
+                }
                 Thread.sleep(RETRY_DELETE_MILLIS);
             }
         }

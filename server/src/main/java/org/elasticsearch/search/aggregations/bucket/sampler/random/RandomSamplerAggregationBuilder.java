@@ -167,9 +167,15 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         RandomSamplerAggregationBuilder other = (RandomSamplerAggregationBuilder) obj;
         return Objects.equals(p, other.p) && Objects.equals(seed, other.seed);
     }

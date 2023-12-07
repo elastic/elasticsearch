@@ -108,8 +108,12 @@ public class TrialLicenseVersion implements ToXContentFragment, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TrialLicenseVersion that = (TrialLicenseVersion) o;
         return trialVersion == that.trialVersion;
     }

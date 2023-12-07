@@ -167,12 +167,18 @@ public class Email implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Email email = (Email) o;
 
-        if (id.equals(email.id) == false) return false;
+        if (id.equals(email.id) == false) {
+            return false;
+        }
 
         return true;
     }
@@ -616,12 +622,18 @@ public class Email implements ToXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             AddressList addresses1 = (AddressList) o;
 
-            if (addresses.equals(addresses1.addresses) == false) return false;
+            if (addresses.equals(addresses1.addresses) == false) {
+                return false;
+            }
 
             return true;
         }

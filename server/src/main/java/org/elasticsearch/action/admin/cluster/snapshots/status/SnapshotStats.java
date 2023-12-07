@@ -327,18 +327,36 @@ public class SnapshotStats implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         SnapshotStats that = (SnapshotStats) o;
 
-        if (startTime != that.startTime) return false;
-        if (time != that.time) return false;
-        if (incrementalFileCount != that.incrementalFileCount) return false;
-        if (totalFileCount != that.totalFileCount) return false;
-        if (processedFileCount != that.processedFileCount) return false;
-        if (incrementalSize != that.incrementalSize) return false;
-        if (totalSize != that.totalSize) return false;
+        if (startTime != that.startTime) {
+            return false;
+        }
+        if (time != that.time) {
+            return false;
+        }
+        if (incrementalFileCount != that.incrementalFileCount) {
+            return false;
+        }
+        if (totalFileCount != that.totalFileCount) {
+            return false;
+        }
+        if (processedFileCount != that.processedFileCount) {
+            return false;
+        }
+        if (incrementalSize != that.incrementalSize) {
+            return false;
+        }
+        if (totalSize != that.totalSize) {
+            return false;
+        }
         return processedSize == that.processedSize;
     }
 

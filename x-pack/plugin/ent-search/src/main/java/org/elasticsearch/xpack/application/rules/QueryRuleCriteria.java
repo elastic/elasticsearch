@@ -172,8 +172,12 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         QueryRuleCriteria that = (QueryRuleCriteria) o;
         return criteriaType == that.criteriaType
             && Objects.equals(criteriaMetadata, that.criteriaMetadata)

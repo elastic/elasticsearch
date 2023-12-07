@@ -190,8 +190,12 @@ public class OpenAiServiceSettings implements ServiceSettings {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         OpenAiServiceSettings that = (OpenAiServiceSettings) o;
         return Objects.equals(uri, that.uri)
             && Objects.equals(organizationId, that.organizationId)

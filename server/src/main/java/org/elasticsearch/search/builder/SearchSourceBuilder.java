@@ -2091,12 +2091,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinality) {
-        if (profile) return false;
+        if (profile) {
+            return false;
+        }
 
         if (sorts != null) {
             // the implicit sorting is by _score, which supports parallel collection
             for (SortBuilder<?> sortBuilder : sorts) {
-                if (sortBuilder.supportsParallelCollection() == false) return false;
+                if (sortBuilder.supportsParallelCollection() == false) {
+                    return false;
+                }
             }
         }
 

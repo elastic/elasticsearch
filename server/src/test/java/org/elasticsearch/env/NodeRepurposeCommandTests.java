@@ -282,8 +282,11 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     private long digestSinglePath(Path path) {
-        if (Files.isDirectory(path)) return path.toString().hashCode();
-        else return path.toString().hashCode() + digest(readAllBytes(path));
+        if (Files.isDirectory(path)) {
+            return path.toString().hashCode();
+        } else {
+            return path.toString().hashCode() + digest(readAllBytes(path));
+        }
 
     }
 

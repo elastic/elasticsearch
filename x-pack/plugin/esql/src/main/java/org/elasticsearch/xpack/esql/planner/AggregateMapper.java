@@ -233,7 +233,9 @@ public class AggregateMapper {
     }
 
     static Expression unwrapAlias(Expression expression) {
-        if (expression instanceof Alias alias) return alias.child();
+        if (expression instanceof Alias alias) {
+            return alias.child();
+        }
         return expression;
     }
 }

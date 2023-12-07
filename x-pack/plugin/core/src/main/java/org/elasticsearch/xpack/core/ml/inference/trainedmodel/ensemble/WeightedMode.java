@@ -193,8 +193,12 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         WeightedMode that = (WeightedMode) o;
         return Arrays.equals(weights, that.weights) && numClasses == that.numClasses;
     }

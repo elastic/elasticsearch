@@ -93,8 +93,12 @@ public class GetShardSnapshotRequest extends MasterNodeRequest<GetShardSnapshotR
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetShardSnapshotRequest request = (GetShardSnapshotRequest) o;
         return Objects.equals(repositories, request.repositories) && Objects.equals(shardId, request.shardId);
     }

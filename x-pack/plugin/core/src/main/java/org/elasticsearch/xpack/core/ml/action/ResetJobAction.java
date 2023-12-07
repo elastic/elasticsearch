@@ -131,8 +131,12 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || o.getClass() != getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || o.getClass() != getClass()) {
+                return false;
+            }
             Request that = (Request) o;
             return Objects.equals(jobId, that.jobId)
                 && skipJobStateValidation == that.skipJobStateValidation

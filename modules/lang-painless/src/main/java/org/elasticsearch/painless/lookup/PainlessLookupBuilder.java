@@ -245,16 +245,25 @@ public final class PainlessLookupBuilder {
 
         Class<?> clazz;
 
-        if ("void".equals(javaClassName)) clazz = void.class;
-        else if ("boolean".equals(javaClassName)) clazz = boolean.class;
-        else if ("byte".equals(javaClassName)) clazz = byte.class;
-        else if ("short".equals(javaClassName)) clazz = short.class;
-        else if ("char".equals(javaClassName)) clazz = char.class;
-        else if ("int".equals(javaClassName)) clazz = int.class;
-        else if ("long".equals(javaClassName)) clazz = long.class;
-        else if ("float".equals(javaClassName)) clazz = float.class;
-        else if ("double".equals(javaClassName)) clazz = double.class;
-        else {
+        if ("void".equals(javaClassName)) {
+            clazz = void.class;
+        } else if ("boolean".equals(javaClassName)) {
+            clazz = boolean.class;
+        } else if ("byte".equals(javaClassName)) {
+            clazz = byte.class;
+        } else if ("short".equals(javaClassName)) {
+            clazz = short.class;
+        } else if ("char".equals(javaClassName)) {
+            clazz = char.class;
+        } else if ("int".equals(javaClassName)) {
+            clazz = int.class;
+        } else if ("long".equals(javaClassName)) {
+            clazz = long.class;
+        } else if ("float".equals(javaClassName)) {
+            clazz = float.class;
+        } else if ("double".equals(javaClassName)) {
+            clazz = double.class;
+        } else {
             clazz = loadClass(classLoader, javaClassName, () -> "class [" + javaClassName + "] not found");
         }
 

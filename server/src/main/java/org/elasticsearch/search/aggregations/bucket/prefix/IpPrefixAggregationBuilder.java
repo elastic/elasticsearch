@@ -297,9 +297,15 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         IpPrefixAggregationBuilder that = (IpPrefixAggregationBuilder) o;
         return minDocCount == that.minDocCount && prefixLength == that.prefixLength && isIpv6 == that.isIpv6;
     }

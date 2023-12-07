@@ -348,8 +348,12 @@ public class RunningStats implements Writeable, Cloneable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RunningStats that = (RunningStats) o;
         return docCount == that.docCount
             && Objects.equals(fieldSum, that.fieldSum)

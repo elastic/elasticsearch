@@ -33,9 +33,13 @@ public class FileAttributesChecker {
         this.attributes = new PosixFileAttributes[paths.length];
 
         for (int i = 0; i < paths.length; ++i) {
-            if (Files.exists(paths[i]) == false) continue; // missing file, so changes later don't matter
+            if (Files.exists(paths[i]) == false) {
+                continue; // missing file, so changes later don't matter
+            }
             PosixFileAttributeView view = Files.getFileAttributeView(paths[i], PosixFileAttributeView.class);
-            if (view == null) continue; // not posix
+            if (view == null) {
+                continue; // not posix
+            }
             this.attributes[i] = view.readAttributes();
         }
     }

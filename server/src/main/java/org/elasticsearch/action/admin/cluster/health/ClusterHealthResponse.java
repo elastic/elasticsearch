@@ -376,8 +376,12 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ClusterHealthResponse that = (ClusterHealthResponse) o;
         return Objects.equals(clusterName, that.clusterName)
             && numberOfPendingTasks == that.numberOfPendingTasks

@@ -234,7 +234,9 @@ public final class BitsetFilterCache
 
         @Override
         public boolean equals(Object o) {
-            if ((o instanceof QueryWrapperBitSetProducer) == false) return false;
+            if ((o instanceof QueryWrapperBitSetProducer) == false) {
+                return false;
+            }
             return this.query.equals(((QueryWrapperBitSetProducer) o).query);
         }
 

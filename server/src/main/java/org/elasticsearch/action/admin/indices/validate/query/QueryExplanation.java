@@ -127,8 +127,12 @@ public class QueryExplanation implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         QueryExplanation other = (QueryExplanation) o;
         return Objects.equals(getIndex(), other.getIndex())
             && Objects.equals(getShard(), other.getShard())

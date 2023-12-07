@@ -160,7 +160,9 @@ public class CancelTests extends ReindexTestCase {
             logger.debug("finding at least one canceled child among {}", sliceList.getTasks());
             for (TaskInfo slice : sliceList.getTasks()) {
                 BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) slice.status();
-                if (sliceStatus.getReasonCancelled() == null) continue;
+                if (sliceStatus.getReasonCancelled() == null) {
+                    continue;
+                }
                 assertEquals(CancelTasksRequest.DEFAULT_REASON, sliceStatus.getReasonCancelled());
                 foundCancelled = true;
             }

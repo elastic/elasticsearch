@@ -119,8 +119,12 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RecoveryStats that = (RecoveryStats) o;
         return currentAsSource() == that.currentAsSource()
             && currentAsTarget() == that.currentAsTarget()

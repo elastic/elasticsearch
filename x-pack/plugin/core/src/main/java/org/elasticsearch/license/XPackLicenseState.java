@@ -531,8 +531,12 @@ public class XPackLicenseState {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             FeatureUsage usage = (FeatureUsage) o;
             return Objects.equals(feature, usage.feature) && Objects.equals(context, usage.context);
         }

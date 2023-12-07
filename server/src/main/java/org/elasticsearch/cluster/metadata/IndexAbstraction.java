@@ -172,8 +172,12 @@ public interface IndexAbstraction {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ConcreteIndex that = (ConcreteIndex) o;
             return isHidden == that.isHidden
                 && isSystem == that.isSystem
@@ -278,8 +282,12 @@ public interface IndexAbstraction {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Alias alias = (Alias) o;
             return isHidden == alias.isHidden
                 && isSystem == alias.isSystem

@@ -999,13 +999,21 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     }
 
     private static RestRequest.Method translateRequestMethod(HttpMethod httpMethod) {
-        if (httpMethod == HttpMethod.GET) return RestRequest.Method.GET;
+        if (httpMethod == HttpMethod.GET) {
+            return RestRequest.Method.GET;
+        }
 
-        if (httpMethod == HttpMethod.POST) return RestRequest.Method.POST;
+        if (httpMethod == HttpMethod.POST) {
+            return RestRequest.Method.POST;
+        }
 
-        if (httpMethod == HttpMethod.PUT) return RestRequest.Method.PUT;
+        if (httpMethod == HttpMethod.PUT) {
+            return RestRequest.Method.PUT;
+        }
 
-        if (httpMethod == HttpMethod.DELETE) return RestRequest.Method.DELETE;
+        if (httpMethod == HttpMethod.DELETE) {
+            return RestRequest.Method.DELETE;
+        }
 
         if (httpMethod == HttpMethod.PATCH) {
             return RestRequest.Method.PATCH;

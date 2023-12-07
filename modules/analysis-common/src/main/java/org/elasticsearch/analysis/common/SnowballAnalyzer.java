@@ -52,11 +52,18 @@ public final class SnowballAnalyzer extends Analyzer {
         final Tokenizer tokenizer = new StandardTokenizer();
         TokenStream result = tokenizer;
         // remove the possessive 's for english stemmers
-        if (name.equals("English") || name.equals("Porter") || name.equals("Lovins")) result = new EnglishPossessiveFilter(result);
+        if (name.equals("English") || name.equals("Porter") || name.equals("Lovins")) {
+            result = new EnglishPossessiveFilter(result);
+        }
         // Use a special lowercase filter for turkish, the stemmer expects it.
-        if (name.equals("Turkish")) result = new TurkishLowerCaseFilter(result);
-        else result = new LowerCaseFilter(result);
-        if (stopSet != null) result = new StopFilter(result, stopSet);
+        if (name.equals("Turkish")) {
+            result = new TurkishLowerCaseFilter(result);
+        } else {
+            result = new LowerCaseFilter(result);
+        }
+        if (stopSet != null) {
+            result = new StopFilter(result, stopSet);
+        }
         result = new SnowballFilter(result, name);
         return new TokenStreamComponents(tokenizer, result);
     }

@@ -484,8 +484,12 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Connector connector = (Connector) o;
         return isNative == connector.isNative
             && syncNow == connector.syncNow

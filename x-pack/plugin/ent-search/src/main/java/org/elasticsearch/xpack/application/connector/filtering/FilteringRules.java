@@ -104,8 +104,12 @@ public class FilteringRules implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         FilteringRules that = (FilteringRules) o;
         return Objects.equals(advancedSnippet, that.advancedSnippet)
             && Objects.equals(rules, that.rules)

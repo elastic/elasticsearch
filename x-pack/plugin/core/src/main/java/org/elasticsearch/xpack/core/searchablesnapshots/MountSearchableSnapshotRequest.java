@@ -211,8 +211,12 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         MountSearchableSnapshotRequest that = (MountSearchableSnapshotRequest) o;
         return waitForCompletion == that.waitForCompletion
             && storage == that.storage

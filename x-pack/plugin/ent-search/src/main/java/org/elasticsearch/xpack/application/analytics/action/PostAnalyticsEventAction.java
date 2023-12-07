@@ -191,8 +191,12 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request that = (Request) o;
             return Objects.equals(eventCollectionName, that.eventCollectionName)
                 && debug == that.debug
@@ -351,8 +355,12 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response that = (Response) o;
             return accepted == that.accepted && isDebug() == that.isDebug();
         }
@@ -423,8 +431,12 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             DebugResponse that = (DebugResponse) o;
             return super.equals(o) && analyticsEvent.equals(that.analyticsEvent);
         }

@@ -75,8 +75,12 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DelegatePkiAuthenticationResponse that = (DelegatePkiAuthenticationResponse) o;
         return Objects.equals(accessToken, that.accessToken)
             && Objects.equals(expiresIn, that.expiresIn)

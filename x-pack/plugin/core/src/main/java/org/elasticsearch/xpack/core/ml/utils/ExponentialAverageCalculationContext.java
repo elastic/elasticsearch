@@ -129,7 +129,9 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
     }
 
     public Double getCurrentExponentialAverageMs() {
-        if (previousExponentialAverageMs == null || latestTimestamp == null) return incrementalMetricValueMs;
+        if (previousExponentialAverageMs == null || latestTimestamp == null) {
+            return incrementalMetricValueMs;
+        }
         Instant currentWindowStartTimestamp = latestTimestamp.truncatedTo(WINDOW_UNIT);
         double alpha = Math.exp(
             -(double) Duration.between(currentWindowStartTimestamp, latestTimestamp).toMillis() / WINDOW_SIZE.toMillis()
@@ -193,8 +195,12 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
 
     @Override
     public boolean equals(Object o) {
-        if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == this) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ExponentialAverageCalculationContext that = (ExponentialAverageCalculationContext) o;
         return this.incrementalMetricValueMs == that.incrementalMetricValueMs
             && Objects.equals(this.latestTimestamp, that.latestTimestamp)

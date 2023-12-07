@@ -251,8 +251,12 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof ClusterShardHealth) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof ClusterShardHealth) == false) {
+            return false;
+        }
         ClusterShardHealth that = (ClusterShardHealth) o;
         return shardId == that.shardId
             && activeShards == that.activeShards

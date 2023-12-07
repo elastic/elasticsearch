@@ -235,8 +235,12 @@ public class LearningToRankConfigTests extends InferenceConfigItemTestCase<Learn
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             TestValueExtractor that = (TestValueExtractor) o;
             return Objects.equals(featureName, that.featureName);
         }

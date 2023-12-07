@@ -1288,7 +1288,9 @@ public final class NodeEnvironment implements Closeable {
     private void assertEnvIsLocked() {
         if (closed.get() == false && locks != null) {
             synchronized (locks) {
-                if (closed.get()) return; // raced with close() - we lost
+                if (closed.get()) {
+                    return; // raced with close() - we lost
+                }
                 for (Lock lock : locks) {
                     try {
                         lock.ensureValid();

@@ -42,8 +42,12 @@ public class LocalSourceExec extends LeafExec {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         var other = (LocalSourceExec) o;
         return Objects.equals(supplier, other.supplier) && Objects.equals(output, other.output);
     }

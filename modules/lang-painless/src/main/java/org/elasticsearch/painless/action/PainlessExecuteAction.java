@@ -278,8 +278,12 @@ public class PainlessExecuteAction {
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 ContextSetup that = (ContextSetup) o;
                 return Objects.equals(index, that.index)
                     && Objects.equals(document, that.document)
@@ -422,8 +426,12 @@ public class PainlessExecuteAction {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(script, request.script)
                 && Objects.equals(context, request.context)
@@ -477,8 +485,12 @@ public class PainlessExecuteAction {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return Objects.equals(result, response.result);
         }

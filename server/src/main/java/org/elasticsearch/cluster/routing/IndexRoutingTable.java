@@ -316,12 +316,18 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         IndexRoutingTable that = (IndexRoutingTable) o;
 
-        if (index.equals(that.index) == false) return false;
+        if (index.equals(that.index) == false) {
+            return false;
+        }
         return Arrays.equals(shards, that.shards);
     }
 

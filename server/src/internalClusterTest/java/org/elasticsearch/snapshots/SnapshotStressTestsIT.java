@@ -742,7 +742,9 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                     final List<String> snapshotNames = new ArrayList<>();
                     final TrackedRepository targetRepository = blockSnapshotsFromOneRepository(localReleasables, snapshotNames);
-                    if (targetRepository == null) return;
+                    if (targetRepository == null) {
+                        return;
+                    }
 
                     logger.info("--> starting deletion of [{}:{}]", targetRepository.repositoryName, snapshotNames);
 

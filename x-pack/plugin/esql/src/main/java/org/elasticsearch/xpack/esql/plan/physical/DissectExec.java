@@ -43,9 +43,15 @@ public class DissectExec extends RegexExtractExec {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         DissectExec that = (DissectExec) o;
         return Objects.equals(parser, that.parser);
     }

@@ -102,8 +102,12 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TemplateParamValidator that = (TemplateParamValidator) o;
         return Objects.equals(getSchemaPropertiesAsString(), that.getSchemaPropertiesAsString());
     }

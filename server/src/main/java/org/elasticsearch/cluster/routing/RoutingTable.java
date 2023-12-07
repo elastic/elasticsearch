@@ -413,7 +413,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         for (RoutingNode routingNode : routingNodes) {
             for (ShardRouting shardRoutingEntry : routingNode) {
                 // every relocating shard has a double entry, ignore the target one.
-                if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null) continue;
+                if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null) {
+                    continue;
+                }
                 Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
             }
         }

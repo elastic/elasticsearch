@@ -79,8 +79,12 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             TestIpDataHolder that = (TestIpDataHolder) o;
             return prefixLength == that.prefixLength
                 && time == that.time

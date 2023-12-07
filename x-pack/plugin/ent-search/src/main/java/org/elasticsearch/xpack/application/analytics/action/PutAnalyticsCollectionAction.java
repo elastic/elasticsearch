@@ -71,8 +71,12 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request that = (Request) o;
             return Objects.equals(name, that.name);
         }
@@ -137,8 +141,12 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return isAcknowledged() == response.isAcknowledged() && Objects.equals(name, response.name);
         }

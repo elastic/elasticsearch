@@ -1001,9 +1001,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 )
             );
         } else if (comparisonType == boolean.class) {
-            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
-            else {
+            if (eq) {
+                methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+            } else if (ne) {
+                methodWriter.ifCmp(type, MethodWriter.NE, jump);
+            } else {
                 throw new IllegalStateException(
                     Strings.format(
                         "unexpected comparison operation [%s] for type [%s]",
@@ -1016,13 +1018,19 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             || comparisonType == long.class
             || comparisonType == float.class
             || comparisonType == double.class) {
-                if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-                else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
-                else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
-                else if (lte) methodWriter.ifCmp(type, MethodWriter.LE, jump);
-                else if (gt) methodWriter.ifCmp(type, MethodWriter.GT, jump);
-                else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
-                else {
+                if (eq) {
+                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+                } else if (ne) {
+                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
+                } else if (lt) {
+                    methodWriter.ifCmp(type, MethodWriter.LT, jump);
+                } else if (lte) {
+                    methodWriter.ifCmp(type, MethodWriter.LE, jump);
+                } else if (gt) {
+                    methodWriter.ifCmp(type, MethodWriter.GT, jump);
+                } else if (gte) {
+                    methodWriter.ifCmp(type, MethodWriter.GE, jump);
+                } else {
                     throw new IllegalStateException(
                         Strings.format(
                             "unexpected comparison operation [%s] for type [%s]",
@@ -1288,16 +1296,25 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         Object constant = irConstantNode.getDecorationValue(IRDConstant.class);
 
-        if (constant instanceof String) methodWriter.push((String) constant);
-        else if (constant instanceof Double) methodWriter.push((double) constant);
-        else if (constant instanceof Float) methodWriter.push((float) constant);
-        else if (constant instanceof Long) methodWriter.push((long) constant);
-        else if (constant instanceof Integer) methodWriter.push((int) constant);
-        else if (constant instanceof Character) methodWriter.push((char) constant);
-        else if (constant instanceof Short) methodWriter.push((short) constant);
-        else if (constant instanceof Byte) methodWriter.push((byte) constant);
-        else if (constant instanceof Boolean) methodWriter.push((boolean) constant);
-        else {
+        if (constant instanceof String) {
+            methodWriter.push((String) constant);
+        } else if (constant instanceof Double) {
+            methodWriter.push((double) constant);
+        } else if (constant instanceof Float) {
+            methodWriter.push((float) constant);
+        } else if (constant instanceof Long) {
+            methodWriter.push((long) constant);
+        } else if (constant instanceof Integer) {
+            methodWriter.push((int) constant);
+        } else if (constant instanceof Character) {
+            methodWriter.push((char) constant);
+        } else if (constant instanceof Short) {
+            methodWriter.push((short) constant);
+        } else if (constant instanceof Byte) {
+            methodWriter.push((byte) constant);
+        } else if (constant instanceof Boolean) {
+            methodWriter.push((boolean) constant);
+        } else {
             /*
              * The constant doesn't properly fit into the constant pool so
              * we should have made a static field for it.

@@ -89,8 +89,12 @@ public final class ShardGeneration implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ShardGeneration that = (ShardGeneration) o;
         return rawGeneration.equals(that.rawGeneration);
     }

@@ -1224,9 +1224,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
                 // Backoff/retry in case another process is accessing the file
                 times++;
-                if (ioe == null) ioe = new IOException();
+                if (ioe == null) {
+                    ioe = new IOException();
+                }
                 ioe.addSuppressed(x);
-                if (times > MAX_RETRY_DELETE_TIMES) throw ioe;
+                if (times > MAX_RETRY_DELETE_TIMES) {
+                    throw ioe;
+                }
                 Thread.sleep(RETRY_DELETE_MILLIS);
             }
         }
@@ -1588,8 +1592,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ElasticsearchNode that = (ElasticsearchNode) o;
         return Objects.equals(name, that.name) && Objects.equals(path, that.path);
     }

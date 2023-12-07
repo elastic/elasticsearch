@@ -167,12 +167,22 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
-            if (downsampleRequest.equals(request.downsampleRequest) == false) return false;
-            if (Arrays.equals(dimensionFields, request.dimensionFields) == false) return false;
-            if (Arrays.equals(labelFields, request.labelFields) == false) return false;
+            if (downsampleRequest.equals(request.downsampleRequest) == false) {
+                return false;
+            }
+            if (Arrays.equals(dimensionFields, request.dimensionFields) == false) {
+                return false;
+            }
+            if (Arrays.equals(labelFields, request.labelFields) == false) {
+                return false;
+            }
             return Arrays.equals(metricFields, request.metricFields);
         }
     }
@@ -219,12 +229,18 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Response) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof Response) == false) {
+                return false;
+            }
 
             Response response = (Response) o;
 
-            if (created != response.created) return false;
+            if (created != response.created) {
+                return false;
+            }
             return numIndexed == response.numIndexed;
         }
 

@@ -298,8 +298,12 @@ public abstract class LuceneOperator extends SourceOperator {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Status status = (Status) o;
             return processedSlices == status.processedSlices
                 && sliceIndex == status.sliceIndex

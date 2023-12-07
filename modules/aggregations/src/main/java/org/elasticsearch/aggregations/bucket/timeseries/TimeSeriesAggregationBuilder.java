@@ -148,9 +148,15 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         TimeSeriesAggregationBuilder that = (TimeSeriesAggregationBuilder) o;
         return keyed == that.keyed;
     }

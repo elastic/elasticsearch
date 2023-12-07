@@ -139,7 +139,9 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             logger.info("All shards failed with", ex);
             return null;
         } finally {
-            if (response != null) response.decRef();
+            if (response != null) {
+                response.decRef();
+            }
         }
     }
 

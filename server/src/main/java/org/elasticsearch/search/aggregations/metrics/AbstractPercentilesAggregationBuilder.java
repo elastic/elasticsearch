@@ -325,9 +325,15 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
 
         AbstractPercentilesAggregationBuilder<?> other = (AbstractPercentilesAggregationBuilder<?>) obj;
         return Objects.deepEquals(values, other.values)

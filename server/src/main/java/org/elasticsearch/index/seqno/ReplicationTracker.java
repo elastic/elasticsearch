@@ -708,14 +708,24 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             CheckpointState that = (CheckpointState) o;
 
-            if (localCheckpoint != that.localCheckpoint) return false;
-            if (globalCheckpoint != that.globalCheckpoint) return false;
-            if (inSync != that.inSync) return false;
+            if (localCheckpoint != that.localCheckpoint) {
+                return false;
+            }
+            if (globalCheckpoint != that.globalCheckpoint) {
+                return false;
+            }
+            if (inSync != that.inSync) {
+                return false;
+            }
             return tracked == that.tracked;
         }
 
@@ -1621,13 +1631,21 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             PrimaryContext that = (PrimaryContext) o;
 
-            if (clusterStateVersion != that.clusterStateVersion) return false;
-            if (routingTable.equals(that.routingTable)) return false;
+            if (clusterStateVersion != that.clusterStateVersion) {
+                return false;
+            }
+            if (routingTable.equals(that.routingTable)) {
+                return false;
+            }
             return routingTable.equals(that.routingTable);
         }
 

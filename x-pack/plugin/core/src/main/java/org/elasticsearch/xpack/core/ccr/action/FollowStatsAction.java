@@ -104,8 +104,12 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             StatsResponses that = (StatsResponses) o;
             return Objects.equals(statsResponse, that.statsResponse);
         }
@@ -167,8 +171,12 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             StatsRequest that = (StatsRequest) o;
             return Arrays.equals(indices, that.indices);
         }
@@ -202,8 +210,12 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             StatsResponse that = (StatsResponse) o;
             return Objects.equals(status, that.status);
         }

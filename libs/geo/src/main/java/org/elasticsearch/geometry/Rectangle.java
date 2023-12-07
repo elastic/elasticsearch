@@ -138,16 +138,30 @@ public class Rectangle implements Geometry {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Rectangle rectangle = (Rectangle) o;
 
-        if (Double.compare(rectangle.minY, minY) != 0) return false;
-        if (Double.compare(rectangle.minX, minX) != 0) return false;
-        if (Double.compare(rectangle.maxY, maxY) != 0) return false;
-        if (Double.compare(rectangle.maxX, maxX) != 0) return false;
-        if (Double.compare(rectangle.minZ, minZ) != 0) return false;
+        if (Double.compare(rectangle.minY, minY) != 0) {
+            return false;
+        }
+        if (Double.compare(rectangle.minX, minX) != 0) {
+            return false;
+        }
+        if (Double.compare(rectangle.maxY, maxY) != 0) {
+            return false;
+        }
+        if (Double.compare(rectangle.maxX, maxX) != 0) {
+            return false;
+        }
+        if (Double.compare(rectangle.minZ, minZ) != 0) {
+            return false;
+        }
         return Double.compare(rectangle.maxZ, maxZ) == 0;
 
     }

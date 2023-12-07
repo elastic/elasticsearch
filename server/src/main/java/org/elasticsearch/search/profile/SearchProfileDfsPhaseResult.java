@@ -102,8 +102,12 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchProfileDfsPhaseResult that = (SearchProfileDfsPhaseResult) o;
         return Objects.equals(dfsShardResult, that.dfsShardResult) && Objects.equals(queryProfileShardResult, that.queryProfileShardResult);
     }

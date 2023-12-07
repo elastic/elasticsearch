@@ -84,7 +84,9 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
     }
 
     private static void checkUniqueness(int id, String uniqueId) {
-        if (IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
+        if (IDS == null) {
+            throw new IllegalStateException("The IDS map needs to be present to call this method");
+        }
 
         Strings.requireNonEmpty(uniqueId, "Each TransformConfigVersion needs a unique string id");
         Integer existing = IDS.put(uniqueId, id);

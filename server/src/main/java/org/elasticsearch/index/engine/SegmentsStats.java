@@ -174,8 +174,12 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SegmentsStats that = (SegmentsStats) o;
         return count == that.count
             && indexWriterMemoryInBytes == that.indexWriterMemoryInBytes
@@ -328,8 +332,12 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             FileStats that = (FileStats) o;
             return Objects.equals(ext, that.ext) && total == that.total && count == that.count && min == that.min && max == that.max;
         }

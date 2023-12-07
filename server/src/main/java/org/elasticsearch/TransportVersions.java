@@ -37,7 +37,9 @@ public class TransportVersions {
     static TreeSet<Integer> IDS = new TreeSet<>();
 
     static TransportVersion def(int id) {
-        if (IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
+        if (IDS == null) {
+            throw new IllegalStateException("The IDS map needs to be present to call this method");
+        }
 
         if (IDS.add(id) == false) {
             throw new IllegalArgumentException("Version id " + id + " defined twice");

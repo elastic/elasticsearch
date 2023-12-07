@@ -310,8 +310,12 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         BoostedTreeParams that = (BoostedTreeParams) o;
         return Objects.equals(lambda, that.lambda)
             && Objects.equals(gamma, that.gamma)

@@ -38,8 +38,12 @@ public class DeletePipelineResponse extends ActionResponse {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DeletePipelineResponse that = (DeletePipelineResponse) o;
         return deleted == that.deleted;
     }

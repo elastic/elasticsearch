@@ -96,8 +96,12 @@ public class ConfigurationDependency implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConfigurationDependency that = (ConfigurationDependency) o;
         return Objects.equals(field, that.field) && Objects.equals(value, that.value);
     }

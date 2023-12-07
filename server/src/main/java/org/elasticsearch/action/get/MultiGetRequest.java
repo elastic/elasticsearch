@@ -207,19 +207,38 @@ public class MultiGetRequest extends ActionRequest
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Item) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof Item) == false) {
+                return false;
+            }
 
             Item item = (Item) o;
 
-            if (version != item.version) return false;
-            if (fetchSourceContext != null ? fetchSourceContext.equals(item.fetchSourceContext) == false : item.fetchSourceContext != null)
+            if (version != item.version) {
                 return false;
-            if (Arrays.equals(storedFields, item.storedFields) == false) return false;
-            if (id.equals(item.id) == false) return false;
-            if (index.equals(item.index) == false) return false;
-            if (routing != null ? routing.equals(item.routing) == false : item.routing != null) return false;
-            if (versionType != item.versionType) return false;
+            }
+            if (fetchSourceContext != null
+                ? fetchSourceContext.equals(item.fetchSourceContext) == false
+                : item.fetchSourceContext != null) {
+                return false;
+            }
+            if (Arrays.equals(storedFields, item.storedFields) == false) {
+                return false;
+            }
+            if (id.equals(item.id) == false) {
+                return false;
+            }
+            if (index.equals(item.index) == false) {
+                return false;
+            }
+            if (routing != null ? routing.equals(item.routing) == false : item.routing != null) {
+                return false;
+            }
+            if (versionType != item.versionType) {
+                return false;
+            }
 
             return true;
         }

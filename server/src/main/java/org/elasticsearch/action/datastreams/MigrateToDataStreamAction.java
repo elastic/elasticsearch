@@ -64,8 +64,12 @@ public class MigrateToDataStreamAction extends ActionType<AcknowledgedResponse> 
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             MigrateToDataStreamAction.Request request = (MigrateToDataStreamAction.Request) o;
             return aliasName.equals(request.aliasName);
         }

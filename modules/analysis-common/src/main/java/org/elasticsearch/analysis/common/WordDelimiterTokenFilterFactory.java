@@ -117,28 +117,42 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
             }
             String lhs = parseString(m.group(1).trim());
             Byte rhs = parseType(m.group(2).trim());
-            if (lhs.length() != 1) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Only a single character is allowed.");
-            if (rhs == null) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal type.");
+            if (lhs.length() != 1) {
+                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Only a single character is allowed.");
+            }
+            if (rhs == null) {
+                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal type.");
+            }
             typeMap.put(lhs.charAt(0), rhs);
         }
 
         // ensure the table is always at least as big as DEFAULT_WORD_DELIM_TABLE for performance
         byte types[] = new byte[Math.max(typeMap.lastKey() + 1, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE.length)];
-        for (int i = 0; i < types.length; i++)
+        for (int i = 0; i < types.length; i++) {
             types[i] = WordDelimiterIterator.getType(i);
-        for (Map.Entry<Character, Byte> mapping : typeMap.entrySet())
+        }
+        for (Map.Entry<Character, Byte> mapping : typeMap.entrySet()) {
             types[mapping.getKey()] = mapping.getValue();
+        }
         return types;
     }
 
     private static Byte parseType(String s) {
-        if (s.equals("LOWER")) return WordDelimiterFilter.LOWER;
-        else if (s.equals("UPPER")) return WordDelimiterFilter.UPPER;
-        else if (s.equals("ALPHA")) return WordDelimiterFilter.ALPHA;
-        else if (s.equals("DIGIT")) return WordDelimiterFilter.DIGIT;
-        else if (s.equals("ALPHANUM")) return WordDelimiterFilter.ALPHANUM;
-        else if (s.equals("SUBWORD_DELIM")) return WordDelimiterFilter.SUBWORD_DELIM;
-        else return null;
+        if (s.equals("LOWER")) {
+            return WordDelimiterFilter.LOWER;
+        } else if (s.equals("UPPER")) {
+            return WordDelimiterFilter.UPPER;
+        } else if (s.equals("ALPHA")) {
+            return WordDelimiterFilter.ALPHA;
+        } else if (s.equals("DIGIT")) {
+            return WordDelimiterFilter.DIGIT;
+        } else if (s.equals("ALPHANUM")) {
+            return WordDelimiterFilter.ALPHANUM;
+        } else if (s.equals("SUBWORD_DELIM")) {
+            return WordDelimiterFilter.SUBWORD_DELIM;
+        } else {
+            return null;
+        }
     }
 
     private static String parseString(String s) {
@@ -149,7 +163,9 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         while (readPos < len) {
             char c = s.charAt(readPos++);
             if (c == '\\') {
-                if (readPos >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                if (readPos >= len) {
+                    throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                }
                 c = s.charAt(readPos++);
                 switch (c) {
                     case '\\' -> c = '\\';
@@ -159,7 +175,9 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
                     case 'b' -> c = '\b';
                     case 'f' -> c = '\f';
                     case 'u' -> {
-                        if (readPos + 3 >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                        if (readPos + 3 >= len) {
+                            throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                        }
                         c = (char) Integer.parseInt(s.substring(readPos, readPos + 4), 16);
                         readPos += 4;
                     }

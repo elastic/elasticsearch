@@ -77,8 +77,12 @@ public class JiraIssue implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         JiraIssue issue = (JiraIssue) o;
         return Objects.equals(account, issue.account)

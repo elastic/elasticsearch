@@ -45,7 +45,9 @@ public class InputStreamStreamInput extends StreamInput {
     @Override
     public byte readByte() throws IOException {
         int ch = is.read();
-        if (ch < 0) throw new EOFException();
+        if (ch < 0) {
+            throw new EOFException();
+        }
         return (byte) (ch);
     }
 

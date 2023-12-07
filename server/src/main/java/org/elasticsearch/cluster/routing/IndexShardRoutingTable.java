@@ -472,12 +472,18 @@ public class IndexShardRoutingTable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
-        if (shardId.equals(that.shardId) == false) return false;
+        if (shardId.equals(that.shardId) == false) {
+            return false;
+        }
         return Arrays.equals(shards, that.shards);
     }
 

@@ -797,7 +797,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY); i++) {
             assertResponse(client().prepareSearch("index").setSize(1).setScroll("1m"), searchResponse -> {
-                if (randomInt(4) == 0) clearScrollIds.addLast(searchResponse.getScrollId());
+                if (randomInt(4) == 0) {
+                    clearScrollIds.addLast(searchResponse.getScrollId());
+                }
             });
         }
 

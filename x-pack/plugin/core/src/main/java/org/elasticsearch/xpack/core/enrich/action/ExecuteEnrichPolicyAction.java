@@ -71,8 +71,12 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return waitForCompletion == request.waitForCompletion && Objects.equals(name, request.name);
         }

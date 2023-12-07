@@ -66,8 +66,12 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GeometryCollection<?> that = (GeometryCollection<?>) o;
         return Objects.equals(shapes, that.shapes);
     }

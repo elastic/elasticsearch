@@ -123,19 +123,27 @@ public final class DerParser {
     private int getLength() throws IOException {
 
         int i = derInputStream.read();
-        if (i == -1) throw new IOException("Invalid DER: length missing");
+        if (i == -1) {
+            throw new IOException("Invalid DER: length missing");
+        }
 
         // A single byte short length
-        if ((i & ~0x7F) == 0) return i;
+        if ((i & ~0x7F) == 0) {
+            return i;
+        }
 
         int num = i & 0x7F;
 
         // We can't handle length longer than 4 bytes
-        if (i >= 0xFF || num > 4) throw new IOException("Invalid DER: length field too big (" + i + ")"); //$NON-NLS-2$
+        if (i >= 0xFF || num > 4) {
+            throw new IOException("Invalid DER: length field too big (" + i + ")"); //$NON-NLS-2$
+        }
 
         byte[] bytes = new byte[num];
         int n = derInputStream.read(bytes);
-        if (n < num) throw new IOException("Invalid DER: length too short");
+        if (n < num) {
+            throw new IOException("Invalid DER: length too short");
+        }
 
         return new BigInteger(1, bytes).intValue();
     }
@@ -220,7 +228,9 @@ public final class DerParser {
          * @return BigInteger
          */
         public BigInteger getInteger() throws IOException {
-            if (type != Type.INTEGER) throw new IOException("Invalid DER: object is not integer"); //$NON-NLS-1$
+            if (type != Type.INTEGER) {
+                throw new IOException("Invalid DER: object is not integer"); //$NON-NLS-1$
+            }
 
             return new BigInteger(value);
         }

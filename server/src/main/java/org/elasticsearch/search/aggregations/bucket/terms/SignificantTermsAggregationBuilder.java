@@ -345,9 +345,15 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         SignificantTermsAggregationBuilder other = (SignificantTermsAggregationBuilder) obj;
         return Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
             && Objects.equals(executionHint, other.executionHint)

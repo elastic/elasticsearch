@@ -227,8 +227,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         return entries.equals(((SnapshotsInProgress) o).entries);
     }
 
@@ -621,8 +625,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ShardSnapshotStatus status = (ShardSnapshotStatus) o;
             return Objects.equals(nodeId, status.nodeId)
                 && Objects.equals(reason, status.reason)
@@ -1205,26 +1213,60 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Entry entry = (Entry) o;
 
-            if (includeGlobalState != entry.includeGlobalState) return false;
-            if (partial != entry.partial) return false;
-            if (startTime != entry.startTime) return false;
-            if (indices.equals(entry.indices) == false) return false;
-            if (dataStreams.equals(entry.dataStreams) == false) return false;
-            if (shards.equals(entry.shards) == false) return false;
-            if (snapshot.equals(entry.snapshot) == false) return false;
-            if (state != entry.state) return false;
-            if (repositoryStateId != entry.repositoryStateId) return false;
-            if (Objects.equals(failure, ((Entry) o).failure) == false) return false;
-            if (Objects.equals(userMetadata, ((Entry) o).userMetadata) == false) return false;
-            if (version.equals(entry.version) == false) return false;
-            if (Objects.equals(source, ((Entry) o).source) == false) return false;
-            if (shardStatusByRepoShardId.equals(((Entry) o).shardStatusByRepoShardId) == false) return false;
-            if (featureStates.equals(entry.featureStates) == false) return false;
+            if (includeGlobalState != entry.includeGlobalState) {
+                return false;
+            }
+            if (partial != entry.partial) {
+                return false;
+            }
+            if (startTime != entry.startTime) {
+                return false;
+            }
+            if (indices.equals(entry.indices) == false) {
+                return false;
+            }
+            if (dataStreams.equals(entry.dataStreams) == false) {
+                return false;
+            }
+            if (shards.equals(entry.shards) == false) {
+                return false;
+            }
+            if (snapshot.equals(entry.snapshot) == false) {
+                return false;
+            }
+            if (state != entry.state) {
+                return false;
+            }
+            if (repositoryStateId != entry.repositoryStateId) {
+                return false;
+            }
+            if (Objects.equals(failure, ((Entry) o).failure) == false) {
+                return false;
+            }
+            if (Objects.equals(userMetadata, ((Entry) o).userMetadata) == false) {
+                return false;
+            }
+            if (version.equals(entry.version) == false) {
+                return false;
+            }
+            if (Objects.equals(source, ((Entry) o).source) == false) {
+                return false;
+            }
+            if (shardStatusByRepoShardId.equals(((Entry) o).shardStatusByRepoShardId) == false) {
+                return false;
+            }
+            if (featureStates.equals(entry.featureStates) == false) {
+                return false;
+            }
 
             return true;
         }

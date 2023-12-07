@@ -207,13 +207,21 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         GeoPoint geoPoint = (GeoPoint) o;
 
-        if (Double.compare(geoPoint.lat, lat) != 0) return false;
-        if (Double.compare(geoPoint.lon, lon) != 0) return false;
+        if (Double.compare(geoPoint.lat, lat) != 0) {
+            return false;
+        }
+        if (Double.compare(geoPoint.lon, lon) != 0) {
+            return false;
+        }
 
         return true;
     }

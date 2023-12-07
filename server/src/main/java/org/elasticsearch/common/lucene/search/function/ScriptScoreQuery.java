@@ -191,8 +191,12 @@ public class ScriptScoreQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (sameClassAs(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (sameClassAs(o) == false) {
+            return false;
+        }
         ScriptScoreQuery that = (ScriptScoreQuery) o;
         return shardId == that.shardId
             && subQuery.equals(that.subQuery)

@@ -188,8 +188,12 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TrainedModelDefinitionDoc that = (TrainedModelDefinitionDoc) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(docNum, that.docNum)

@@ -38,8 +38,12 @@ public class SlackMessageDefaults {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         SlackMessageDefaults defaults = (SlackMessageDefaults) o;
 
@@ -103,8 +107,12 @@ public class SlackMessageDefaults {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             AttachmentDefaults that = (AttachmentDefaults) o;
 
@@ -160,8 +168,12 @@ public class SlackMessageDefaults {
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
 
                 FieldDefaults that = (FieldDefaults) o;
 

@@ -119,8 +119,12 @@ public class SnapshotInvocationRecord implements SimpleDiffable<SnapshotInvocati
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SnapshotInvocationRecord that = (SnapshotInvocationRecord) o;
         return getSnapshotFinishTimestamp() == that.getSnapshotFinishTimestamp()
             && Objects.equals(getSnapshotStartTimestamp(), that.getSnapshotStartTimestamp())

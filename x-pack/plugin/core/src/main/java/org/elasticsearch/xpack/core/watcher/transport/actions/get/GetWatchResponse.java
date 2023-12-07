@@ -134,8 +134,12 @@ public class GetWatchResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetWatchResponse that = (GetWatchResponse) o;
         return version == that.version
             && seqNo == that.seqNo

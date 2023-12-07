@@ -72,8 +72,12 @@ public class Explain extends LeafPlan {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Explain explain = (Explain) o;
         return Objects.equals(query, explain.query);
     }

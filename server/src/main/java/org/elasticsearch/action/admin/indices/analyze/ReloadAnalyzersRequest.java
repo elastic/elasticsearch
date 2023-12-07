@@ -65,8 +65,12 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ReloadAnalyzersRequest that = (ReloadAnalyzersRequest) o;
         return preview == that.preview && Objects.equals(resource, that.resource);
     }

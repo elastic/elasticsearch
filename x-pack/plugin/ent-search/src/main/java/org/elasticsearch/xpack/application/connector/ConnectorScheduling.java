@@ -108,8 +108,12 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConnectorScheduling that = (ConnectorScheduling) o;
         return Objects.equals(accessControl, that.accessControl)
             && Objects.equals(full, that.full)
@@ -206,8 +210,12 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ScheduleConfig that = (ScheduleConfig) o;
             return enabled == that.enabled && Objects.equals(interval, that.interval);
         }

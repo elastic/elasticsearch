@@ -73,8 +73,12 @@ public class Attachment implements MessageElement {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Attachment that = (Attachment) o;
         return Objects.equals(fallback, that.fallback)
@@ -278,8 +282,12 @@ public class Attachment implements MessageElement {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Template template = (Template) o;
 

@@ -179,8 +179,12 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     protected static JtsGeometry jtsGeometry(Geometry geom) {
         // dateline180Check is false because ElasticSearch does it's own dateline wrapping
         JtsGeometry jtsGeometry = new JtsGeometry(geom, SPATIAL_CONTEXT, false, MULTI_POLYGON_MAY_OVERLAP);
-        if (AUTO_VALIDATE_JTS_GEOMETRY) jtsGeometry.validate();
-        if (AUTO_INDEX_JTS_GEOMETRY) jtsGeometry.index();
+        if (AUTO_VALIDATE_JTS_GEOMETRY) {
+            jtsGeometry.validate();
+        }
+        if (AUTO_INDEX_JTS_GEOMETRY) {
+            jtsGeometry.index();
+        }
         return jtsGeometry;
     }
 
@@ -463,8 +467,12 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof ShapeBuilder) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof ShapeBuilder) == false) {
+            return false;
+        }
 
         ShapeBuilder<?, ?, ?> that = (ShapeBuilder<?, ?, ?>) o;
 

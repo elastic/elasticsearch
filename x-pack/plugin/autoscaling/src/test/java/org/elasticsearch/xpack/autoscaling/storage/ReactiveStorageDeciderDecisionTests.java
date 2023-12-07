@@ -124,11 +124,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private final AllocationDecider mockCanRemainDiskDecider = new AllocationDecider() {
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            if (subjectShards.contains(shardRouting.shardId()) && node.node().getName().startsWith("hot")) return allocation.decision(
-                Decision.NO,
-                DiskThresholdDecider.NAME,
-                "test"
-            );
+            if (subjectShards.contains(shardRouting.shardId()) && node.node().getName().startsWith("hot")) {
+                return allocation.decision(Decision.NO, DiskThresholdDecider.NAME, "test");
+            }
             return super.canRemain(indexMetadata, shardRouting, node, allocation);
         }
     };

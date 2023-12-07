@@ -50,7 +50,9 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     }
 
     public void add(@Nullable NodeMappingStats other) {
-        if (other == null) return;
+        if (other == null) {
+            return;
+        }
         this.totalCount += other.totalCount;
         this.totalEstimatedOverhead += other.totalEstimatedOverhead;
     }
@@ -80,8 +82,12 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         NodeMappingStats that = (NodeMappingStats) o;
         return totalCount == that.totalCount && totalEstimatedOverhead == that.totalEstimatedOverhead;
     }

@@ -100,9 +100,15 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         Max other = (Max) obj;
         return Objects.equals(max, other.max);
     }

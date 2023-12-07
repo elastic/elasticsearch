@@ -83,8 +83,12 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         FieldMemoryStats that = (FieldMemoryStats) o;
         return Objects.equals(stats, that.stats);
     }

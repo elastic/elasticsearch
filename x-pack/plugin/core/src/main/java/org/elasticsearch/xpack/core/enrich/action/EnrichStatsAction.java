@@ -115,8 +115,12 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return executingPolicies.equals(response.executingPolicies)
                 && coordinatorStats.equals(response.coordinatorStats)
@@ -195,8 +199,12 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 CoordinatorStats stats = (CoordinatorStats) o;
                 return Objects.equals(nodeId, stats.nodeId)
                     && queueSize == stats.queueSize
@@ -252,8 +260,12 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 ExecutingPolicy that = (ExecutingPolicy) o;
                 return name.equals(that.name) && taskInfo.equals(that.taskInfo);
             }
@@ -325,8 +337,12 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 CacheStats that = (CacheStats) o;
                 return count == that.count
                     && hits == that.hits

@@ -580,8 +580,12 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Settings that = (Settings) o;
         return Objects.equals(settings, that.settings);
@@ -738,8 +742,9 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
             // ensure we reached the end of the stream
             XContentParser.Token lastToken = null;
             try {
-                while (parser.isClosed() == false && (lastToken = parser.nextToken()) == null)
+                while (parser.isClosed() == false && (lastToken = parser.nextToken()) == null) {
                     ;
+                }
             } catch (Exception e) {
                 throw new ElasticsearchParseException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "

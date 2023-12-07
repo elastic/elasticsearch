@@ -143,8 +143,12 @@ public class MemoryUsage implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == this) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         MemoryUsage other = (MemoryUsage) o;
         return Objects.equals(jobId, other.jobId)

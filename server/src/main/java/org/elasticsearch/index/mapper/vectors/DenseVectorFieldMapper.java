@@ -877,8 +877,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Int8HnswIndexOptions that = (Int8HnswIndexOptions) o;
             return m == that.m && efConstruction == that.efConstruction && Objects.equals(confidenceInterval, that.confidenceInterval);
         }
@@ -929,8 +933,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             HnswIndexOptions that = (HnswIndexOptions) o;
             return m == that.m && efConstruction == that.efConstruction;
         }

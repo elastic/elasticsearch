@@ -83,7 +83,9 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
             } finally {
                 // Close the classloader to free resources:
                 try {
-                    if (urlLoader != null) urlLoader.close();
+                    if (urlLoader != null) {
+                        urlLoader.close();
+                    }
                 } catch (IOException ioe) {
                     // getLogger().warn("Cannot close classloader: ".concat(ioe.toString()));
                 }

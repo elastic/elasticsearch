@@ -43,8 +43,12 @@ public final class FieldPermissionsDefinition implements CacheKey {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         FieldPermissionsDefinition that = (FieldPermissionsDefinition) o;
 
@@ -85,12 +89,18 @@ public final class FieldPermissionsDefinition implements CacheKey {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             FieldGrantExcludeGroup that = (FieldGrantExcludeGroup) o;
 
-            if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
+            if (Arrays.equals(grantedFields, that.grantedFields) == false) {
+                return false;
+            }
             return Arrays.equals(excludedFields, that.excludedFields);
         }
 

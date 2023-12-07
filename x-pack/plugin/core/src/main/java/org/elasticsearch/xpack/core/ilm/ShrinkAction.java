@@ -303,8 +303,12 @@ public class ShrinkAction implements LifecycleAction {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ShrinkAction that = (ShrinkAction) o;
         return Objects.equals(numberOfShards, that.numberOfShards) && Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
     }

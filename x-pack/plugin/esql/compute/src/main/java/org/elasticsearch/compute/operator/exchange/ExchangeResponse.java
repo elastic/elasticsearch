@@ -65,8 +65,12 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ExchangeResponse response = (ExchangeResponse) o;
         return finished == response.finished && Objects.equals(page, response.page);
     }

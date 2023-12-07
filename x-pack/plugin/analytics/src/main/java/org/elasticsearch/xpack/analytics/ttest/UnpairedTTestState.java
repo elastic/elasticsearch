@@ -106,8 +106,12 @@ public class UnpairedTTestState implements TTestState {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         UnpairedTTestState that = (UnpairedTTestState) o;
         return homoscedastic == that.homoscedastic && tails == that.tails && a.equals(that.a) && b.equals(that.b);
     }

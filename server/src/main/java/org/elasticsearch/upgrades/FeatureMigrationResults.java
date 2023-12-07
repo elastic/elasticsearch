@@ -132,8 +132,12 @@ public class FeatureMigrationResults implements Metadata.Custom {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof FeatureMigrationResults) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof FeatureMigrationResults) == false) {
+            return false;
+        }
         FeatureMigrationResults that = (FeatureMigrationResults) o;
         return featureStatuses.equals(that.featureStatuses);
     }

@@ -107,8 +107,12 @@ public final class Polygon implements Geometry {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Polygon polygon1 = (Polygon) o;
         return Objects.equals(polygon, polygon1.polygon) && Objects.equals(holes, polygon1.holes);
     }

@@ -62,7 +62,9 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
         @Override
         public boolean equals(Object o) {
             // There are no parameters, so all instances of this class are equal
-            if (this == o) return true;
+            if (this == o) {
+                return true;
+            }
             return o != null && getClass() == o.getClass();
         }
 
@@ -110,8 +112,12 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             MasterHistoryAction.Response response = (MasterHistoryAction.Response) o;
             return masterHistory.equals(response.masterHistory);
         }

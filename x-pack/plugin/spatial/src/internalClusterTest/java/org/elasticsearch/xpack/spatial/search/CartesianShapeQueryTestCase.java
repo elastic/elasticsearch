@@ -54,7 +54,9 @@ public abstract class CartesianShapeQueryTestCase extends BaseShapeQueryTestCase
 
     protected GeometryCollection<Geometry> makeRandomGeometryCollectionWithoutCircle(Geometry... extra) {
         GeometryCollection<Geometry> randomCollection = ShapeTestUtils.randomGeometryCollectionWithoutCircle(false);
-        if (extra.length == 0) return randomCollection;
+        if (extra.length == 0) {
+            return randomCollection;
+        }
 
         List<Geometry> geometries = new ArrayList<>();
         for (Geometry geometry : randomCollection) {

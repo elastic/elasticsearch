@@ -188,8 +188,12 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(from, request.from)
                 && Objects.equals(size, request.size)
@@ -250,8 +254,12 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return watchTotalCount == response.watchTotalCount && watches.equals(response.watches);
         }
@@ -326,8 +334,12 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 Item item = (Item) o;
                 return seqNo == item.seqNo && primaryTerm == item.primaryTerm && id.equals(item.id) && source.equals(item.source);
             }

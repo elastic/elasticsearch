@@ -146,8 +146,12 @@ public class QueryRuleset implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         QueryRuleset that = (QueryRuleset) o;
         return id.equals(that.id) && Objects.equals(rules, that.rules);
     }

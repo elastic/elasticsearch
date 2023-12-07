@@ -74,8 +74,12 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(rulesetId, request.rulesetId);
         }
@@ -145,8 +149,12 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return Objects.equals(queryRuleset, response.queryRuleset);
         }

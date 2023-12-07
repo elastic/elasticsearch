@@ -71,8 +71,12 @@ public class VocabularyConfig implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         VocabularyConfig that = (VocabularyConfig) o;
         return Objects.equals(index, that.index);

@@ -48,9 +48,15 @@ public abstract class RegexExtractExec extends UnaryExec implements EstimatesRow
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         RegexExtractExec that = (RegexExtractExec) o;
         return Objects.equals(inputExpression, that.inputExpression) && Objects.equals(extractedFields, that.extractedFields);
     }

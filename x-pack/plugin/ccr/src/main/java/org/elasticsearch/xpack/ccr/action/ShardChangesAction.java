@@ -176,8 +176,12 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
         @Override
         public boolean equals(final Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             final Request request = (Request) o;
             return fromSeqNo == request.fromSeqNo
                 && maxOperationCount == request.maxOperationCount
@@ -314,8 +318,12 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
         @Override
         public boolean equals(final Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             final Response that = (Response) o;
             return mappingVersion == that.mappingVersion
                 && settingsVersion == that.settingsVersion

@@ -53,8 +53,12 @@ public class GetAsyncStatusRequest extends ActionRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetAsyncStatusRequest request = (GetAsyncStatusRequest) o;
         return Objects.equals(id, request.id);
     }

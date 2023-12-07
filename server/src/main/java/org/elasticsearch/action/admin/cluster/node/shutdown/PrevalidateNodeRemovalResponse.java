@@ -52,8 +52,12 @@ public class PrevalidateNodeRemovalResponse extends ActionResponse implements To
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o instanceof PrevalidateNodeRemovalResponse == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o instanceof PrevalidateNodeRemovalResponse == false) {
+            return false;
+        }
         PrevalidateNodeRemovalResponse other = (PrevalidateNodeRemovalResponse) o;
         return Objects.equals(prevalidation, other.prevalidation);
     }

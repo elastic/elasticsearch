@@ -44,8 +44,12 @@ public class NodePrevalidateShardPathResponse extends BaseNodeResponse {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o instanceof NodePrevalidateShardPathResponse == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o instanceof NodePrevalidateShardPathResponse == false) {
+            return false;
+        }
         NodePrevalidateShardPathResponse other = (NodePrevalidateShardPathResponse) o;
         return Objects.equals(shardIds, other.shardIds) && Objects.equals(getNode(), other.getNode());
     }

@@ -70,9 +70,9 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     }
 
     private void checkBufferSize(int bufferSize) {
-        if (bufferSize < MIN_BUFFER_SIZE) throw new IllegalArgumentException(
-            "bufferSize must be at least MIN_BUFFER_SIZE (got " + bufferSize + ")"
-        );
+        if (bufferSize < MIN_BUFFER_SIZE) {
+            throw new IllegalArgumentException("bufferSize must be at least MIN_BUFFER_SIZE (got " + bufferSize + ")");
+        }
     }
 
     @Override
@@ -86,7 +86,9 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
         if (len <= available) {
             // the buffer contains enough data to satisfy this request
             if (len > 0) // to allow b to be null if len is 0...
+            {
                 buffer.get(b, offset, len);
+            }
         } else {
             // the buffer does not have enough data. First serve all we've got.
             if (available > 0) {
@@ -117,7 +119,9 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
                 } // else there's no need to do a seek here because we are already positioned correctly
 
                 long after = bufferStart + buffer.position() + len;
-                if (after > length()) throw new EOFException("read past EOF: " + this);
+                if (after > length()) {
+                    throw new EOFException("read past EOF: " + this);
+                }
                 readInternal(ByteBuffer.wrap(b, offset, len));
                 bufferStart = after;
                 buffer.limit(0); // trigger refill() on read
@@ -278,9 +282,13 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
         long start = bufferStart + buffer.position();
         long end = start + bufferSize;
         if (end > length()) // don't read past EOF
+        {
             end = length();
+        }
         int newLength = (int) (end - start);
-        if (newLength <= 0) throw new EOFException("read past EOF: " + this);
+        if (newLength <= 0) {
+            throw new EOFException("read past EOF: " + this);
+        }
 
         if (buffer == EMPTY_BYTEBUFFER) {
             buffer = ByteBuffer.allocate(bufferSize).order(ByteOrder.LITTLE_ENDIAN); // allocate buffer lazily
@@ -311,8 +319,9 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
 
     @Override
     public final void seek(long pos) throws IOException {
-        if (pos >= bufferStart && pos < (bufferStart + buffer.limit())) buffer.position((int) (pos - bufferStart)); // seek within buffer
-        else {
+        if (pos >= bufferStart && pos < (bufferStart + buffer.limit())) {
+            buffer.position((int) (pos - bufferStart)); // seek within buffer
+        } else {
             bufferStart = pos;
             buffer.limit(0); // trigger refill() on read
             seekInternal(pos);

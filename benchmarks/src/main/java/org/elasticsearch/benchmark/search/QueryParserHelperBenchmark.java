@@ -112,8 +112,12 @@ public class QueryParserHelperBenchmark {
     private SourceToParse buildDoc(int docId) {
         List<String> fields = new ArrayList<>();
         for (int i = 0; i < NUMBER_OF_MAPPING_FIELDS; i++) {
-            if (i % 2 == 0) continue;
-            if (i % 3 == 0 && (docId < (NUMBER_OF_MAPPING_FIELDS / 2))) continue;
+            if (i % 2 == 0) {
+                continue;
+            }
+            if (i % 3 == 0 && (docId < (NUMBER_OF_MAPPING_FIELDS / 2))) {
+                continue;
+            }
             fields.add(String.format("""
                 "field%d":1""", i));
         }

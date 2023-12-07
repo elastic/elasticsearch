@@ -93,7 +93,9 @@ public class KoelnerPhonetik implements StringEncoder {
 
     @Override
     public String encode(String str) throws EncoderException {
-        if (str == null) return null;
+        if (str == null) {
+            return null;
+        }
         String[] s = code(str.toString());
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < s.length; i++) {

@@ -153,8 +153,12 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         LogisticRegression that = (LogisticRegression) o;
         return Arrays.equals(weights, that.weights);
     }

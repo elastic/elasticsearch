@@ -119,8 +119,12 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
      */
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PostFeatureUpgradeResponse that = (PostFeatureUpgradeResponse) o;
         return accepted == that.accepted && Objects.equals(features, that.features) && Objects.equals(reason, that.reason);
     }
@@ -188,8 +192,12 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Feature feature = (Feature) o;
             return Objects.equals(featureName, feature.featureName);
         }

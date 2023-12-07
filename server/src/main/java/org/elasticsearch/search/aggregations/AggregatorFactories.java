@@ -574,12 +574,20 @@ public class AggregatorFactories {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null) return false;
-            if (getClass() != obj.getClass()) return false;
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
             Builder other = (Builder) obj;
 
-            if (Objects.equals(aggregationBuilders, other.aggregationBuilders) == false) return false;
-            if (Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders) == false) return false;
+            if (Objects.equals(aggregationBuilders, other.aggregationBuilders) == false) {
+                return false;
+            }
+            if (Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders) == false) {
+                return false;
+            }
             return true;
         }
 

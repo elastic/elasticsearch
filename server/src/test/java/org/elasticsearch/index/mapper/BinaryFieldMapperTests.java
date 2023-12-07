@@ -132,7 +132,9 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        if (rarely()) return null;
+        if (rarely()) {
+            return null;
+        }
         byte[] value = randomByteArrayOfLength(randomIntBetween(1, 50));
         return Base64.getEncoder().encodeToString(value);
     }

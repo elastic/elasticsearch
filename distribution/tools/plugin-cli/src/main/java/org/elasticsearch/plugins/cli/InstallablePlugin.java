@@ -55,8 +55,12 @@ public class InstallablePlugin {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         InstallablePlugin that = (InstallablePlugin) o;
         return id.equals(that.id) && Objects.equals(location, that.location);
     }

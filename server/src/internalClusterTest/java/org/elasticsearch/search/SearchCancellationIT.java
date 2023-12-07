@@ -233,7 +233,9 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                 }
             }
         } finally {
-            if (response != null) response.decRef();
+            if (response != null) {
+                response.decRef();
+            }
         }
     }
 

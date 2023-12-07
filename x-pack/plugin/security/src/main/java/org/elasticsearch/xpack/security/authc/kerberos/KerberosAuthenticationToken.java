@@ -105,9 +105,15 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     @Override
     public boolean equals(final Object other) {
-        if (this == other) return true;
-        if (other == null) return false;
-        if (getClass() != other.getClass()) return false;
+        if (this == other) {
+            return true;
+        }
+        if (other == null) {
+            return false;
+        }
+        if (getClass() != other.getClass()) {
+            return false;
+        }
         final KerberosAuthenticationToken otherKerbToken = (KerberosAuthenticationToken) other;
         return Arrays.equals(otherKerbToken.decodedToken, this.decodedToken);
     }

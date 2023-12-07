@@ -53,12 +53,18 @@ public interface Payload extends ToXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Simple simple = (Simple) o;
 
-            if (data.equals(simple.data) == false) return false;
+            if (data.equals(simple.data) == false) {
+                return false;
+            }
 
             return true;
         }

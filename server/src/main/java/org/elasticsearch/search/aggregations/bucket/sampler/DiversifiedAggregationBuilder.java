@@ -172,9 +172,15 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         DiversifiedAggregationBuilder other = (DiversifiedAggregationBuilder) obj;
         return Objects.equals(shardSize, other.shardSize)
             && Objects.equals(maxDocsPerValue, other.maxDocsPerValue)

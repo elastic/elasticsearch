@@ -275,8 +275,12 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DesiredNodes that = (DesiredNodes) o;
         return version == that.version && Objects.equals(historyID, that.historyID) && Objects.equals(nodes, that.nodes);
     }

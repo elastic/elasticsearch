@@ -72,8 +72,9 @@ public class IntermittentLongGCDisruption extends LongGCDisruption {
         logger.info("node [{}] goes into GC for for [{}]", disruptedNode, duration);
         final Set<Thread> nodeThreads = new HashSet<>();
         try {
-            while (suspendThreads(nodeThreads))
+            while (suspendThreads(nodeThreads)) {
                 ;
+            }
             if (nodeThreads.isEmpty() == false) {
                 Thread.sleep(duration.millis());
             }

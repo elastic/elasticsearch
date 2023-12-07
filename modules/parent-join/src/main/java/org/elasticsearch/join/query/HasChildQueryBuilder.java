@@ -437,15 +437,27 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public boolean equals(Object o) {
-            if (sameClassAs(o) == false) return false;
+            if (sameClassAs(o) == false) {
+                return false;
+            }
 
             LateParsingQuery that = (LateParsingQuery) o;
 
-            if (minChildren != that.minChildren) return false;
-            if (maxChildren != that.maxChildren) return false;
-            if (toQuery.equals(that.toQuery) == false) return false;
-            if (innerQuery.equals(that.innerQuery) == false) return false;
-            if (joinField.equals(that.joinField) == false) return false;
+            if (minChildren != that.minChildren) {
+                return false;
+            }
+            if (maxChildren != that.maxChildren) {
+                return false;
+            }
+            if (toQuery.equals(that.toQuery) == false) {
+                return false;
+            }
+            if (innerQuery.equals(that.innerQuery) == false) {
+                return false;
+            }
+            if (joinField.equals(that.joinField) == false) {
+                return false;
+            }
             return scoreMode == that.scoreMode;
         }
 

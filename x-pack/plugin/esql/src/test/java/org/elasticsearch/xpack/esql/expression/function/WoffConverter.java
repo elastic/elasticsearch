@@ -124,7 +124,9 @@ class WoffConverter {
         for (HashMap<String, Number> tableRecordEntry : tableRecordEntries) {
             int tableRecordEntryOffset = (Integer) tableRecordEntry.get("offset");
             int skipBytes = tableRecordEntryOffset - readOffset;
-            if (skipBytes > 0) woffFileStream.skip(skipBytes);
+            if (skipBytes > 0) {
+                woffFileStream.skip(skipBytes);
+            }
             readOffset += skipBytes;
             int compressedLength = (Integer) tableRecordEntry.get("compLength");
             int origLength = (Integer) tableRecordEntry.get("origLength");
@@ -139,7 +141,9 @@ class WoffConverter {
             ttfOutputStream.write(inflatedFontData);
             offset = (Integer) tableRecordEntry.get("outOffset") + (Integer) tableRecordEntry.get("origLength");
             int padding = 0;
-            if (offset % 4 != 0) padding = 4 - (offset % 4);
+            if (offset % 4 != 0) {
+                padding = 4 - (offset % 4);
+            }
             ttfOutputStream.write(getBytes(0), 0, padding);
         }
     }
@@ -153,7 +157,9 @@ class WoffConverter {
             } catch (DataFormatException e) {
                 throw new IllegalArgumentException("Malformed woff file");
             }
-        } else inflatedFontData = fontData;
+        } else {
+            inflatedFontData = fontData;
+        }
         return inflatedFontData;
     }
 

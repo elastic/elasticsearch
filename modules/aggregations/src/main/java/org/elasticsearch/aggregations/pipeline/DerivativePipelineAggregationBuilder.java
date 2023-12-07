@@ -239,9 +239,15 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         DerivativePipelineAggregationBuilder other = (DerivativePipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format) && gapPolicy == other.gapPolicy && Objects.equals(units, other.units);
     }

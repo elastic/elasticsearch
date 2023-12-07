@@ -179,8 +179,12 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         BoundingBox<?> that = (BoundingBox<?>) o;
         return topLeft.equals(that.topLeft) && bottomRight.equals(that.bottomRight);
     }

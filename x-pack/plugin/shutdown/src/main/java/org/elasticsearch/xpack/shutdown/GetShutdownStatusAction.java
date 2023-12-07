@@ -66,8 +66,12 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Request) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof Request) == false) {
+                return false;
+            }
             Request request = (Request) o;
             return Arrays.equals(nodeIds, request.nodeIds);
         }
@@ -116,8 +120,12 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Response) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof Response) == false) {
+                return false;
+            }
             Response response = (Response) o;
             return shutdownStatuses.equals(response.shutdownStatuses);
         }

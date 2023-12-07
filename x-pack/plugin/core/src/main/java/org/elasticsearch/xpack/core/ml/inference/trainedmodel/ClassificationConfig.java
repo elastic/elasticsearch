@@ -151,8 +151,12 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ClassificationConfig that = (ClassificationConfig) o;
         return Objects.equals(numTopClasses, that.numTopClasses)
             && Objects.equals(topClassesResultsField, that.topClassesResultsField)

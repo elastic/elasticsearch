@@ -237,11 +237,19 @@ public final class IndicesFieldDataCache implements RemovalListener<IndicesField
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Key key = (Key) o;
-            if (indexCache.equals(key.indexCache) == false) return false;
-            if (readerKey.equals(key.readerKey) == false) return false;
+            if (indexCache.equals(key.indexCache) == false) {
+                return false;
+            }
+            if (readerKey.equals(key.readerKey) == false) {
+                return false;
+            }
             return true;
         }
 

@@ -154,8 +154,12 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             GetComposableIndexTemplateAction.Response that = (GetComposableIndexTemplateAction.Response) o;
             return Objects.equals(indexTemplates, that.indexTemplates) && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
         }

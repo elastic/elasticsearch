@@ -792,7 +792,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
     }
 
     private void assertRepositoryBlocked(String repo, String existingSnapshot) {
-        if (getRepositoryMetadata(repo).generation() == RepositoryData.CORRUPTED_REPO_GEN) return;
+        if (getRepositoryMetadata(repo).generation() == RepositoryData.CORRUPTED_REPO_GEN) {
+            return;
+        }
 
         logger.info("--> try to delete snapshot");
         final RepositoryException ex = expectThrows(

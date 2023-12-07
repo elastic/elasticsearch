@@ -100,8 +100,12 @@ public class SubSearchSourceBuilder implements ToXContent, Writeable, Rewriteabl
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SubSearchSourceBuilder that = (SubSearchSourceBuilder) o;
         return Objects.equals(queryBuilder, that.queryBuilder);
     }

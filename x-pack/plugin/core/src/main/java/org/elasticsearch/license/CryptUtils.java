@@ -181,7 +181,9 @@ public class CryptUtils {
         byte[] intermediaryKey = new byte[16];
         for (int i = 0, j = 0; i < 16; i++) {
             intermediaryKey[i] = shortKey[j];
-            if (++j == shortKey.length) j = 0;
+            if (++j == shortKey.length) {
+                j = 0;
+            }
         }
         return new SecretKeySpec(intermediaryKey, "AES");
     }
@@ -226,8 +228,9 @@ public class CryptUtils {
         byte[] out = new byte[length + 1];
 
         int i = 0;
-        for (; i < bytes.length; i++)
+        for (; i < bytes.length; i++) {
             out[i] = bytes[i];
+        }
 
         int padded = length - i;
 

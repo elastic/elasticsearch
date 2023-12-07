@@ -44,8 +44,12 @@ final class CountMethodValueSource extends FieldDataBasedDoubleValuesSource {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CountMethodValueSource that = (CountMethodValueSource) o;
         return fieldData.equals(that.fieldData);
     }

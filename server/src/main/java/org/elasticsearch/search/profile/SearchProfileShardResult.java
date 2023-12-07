@@ -87,8 +87,12 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchProfileShardResult that = (SearchProfileShardResult) o;
         return Objects.equals(queryPhase, that.queryPhase) && Objects.equals(fetchPhase, that.fetchPhase);
     }

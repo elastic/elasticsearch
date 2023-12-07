@@ -83,8 +83,12 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         AliasFilter that = (AliasFilter) o;
         return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter);
     }

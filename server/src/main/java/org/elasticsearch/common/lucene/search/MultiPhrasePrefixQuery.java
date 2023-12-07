@@ -86,7 +86,9 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public void add(Term[] terms) {
         int position = 0;
-        if (positions.size() > 0) position = positions.get(positions.size() - 1) + 1;
+        if (positions.size() > 0) {
+            position = positions.get(positions.size() - 1) + 1;
+        }
 
         add(terms, position);
     }
@@ -126,8 +128,9 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public int[] getPositions() {
         int[] result = new int[positions.size()];
-        for (int i = 0; i < positions.size(); i++)
+        for (int i = 0; i < positions.size(); i++) {
             result[i] = positions.get(i);
+        }
         return result;
     }
 

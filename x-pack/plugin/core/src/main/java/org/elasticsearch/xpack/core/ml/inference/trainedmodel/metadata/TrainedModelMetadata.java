@@ -125,8 +125,12 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TrainedModelMetadata that = (TrainedModelMetadata) o;
         return Objects.equals(totalFeatureImportances, that.totalFeatureImportances)
             && Objects.equals(featureImportanceBaselines, that.featureImportanceBaselines)

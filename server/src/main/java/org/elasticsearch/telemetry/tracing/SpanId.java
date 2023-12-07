@@ -31,8 +31,12 @@ public class SpanId {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SpanId spanId = (SpanId) o;
         return rawId.equals(spanId.rawId);
     }

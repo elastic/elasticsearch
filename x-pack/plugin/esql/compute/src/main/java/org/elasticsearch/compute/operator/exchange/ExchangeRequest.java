@@ -57,8 +57,12 @@ public final class ExchangeRequest extends TransportRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ExchangeRequest that = (ExchangeRequest) o;
         return sourcesFinished == that.sourcesFinished && exchangeId.equals(that.exchangeId);
     }

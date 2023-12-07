@@ -184,8 +184,12 @@ public class ClassificationFeatureImportance extends AbstractFeatureImportance {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ClassImportance that = (ClassImportance) o;
             return Double.compare(that.importance, importance) == 0 && Objects.equals(className, that.className);
         }

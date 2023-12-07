@@ -71,8 +71,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             AbstractChangePoint that = (AbstractChangePoint) o;
             return Double.compare(that.pValue, pValue) == 0 && changePoint == that.changePoint;
         }
@@ -121,8 +125,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Indeterminable that = (Indeterminable) o;
             return Objects.equals(reason, that.reason);
         }
@@ -168,7 +176,9 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) return true;
+            if (this == obj) {
+                return true;
+            }
             return obj != null && obj.getClass() == getClass();
         }
     }
@@ -268,8 +278,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             NonStationary that = (NonStationary) o;
             return Double.compare(that.pValue, pValue) == 0
                 && Double.compare(that.rValue, rValue) == 0
@@ -337,8 +351,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             TrendChange that = (TrendChange) o;
             return Double.compare(that.pValue, pValue) == 0 && Double.compare(that.rValue, rValue) == 0 && changePoint == that.changePoint;
         }

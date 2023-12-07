@@ -61,8 +61,12 @@ class NodeDecisions implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         NodeDecisions that = (NodeDecisions) o;
         return Objects.equals(canAllocateDecisions, that.canAllocateDecisions) && Objects.equals(canRemainDecision, that.canRemainDecision);
     }

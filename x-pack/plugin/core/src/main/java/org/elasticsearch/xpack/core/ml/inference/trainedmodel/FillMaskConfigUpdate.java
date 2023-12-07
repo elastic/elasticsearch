@@ -164,8 +164,12 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         FillMaskConfigUpdate that = (FillMaskConfigUpdate) o;
         return Objects.equals(numTopClasses, that.numTopClasses)
             && Objects.equals(resultsField, that.resultsField)

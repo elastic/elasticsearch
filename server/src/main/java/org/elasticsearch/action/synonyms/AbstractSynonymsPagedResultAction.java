@@ -103,8 +103,12 @@ public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return from == request.from && size == request.size;
         }
@@ -163,8 +167,12 @@ public abstract class AbstractSynonymsPagedResultAction<T extends ActionResponse
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             @SuppressWarnings("unchecked")
             AbstractPagedResultResponse<T> that = (AbstractPagedResultResponse<T>) o;
             return totalCount == that.totalCount && Arrays.equals(resultList, that.resultList);

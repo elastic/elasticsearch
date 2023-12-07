@@ -154,8 +154,12 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         HuggingFaceServiceSettings that = (HuggingFaceServiceSettings) o;
         return Objects.equals(uri, that.uri)
             && similarity == that.similarity

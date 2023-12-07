@@ -85,8 +85,12 @@ public class PostSecretRequest extends ActionRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PostSecretRequest that = (PostSecretRequest) o;
         return Objects.equals(value, that.value);
     }

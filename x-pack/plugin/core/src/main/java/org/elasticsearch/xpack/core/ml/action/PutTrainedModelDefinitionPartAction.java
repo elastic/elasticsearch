@@ -124,8 +124,12 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return part == request.part
                 && totalDefinitionLength == request.totalDefinitionLength

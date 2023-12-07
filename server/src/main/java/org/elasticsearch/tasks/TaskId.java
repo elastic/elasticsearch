@@ -120,12 +120,18 @@ public final class TaskId implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         TaskId taskId = (TaskId) o;
 
-        if (id != taskId.id) return false;
+        if (id != taskId.id) {
+            return false;
+        }
         return nodeId.equals(taskId.nodeId);
 
     }

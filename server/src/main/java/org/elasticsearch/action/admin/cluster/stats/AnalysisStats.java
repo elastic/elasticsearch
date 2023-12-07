@@ -367,8 +367,12 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         AnalysisStats that = (AnalysisStats) o;
         return Objects.equals(usedCharFilters, that.usedCharFilters)
             && Objects.equals(usedTokenizers, that.usedTokenizers)

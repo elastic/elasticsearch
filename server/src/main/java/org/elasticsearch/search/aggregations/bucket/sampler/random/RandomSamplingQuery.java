@@ -134,8 +134,12 @@ public final class RandomSamplingQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RandomSamplingQuery that = (RandomSamplingQuery) o;
         return Double.compare(that.p, p) == 0 && seed == that.seed && hash == that.hash;
     }

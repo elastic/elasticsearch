@@ -225,8 +225,12 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Stats that = (Stats) o;
             return indexCount == that.indexCount
                 && indexTimeInMillis == that.indexTimeInMillis
@@ -317,8 +321,12 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         IndexingStats that = (IndexingStats) o;
         return Objects.equals(totalStats, that.totalStats);
     }

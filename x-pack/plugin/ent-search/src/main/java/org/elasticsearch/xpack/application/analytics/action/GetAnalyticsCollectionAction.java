@@ -73,8 +73,12 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Arrays.equals(this.names, request.names);
         }
@@ -148,8 +152,12 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
 
             return Objects.equals(this.collections, response.collections);

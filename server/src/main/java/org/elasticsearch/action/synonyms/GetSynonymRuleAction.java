@@ -78,8 +78,12 @@ public class GetSynonymRuleAction extends ActionType<GetSynonymRuleAction.Respon
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(synonymsSetId, request.synonymsSetId) && Objects.equals(synonymRuleId, request.synonymRuleId);
         }
@@ -116,8 +120,12 @@ public class GetSynonymRuleAction extends ActionType<GetSynonymRuleAction.Respon
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return Objects.equals(synonymRule, response.synonymRule);
         }

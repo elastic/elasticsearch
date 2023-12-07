@@ -72,8 +72,12 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         WatcherMetadata action = (WatcherMetadata) o;
 

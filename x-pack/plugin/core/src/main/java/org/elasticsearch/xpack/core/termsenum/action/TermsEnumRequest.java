@@ -255,8 +255,12 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TermsEnumRequest that = (TermsEnumRequest) o;
         return size == that.size
             && caseInsensitive == that.caseInsensitive

@@ -133,13 +133,17 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
-        if (skipCas(listener)) return;
+        if (skipCas(listener)) {
+            return;
+        }
         ActionListener.completeWith(listener, () -> blobStore.compareAndExchangeRegister(buildKey(key), path, key, expected, updated));
     }
 
     @Override
     public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
-        if (skipCas(listener)) return;
+        if (skipCas(listener)) {
+            return;
+        }
         ActionListener.completeWith(listener, () -> blobStore.getRegister(buildKey(key), path, key));
     }
 }

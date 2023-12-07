@@ -239,27 +239,53 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     // Equals and hashcode implemented for testing round trips
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
 
         InternalTopHits other = (InternalTopHits) obj;
-        if (from != other.from) return false;
-        if (size != other.size) return false;
-        if (topDocs.topDocs.totalHits.value != other.topDocs.topDocs.totalHits.value) return false;
-        if (topDocs.topDocs.totalHits.relation != other.topDocs.topDocs.totalHits.relation) return false;
-        if (topDocs.topDocs.scoreDocs.length != other.topDocs.topDocs.scoreDocs.length) return false;
+        if (from != other.from) {
+            return false;
+        }
+        if (size != other.size) {
+            return false;
+        }
+        if (topDocs.topDocs.totalHits.value != other.topDocs.topDocs.totalHits.value) {
+            return false;
+        }
+        if (topDocs.topDocs.totalHits.relation != other.topDocs.topDocs.totalHits.relation) {
+            return false;
+        }
+        if (topDocs.topDocs.scoreDocs.length != other.topDocs.topDocs.scoreDocs.length) {
+            return false;
+        }
         for (int d = 0; d < topDocs.topDocs.scoreDocs.length; d++) {
             ScoreDoc thisDoc = topDocs.topDocs.scoreDocs[d];
             ScoreDoc otherDoc = other.topDocs.topDocs.scoreDocs[d];
-            if (thisDoc.doc != otherDoc.doc) return false;
-            if (Double.compare(thisDoc.score, otherDoc.score) != 0) return false;
+            if (thisDoc.doc != otherDoc.doc) {
+                return false;
+            }
+            if (Double.compare(thisDoc.score, otherDoc.score) != 0) {
+                return false;
+            }
             if (thisDoc instanceof FieldDoc thisFieldDoc) {
-                if (false == (otherDoc instanceof FieldDoc)) return false;
+                if (false == (otherDoc instanceof FieldDoc)) {
+                    return false;
+                }
                 FieldDoc otherFieldDoc = (FieldDoc) otherDoc;
-                if (thisFieldDoc.fields.length != otherFieldDoc.fields.length) return false;
+                if (thisFieldDoc.fields.length != otherFieldDoc.fields.length) {
+                    return false;
+                }
                 for (int f = 0; f < thisFieldDoc.fields.length; f++) {
-                    if (false == thisFieldDoc.fields[f].equals(otherFieldDoc.fields[f])) return false;
+                    if (false == thisFieldDoc.fields[f].equals(otherFieldDoc.fields[f])) {
+                        return false;
+                    }
                 }
             }
         }

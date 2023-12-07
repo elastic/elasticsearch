@@ -792,7 +792,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
             writer.addDocument(doc);
             longValue++;
             dateValue++;
-            if (i % 3500 == 0) writer.flush();
+            if (i % 3500 == 0) {
+                writer.flush();
+            }
         }
         writer.close();
         reader = DirectoryReader.open(dir);

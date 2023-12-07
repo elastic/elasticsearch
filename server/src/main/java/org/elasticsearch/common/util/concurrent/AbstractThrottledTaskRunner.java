@@ -88,7 +88,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                 // To be sure, return only if the queue is still empty. If the queue is not empty, this might be the
                 // only pollAndSpawn call in progress, and returning without peeking would risk ending up with a
                 // non-empty queue and no workers!
-                if (tasks.peek() == null) break;
+                if (tasks.peek() == null) {
+                    break;
+                }
             } else {
                 final boolean isForceExecution = isForceExecution(task);
                 executor.execute(new AbstractRunnable() {

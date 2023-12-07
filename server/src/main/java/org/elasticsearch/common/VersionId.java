@@ -34,7 +34,9 @@ public interface VersionId<T extends VersionId<T>> extends Comparable<T> {
     }
 
     default boolean between(T lowerInclusive, T upperExclusive) {
-        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
+        if (upperExclusive.onOrBefore(lowerInclusive)) {
+            throw new IllegalArgumentException();
+        }
         return onOrAfter(lowerInclusive) && before(upperExclusive);
     }
 

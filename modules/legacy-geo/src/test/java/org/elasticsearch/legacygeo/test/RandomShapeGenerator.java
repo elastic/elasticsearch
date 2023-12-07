@@ -248,7 +248,9 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     }
 
     private static Rectangle xRandomRectangle(Random r, Point nearP, Rectangle bounds, boolean small) {
-        if (nearP == null) nearP = xRandomPointIn(r, bounds);
+        if (nearP == null) {
+            nearP = xRandomPointIn(r, bounds);
+        }
 
         if (small) {
             // between 3 and 6 degrees

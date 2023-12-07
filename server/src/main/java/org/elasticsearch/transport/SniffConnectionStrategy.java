@@ -629,8 +629,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             SniffModeInfo sniff = (SniffModeInfo) o;
             return maxConnectionsPerCluster == sniff.maxConnectionsPerCluster
                 && numNodesConnected == sniff.numNodesConnected

@@ -33,8 +33,12 @@ public class PagerDutyAction implements Action {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PagerDutyAction that = (PagerDutyAction) o;
         return Objects.equals(event, that.event);
     }

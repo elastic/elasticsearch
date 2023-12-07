@@ -51,8 +51,12 @@ public class InstantiatingObjectParserTests extends ESTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             NoAnnotations that = (NoAnnotations) o;
             return a == that.a && c == that.c && Objects.equals(b, that.b);
         }
@@ -122,8 +126,12 @@ public class InstantiatingObjectParserTests extends ESTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             LonelyArgument that = (LonelyArgument) o;
             return a == that.a && Objects.equals(b, that.b);
         }
@@ -183,8 +191,12 @@ public class InstantiatingObjectParserTests extends ESTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Annotations that = (Annotations) o;
             return a == that.a && c == that.c && Objects.equals(b, that.b);
         }
@@ -277,8 +289,12 @@ public class InstantiatingObjectParserTests extends ESTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ContextArgument that = (ContextArgument) o;
             return a == that.a && c == that.c && Objects.equals(b, that.b);
         }

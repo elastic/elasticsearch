@@ -79,8 +79,12 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             StringWrapper that = (StringWrapper) o;
             return Objects.equals(name, that.name);
         }
@@ -102,7 +106,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             .addDeprecatedName("fixed2_old");
         final Parameter<String> variable = Parameter.stringParam("variable", true, m -> toType(m).variable, "default").acceptsNull();
         final Parameter<StringWrapper> wrapper = new Parameter<>("wrapper", false, () -> new StringWrapper("default"), (n, c, o) -> {
-            if (o == null) return null;
+            if (o == null) {
+                return null;
+            }
             return new StringWrapper(o.toString());
         }, m -> toType(m).wrapper, (b, n, v) -> b.field(n, v.name), v -> "wrapper_" + v.name);
         final Parameter<Integer> intValue = Parameter.intParam("int_value", true, m -> toType(m).intValue, 5).addValidator(n -> {

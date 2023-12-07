@@ -302,8 +302,12 @@ public class DownsampleAction implements LifecycleAction {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         DownsampleAction that = (DownsampleAction) o;
         return Objects.equals(this.fixedInterval, that.fixedInterval);

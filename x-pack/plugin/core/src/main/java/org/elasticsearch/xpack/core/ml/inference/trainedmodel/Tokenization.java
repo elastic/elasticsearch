@@ -170,8 +170,12 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Tokenization that = (Tokenization) o;
         return doLowerCase == that.doLowerCase
             && withSpecialTokens == that.withSpecialTokens

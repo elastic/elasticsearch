@@ -76,8 +76,12 @@ public class ShardSnapshotResult implements Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ShardSnapshotResult that = (ShardSnapshotResult) o;
         return segmentCount == that.segmentCount && generation.equals(that.generation) && size.equals(that.size);
     }

@@ -384,8 +384,12 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RolloverConfiguration that = (RolloverConfiguration) o;
         return Objects.equals(concreteConditions, that.concreteConditions) && Objects.equals(automaticConditions, that.automaticConditions);
     }

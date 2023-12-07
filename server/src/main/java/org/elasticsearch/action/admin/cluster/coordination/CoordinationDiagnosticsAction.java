@@ -66,8 +66,12 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             return explain == ((Request) o).explain;
         }
 
@@ -102,8 +106,12 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             CoordinationDiagnosticsAction.Response response = (CoordinationDiagnosticsAction.Response) o;
             return result.equals(response.result);
         }

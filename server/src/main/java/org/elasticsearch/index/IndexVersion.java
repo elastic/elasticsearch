@@ -135,7 +135,9 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
             return IndexVersions.MINIMUM_COMPATIBLE;
         } else {
             int compatId = (major-1) * 1_000_000;
-            if (major <= 8) compatId += 99;
+            if (major <= 8) {
+                compatId += 99;
+            }
             return IndexVersion.fromId(compatId);
         }
     }

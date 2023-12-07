@@ -106,8 +106,12 @@ public class SamlServiceProviderIndex implements Closeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             final DocumentVersion that = (DocumentVersion) o;
             return Objects.equals(this.id, that.id) && primaryTerm == that.primaryTerm && seqNo == that.seqNo;
         }

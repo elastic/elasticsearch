@@ -131,8 +131,12 @@ public class TranslogStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TranslogStats that = (TranslogStats) o;
         return numberOfOperations == that.numberOfOperations
             && translogSizeInBytes == that.translogSizeInBytes

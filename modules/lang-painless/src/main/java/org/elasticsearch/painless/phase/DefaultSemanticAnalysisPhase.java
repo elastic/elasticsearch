@@ -2331,13 +2331,15 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 );
             }
             // check arity before we manipulate parameters
-            if (interfaceMethod.typeParameters().size() != canonicalTypeNameParameters.size()) throw new IllegalArgumentException(
-                Strings.format(
-                    "Incorrect number of parameters for [%s] in [%s]",
-                    interfaceMethod.javaMethod().getName(),
-                    targetType.getTargetCanonicalTypeName()
-                )
-            );
+            if (interfaceMethod.typeParameters().size() != canonicalTypeNameParameters.size()) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Incorrect number of parameters for [%s] in [%s]",
+                        interfaceMethod.javaMethod().getName(),
+                        targetType.getTargetCanonicalTypeName()
+                    )
+                );
+            }
             // for method invocation, its allowed to ignore the return value
             if (interfaceMethod.returnType() == void.class) {
                 returnType = def.class;

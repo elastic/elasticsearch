@@ -38,8 +38,12 @@ public class CountDistinctBooleanAggregator {
     }
 
     public static void combineIntermediate(SingleState current, boolean fbit, boolean tbit) {
-        if (fbit) current.bits |= BIT_FALSE;
-        if (tbit) current.bits |= BIT_TRUE;
+        if (fbit) {
+            current.bits |= BIT_FALSE;
+        }
+        if (tbit) {
+            current.bits |= BIT_TRUE;
+        }
     }
 
     public static Block evaluateFinal(SingleState state, DriverContext driverContext) {
@@ -60,8 +64,12 @@ public class CountDistinctBooleanAggregator {
     }
 
     public static void combineIntermediate(GroupingState current, int groupId, boolean fbit, boolean tbit) {
-        if (fbit) current.bits.set(groupId * 2);
-        if (tbit) current.bits.set(groupId * 2 + 1);
+        if (fbit) {
+            current.bits.set(groupId * 2);
+        }
+        if (tbit) {
+            current.bits.set(groupId * 2 + 1);
+        }
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {

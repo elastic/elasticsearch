@@ -187,7 +187,9 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             final String fileRealmName = fileRealmSettings.entrySet().iterator().next().getKey().getName();
             if (RealmSettings.ENABLED_SETTING.apply(FileRealmSettings.TYPE)
                 .getConcreteSettingForNamespace(fileRealmName)
-                .get(settings) == false) throw new UserException(ExitCodes.CONFIG, "File realm must be enabled");
+                .get(settings) == false) {
+                throw new UserException(ExitCodes.CONFIG, "File realm must be enabled");
+            }
         }
         // Else it's either explicitly enabled, or not defined in the settings so it is implicitly enabled.
     }

@@ -144,10 +144,16 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ContextMapping<?> that = (ContextMapping<?>) o;
-        if (type != that.type) return false;
+        if (type != that.type) {
+            return false;
+        }
         return name.equals(that.name);
     }
 

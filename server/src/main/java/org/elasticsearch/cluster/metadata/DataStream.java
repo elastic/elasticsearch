@@ -1020,8 +1020,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DataStream that = (DataStream) o;
         return name.equals(that.name)
             && indices.equals(that.indices)

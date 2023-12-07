@@ -86,8 +86,12 @@ public class Model {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Model model = (Model) o;
         return Objects.equals(configurations, model.configurations) && Objects.equals(secrets, model.secrets);
     }

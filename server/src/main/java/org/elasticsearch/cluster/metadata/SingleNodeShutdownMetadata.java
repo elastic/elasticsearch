@@ -284,8 +284,12 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof SingleNodeShutdownMetadata) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof SingleNodeShutdownMetadata) == false) {
+            return false;
+        }
         SingleNodeShutdownMetadata that = (SingleNodeShutdownMetadata) o;
         return getStartedAtMillis() == that.getStartedAtMillis()
             && getNodeSeen() == that.getNodeSeen()

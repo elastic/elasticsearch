@@ -74,8 +74,12 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         return Objects.equals(snapshots, ((SnapshotsStatusResponse) o).snapshots);
     }

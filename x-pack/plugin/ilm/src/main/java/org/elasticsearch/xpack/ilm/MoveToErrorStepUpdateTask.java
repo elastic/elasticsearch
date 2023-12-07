@@ -80,8 +80,12 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         MoveToErrorStepUpdateTask that = (MoveToErrorStepUpdateTask) o;
         // We don't have a stable equals on the cause and shouldn't have simultaneous moves to error step to begin with when deduplicating
         // tasks so we only compare the current state here and in the hashcode.

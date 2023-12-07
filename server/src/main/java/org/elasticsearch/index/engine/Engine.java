@@ -1294,7 +1294,9 @@ public abstract class Engine implements Closeable {
                     eventListener.onFailedEngine(reason, failure);
                 }
             } catch (Exception inner) {
-                if (failure != null) inner.addSuppressed(failure);
+                if (failure != null) {
+                    inner.addSuppressed(failure);
+                }
                 // don't bubble up these exceptions up
                 logger.warn("failEngine threw exception", inner);
             }

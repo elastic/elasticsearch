@@ -275,8 +275,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             InferModelAction.Request that = (InferModelAction.Request) o;
             return Objects.equals(id, that.id)
                 && Objects.equals(update, that.update)
@@ -383,8 +387,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             InferModelAction.Response that = (InferModelAction.Response) o;
             return isLicensed == that.isLicensed && Objects.equals(inferenceResults, that.inferenceResults) && Objects.equals(id, that.id);
         }

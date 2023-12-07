@@ -323,8 +323,12 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ClusterIndexHealth that = (ClusterIndexHealth) o;
         return Objects.equals(index, that.index)
             && numberOfShards == that.numberOfShards

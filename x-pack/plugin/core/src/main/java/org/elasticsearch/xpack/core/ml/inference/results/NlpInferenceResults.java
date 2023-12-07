@@ -78,8 +78,12 @@ abstract class NlpInferenceResults implements InferenceResults {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         NlpInferenceResults that = (NlpInferenceResults) o;
         return isTruncated == that.isTruncated;
     }

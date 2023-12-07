@@ -263,8 +263,12 @@ public class TimingStats implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == this) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TimingStats that = (TimingStats) o;
         return Objects.equals(this.jobId, that.jobId)
             && this.bucketCount == that.bucketCount

@@ -104,8 +104,12 @@ public final class TransportAddress implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TransportAddress address1 = (TransportAddress) o;
         return address.equals(address1.address);
     }

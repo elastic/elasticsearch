@@ -1832,8 +1832,12 @@ public final class Def {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Encoding) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof Encoding) == false) {
+                return false;
+            }
             Encoding encoding1 = (Encoding) o;
             return isStatic == encoding1.isStatic
                 && needsInstance == encoding1.needsInstance

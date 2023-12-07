@@ -37,8 +37,12 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Slot slot = (Slot) o;
             return CompositeValuesCollectorQueue.this.equals(value, slot.value);
         }

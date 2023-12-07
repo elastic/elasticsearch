@@ -128,7 +128,9 @@ final class DebugLog {
             int l = Array.getLength(o);
             int iMax = l - 1;
 
-            if (iMax == -1) return "[]";
+            if (iMax == -1) {
+                return "[]";
+            }
 
             b.append('[');
             for (int i = 0; i < l; i++) {

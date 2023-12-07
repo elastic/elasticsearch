@@ -41,8 +41,12 @@ public class ValuesSourceRegistry {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             RegistryKey<?> that = (RegistryKey<?>) o;
             return name.equals(that.name) && supplierType.equals(that.supplierType);
         }

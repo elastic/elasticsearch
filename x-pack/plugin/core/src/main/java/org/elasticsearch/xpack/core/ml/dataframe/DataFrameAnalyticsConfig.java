@@ -326,8 +326,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == this) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         DataFrameAnalyticsConfig other = (DataFrameAnalyticsConfig) o;
         return Objects.equals(id, other.id)

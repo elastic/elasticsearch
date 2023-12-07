@@ -39,8 +39,12 @@ public class PrevalidateShardPathRequest extends BaseNodesRequest<PrevalidateSha
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o instanceof PrevalidateShardPathRequest == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o instanceof PrevalidateShardPathRequest == false) {
+            return false;
+        }
         PrevalidateShardPathRequest other = (PrevalidateShardPathRequest) o;
         return Objects.equals(shardIds, other.shardIds)
             && Arrays.equals(nodesIds(), other.nodesIds())

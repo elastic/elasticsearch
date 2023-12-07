@@ -111,8 +111,12 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Includes includes1 = (Includes) o;
             return Objects.equals(includes, includes1.includes);
         }

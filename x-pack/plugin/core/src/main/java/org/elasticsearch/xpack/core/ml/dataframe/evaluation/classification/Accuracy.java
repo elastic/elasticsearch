@@ -196,8 +196,12 @@ public class Accuracy implements EvaluationMetric {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Accuracy that = (Accuracy) o;
         return Objects.equals(this.matrix, that.matrix);
     }
@@ -278,8 +282,12 @@ public class Accuracy implements EvaluationMetric {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Result that = (Result) o;
             return Objects.equals(this.classes, that.classes) && this.overallAccuracy == that.overallAccuracy;
         }

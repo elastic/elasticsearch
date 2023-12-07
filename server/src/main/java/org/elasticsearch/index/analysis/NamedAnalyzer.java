@@ -159,8 +159,12 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof NamedAnalyzer) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof NamedAnalyzer) == false) {
+            return false;
+        }
         NamedAnalyzer that = (NamedAnalyzer) o;
         return Objects.equals(name, that.name);
     }

@@ -82,8 +82,12 @@ public final class SearchShardsResponse extends ActionResponse {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchShardsResponse that = (SearchShardsResponse) o;
         return groups.equals(that.groups) && nodes.equals(that.nodes) && aliasFilters.equals(that.aliasFilters);
     }

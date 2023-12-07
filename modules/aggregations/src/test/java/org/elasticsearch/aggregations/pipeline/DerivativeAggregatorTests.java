@@ -391,7 +391,9 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < numBuckets_empty_rnd; i++) {
                 valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
                 // make approximately half of the buckets empty
-                if (randomBoolean()) valueCounts_empty_rnd[i] = 0L;
+                if (randomBoolean()) {
+                    valueCounts_empty_rnd[i] = 0L;
+                }
                 for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
                     document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                     indexWriter.addDocument(document);
@@ -596,7 +598,9 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < numBuckets_empty_rnd; i++) {
                 valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
                 // make approximately half of the buckets empty
-                if (randomBoolean()) valueCounts_empty_rnd[i] = 0L;
+                if (randomBoolean()) {
+                    valueCounts_empty_rnd[i] = 0L;
+                }
                 for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
                     document.add(new NumericDocValuesField(SINGLE_VALUED_FIELD_NAME, i));
                     indexWriter.addDocument(document);

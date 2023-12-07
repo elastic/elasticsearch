@@ -445,8 +445,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Item) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof Item) == false) {
+                return false;
+            }
             Item other = (Item) o;
             return Objects.equals(index, other.index)
                 && Objects.equals(id, other.id)

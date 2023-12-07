@@ -123,10 +123,16 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchApplicationTemplate template = (SearchApplicationTemplate) o;
-        if (script == null) return template.script == null;
+        if (script == null) {
+            return template.script == null;
+        }
         return script.equals(template.script) && Objects.equals(templateParamValidator, template.templateParamValidator);
     }
 

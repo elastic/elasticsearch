@@ -73,8 +73,12 @@ public class AggregationInfo implements ReportingService.Info {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         AggregationInfo that = (AggregationInfo) o;
         return Objects.equals(aggs, that.aggs);
     }

@@ -52,8 +52,12 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         InvalidateTokenResponse that = (InvalidateTokenResponse) o;
         return Objects.equals(result, that.result);
     }

@@ -65,8 +65,12 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             DeleteInferenceModelAction.Request request = (DeleteInferenceModelAction.Request) o;
             return Objects.equals(modelId, request.modelId) && taskType == request.taskType;
         }

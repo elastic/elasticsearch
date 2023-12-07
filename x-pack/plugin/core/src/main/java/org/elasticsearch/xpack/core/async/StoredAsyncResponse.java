@@ -75,8 +75,12 @@ public class StoredAsyncResponse<R extends Writeable> extends ActionResponse
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         StoredAsyncResponse<?> response1 = (StoredAsyncResponse<?>) o;
         if (exception != null && response1.exception != null) {
             if (Objects.equals(exception.getClass(), response1.exception.getClass()) == false

@@ -223,8 +223,12 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ArrayCompareCondition that = (ArrayCompareCondition) o;
         return Objects.equals(getArrayPath(), that.getArrayPath())
             && Objects.equals(getPath(), that.getPath())

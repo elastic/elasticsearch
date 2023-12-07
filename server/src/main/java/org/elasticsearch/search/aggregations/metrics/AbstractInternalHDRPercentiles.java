@@ -238,9 +238,15 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
 
         AbstractInternalHDRPercentiles that = (AbstractInternalHDRPercentiles) obj;
         return keyed == that.keyed && Arrays.equals(keys, that.keys) && Objects.equals(state, that.state);

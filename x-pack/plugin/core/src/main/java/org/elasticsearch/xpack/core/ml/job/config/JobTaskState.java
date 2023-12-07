@@ -157,8 +157,12 @@ public class JobTaskState implements PersistentTaskState, MlTaskState {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         JobTaskState that = (JobTaskState) o;
         return state == that.state
             && Objects.equals(allocationId, that.allocationId)

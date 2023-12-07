@@ -203,7 +203,9 @@ public class GroupingAggregatorImplementer {
         builder.add("List.of(");
         boolean addComma = false;
         for (var interState : intermediateState) {
-            if (addComma) builder.add(",");
+            if (addComma) {
+                builder.add(",");
+            }
             builder.add("$Wnew $T($S, $T." + interState.elementType() + ")", INTERMEDIATE_STATE_DESC, interState.name(), ELEMENT_TYPE);
             addComma = true;
         }

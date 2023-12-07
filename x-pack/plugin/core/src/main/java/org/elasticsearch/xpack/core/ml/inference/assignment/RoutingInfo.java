@@ -124,8 +124,12 @@ public class RoutingInfo implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RoutingInfo that = (RoutingInfo) o;
         return currentAllocations == that.currentAllocations
             && targetAllocations == that.targetAllocations

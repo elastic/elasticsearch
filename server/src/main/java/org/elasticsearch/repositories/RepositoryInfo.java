@@ -96,8 +96,12 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RepositoryInfo that = (RepositoryInfo) o;
         return ephemeralId.equals(that.ephemeralId)
             && name.equals(that.name)

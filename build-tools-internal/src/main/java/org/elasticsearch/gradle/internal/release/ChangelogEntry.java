@@ -104,7 +104,9 @@ public class ChangelogEntry {
 
     public void setHighlight(Highlight highlight) {
         this.highlight = highlight;
-        if (this.highlight != null) this.highlight.pr = this.pr;
+        if (this.highlight != null) {
+            this.highlight.pr = this.pr;
+        }
     }
 
     public Breaking getBreaking() {

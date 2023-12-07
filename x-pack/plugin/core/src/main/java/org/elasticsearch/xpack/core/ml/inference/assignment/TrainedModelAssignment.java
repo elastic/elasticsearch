@@ -289,8 +289,12 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TrainedModelAssignment that = (TrainedModelAssignment) o;
         return Objects.equals(nodeRoutingTable, that.nodeRoutingTable)
             && Objects.equals(taskParams, that.taskParams)

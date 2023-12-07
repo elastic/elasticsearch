@@ -106,8 +106,12 @@ public class CountCorrelationIndicator implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CountCorrelationIndicator that = (CountCorrelationIndicator) o;
         return docCount == that.docCount && Arrays.equals(expectations, that.expectations) && Arrays.equals(fractions, that.fractions);
     }

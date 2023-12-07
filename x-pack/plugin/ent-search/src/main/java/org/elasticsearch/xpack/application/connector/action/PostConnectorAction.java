@@ -175,8 +175,12 @@ public class PostConnectorAction extends ActionType<PostConnectorAction.Response
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Objects.equals(description, request.description)
                 && Objects.equals(indexName, request.indexName)
@@ -226,8 +230,12 @@ public class PostConnectorAction extends ActionType<PostConnectorAction.Response
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return Objects.equals(id, response.id);
         }

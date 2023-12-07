@@ -185,7 +185,9 @@ public class GeoUtils {
             final double ratio = 1 + (EARTH_POLAR_DISTANCE / EARTH_EQUATOR); // cell ratio
             final double width = Math.sqrt((meters * meters) / (ratio * ratio)); // convert to cell width
             final double part = Math.ceil(EARTH_EQUATOR / width);
-            if (part == 1) return 1;
+            if (part == 1) {
+                return 1;
+            }
             final int bits = (int) Math.round(Math.ceil(Math.log(part) / Math.log(2)));
             final int full = bits / 5;                // number of 5 bit subdivisions
             final int left = bits - full * 5;           // bit representing the last level

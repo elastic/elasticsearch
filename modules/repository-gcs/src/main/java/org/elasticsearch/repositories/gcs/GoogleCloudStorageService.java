@@ -162,7 +162,9 @@ public class GoogleCloudStorageService {
                 HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
 
                 return (httpRequest) -> {
-                    if (requestInitializer != null) requestInitializer.initialize(httpRequest);
+                    if (requestInitializer != null) {
+                        requestInitializer.initialize(httpRequest);
+                    }
 
                     httpRequest.setResponseInterceptor(httpStatsCollector);
                 };

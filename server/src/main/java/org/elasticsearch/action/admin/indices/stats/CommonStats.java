@@ -253,8 +253,12 @@ public class CommonStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CommonStats that = (CommonStats) o;
         return Objects.equals(docs, that.docs)
             && Objects.equals(store, that.store)

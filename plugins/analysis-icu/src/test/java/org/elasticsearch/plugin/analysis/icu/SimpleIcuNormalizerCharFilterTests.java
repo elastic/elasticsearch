@@ -35,7 +35,9 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
         StringBuilder output = new StringBuilder();
         while (true) {
             int length = inputReader.read(tempBuff);
-            if (length == -1) break;
+            if (length == -1) {
+                break;
+            }
             output.append(tempBuff, 0, length);
             assertEquals(output.toString(), normalizer.normalize(input.substring(0, inputReader.correctOffset(output.length()))));
         }
@@ -59,7 +61,9 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
         StringBuilder output = new StringBuilder();
         while (true) {
             int length = inputReader.read(tempBuff);
-            if (length == -1) break;
+            if (length == -1) {
+                break;
+            }
             output.append(tempBuff, 0, length);
             assertEquals(output.toString(), normalizer.normalize(input.substring(0, inputReader.correctOffset(output.length()))));
         }

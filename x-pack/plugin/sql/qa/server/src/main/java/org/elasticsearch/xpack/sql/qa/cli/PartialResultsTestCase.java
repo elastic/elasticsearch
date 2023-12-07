@@ -81,8 +81,9 @@ public abstract class PartialResultsTestCase extends CliIntegrationTestCase {
         assertEquals("[?1l>[?1000l[?2004lallow_partial_search_results set to [90mtrue[0m", result);
         result = command("SELECT * FROM test WHERE bool = true");
         assertEquals("[?1l>[?1000l[?2004l     bool      ", result);
-        while (readLine().length() > 0)
+        while (readLine().length() > 0) {
             ;
+        }
 
         result = command("allow_partial_search_results = false");
         assertEquals("[?1l>[?1000l[?2004lallow_partial_search_results set to [90mfalse[0m", result);

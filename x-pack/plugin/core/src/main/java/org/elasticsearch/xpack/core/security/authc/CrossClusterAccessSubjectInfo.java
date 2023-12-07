@@ -114,12 +114,18 @@ public final class CrossClusterAccessSubjectInfo {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         CrossClusterAccessSubjectInfo that = (CrossClusterAccessSubjectInfo) o;
 
-        if (false == authentication.equals(that.authentication)) return false;
+        if (false == authentication.equals(that.authentication)) {
+            return false;
+        }
         return roleDescriptorsBytesList.equals(that.roleDescriptorsBytesList);
     }
 
@@ -273,8 +279,12 @@ public final class CrossClusterAccessSubjectInfo {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             RoleDescriptorsBytes that = (RoleDescriptorsBytes) o;
             return Objects.equals(rawBytes, that.rawBytes);
         }

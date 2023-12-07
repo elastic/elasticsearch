@@ -120,8 +120,12 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetSettingsRequest that = (GetSettingsRequest) o;
         return humanReadable == that.humanReadable
             && includeDefaults == that.includeDefaults

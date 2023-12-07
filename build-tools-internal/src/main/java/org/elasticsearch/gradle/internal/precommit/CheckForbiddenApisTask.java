@@ -436,8 +436,10 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
                     }
 
                     final FileCollection signaturesFiles = getParameters().getSignaturesFiles();
-                    if (signaturesFiles != null) for (final File f : signaturesFiles) {
-                        checker.parseSignaturesFile(f);
+                    if (signaturesFiles != null) {
+                        for (final File f : signaturesFiles) {
+                            checker.parseSignaturesFile(f);
+                        }
                     }
                     final List<String> signatures = getParameters().getSignatures().get();
                     if ((signatures != null) && !signatures.isEmpty()) {
@@ -478,7 +480,9 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
             } finally {
                 // Close the classloader to free resources:
                 try {
-                    if (urlLoader != null) urlLoader.close();
+                    if (urlLoader != null) {
+                        urlLoader.close();
+                    }
                 } catch (IOException ioe) {
                     // getLogger().warn("Cannot close classloader: ".concat(ioe.toString()));
                 }

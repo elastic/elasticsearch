@@ -53,8 +53,12 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TokenInfo tokenInfo = (TokenInfo) o;
         return Objects.equals(name, tokenInfo.name) && Objects.equals(nodeNames, tokenInfo.nodeNames);
     }

@@ -142,8 +142,12 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == this) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         DataFrameAnalyticsSource other = (DataFrameAnalyticsSource) o;
         return Arrays.equals(index, other.index)

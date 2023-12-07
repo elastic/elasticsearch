@@ -532,9 +532,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     private String getTestParamsForLogging() {
         String name = getTestName();
         int start = name.indexOf('{');
-        if (start < 0) return "";
+        if (start < 0) {
+            return "";
+        }
         int end = name.lastIndexOf('}');
-        if (end < 0) return "";
+        if (end < 0) {
+            return "";
+        }
         return "[" + name.substring(start + 1, end) + "] ";
     }
 
@@ -1991,8 +1995,12 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             DeprecationWarning that = (DeprecationWarning) o;
             return Objects.equals(message, that.message);
         }

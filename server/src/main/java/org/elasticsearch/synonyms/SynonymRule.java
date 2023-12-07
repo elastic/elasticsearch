@@ -87,8 +87,12 @@ public class SynonymRule implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SynonymRule that = (SynonymRule) o;
         return Objects.equals(synonyms, that.synonyms) && Objects.equals(id, that.id);
     }
@@ -157,7 +161,9 @@ public class SynonymRule implements Writeable, ToXContentObject {
             char ch = s.charAt(pos++);
             if (ch == '\\') {
                 sb.append(ch);
-                if (pos >= end) break; // ERROR, or let it go?
+                if (pos >= end) {
+                    break; // ERROR, or let it go?
+                }
                 ch = s.charAt(pos++);
             }
 

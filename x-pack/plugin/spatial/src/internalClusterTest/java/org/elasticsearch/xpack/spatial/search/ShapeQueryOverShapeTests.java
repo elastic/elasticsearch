@@ -83,7 +83,9 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
         Geometry geometry;
         for (int i = 0; i < numDocs; ++i) {
             geometry = ShapeTestUtils.randomGeometry(false);
-            if (geometry.type() == ShapeType.CIRCLE) continue;
+            if (geometry.type() == ShapeType.CIRCLE) {
+                continue;
+            }
             if (queryGeometry == null && geometry.type() != ShapeType.MULTIPOINT) {
                 queryGeometry = geometry;
             }

@@ -143,12 +143,16 @@ public final class RequestOptions {
             }
         }
         if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
-            if (comma) b.append(", ");
+            if (comma) {
+                b.append(", ");
+            }
             comma = true;
             b.append("consumerFactory=").append(httpAsyncResponseConsumerFactory);
         }
         if (warningsHandler != null) {
-            if (comma) b.append(", ");
+            if (comma) {
+                b.append(", ");
+            }
             comma = true;
             b.append("warningsHandler=").append(warningsHandler);
         }

@@ -180,8 +180,12 @@ public class EmailTemplate implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         EmailTemplate that = (EmailTemplate) o;
         return Objects.equals(from, that.from)
             && Arrays.equals(replyTo, that.replyTo)

@@ -369,14 +369,18 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         boolean isLastPart(Headers requestHeaders) {
-            if (requestHeaders.containsKey("Content-range") == false) return false;
+            if (requestHeaders.containsKey("Content-range") == false) {
+                return false;
+            }
 
             // https://cloud.google.com/storage/docs/json_api/v1/parameters#contentrange
             final String contentRange = requestHeaders.getFirst("Content-range");
 
             final Matcher matcher = contentRangeMatcher.matcher(contentRange);
 
-            if (matcher.matches() == false) return false;
+            if (matcher.matches() == false) {
+                return false;
+            }
 
             String upperBound = matcher.group(1);
             String totalLength = matcher.group(2);

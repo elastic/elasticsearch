@@ -39,8 +39,12 @@ public abstract class AbstractSqlRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         AbstractSqlRequest that = (AbstractSqlRequest) o;
         return Objects.equals(requestInfo, that.requestInfo);
     }

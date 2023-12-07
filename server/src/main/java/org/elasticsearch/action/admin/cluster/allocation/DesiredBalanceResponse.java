@@ -131,7 +131,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
+        if (this == o) {
+            return true;
+        }
         return o instanceof DesiredBalanceResponse that
             && Objects.equals(stats, that.stats)
             && Objects.equals(clusterBalanceStats, that.clusterBalanceStats)

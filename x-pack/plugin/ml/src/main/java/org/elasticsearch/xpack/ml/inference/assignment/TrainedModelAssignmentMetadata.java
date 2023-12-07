@@ -166,8 +166,12 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TrainedModelAssignmentMetadata that = (TrainedModelAssignmentMetadata) o;
         return Objects.equals(deploymentRoutingEntries, that.deploymentRoutingEntries);
     }

@@ -159,8 +159,12 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         OneHotEncoding that = (OneHotEncoding) o;
         return Objects.equals(field, that.field) && Objects.equals(hotMap, that.hotMap) && Objects.equals(custom, that.custom);
     }

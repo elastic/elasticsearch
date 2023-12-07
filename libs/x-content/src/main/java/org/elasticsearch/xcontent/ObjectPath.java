@@ -28,8 +28,11 @@ public final class ObjectPath {
     @SuppressWarnings("unchecked")
     public static <T> T eval(String path, Object object) {
         final String[] parts;
-        if (path == null || path.isEmpty()) parts = EMPTY_ARRAY;
-        else parts = path.split("\\.");
+        if (path == null || path.isEmpty()) {
+            parts = EMPTY_ARRAY;
+        } else {
+            parts = path.split("\\.");
+        }
         return (T) evalContext(parts, object);
     }
 

@@ -145,8 +145,12 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         HealthApiFeatureSetUsage that = (HealthApiFeatureSetUsage) o;
         return Objects.equals(usageStats, that.usageStats);
     }

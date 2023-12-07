@@ -165,8 +165,12 @@ public final class Classification implements Evaluation {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Classification that = (Classification) o;
         return Objects.equals(that.fields, this.fields) && Objects.equals(that.metrics, this.metrics);
     }

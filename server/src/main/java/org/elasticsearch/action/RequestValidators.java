@@ -26,7 +26,9 @@ public class RequestValidators<T extends ActionRequest> {
         Exception exception = null;
         for (final var validator : validators) {
             final Optional<Exception> maybeException = validator.validateRequest(request, state, indices);
-            if (maybeException.isEmpty()) continue;
+            if (maybeException.isEmpty()) {
+                continue;
+            }
             if (exception == null) {
                 exception = maybeException.get();
             } else {

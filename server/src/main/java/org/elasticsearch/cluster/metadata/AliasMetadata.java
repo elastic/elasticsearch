@@ -148,17 +148,33 @@ public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentF
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         final AliasMetadata that = (AliasMetadata) o;
 
-        if (Objects.equals(alias, that.alias) == false) return false;
-        if (Objects.equals(filter, that.filter) == false) return false;
-        if (Objects.equals(indexRouting, that.indexRouting) == false) return false;
-        if (Objects.equals(searchRouting, that.searchRouting) == false) return false;
-        if (Objects.equals(writeIndex, that.writeIndex) == false) return false;
-        if (Objects.equals(isHidden, that.isHidden) == false) return false;
+        if (Objects.equals(alias, that.alias) == false) {
+            return false;
+        }
+        if (Objects.equals(filter, that.filter) == false) {
+            return false;
+        }
+        if (Objects.equals(indexRouting, that.indexRouting) == false) {
+            return false;
+        }
+        if (Objects.equals(searchRouting, that.searchRouting) == false) {
+            return false;
+        }
+        if (Objects.equals(writeIndex, that.writeIndex) == false) {
+            return false;
+        }
+        if (Objects.equals(isHidden, that.isHidden) == false) {
+            return false;
+        }
 
         return true;
     }

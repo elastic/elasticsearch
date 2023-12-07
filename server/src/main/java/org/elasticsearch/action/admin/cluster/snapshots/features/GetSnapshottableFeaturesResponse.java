@@ -57,8 +57,12 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof GetSnapshottableFeaturesResponse) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if ((o instanceof GetSnapshottableFeaturesResponse) == false) {
+            return false;
+        }
         GetSnapshottableFeaturesResponse that = (GetSnapshottableFeaturesResponse) o;
         return snapshottableFeatures.equals(that.snapshottableFeatures);
     }
@@ -108,8 +112,12 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof SnapshottableFeature) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof SnapshottableFeature) == false) {
+                return false;
+            }
             SnapshottableFeature feature = (SnapshottableFeature) o;
             return Objects.equals(getFeatureName(), feature.getFeatureName());
         }

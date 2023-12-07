@@ -163,8 +163,12 @@ public record HttpRouteStats(
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         HttpRouteStats that = (HttpRouteStats) o;
         return requestCount == that.requestCount
             && totalRequestSize == that.totalRequestSize

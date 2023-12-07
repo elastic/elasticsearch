@@ -125,8 +125,11 @@ public abstract class BaseRestHandler implements RestHandler {
             CollectionUtil.timSort(scoredParams, (a, b) -> {
                 // sort by distance in reverse order, then parameter name for equal distances
                 int compare = a.v1().compareTo(b.v1());
-                if (compare != 0) return -compare;
-                else return a.v2().compareTo(b.v2());
+                if (compare != 0) {
+                    return -compare;
+                } else {
+                    return a.v2().compareTo(b.v2());
+                }
             });
             if (first == false) {
                 message.append(", ");

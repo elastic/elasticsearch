@@ -307,9 +307,15 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (this == EMPTY || this == UNKNOWN || this == NO_SHARDS || o == EMPTY || o == UNKNOWN || o == NO_SHARDS) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (this == EMPTY || this == UNKNOWN || this == NO_SHARDS || o == EMPTY || o == UNKNOWN || o == NO_SHARDS) {
+            return false;
+        }
         IndexLongFieldRange that = (IndexLongFieldRange) o;
         return min == that.min && max == that.max && Arrays.equals(shards, that.shards);
     }

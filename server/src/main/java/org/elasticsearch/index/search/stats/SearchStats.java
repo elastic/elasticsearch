@@ -241,8 +241,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Stats that = (Stats) o;
             return queryCount == that.queryCount
                 && queryTimeInMillis == that.queryTimeInMillis
@@ -404,8 +408,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchStats that = (SearchStats) o;
         return Objects.equals(totalStats, that.totalStats)
             && openContexts == that.openContexts

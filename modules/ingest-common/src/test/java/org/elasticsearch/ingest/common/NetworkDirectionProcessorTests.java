@@ -182,7 +182,9 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     ) throws Exception {
         List<String> networks = null;
 
-        if (internalNetworks != null) networks = List.of(internalNetworks);
+        if (internalNetworks != null) {
+            networks = List.of(internalNetworks);
+        }
 
         String processorTag = randomAlphaOfLength(10);
         Map<String, Object> config = new HashMap<>();

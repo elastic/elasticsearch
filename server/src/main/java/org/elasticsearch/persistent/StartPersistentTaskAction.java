@@ -96,8 +96,12 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request1 = (Request) o;
             return Objects.equals(taskId, request1.taskId)
                 && Objects.equals(taskName, request1.taskName)

@@ -392,11 +392,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
         AuthorizationInfo authorizationInfoHeader = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
         if (authorizationInfoHeader == null)
-            // If we have an originating action, we must also have origination authz info
+        // If we have an originating action, we must also have origination authz info
+        {
             if (originatingActionHeader != null || randomBoolean()) {
                 authorizationInfoHeader = mock(AuthorizationInfo.class);
                 threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfoHeader);
             }
+        }
         Mockito.reset(operatorPrivilegesService);
         final AtomicBoolean operatorPrivilegesChecked = new AtomicBoolean(false);
         final ElasticsearchSecurityException operatorPrivilegesException = new ElasticsearchSecurityException(

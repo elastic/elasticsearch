@@ -32,13 +32,21 @@ class Field implements MessageElement {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Field field = (Field) o;
 
-        if (isShort != field.isShort) return false;
-        if (title.equals(field.title) == false) return false;
+        if (isShort != field.isShort) {
+            return false;
+        }
+        if (title.equals(field.title) == false) {
+            return false;
+        }
         return value.equals(field.value);
     }
 
@@ -81,13 +89,21 @@ class Field implements MessageElement {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Template template = (Template) o;
 
-            if (isShort != template.isShort) return false;
-            if (title.equals(template.title) == false) return false;
+            if (isShort != template.isShort) {
+                return false;
+            }
+            if (title.equals(template.title) == false) {
+                return false;
+            }
             return value.equals(template.value);
         }
 

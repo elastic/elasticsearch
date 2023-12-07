@@ -190,8 +190,12 @@ public class Precision implements EvaluationMetric {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         return true;
     }
 
@@ -271,8 +275,12 @@ public class Precision implements EvaluationMetric {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Result that = (Result) o;
             return Objects.equals(this.classes, that.classes) && this.avgPrecision == that.avgPrecision;
         }

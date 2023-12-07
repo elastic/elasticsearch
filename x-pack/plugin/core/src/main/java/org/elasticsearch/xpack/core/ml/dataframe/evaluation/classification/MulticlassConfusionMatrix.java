@@ -243,8 +243,12 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         MulticlassConfusionMatrix that = (MulticlassConfusionMatrix) o;
         return this.size == that.size && Objects.equals(this.aggNamePrefix, that.aggNamePrefix);
     }
@@ -325,8 +329,12 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Result that = (Result) o;
             return Objects.equals(this.actualClasses, that.actualClasses) && this.otherActualClassCount == that.otherActualClassCount;
         }
@@ -423,8 +431,12 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ActualClass that = (ActualClass) o;
             return Objects.equals(this.actualClass, that.actualClass)
                 && this.actualClassDocCount == that.actualClassDocCount
@@ -493,8 +505,12 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             PredictedClass that = (PredictedClass) o;
             return Objects.equals(this.predictedClass, that.predictedClass) && this.count == that.count;
         }

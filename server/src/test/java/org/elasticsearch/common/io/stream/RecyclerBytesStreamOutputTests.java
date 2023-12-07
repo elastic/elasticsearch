@@ -633,8 +633,12 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             TestNamedWriteable that = (TestNamedWriteable) o;
             return Objects.equals(field1, that.field1) && Objects.equals(field2, that.field2);
         }

@@ -176,8 +176,12 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ProactiveReason that = (ProactiveReason) o;
             return unassigned == that.unassigned
                 && assigned == that.assigned

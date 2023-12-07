@@ -134,8 +134,12 @@ public class QlStatusResponse extends ActionResponse implements SearchStatusResp
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
         QlStatusResponse other = (QlStatusResponse) obj;
         return id.equals(other.id)
             && isRunning == other.isRunning

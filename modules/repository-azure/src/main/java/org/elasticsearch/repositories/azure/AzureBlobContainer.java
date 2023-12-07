@@ -181,7 +181,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
-        if (skipRegisterOperation(listener)) return;
+        if (skipRegisterOperation(listener)) {
+            return;
+        }
         ActionListener.completeWith(listener, () -> blobStore.getRegister(buildKey(key), keyPath, key));
     }
 
@@ -193,7 +195,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
-        if (skipRegisterOperation(listener)) return;
+        if (skipRegisterOperation(listener)) {
+            return;
+        }
         ActionListener.completeWith(listener, () -> blobStore.compareAndExchangeRegister(buildKey(key), keyPath, key, expected, updated));
     }
 

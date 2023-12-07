@@ -204,8 +204,12 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetSnapshotsResponse that = (GetSnapshotsResponse) o;
         return Objects.equals(snapshots, that.snapshots) && Objects.equals(failures, that.failures) && Objects.equals(next, that.next);
     }

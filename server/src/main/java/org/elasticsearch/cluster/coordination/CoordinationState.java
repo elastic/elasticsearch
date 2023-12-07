@@ -637,12 +637,18 @@ public class CoordinationState {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof VoteCollection) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if ((o instanceof VoteCollection) == false) {
+                return false;
+            }
 
             VoteCollection that = (VoteCollection) o;
 
-            if (nodes.equals(that.nodes) == false) return false;
+            if (nodes.equals(that.nodes) == false) {
+                return false;
+            }
             return joins.equals(that.joins);
         }
 

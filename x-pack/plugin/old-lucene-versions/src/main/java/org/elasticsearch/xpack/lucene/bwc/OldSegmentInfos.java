@@ -597,9 +597,9 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
         /** Run {@link #doBody} on the provided commit. */
         public T run(IndexCommit commit) throws IOException {
             if (commit != null) {
-                if (directory != commit.getDirectory()) throw new IOException(
-                    "the specified commit does not match the specified Directory"
-                );
+                if (directory != commit.getDirectory()) {
+                    throw new IOException("the specified commit does not match the specified Directory");
+                }
                 return doBody(commit.getSegmentsFileName());
             }
 

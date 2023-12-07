@@ -129,8 +129,12 @@ public final class BinaryDocValuesRangeQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (sameClassAs(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (sameClassAs(o) == false) {
+            return false;
+        }
         BinaryDocValuesRangeQuery that = (BinaryDocValuesRangeQuery) o;
         return Objects.equals(fieldName, that.fieldName)
             && queryType == that.queryType

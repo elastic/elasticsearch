@@ -417,14 +417,21 @@ public final class AnalyzerCaster {
                 number = (Number) constant;
             }
 
-            if (tsort == byte.class) return number.byteValue();
-            else if (tsort == short.class) return number.shortValue();
-            else if (tsort == char.class) return (char) number.intValue();
-            else if (tsort == int.class) return number.intValue();
-            else if (tsort == long.class) return number.longValue();
-            else if (tsort == float.class) return number.floatValue();
-            else if (tsort == double.class) return number.doubleValue();
-            else {
+            if (tsort == byte.class) {
+                return number.byteValue();
+            } else if (tsort == short.class) {
+                return number.shortValue();
+            } else if (tsort == char.class) {
+                return (char) number.intValue();
+            } else if (tsort == int.class) {
+                return number.intValue();
+            } else if (tsort == long.class) {
+                return number.longValue();
+            } else if (tsort == float.class) {
+                return number.floatValue();
+            } else if (tsort == double.class) {
+                return number.doubleValue();
+            } else {
                 throw location.createError(
                     new IllegalStateException(
                         "Cannot cast from "

@@ -67,8 +67,12 @@ public class PreVoteResponse extends TransportResponse {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         PreVoteResponse that = (PreVoteResponse) o;
         return currentTerm == that.currentTerm
             && lastAcceptedTerm == that.lastAcceptedTerm

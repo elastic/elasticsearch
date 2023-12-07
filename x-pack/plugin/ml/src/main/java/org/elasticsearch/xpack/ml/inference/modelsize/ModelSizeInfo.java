@@ -78,8 +78,12 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ModelSizeInfo modelSizeInfo = (ModelSizeInfo) o;
         return Objects.equals(ensembleSizeInfo, modelSizeInfo.ensembleSizeInfo)
             && Objects.equals(preprocessorSizes, modelSizeInfo.preprocessorSizes);

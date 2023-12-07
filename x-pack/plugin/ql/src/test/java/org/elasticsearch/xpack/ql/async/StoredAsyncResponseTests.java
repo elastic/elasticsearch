@@ -40,8 +40,12 @@ public class StoredAsyncResponseTests extends AbstractWireSerializingTestCase<St
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             TestResponse that = (TestResponse) o;
             return Objects.equals(string, that.string);
         }

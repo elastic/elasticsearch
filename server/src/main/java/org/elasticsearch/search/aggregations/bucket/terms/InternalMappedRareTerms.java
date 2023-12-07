@@ -155,9 +155,15 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         InternalMappedRareTerms<?, ?> that = (InternalMappedRareTerms<?, ?>) obj;
         return Objects.equals(buckets, that.buckets) && Objects.equals(format, that.format) && Objects.equals(filter, that.filter);
     }

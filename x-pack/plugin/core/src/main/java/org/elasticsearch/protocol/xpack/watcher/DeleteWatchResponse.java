@@ -75,8 +75,12 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         DeleteWatchResponse that = (DeleteWatchResponse) o;
 

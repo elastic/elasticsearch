@@ -72,8 +72,12 @@ public class SnykDependencyGraph {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             SnykDependencyNode that = (SnykDependencyNode) o;
             return Objects.equals(nodeId, that.nodeId) && Objects.equals(pkgId, that.pkgId);
         }
@@ -110,8 +114,12 @@ public class SnykDependencyGraph {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             SnykDependencyPkg that = (SnykDependencyPkg) o;
             return Objects.equals(id, that.id) && Objects.equals(info, that.info);
         }

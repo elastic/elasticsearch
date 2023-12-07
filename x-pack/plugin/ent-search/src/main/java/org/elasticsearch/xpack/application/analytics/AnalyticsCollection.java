@@ -131,8 +131,12 @@ public class AnalyticsCollection implements Writeable, ToXContentObject {
     }
 
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         AnalyticsCollection other = (AnalyticsCollection) o;
         return name.equals(other.name);
     }

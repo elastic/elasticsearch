@@ -69,8 +69,12 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
             return Arrays.equals(followerIndices, request.followerIndices);
         }
@@ -116,8 +120,12 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response response = (Response) o;
             return Objects.equals(followInfos, response.followInfos);
         }
@@ -216,8 +224,12 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 FollowerInfo that = (FollowerInfo) o;
                 return Objects.equals(followerIndex, that.followerIndex)
                     && Objects.equals(remoteCluster, that.remoteCluster)

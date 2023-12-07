@@ -107,8 +107,12 @@ public class SearchApplicationSearchRequest extends ActionRequest implements Ind
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchApplicationSearchRequest request = (SearchApplicationSearchRequest) o;
         return Objects.equals(name, request.name) && Objects.equals(queryParams, request.queryParams);
     }

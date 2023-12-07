@@ -93,9 +93,15 @@ public class NerResults extends NlpInferenceResults {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
         NerResults that = (NerResults) o;
         return Objects.equals(resultsField, that.resultsField)
             && Objects.equals(annotatedResult, that.annotatedResult)
@@ -205,8 +211,12 @@ public class NerResults extends NlpInferenceResults {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             EntityGroup that = (EntityGroup) o;
             return Double.compare(that.classProbability, classProbability) == 0
                 && startPos == that.startPos

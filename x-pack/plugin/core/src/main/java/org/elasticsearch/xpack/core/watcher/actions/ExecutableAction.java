@@ -46,8 +46,12 @@ public abstract class ExecutableAction<A extends Action> implements ToXContentOb
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         ExecutableAction<? extends Action> that = (ExecutableAction<? extends Action>) o;
 

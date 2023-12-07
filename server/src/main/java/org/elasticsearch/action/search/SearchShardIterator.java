@@ -166,8 +166,12 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchShardIterator that = (SearchShardIterator) o;
         return shardId.equals(that.shardId) && Objects.equals(clusterAlias, that.clusterAlias);
     }

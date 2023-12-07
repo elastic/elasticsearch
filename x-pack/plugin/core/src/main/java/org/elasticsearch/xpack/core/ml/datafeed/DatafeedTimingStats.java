@@ -127,7 +127,9 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
     }
 
     public Double getAvgSearchTimePerBucketMs() {
-        if (bucketCount == 0) return null;
+        if (bucketCount == 0) {
+            return null;
+        }
         return totalSearchTimeMs / bucketCount;
     }
 

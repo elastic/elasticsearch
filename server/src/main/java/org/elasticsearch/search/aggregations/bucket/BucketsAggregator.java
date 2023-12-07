@@ -112,7 +112,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
             for (long i = 0; i < oldDocCounts.size(); i++) {
                 long docCount = oldDocCounts.get(i);
 
-                if (docCount == 0) continue;
+                if (docCount == 0) {
+                    continue;
+                }
 
                 // Skip any in the map which have been "removed", signified with -1
                 long destinationOrdinal = mergeMap.applyAsLong(i);

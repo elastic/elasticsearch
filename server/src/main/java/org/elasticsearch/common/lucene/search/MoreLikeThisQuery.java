@@ -94,24 +94,56 @@ public class MoreLikeThisQuery extends Query {
             return false;
         }
         MoreLikeThisQuery other = (MoreLikeThisQuery) obj;
-        if (Objects.equals(analyzerName, other.analyzerName) == false) return false;
-        if (boostTerms != other.boostTerms) return false;
-        if (boostTermsFactor != other.boostTermsFactor) return false;
-        if ((Arrays.equals(likeText, other.likeText)) == false) return false;
-        if (maxDocFreq != other.maxDocFreq) return false;
-        if (maxQueryTerms != other.maxQueryTerms) return false;
-        if (maxWordLen != other.maxWordLen) return false;
-        if (minDocFreq != other.minDocFreq) return false;
-        if (minTermFrequency != other.minTermFrequency) return false;
-        if (minWordLen != other.minWordLen) return false;
-        if (Arrays.equals(moreLikeFields, other.moreLikeFields) == false) return false;
-        if (minimumShouldMatch.equals(other.minimumShouldMatch) == false) return false;
+        if (Objects.equals(analyzerName, other.analyzerName) == false) {
+            return false;
+        }
+        if (boostTerms != other.boostTerms) {
+            return false;
+        }
+        if (boostTermsFactor != other.boostTermsFactor) {
+            return false;
+        }
+        if ((Arrays.equals(likeText, other.likeText)) == false) {
+            return false;
+        }
+        if (maxDocFreq != other.maxDocFreq) {
+            return false;
+        }
+        if (maxQueryTerms != other.maxQueryTerms) {
+            return false;
+        }
+        if (maxWordLen != other.maxWordLen) {
+            return false;
+        }
+        if (minDocFreq != other.minDocFreq) {
+            return false;
+        }
+        if (minTermFrequency != other.minTermFrequency) {
+            return false;
+        }
+        if (minWordLen != other.minWordLen) {
+            return false;
+        }
+        if (Arrays.equals(moreLikeFields, other.moreLikeFields) == false) {
+            return false;
+        }
+        if (minimumShouldMatch.equals(other.minimumShouldMatch) == false) {
+            return false;
+        }
         if (similarity == null) {
-            if (other.similarity != null) return false;
-        } else if (similarity.equals(other.similarity) == false) return false;
+            if (other.similarity != null) {
+                return false;
+            }
+        } else if (similarity.equals(other.similarity) == false) {
+            return false;
+        }
         if (stopWords == null) {
-            if (other.stopWords != null) return false;
-        } else if (stopWords.equals(other.stopWords) == false) return false;
+            if (other.stopWords != null) {
+                return false;
+            }
+        } else if (stopWords.equals(other.stopWords) == false) {
+            return false;
+        }
         return true;
     }
 

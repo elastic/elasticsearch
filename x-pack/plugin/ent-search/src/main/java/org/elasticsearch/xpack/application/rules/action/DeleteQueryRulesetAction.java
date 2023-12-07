@@ -72,8 +72,12 @@ public class DeleteQueryRulesetAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request that = (Request) o;
             return Objects.equals(rulesetId, that.rulesetId);
         }

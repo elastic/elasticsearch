@@ -83,7 +83,9 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     }
 
     private static void checkUniqueness(int id, String uniqueId) {
-        if (IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
+        if (IDS == null) {
+            throw new IllegalStateException("The IDS map needs to be present to call this method");
+        }
 
         Strings.requireNonEmpty(uniqueId, "Each MlConfigVersion needs a unique string id");
         Integer existing = IDS.put(uniqueId, id);

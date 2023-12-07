@@ -41,8 +41,12 @@ public class ExchangeSourceExec extends LeafExec {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ExchangeSourceExec that = (ExchangeSourceExec) o;
         return Objects.equals(output, that.output) && intermediateAgg == that.intermediateAgg;
     }

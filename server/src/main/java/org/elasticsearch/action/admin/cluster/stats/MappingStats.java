@@ -313,8 +313,12 @@ public final class MappingStats implements ToXContentFragment, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         MappingStats that = (MappingStats) o;
         return Objects.equals(totalFieldCount, that.totalFieldCount)
             && Objects.equals(totalDeduplicatedFieldCount, that.totalDeduplicatedFieldCount)

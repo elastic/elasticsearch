@@ -195,8 +195,12 @@ public class ScriptException extends ElasticsearchException {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Position position = (Position) o;
             return offset == position.offset && start == position.start && end == position.end;
         }

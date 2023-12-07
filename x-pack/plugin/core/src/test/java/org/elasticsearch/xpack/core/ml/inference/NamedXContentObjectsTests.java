@@ -136,8 +136,12 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             NamedObjectContainer that = (NamedObjectContainer) o;
             return Objects.equals(preProcessors, that.preProcessors) && Objects.equals(trainedModel, that.trainedModel);
         }

@@ -156,8 +156,12 @@ public class DriverStatus implements Task.Status {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DriverStatus that = (DriverStatus) o;
         return sessionId.equals(that.sessionId)
             && lastUpdated == that.lastUpdated
@@ -227,8 +231,12 @@ public class DriverStatus implements Task.Status {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             OperatorStatus that = (OperatorStatus) o;
             return operator.equals(that.operator) && Objects.equals(status, that.status);
         }

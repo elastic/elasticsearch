@@ -27,8 +27,12 @@ public class IndexShardStats implements Iterable<ShardStats>, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         IndexShardStats that = (IndexShardStats) o;
         return shardId.equals(that.shardId) && Arrays.equals(shards, that.shards);
     }

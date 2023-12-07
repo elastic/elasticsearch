@@ -74,8 +74,12 @@ public class ModelSecrets implements ToXContentObject, VersionedNamedWriteable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ModelSecrets that = (ModelSecrets) o;
         return Objects.equals(secretSettings, that.secretSettings);
     }

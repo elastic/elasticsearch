@@ -52,9 +52,15 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         false,
         args -> {
             ScriptScoreQueryBuilder ssQueryBuilder = new ScriptScoreQueryBuilder((QueryBuilder) args[0], (Script) args[1]);
-            if (args[2] != null) ssQueryBuilder.setMinScore((Float) args[2]);
-            if (args[3] != null) ssQueryBuilder.boost((Float) args[3]);
-            if (args[4] != null) ssQueryBuilder.queryName((String) args[4]);
+            if (args[2] != null) {
+                ssQueryBuilder.setMinScore((Float) args[2]);
+            }
+            if (args[3] != null) {
+                ssQueryBuilder.boost((Float) args[3]);
+            }
+            if (args[4] != null) {
+                ssQueryBuilder.queryName((String) args[4]);
+            }
             return ssQueryBuilder;
         }
     );

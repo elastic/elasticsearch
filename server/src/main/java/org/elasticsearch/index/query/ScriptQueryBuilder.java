@@ -161,7 +161,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public boolean equals(Object obj) {
-            if (sameClassAs(obj) == false) return false;
+            if (sameClassAs(obj) == false) {
+                return false;
+            }
             ScriptQuery other = (ScriptQuery) obj;
             return Objects.equals(script, other.script);
         }

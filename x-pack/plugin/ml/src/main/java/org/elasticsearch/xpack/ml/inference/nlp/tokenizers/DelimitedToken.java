@@ -53,8 +53,12 @@ public class DelimitedToken {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DelimitedToken that = (DelimitedToken) o;
         return startOffset == that.startOffset && endOffset == that.endOffset && Objects.equals(charSequence, that.charSequence);
     }
@@ -102,9 +106,15 @@ public class DelimitedToken {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (super.equals(o) == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            if (super.equals(o) == false) {
+                return false;
+            }
             Encoded encoded = (Encoded) o;
             return encoding == encoded.encoding;
         }

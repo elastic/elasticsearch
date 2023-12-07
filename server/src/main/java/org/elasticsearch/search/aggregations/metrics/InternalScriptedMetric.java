@@ -129,9 +129,15 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
 
         InternalScriptedMetric other = (InternalScriptedMetric) obj;
         return Objects.equals(reduceScript, other.reduceScript) && Objects.equals(aggregations, other.aggregations);

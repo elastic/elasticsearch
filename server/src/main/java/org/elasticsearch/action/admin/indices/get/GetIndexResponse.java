@@ -241,8 +241,12 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GetIndexResponse that = (GetIndexResponse) o;
         return Arrays.equals(indices, that.indices)
             && Objects.equals(aliases, that.aliases)

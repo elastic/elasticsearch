@@ -112,9 +112,15 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        if (super.equals(obj) == false) {
+            return false;
+        }
         InternalAvg other = (InternalAvg) obj;
         return Objects.equals(sum, other.sum)
             && Objects.equals(count, other.count)

@@ -147,8 +147,12 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConnectorCustomSchedule that = (ConnectorCustomSchedule) o;
         return enabled == that.enabled
             && Objects.equals(configurationOverrides, that.configurationOverrides)
@@ -297,8 +301,12 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             ConfigurationOverrides that = (ConfigurationOverrides) o;
             return Objects.equals(maxCrawlDepth, that.maxCrawlDepth)
                 && Objects.equals(sitemapDiscoveryDisabled, that.sitemapDiscoveryDisabled)

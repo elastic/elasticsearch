@@ -354,17 +354,23 @@ public class HotThreads {
             // identical StackTraceElements (starting from end of each)
             boolean[] done = new boolean[threadElementsSnapshotCount];
             for (int i = 0; i < threadElementsSnapshotCount; i++) {
-                if (done[i]) continue;
+                if (done[i]) {
+                    continue;
+                }
                 int maxSim = 1;
                 boolean[] similars = new boolean[threadElementsSnapshotCount];
                 for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
-                    if (done[j]) continue;
+                    if (done[j]) {
+                        continue;
+                    }
                     int similarity = similarity(allInfos[i][t], allInfos[j][t]);
                     if (similarity > maxSim) {
                         maxSim = similarity;
                         similars = new boolean[threadElementsSnapshotCount];
                     }
-                    if (similarity == maxSim) similars[j] = true;
+                    if (similarity == maxSim) {
+                        similars[j] = true;
+                    }
                 }
                 // print out trace maxSim levels of i, and mark similar ones as done
                 int count = 1;

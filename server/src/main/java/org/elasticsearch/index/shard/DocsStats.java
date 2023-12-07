@@ -87,8 +87,12 @@ public class DocsStats implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         DocsStats that = (DocsStats) o;
         return count == that.count && deleted == that.deleted && totalSizeInBytes == that.totalSizeInBytes;
     }

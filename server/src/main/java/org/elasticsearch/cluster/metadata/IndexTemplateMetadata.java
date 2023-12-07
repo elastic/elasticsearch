@@ -152,16 +152,30 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         IndexTemplateMetadata that = (IndexTemplateMetadata) o;
 
-        if (order != that.order) return false;
-        if (mappings.equals(that.mappings) == false) return false;
-        if (name.equals(that.name) == false) return false;
-        if (settings.equals(that.settings) == false) return false;
-        if (patterns.equals(that.patterns) == false) return false;
+        if (order != that.order) {
+            return false;
+        }
+        if (mappings.equals(that.mappings) == false) {
+            return false;
+        }
+        if (name.equals(that.name) == false) {
+            return false;
+        }
+        if (settings.equals(that.settings) == false) {
+            return false;
+        }
+        if (patterns.equals(that.patterns) == false) {
+            return false;
+        }
 
         return Objects.equals(aliases, that.aliases) && Objects.equals(version, that.version);
     }

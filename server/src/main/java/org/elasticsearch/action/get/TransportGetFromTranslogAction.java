@@ -189,8 +189,12 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o instanceof Response == false) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof Response == false) {
+                return false;
+            }
             Response response = (Response) o;
             return segmentGeneration == response.segmentGeneration
                 && Objects.equals(getResult, response.getResult)

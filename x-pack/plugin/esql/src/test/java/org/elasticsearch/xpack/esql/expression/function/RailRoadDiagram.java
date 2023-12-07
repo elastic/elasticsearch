@@ -42,6 +42,10 @@ public class RailRoadDiagram {
      */
     private static final LazyInitializable<Font, IOException> FONT = new LazyInitializable<>(() -> loadFont().deriveFont(20.0F));
 
+    /**
+     * Generate a railroad diagram for a function. The output would look like
+     * {@code FOO(a, b, c)}.
+     */
     static String functionSignature(FunctionDefinition definition) throws IOException {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
@@ -61,10 +65,34 @@ public class RailRoadDiagram {
             }
         }
         expressions.add(new Syntax(")"));
-        net.nextencia.rrdiagram.grammar.model.Expression rr = new Sequence(
-            expressions.toArray(net.nextencia.rrdiagram.grammar.model.Expression[]::new)
-        );
-        RRDiagram rrDiagram = new GrammarToRRDiagram().convert(new Rule("test", rr));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    /**
+     * Generate a railroad diagram for binary operator. The output would look like
+     * {@code lhs + rhs}.
+     */
+    static String binaryOperator(String operator) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal("lhs"));
+        expressions.add(new Syntax(operator));
+        expressions.add(new Literal("rhs"));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    /**
+     * Generate a railroad diagram for unary operator. The output would look like
+     * {@code -v}.
+     */
+    static String unaryOperator(String operator) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Syntax(operator));
+        expressions.add(new Literal("v"));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    private static String toSvg(Expression exp) throws IOException {
+        RRDiagram rrDiagram = new GrammarToRRDiagram().convert(new Rule("", exp));
 
         RRDiagramToSVG toSvg = new RRDiagramToSVG();
         toSvg.setSpecialSequenceShape(RRDiagramToSVG.BoxShape.RECTANGLE);
@@ -74,14 +102,18 @@ public class RailRoadDiagram {
         toSvg.setLiteralFont(FONT.getOrCompute());
 
         toSvg.setRuleFont(FONT.getOrCompute());
-        /*
-         * "Tighten" the styles in the SVG so they beat the styles sitting in the
-         * main page. We need this because we're embedding the SVG into the page.
-         * We need to embed the SVG into the page so it can get fonts loaded in the
-         * primary stylesheet. We need to load a font so they images are consistent
-         * on all clients.
-         */
-        return toSvg.convert(rrDiagram).replace(".c", "#guide .c").replace(".k", "#guide .k").replace(".s", "#guide .s");
+        return tightenStyles(toSvg.convert(rrDiagram));
+    }
+
+    /**
+     * "Tighten" the styles in the SVG so they beat the styles sitting in the
+     * main page. We need this because we're embedding the SVG into the page.
+     * We need to embed the SVG into the page so it can get fonts loaded in the
+     * primary stylesheet. We need to load a font so they images are consistent
+     * on all clients.
+     */
+    private static String tightenStyles(String svg) {
+        return svg.replace(".c", "#guide .c").replace(".k", "#guide .k").replace(".s", "#guide .s");
     }
 
     /**

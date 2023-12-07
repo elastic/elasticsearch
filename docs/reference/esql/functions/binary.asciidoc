@@ -10,3 +10,8 @@ These binary comparison operators are supported:
 * less than or equal: `<=`
 * larger than: `>`
 * larger than or equal: `>=`
+
+And these mathematical operators are supported:
+
+[.text-center]
+image::esql/functions/signature/add.svg[Embedded,opts=inline]

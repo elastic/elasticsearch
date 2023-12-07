@@ -12,6 +12,8 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
@@ -20,6 +22,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 class OtelHelper {
+    private static final Logger logger = LogManager.getLogger(OtelHelper.class);
+
     static Attributes fromMap(Map<String, Object> attributes) {
         if (attributes == null || attributes.isEmpty()) {
             return Attributes.empty();
@@ -56,6 +60,7 @@ class OtelHelper {
                 observation = observer.get();
             } catch (RuntimeException err) {
                 assert false : "observer must not throw [" + err.getMessage() + "]";
+                logger.error("doubleMeasurementCallback observer unexpected error", err);
                 return;
             }
             if (observation == null) {
@@ -72,6 +77,7 @@ class OtelHelper {
                 observation = observer.get();
             } catch (RuntimeException err) {
                 assert false : "observer must not throw [" + err.getMessage() + "]";
+                logger.error("longMeasurementCallback observer unexpected error", err);
                 return;
             }
             if (observation == null) {

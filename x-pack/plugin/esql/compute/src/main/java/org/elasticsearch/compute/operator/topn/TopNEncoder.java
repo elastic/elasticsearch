@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
@@ -57,6 +58,10 @@ public interface TopNEncoder {
     void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder);
 
     double decodeDouble(BytesRef bytes);
+
+    void encodePoint(SpatialPoint value, BreakingBytesRefBuilder bytesRefBuilder);
+
+    SpatialPoint decodePoint(BytesRef bytes);
 
     void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder);
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
@@ -28,6 +30,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -75,7 +78,7 @@ public record ColumnInfo(String name, String type) implements Writeable {
     }
 
     public abstract class PositionToXContent {
-        private final Block block;
+        protected final Block block;
 
         PositionToXContent(Block block) {
             this.block = block;
@@ -162,26 +165,8 @@ public record ColumnInfo(String name, String type) implements Writeable {
                     return builder.value(UTC_DATE_TIME_FORMATTER.formatMillis(longVal));
                 }
             };
-            case "geo_point" -> new PositionToXContent(block) {
-                @Override
-                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                    throws IOException {
-                    // TODO Perhaps this is just a long for geo_point? And for more advanced types we need a new block type
-                    long encoded = ((LongBlock) block).getLong(valueIndex);
-                    String wkt = GEO.pointAsString(GEO.longAsPoint(encoded));
-                    return builder.value(wkt);
-                }
-            };
-            case "cartesian_point" -> new PositionToXContent(block) {
-                @Override
-                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                    throws IOException {
-                    // TODO Perhaps this is just a long for cartesian_point? And for more advanced types we need a new block type
-                    long encoded = ((LongBlock) block).getLong(valueIndex);
-                    String wkt = CARTESIAN.pointAsString(CARTESIAN.longAsPoint(encoded));
-                    return builder.value(wkt);
-                }
-            };
+            case "geo_point" -> new PointPositionToXContent(block, GEO);
+            case "cartesian_point" -> new PointPositionToXContent(block, CARTESIAN);
             case "boolean" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
@@ -224,5 +209,29 @@ public record ColumnInfo(String name, String type) implements Writeable {
             };
             default -> throw new IllegalArgumentException("can't convert values of type [" + type + "]");
         };
+    }
+
+    private class PointPositionToXContent extends PositionToXContent {
+        private final SpatialCoordinateTypes spatial;
+
+        private PointPositionToXContent(Block block, SpatialCoordinateTypes spatial) {
+            super(block);
+            this.spatial = spatial;
+        }
+
+        @Override
+        protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex) throws IOException {
+            if (block instanceof LongBlock longBlock) {
+                long encoded = longBlock.getLong(valueIndex);
+                String wkt = spatial.pointAsString(spatial.longAsPoint(encoded));
+                return builder.value(wkt);
+            } else if (block instanceof PointBlock pointBlock) {
+                SpatialPoint point = pointBlock.getPoint(valueIndex);
+                String wkt = spatial.pointAsString(point);
+                return builder.value(wkt);
+            } else {
+                throw new IllegalArgumentException("Unrecognized block type " + block.getWriteableName() + " for type " + type);
+            }
+        }
     }
 }

@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.requireNonN
 
 public record QueryExtractorBuilder(String featureName, QueryProvider query, float defaultScore)
     implements
-        LearnToRankFeatureExtractorBuilder {
+        LearningToRankFeatureExtractorBuilder {
 
     public static final ParseField NAME = new ParseField("query_extractor");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");

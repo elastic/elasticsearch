@@ -124,7 +124,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                 } else {
                     jobManager.updateProcessOnCalendarChanged(
                         calendar.getJobIds(),
-                        ActionListener.wrap(r -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+                        listener.delegateFailureAndWrap((l, r) -> l.onResponse(AcknowledgedResponse.TRUE))
                     );
                 }
             }

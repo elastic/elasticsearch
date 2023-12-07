@@ -51,11 +51,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     private static final int NUM_TOKENS = 10;
 
-    private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(
-        new TextExpansionResults.WeightedToken("foo", .42f),
-        new TextExpansionResults.WeightedToken("bar", .05f),
-        new TextExpansionResults.WeightedToken("baz", .74f)
-    );
+    private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(new TextExpansionResults.WeightedToken("foo", .42f));
 
     @Override
     protected WeightedTokensQueryBuilder doCreateTestQueryBuilder() {
@@ -232,7 +228,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testToXContent() throws Exception {
-        QueryBuilder query = new WeightedTokensQueryBuilder("foo", List.of(new TextExpansionResults.WeightedToken("foo", .42f)), null);
+        QueryBuilder query = new WeightedTokensQueryBuilder("foo", WEIGHTED_TOKENS, null);
         checkGeneratedJson("""
             {
               "weighted_tokens": {
@@ -246,11 +242,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testToXContentWithThresholds() throws Exception {
-        QueryBuilder query = new WeightedTokensQueryBuilder(
-            "foo",
-            List.of(new TextExpansionResults.WeightedToken("foo", .42f)),
-            new TokenPruningConfig(4, 0.4f, false)
-        );
+        QueryBuilder query = new WeightedTokensQueryBuilder("foo", WEIGHTED_TOKENS, new TokenPruningConfig(4, 0.4f, false));
         checkGeneratedJson("""
             {
               "weighted_tokens": {
@@ -268,11 +260,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testToXContentWithThresholdsAndOnlyScorePrunedTokens() throws Exception {
-        QueryBuilder query = new WeightedTokensQueryBuilder(
-            "foo",
-            List.of(new TextExpansionResults.WeightedToken("foo", .42f)),
-            new TokenPruningConfig(4, 0.4f, true)
-        );
+        QueryBuilder query = new WeightedTokensQueryBuilder("foo", WEIGHTED_TOKENS, new TokenPruningConfig(4, 0.4f, true));
         checkGeneratedJson("""
             {
               "weighted_tokens": {

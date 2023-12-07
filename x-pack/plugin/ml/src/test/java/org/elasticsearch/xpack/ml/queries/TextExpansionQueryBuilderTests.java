@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -160,8 +161,8 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     /**
-     * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
-     */
+    * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
+    */
     @Override
     public void testToQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -249,5 +250,10 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
                 }
               }
             }""", query);
+    }
+
+    @Override
+    protected String[] shuffleProtectedFields() {
+        return new String[] { TOKENS_FIELD.getPreferredName() };
     }
 }

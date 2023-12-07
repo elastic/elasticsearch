@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.StickyLimit;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
@@ -160,6 +161,9 @@ public class Mapper {
         if (p instanceof Limit limit) {
             return map(limit, child);
         }
+        if (p instanceof StickyLimit limit) {
+            return map(limit, child);
+        }
 
         if (p instanceof OrderBy o) {
             return map(o, child);
@@ -207,6 +211,11 @@ public class Mapper {
     }
 
     private PhysicalPlan map(Limit limit, PhysicalPlan child) {
+        child = addExchangeForFragment(limit, child);
+        return new LimitExec(limit.source(), child, limit.limit());
+    }
+
+    private PhysicalPlan map(StickyLimit limit, PhysicalPlan child) {
         child = addExchangeForFragment(limit, child);
         return new LimitExec(limit.source(), child, limit.limit());
     }

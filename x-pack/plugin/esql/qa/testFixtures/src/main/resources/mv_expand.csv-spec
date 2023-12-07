@@ -316,3 +316,57 @@ a:keyword | e:keyword
 a         | a
 ;
 
+
+// see https://github.com/elastic/elasticsearch/issues/102061
+sortMvExpand#[skip:-8.12.2]
+row a = 1 | sort a | mv_expand a;
+
+a:integer
+1
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102061
+limitSortMvExpand#[skip:-8.12.99]
+row a = 1 | limit 1 | sort a | mv_expand a;
+
+a:integer
+1
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102061
+limitSortMultipleMvExpand#[skip:-8.12.99]
+row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | mv_expand b | mv_expand c | limit 3;
+
+a:integer | b:integer | c:integer
+1         | 2         | 3
+2         | 2         | 3
+3         | 2         | 3
+;
+
+
+multipleLimitSortMultipleMvExpand#[skip:-8.12.99]
+row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | limit 2 | mv_expand b | mv_expand c | limit 3;
+
+a:integer | b:integer | c:integer
+1         | 2         | 3
+2         | 2         | 3
+;
+
+
+multipleLimitSortMultipleMvExpand2#[skip:-8.12.99]
+row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | limit 3 | mv_expand b | mv_expand c | limit 2;
+
+a:integer | b:integer | c:integer
+1         | 2         | 3
+2         | 2         | 3
+;
+
+
+//see https://github.com/elastic/elasticsearch/issues/102084
+whereMvExpand#[skip:-8.12.99]
+row  a = 1, b = -15 | where b > 3   | mv_expand b;
+
+a:integer | b:integer
+;

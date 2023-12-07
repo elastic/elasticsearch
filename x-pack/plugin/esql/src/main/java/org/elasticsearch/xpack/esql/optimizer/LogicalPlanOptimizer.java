@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.StickyLimit;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -430,7 +431,15 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
         @Override
         protected LogicalPlan rule(Limit limit) {
-            if (limit.child() instanceof Limit childLimit) {
+            if (limit.child() instanceof StickyLimit sticky) {
+                var limitSource = limit.limit();
+                var limitValue = (int) limitSource.fold();
+                var stickyValue = (int) sticky.limit().fold();
+                if (stickyValue <= limitValue) {
+                    return sticky;
+                }
+                return new Limit(limit.source(), limit.limit(), sticky.child());
+            } else if (limit.child() instanceof Limit childLimit) {
                 var limitSource = limit.limit();
                 var l1 = (int) limitSource.fold();
                 var l2 = (int) childLimit.limit().fold();
@@ -438,6 +447,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             } else if (limit.child() instanceof UnaryPlan unary) {
                 if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
+                } else if (unary instanceof MvExpand mvx) {
+                    return new StickyLimit(limit.source(), limit.limit(), mvx.replaceChild(limit.replaceChild(mvx.child())));
                 }
                 // check if there's a 'visible' descendant limit lower than the current one
                 // and if so, align the current limit since it adds no value

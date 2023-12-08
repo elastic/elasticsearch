@@ -545,6 +545,11 @@ public class JwtRestIT extends ESRestTestCase {
                 hasStatusCode(RestStatus.UNAUTHORIZED)
             );
         } finally {
+            // Restore setting for other tests
+            writeSettingToKeystoreThenReload(
+                "xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret",
+                VALID_SHARED_SECRET
+            );
             deleteUser(username);
         }
     }

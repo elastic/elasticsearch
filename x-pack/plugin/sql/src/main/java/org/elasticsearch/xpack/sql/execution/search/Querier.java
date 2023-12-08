@@ -202,13 +202,14 @@ public class Querier {
         source.timeout(cfg.requestTimeout());
 
         SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
-        searchRequest.indices(indices);
+        if (source.pointInTimeBuilder() == null) {
+            searchRequest.indices(indices);
+            searchRequest.indicesOptions(
+                    includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
+            );
+        }
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(cfg.allowPartialSearchResults());
-        searchRequest.indicesOptions(
-            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
-        );
-
         return searchRequest;
     }
 

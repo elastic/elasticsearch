@@ -559,7 +559,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         String modelId,
         ActionListener<Runnable> nextStepListener
     ) {
-        TaskRetriever.getDownloadTaskInfo(mlOriginClient, modelId, timeout != null, ActionListener.wrap(taskInfo -> {
+        // check task is present, do not wait for completion
+        TaskRetriever.getDownloadTaskInfo(mlOriginClient, modelId, false, ActionListener.wrap(taskInfo -> {
             if (taskInfo == null) {
                 nextStepListener.onResponse(null);
             } else {

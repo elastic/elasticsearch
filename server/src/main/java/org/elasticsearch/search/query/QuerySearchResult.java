@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -149,6 +150,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.terminatedEarly = terminatedEarly;
     }
 
+    @Nullable
     public Boolean terminatedEarly() {
         return this.terminatedEarly;
     }
@@ -204,10 +206,12 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.rankShardResult = rankShardResult;
     }
 
+    @Nullable
     public RankShardResult getRankShardResult() {
         return rankShardResult;
     }
 
+    @Nullable
     public DocValueFormat[] sortValueFormats() {
         return sortValueFormats;
     }
@@ -252,6 +256,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasAggs = aggregations != null;
     }
 
+    @Nullable
     public DelayableWriteable<InternalAggregations> aggregations() {
         return aggregations;
     }
@@ -455,6 +460,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
     }
 
+    @Nullable
     public TotalHits getTotalHits() {
         return totalHits;
     }

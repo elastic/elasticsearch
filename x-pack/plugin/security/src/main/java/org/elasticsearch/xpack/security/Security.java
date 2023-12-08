@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -1946,12 +1947,20 @@ public class Security extends Plugin
      * See {@link TransportReloadRemoteClusterCredentialsAction} for more context.
      */
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
-        // Accepting a blocking call here since the underlying action is local-only and only performs fast in-memory ops
-        // (extracts a subset of passed in `settingsWithKeystore` and stores them in a map)
+        final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>() {
+            @Override
+            protected boolean blockingAllowed() {
+                // Accepting a blocking call here since the underlying action is local-only and only performs fast in-memory ops
+                // (extracts a subset of passed in `settingsWithKeystore` and stores them in a map)
+                return true;
+            }
+        };
         getClient().execute(
             ReloadRemoteClusterCredentialsAction.INSTANCE,
-            new ReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore)
-        ).actionGet();
+            new ReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
+            future
+        );
+        future.actionGet();
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

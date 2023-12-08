@@ -139,6 +139,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -933,12 +934,18 @@ public class SecurityTests extends ESTestCase {
         final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
 
         final PlainActionFuture<ActionResponse.Empty> value = new PlainActionFuture<>();
-        value.onResponse(ActionResponse.Empty.INSTANCE);
         final Client mockedClient = mock(Client.class);
 
         final Realms mockedRealms = mock(Realms.class);
         when(mockedRealms.stream()).thenReturn(Stream.of());
-        when(mockedClient.execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any())).thenReturn(value);
+
+        doAnswer((inv) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
+            return null;
+        }).when(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
+
         security = new Security(settings, Collections.emptyList()) {
             @Override
             protected Client getClient() {
@@ -954,7 +961,7 @@ public class SecurityTests extends ESTestCase {
         final Settings inputSettings = Settings.EMPTY;
         security.reload(inputSettings);
 
-        verify(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any());
+        verify(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
         verify(mockedRealms).stream();
     }
 
@@ -962,14 +969,22 @@ public class SecurityTests extends ESTestCase {
         final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
 
         final boolean failRemoteClusterCredentialsReload = randomBoolean();
-        final PlainActionFuture<ActionResponse.Empty> value = new PlainActionFuture<>();
-        if (failRemoteClusterCredentialsReload) {
-            value.onFailure(new RuntimeException("failed remote cluster credentials reload"));
-        } else {
-            value.onResponse(ActionResponse.Empty.INSTANCE);
-        }
         final Client mockedClient = mock(Client.class);
-        when(mockedClient.execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any())).thenReturn(value);
+        if (failRemoteClusterCredentialsReload) {
+            doAnswer((inv) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
+                listener.onFailure(new RuntimeException("failed remote cluster credentials reload"));
+                return null;
+            }).when(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
+        } else {
+            doAnswer((inv) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
+                return null;
+            }).when(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
+        }
 
         final Realms mockedRealms = mock(Realms.class);
         final boolean failRealmsReload = (false == failRemoteClusterCredentialsReload) || randomBoolean();
@@ -1003,7 +1018,7 @@ public class SecurityTests extends ESTestCase {
             assertThat(exception.getSuppressed()[0].getMessage(), containsString("failed jwt realms reload"));
         }
         // Verify both called despite failure
-        verify(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any());
+        verify(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
         verify(mockedRealms).stream();
     }
 

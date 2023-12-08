@@ -594,7 +594,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     }),
                     latch
                 );
-                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                List<SearchResponse> incrementalResponses = new CopyOnWriteArrayList<>();
                 boolean useProgressListener = randomBoolean();
                 SearchProgressListener progressListener = SearchProgressListener.NOOP;
                 if (useProgressListener) {
@@ -645,8 +645,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     // incremental merges are done iff more than one cluster is searched and a
                     // non-NOOP SearchProgressListener is provided
                     if (useProgressListener && totalClusters > 1) {
-                        assertThat(incrementalResponses.size(), greaterThan(0));
-                        // assertEquals(totalClusters, incrementalResponses.size());
+                        assertEquals(totalClusters, incrementalResponses.size());
                     }
                 } finally {
                     searchResponse.decRef();
@@ -667,7 +666,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 );
 
                 boolean useProgressListener = randomBoolean();
-                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                List<SearchResponse> incrementalResponses = new CopyOnWriteArrayList<>();
                 SearchProgressListener progressListener = SearchProgressListener.NOOP;
                 if (useProgressListener) {
                     progressListener = new SearchProgressListener() {
@@ -747,7 +746,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
-                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                List<SearchResponse> incrementalResponses = new CopyOnWriteArrayList<>();
                 boolean useProgressListener = randomBoolean();
                 SearchProgressListener progressListener = SearchProgressListener.NOOP;
                 if (useProgressListener) {
@@ -788,8 +787,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
                 assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
                 if (useProgressListener && localIndices != null) {
-                    assertThat(incrementalResponses.size(), greaterThan(0));
-                    // assertEquals(totalClusters - numDisconnectedClusters, incrementalResponses.size());
+                    assertEquals(totalClusters - numDisconnectedClusters, incrementalResponses.size());
                 }
                 for (SearchResponse incrementalResponse : incrementalResponses) {
                     incrementalResponse.decRef();
@@ -817,7 +815,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
-                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                List<SearchResponse> incrementalResponses = new CopyOnWriteArrayList<>();
                 boolean useProgressListener = randomBoolean();
                 SearchProgressListener progressListener = SearchProgressListener.NOOP;
                 if (useProgressListener) {
@@ -868,8 +866,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                     assertEquals(successful == 0 ? 0 : successful + 1, searchResponse.getNumReducePhases());
                     if (useProgressListener && successful > 0) {
-                        assertThat(incrementalResponses.size(), greaterThan(0));
-                        // assertEquals(totalClusters - numDisconnectedClusters, incrementalResponses.size());
+                        assertEquals(totalClusters - numDisconnectedClusters, incrementalResponses.size());
                     }
                     for (SearchResponse incrementalResponse : incrementalResponses) {
                         incrementalResponse.decRef();

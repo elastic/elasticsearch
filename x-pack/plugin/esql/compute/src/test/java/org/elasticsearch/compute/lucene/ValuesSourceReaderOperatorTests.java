@@ -146,9 +146,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        // The test wants more than one segment. We shoot for 10.
-        int commitEvery = Math.max(1, (int) Math.ceil((double) size / 10));
-        return simpleInput(driverContext(), size, commitEvery, randomPageSize());
+        return simpleInput(driverContext(), size, commitEvery(size), randomPageSize());
+    }
+
+    private int commitEvery(int numDocs) {
+        return Math.max(1, (int) Math.ceil((double) numDocs / 10));
     }
 
     private SourceOperator simpleInput(DriverContext context, int size, int commitEvery, int pageSize) {
@@ -300,7 +302,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     public void testManySingleDocPages() {
         DriverContext driverContext = driverContext();
         int numDocs = between(10, 100);
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, numDocs, 1));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, between(1, numDocs), 1));
         Randomness.shuffle(input);
         List<Operator> operators = new ArrayList<>();
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
@@ -473,7 +475,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private void testLoadAllStatus(boolean allInOnePage) {
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)));
+        int numDocs = between(100, 5000);
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, commitEvery(numDocs), numDocs));
         assertThat(reader.leaves(), hasSize(10));
         assertThat(input, hasSize(10));
         List<FieldCase> cases = infoAndChecksForEachType(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);

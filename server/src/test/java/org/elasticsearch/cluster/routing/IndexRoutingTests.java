@@ -685,11 +685,11 @@ public class IndexRoutingTests extends ESTestCase {
         int shards = between(2, 1000);
         IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicTemplates(
             IndexMetadata.builder("test")
-                .settings(settings(IndexVersion.current()).put(IndexMetadata.DYNAMIC_DIMENSION_NAMES.getKey(), "dYnamic1,dynamiC2"))
+                .settings(settings(IndexVersion.current()).put(IndexMetadata.DYNAMIC_DIMENSION_NAMES.getKey(), "dynamic1,dynamic2"))
                 .numberOfShards(shards)
                 .numberOfReplicas(1)
                 .build(),
-            Map.of("dimension1", "dynAmic1", "dimension2", "dynamIc2")
+            Map.of("dimension1", "dynamic1", "dimension2", "dynamic2")
         );
         assertIndexShard(
             routing,
@@ -700,13 +700,13 @@ public class IndexRoutingTests extends ESTestCase {
 
     public void testMergeDimensions() throws IOException {
         List<String> fromRoutingPath = List.of("a", "b", "c");
-        List<String> fromDynamicTemplates = List.of("F", "e", "D", "f");
+        List<String> fromDynamicTemplates = List.of("f", "e", "d", "f");
         assertThat(IndexRouting.mergeDimensions(fromRoutingPath, fromDynamicTemplates), contains("a", "b", "c", "d", "e", "f"));
     }
 
     public void testMergeDimensionsSingleDynamicDimension() throws IOException {
         List<String> fromRoutingPath = List.of("a", "b", "c");
-        List<String> fromDynamicTemplates = List.of("D");
+        List<String> fromDynamicTemplates = List.of("d");
         assertThat(IndexRouting.mergeDimensions(fromRoutingPath, fromDynamicTemplates), contains("a", "b", "c", "d"));
     }
 
@@ -718,7 +718,7 @@ public class IndexRoutingTests extends ESTestCase {
 
     public void testMergeDimensionsNoRoutingPath() throws IOException {
         List<String> fromRoutingPath = List.of();
-        List<String> fromDynamicTemplates = List.of("F", "e", "D");
+        List<String> fromDynamicTemplates = List.of("f", "e", "d");
         assertThat(IndexRouting.mergeDimensions(fromRoutingPath, fromDynamicTemplates), contains("d", "e", "f"));
     }
 

@@ -32,7 +32,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -88,12 +87,9 @@ public abstract class IndexRouting {
             // Sort and deduplicate dynamic dimensions so that they are always processed in the same order, regardless of their
             // ordering in the dynamic template spec.
             fromDynamicTemplates = fromDynamicTemplates.stream()
-                .map(str -> str.toLowerCase(Locale.ROOT))
                 .sorted()
                 .distinct()
                 .collect(Collectors.toList());
-        } else {
-            fromDynamicTemplates = List.of(fromDynamicTemplates.get(0).toLowerCase(Locale.ROOT));
         }
         List<String> combined = new ArrayList<>(fromRoutingPath);
         combined.addAll(fromDynamicTemplates);
@@ -298,8 +294,7 @@ public abstract class IndexRouting {
                 List<String> dynamicDimensionNames = metadata.getDynamicDimensionNames();
                 if (dynamicDimensionNames.isEmpty() == false) {
                     // Invert the dynamic template mapping to efficiently search for field type matches.
-                    // Dynamic dimension name matches are case-insensitive.
-                    Map<String, String> inverted = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+                    Map<String, String> inverted = new TreeMap<>();
                     for (var entry : dynamicTemplates.entrySet()) {
                         inverted.put(entry.getValue(), entry.getKey());
                     }

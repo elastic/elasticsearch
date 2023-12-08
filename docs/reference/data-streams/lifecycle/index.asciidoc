@@ -18,7 +18,7 @@ and backwards incompatible mapping changes.
 * Configurable retention, which allows you to configure the time period for which your data is guaranteed to be stored.
 {es} is allowed at a later time to delete data older than this time period.
 
-Data stream lifecycle also support downsampling the data stream backing indices.
+A data stream lifecycle also supports downsampling the data stream backing indices.
 See <<data-streams-put-lifecycle-downsampling-example, the downsampling example>> for 
 more details.
 

@@ -62,10 +62,10 @@ data stream. Defaults to `true`.
 
 `downsampling`::
 (Optional, array)
-An optional array of downsampling configuration objects, each definig an `after`
+An optional array of downsampling configuration objects, each defining an `after`
 interval representing when the backing index is meant to be downsampled (the time 
-frame is calculated since the index was rolled over i.e. generation time) and
-an `fixed_interval` representing the downsampling interval (the minimum `fixed_interval`
+frame is calculated since the index was rolled over, i.e. generation time) and
+a `fixed_interval` representing the downsampling interval (the minimum `fixed_interval`
 value is `5m`). A maximum number of 10 downsampling rounds can be configured.
 See <<data-streams-put-lifecycle-downsampling-example, configuration example>> below.
 

@@ -245,10 +245,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
     }
 
-    public String getField() {
-        return field;
-    }
-
     public Integer k() {
         return k;
     }

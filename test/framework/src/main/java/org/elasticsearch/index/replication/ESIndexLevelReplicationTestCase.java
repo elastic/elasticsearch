@@ -925,11 +925,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             )
         ) {
             final PlainActionFuture<BulkShardRequest> res = new PlainActionFuture<>();
-            executeShardBulkOnPrimary(
-                primary,
-                bulkShardRequest,
-                ActionListener.releaseAfter(res.map(TransportReplicationAction.PrimaryResult::replicaRequest), bulkShardRequest)
-            );
+            executeShardBulkOnPrimary(primary, bulkShardRequest, res.map(TransportReplicationAction.PrimaryResult::replicaRequest));
             return res.get();
         }
     }

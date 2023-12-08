@@ -25,8 +25,8 @@ import static org.elasticsearch.core.Strings.format;
 
 class ApiKeyAuthenticator extends MetricsRecordingAuthenticator implements Authenticator {
 
-    public static final String METRIC_SUCCESS_COUNT = "es.security.authc.api_keys.success.count";
-    public static final String METRIC_FAILURES_COUNT = "es.security.authc.api_keys.failures.count";
+    public static final String METRIC_SUCCESS_COUNT = "es.security.authc.api_key.success.count";
+    public static final String METRIC_FAILURES_COUNT = "es.security.authc.api_key.failures.count";
 
     public static final String ATTRIBUTE_API_KEY_ID = "es.security.api_key_id";
     public static final String ATTRIBUTE_API_KEY_TYPE = "es.security.api_key_type";

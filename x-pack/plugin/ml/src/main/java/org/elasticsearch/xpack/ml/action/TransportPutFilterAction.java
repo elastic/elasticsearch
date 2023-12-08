@@ -10,8 +10,8 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -59,7 +59,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
         }
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, new ActionListener<>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 listener.onResponse(new PutFilterAction.Response(filter));

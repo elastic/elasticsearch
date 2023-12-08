@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -713,6 +714,17 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             randomDouble()
         );
         createTestSuite(skipSection, closeToAssertion).validate();
+    }
+
+    public void testAddingIsAfterWithSkip() {
+        int lineNumber = between(1, 10000);
+        SkipSection skipSection = new SkipSection(null, singletonList("is_after"), emptyList(), null);
+        IsAfterAssertion isAfterAssertion = new IsAfterAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomInstantBetween(Instant.ofEpochSecond(0L), Instant.ofEpochSecond(3000000000L))
+        );
+        createTestSuite(skipSection, isAfterAssertion).validate();
     }
 
     private static ClientYamlTestSuite createTestSuite(SkipSection skipSection, ExecutableSection executableSection) {

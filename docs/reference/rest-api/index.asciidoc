@@ -19,6 +19,7 @@ not be included yet.
 * <<cluster, Cluster APIs>>
 * <<features-apis,Features APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
+* <<connector-apis, Connector APIs>>
 * <<data-stream-apis,Data stream APIs>>
 * <<docs, Document APIs>>
 * <<enrich-apis,Enrich APIs>>
@@ -66,6 +67,7 @@ include::{es-repo-dir}/behavioral-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
+include::{es-repo-dir}/connector/apis/connector-apis.asciidoc[]
 include::{es-repo-dir}/data-streams/data-stream-apis.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]

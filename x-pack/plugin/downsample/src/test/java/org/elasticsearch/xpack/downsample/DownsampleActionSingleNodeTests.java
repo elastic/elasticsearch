@@ -1014,10 +1014,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void bulkIndex(final String indexName, final SourceSupplier sourceSupplier, int docCount) throws IOException {
+        List<IndexRequest> indexRequests = new ArrayList<>();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int i = 0; i < docCount; i++) {
                 IndexRequest indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.CREATE);
+                indexRequests.add(indexRequest);
                 XContentBuilder source = sourceSupplier.get();
                 indexRequest.source(source);
                 bulkRequestBuilder.add(indexRequest);
@@ -1039,6 +1041,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             int docsIndexed = docCount - duplicates;
             logger.info("Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
             assertHitCount(client().prepareSearch(indexName).setSize(0), docsIndexed);
+        }
+        for (IndexRequest indexRequest : indexRequests) {
+            indexRequest.decRef();
         }
     }
 

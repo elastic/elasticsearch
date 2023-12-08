@@ -103,7 +103,12 @@ public class BulkProcessor2Tests extends ESTestCase {
             .setFlushInterval(TimeValue.timeValueMillis(1))
             .build();
         try {
-            bulkProcessor.add(new IndexRequest());
+            IndexRequest indexRequest = new IndexRequest();
+            try {
+                bulkProcessor.add(indexRequest);
+            } finally {
+                indexRequest.decRef();
+            }
             assertTrue(countDownLatch.await(5, TimeUnit.MINUTES));
             assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
         } finally {
@@ -180,8 +185,12 @@ public class BulkProcessor2Tests extends ESTestCase {
         );
         try {
             IndexRequest indexRequest = new IndexRequest();
-            for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
-                bulkProcessor.add(indexRequest);
+            try {
+                for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
+                    bulkProcessor.add(indexRequest);
+                }
+            } finally {
+                indexRequest.decRef();
             }
 
             assertBusy(() -> {
@@ -289,6 +298,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             IndexRequest indexRequest = new IndexRequest();
             List<Future<?>> futures = new ArrayList<>();
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
+            CountDownLatch allIndexRequestsAdded = new CountDownLatch(maxDocuments);
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
                 futures.add(executorService.submit(() -> {
                     try {
@@ -297,6 +307,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                         startGate.await();
                         // alternate between ways to add to the bulk processor
                         bulkProcessor.add(indexRequest);
+                        allIndexRequestsAdded.countDown();
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToRuntime(e);
                     }
@@ -304,6 +315,8 @@ public class BulkProcessor2Tests extends ESTestCase {
             }
             startGate.countDown();
             startGate.await();
+            allIndexRequestsAdded.await();
+            indexRequest.decRef();
 
             for (Future<?> f : futures) {
                 try {
@@ -399,6 +412,7 @@ public class BulkProcessor2Tests extends ESTestCase {
                     break;
                 }
             }
+            indexRequest.decRef();
             assertThat(rejectedRequests, equalTo(true));
         } finally {
             bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
@@ -448,7 +462,12 @@ public class BulkProcessor2Tests extends ESTestCase {
             .build();
         try {
             for (int i = 0; i < numberOfRequests; i++) {
-                bulkProcessor.add(new IndexRequest().source(Collections.singletonMap("this_is_a_key" + i, "this_is_a_value" + i)));
+                IndexRequest indexRequest = new IndexRequest().source(Collections.singletonMap("this_is_a_key" + i, "this_is_a_value" + i));
+                try {
+                    bulkProcessor.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
         } catch (EsRejectedExecutionException e) {
             // We are throwing more data at the processor than the max bytes in flight setting can handle
@@ -507,19 +526,20 @@ public class BulkProcessor2Tests extends ESTestCase {
         final AtomicBoolean haveSeenRejections = new AtomicBoolean(false);
         try {
             for (int i = 0; i < numberOfRequests; i++) {
-                bulkProcessor.addWithBackpressure(
-                    new IndexRequest().source(Collections.singletonMap("this_is_a_key" + i, "this_is_a_value" + i)),
-                    abort::get
-                );
+                IndexRequest indexRequest = new IndexRequest().source(Collections.singletonMap("this_is_a_key" + i, "this_is_a_value" + i));
+                bulkProcessor.addWithBackpressure(indexRequest, abort::get);
+                indexRequest.decRef();
             }
             assertTrue(countDownLatch.await(5, TimeUnit.MINUTES));
             assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
             abort.set(true);
             try {
-                bulkProcessor.addWithBackpressure(
-                    new IndexRequest().source(Collections.singletonMap("this_is_a_key", "this_is_a_value")),
-                    abort::get
-                );
+                IndexRequest indexRequest = new IndexRequest().source(Collections.singletonMap("this_is_a_key", "this_is_a_value"));
+                try {
+                    bulkProcessor.addWithBackpressure(indexRequest, abort::get);
+                } finally {
+                    indexRequest.decRef();
+                }
             } catch (EsRejectedExecutionException e) {
                 haveSeenRejections.set(true);
             }

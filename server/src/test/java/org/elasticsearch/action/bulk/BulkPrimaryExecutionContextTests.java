@@ -69,11 +69,22 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             };
             items[i] = new BulkItemRequest(i, request);
         }
-        return new BulkShardRequest(new ShardId("index", "_na_", 0), randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            new ShardId("index", "_na_", 0),
+            randomFrom(WriteRequest.RefreshPolicy.values()),
+            items
+        );
+        /*
+         * We're responsible for the lifecycle of the IndexRequests and the BulkItemRequests since they were created here, so we decref them
+         * here, so that when the returned BulkShardRequest is decRef'd, the reference counts correctly go to 0.
+         */
+        for (BulkItemRequest bulkItemRequest : items) {
+            bulkItemRequest.decRef();
+        }
+        return bulkShardRequest;
     }
 
     public void testTranslogLocation() {
-
         try (BulkShardRequest shardRequest = generateRandomRequest()) {
 
             Translog.Location expectedLocation = null;
@@ -85,6 +96,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
 
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary);
             while (context.hasMoreOperationsToExecute()) {
+                IndexRequest nullableIndexRequest = null;
                 final Engine.Result result;
                 final DocWriteRequest<?> current = context.getCurrent();
                 final boolean failure = rarely();
@@ -106,7 +118,9 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                         }
                     }
                     case UPDATE -> {
-                        context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
+                        IndexRequest indexRequest = new IndexRequest(current.index()).id(current.id());
+                        context.setRequestToExecute(indexRequest);
+                        nullableIndexRequest = indexRequest;
                         if (failure) {
                             result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1, current.id());
                         } else {
@@ -128,6 +142,9 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 }
                 context.markOperationAsExecuted(result);
                 context.markAsCompleted(context.getExecutionResult());
+                if (nullableIndexRequest != null) {
+                    nullableIndexRequest.decRef();
+                }
             }
 
             assertThat(context.getLocationToSync(), equalTo(expectedLocation));

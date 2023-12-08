@@ -84,13 +84,18 @@ public class UnsignedLongTests extends ESIntegTestCase {
         indexRandom(true, builders);
 
         prepareCreate("idx2").setMapping("ul_field", "type=long").setSettings(settings).get();
+        List<IndexRequest> indexRequests = new ArrayList<>();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int i = 0; i < 4; i++) {
                 IndexRequest indexRequest = new IndexRequest("idx2").source("ul_field", values[i]);
+                indexRequests.add(indexRequest);
                 bulkRequestBuilder.add(indexRequest);
             }
             bulkRequestBuilder.get();
+        }
+        for (IndexRequest indexRequest : indexRequests) {
+            indexRequest.decRef();
         }
 
         ensureSearchable();

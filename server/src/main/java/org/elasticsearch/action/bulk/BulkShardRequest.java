@@ -48,6 +48,9 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
+        for (BulkItemRequest item : items) {
+            item.incRef();
+        }
         this.refCounted = LeakTracker.wrap(new BulkRequestRefCounted());
         setRefreshPolicy(refreshPolicy);
     }
@@ -175,7 +178,13 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        boolean success = refCounted.decRef();
+        if (refCounted.hasReferences() == false) {
+            for (BulkItemRequest item : items) {
+                success = item.decRef() && success;
+            }
+        }
+        return success;
     }
 
     @Override

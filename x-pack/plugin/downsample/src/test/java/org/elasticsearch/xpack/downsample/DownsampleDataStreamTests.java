@@ -53,6 +53,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -216,25 +217,26 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
     }
 
     private void indexDocs(final String dataStream, int numDocs, long startTime) {
+        List<IndexRequest> indexRequests = new ArrayList<>();
         try (BulkRequest bulkRequest = new BulkRequest()) {
             for (int i = 0; i < numDocs; i++) {
                 final String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(startTime + i);
-                bulkRequest.add(
-                    new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                        .source(
-                            String.format(
-                                Locale.ROOT,
-                                "{\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"}",
-                                DEFAULT_TIMESTAMP_FIELD,
-                                timestamp,
-                                "routing_field",
-                                0,
-                                "counter",
-                                i + 1
-                            ),
-                            XContentType.JSON
-                        )
-                );
+                IndexRequest indexRequest = new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        String.format(
+                            Locale.ROOT,
+                            "{\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"}",
+                            DEFAULT_TIMESTAMP_FIELD,
+                            timestamp,
+                            "routing_field",
+                            0,
+                            "counter",
+                            i + 1
+                        ),
+                        XContentType.JSON
+                    );
+                indexRequests.add(indexRequest);
+                bulkRequest.add(indexRequest);
             }
             final BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             final BulkItemResponse[] items = bulkResponse.getItems();
@@ -242,6 +244,9 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
             assertThat(bulkResponse.hasFailures(), equalTo(false));
             final RefreshResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
             assertThat(refreshResponse.getStatus().getStatus(), equalTo(RestStatus.OK.getStatus()));
+        }
+        for (IndexRequest indexRequest : indexRequests) {
+            indexRequest.decRef();
         }
     }
 }

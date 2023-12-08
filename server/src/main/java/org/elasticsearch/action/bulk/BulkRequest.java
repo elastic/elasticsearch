@@ -159,6 +159,7 @@ public class BulkRequest extends ActionRequest
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
 
+        request.incRef();
         requests.add(request);
         // lack of source is validated in validate() method
         sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
@@ -481,7 +482,15 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        boolean success = refCounted.decRef();
+        if (refCounted.hasReferences() == false) {
+            for (DocWriteRequest<?> request : requests) {
+                if (request instanceof IndexRequest indexRequest) {
+                    success = indexRequest.decRef() && success;
+                }
+            }
+        }
+        return success;
     }
 
     @Override

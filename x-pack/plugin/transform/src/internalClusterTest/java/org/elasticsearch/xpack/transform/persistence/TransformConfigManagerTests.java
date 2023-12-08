@@ -342,10 +342,13 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest request = new IndexRequest(oldIndex).source(source)
-                .id(docId)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            client().index(request).actionGet();
+            try (
+                IndexRequest request = new IndexRequest(oldIndex).source(source)
+                    .id(docId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ) {
+                client().index(request).actionGet();
+            }
         }
 
         // check that transformConfig2 gets returned, not the one from the old index or both
@@ -407,10 +410,13 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest request = new IndexRequest(oldIndex).source(source)
-                .id(docId)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            client().index(request).actionGet();
+            try (
+                IndexRequest request = new IndexRequest(oldIndex).source(source)
+                    .id(docId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ) {
+                client().index(request).actionGet();
+            }
         }
 
         assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
@@ -428,10 +434,13 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest request = new IndexRequest(oldIndex).source(source)
-                .id(docId)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            client().index(request).actionGet();
+            try (
+                IndexRequest request = new IndexRequest(oldIndex).source(source)
+                    .id(docId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ) {
+                client().index(request).actionGet();
+            }
         }
 
         // add a new checkpoint doc for the old transform to check id expansion ignores other documents, see gh#80073
@@ -532,10 +541,13 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest request = new IndexRequest(oldIndex).source(source)
-                .id(docId)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            client().index(request).actionGet();
+            try (
+                IndexRequest request = new IndexRequest(oldIndex).source(source)
+                    .id(docId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ) {
+                client().index(request).actionGet();
+            }
         }
 
         assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
@@ -565,8 +577,9 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformStoredDoc.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest request = new IndexRequest(oldIndex).source(source).id(docId);
-            client().index(request).actionGet();
+            try (IndexRequest request = new IndexRequest(oldIndex).source(source).id(docId)) {
+                client().index(request).actionGet();
+            }
         }
 
         // Put when referencing the old index should create the doc in the new index, even if we have seqNo|primaryTerm info
@@ -702,10 +715,13 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfigOld.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest request = new IndexRequest(oldIndex).source(source)
-                .id(docId)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            client().index(request).actionGet();
+            try (
+                IndexRequest request = new IndexRequest(oldIndex).source(source)
+                    .id(docId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ) {
+                client().index(request).actionGet();
+            }
         }
 
         // create config in new index

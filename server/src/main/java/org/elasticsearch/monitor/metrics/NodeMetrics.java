@@ -212,6 +212,70 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 () -> new LongWithAttributes(stats.getOrRefresh().getFs().getIoStats().getTotalIOTimeMillis())
             )
         );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.docs.total",
+                "Total number of indexed documents",
+                "number",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCount())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.docs.current",
+                "Current number of indexing documents",
+                "number",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCurrent())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.failed.total",
+                "Total number of failed indexing operations",
+                "number",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexFailedCount())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.deletion.docs.total",
+                "Total number of deleted documents",
+                "number",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCount())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.deletion.docs.current",
+                "Current number of deleting documents",
+                "number",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCurrent())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.throttle.time",
+                "Total indices throttle time",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getThrottleTime().millis())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.noop.total",
+                "Total number of noop shard operations",
+                "number",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getNoopUpdateCount())
+            )
+        );
+
     }
 
     /**
@@ -238,6 +302,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      */
     private NodeStats getNodeStats() {
         CommonStatsFlags flags = new CommonStatsFlags(
+            CommonStatsFlags.Flag.Indexing,
             CommonStatsFlags.Flag.Get,
             CommonStatsFlags.Flag.Search,
             CommonStatsFlags.Flag.Merge,

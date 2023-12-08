@@ -28,12 +28,17 @@ A following header will contain the failure reason and the offending value:
 
 `"java.lang.NumberFormatException: For input string: \"foo\""`
 
+==== Booleans
+
+Boolean *true* will be converted to long *1*, *false* to *0*.
+
+==== Dates
 
 If the input parameter is of a date type, its value will be interpreted as
 milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
 converted to long.
 
-Boolean *true* will be converted to long *1*, *false* to *0*.
+==== Spatial points
 
 If the input parameter is a spatial point (`geo_point` or `point`),
 its value will be converted to the encoded value used in Lucene indexing.

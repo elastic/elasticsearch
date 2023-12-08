@@ -1,0 +1,5 @@
+pr: 103215
+summary: Hot-reloadable remote cluster credentials (with blocking call fix)
+area: Security
+type: enhancement
+issues: []

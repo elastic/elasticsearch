@@ -60,26 +60,18 @@ public class ToDegreesTests extends AbstractFunctionTestCase {
             UNSIGNED_LONG_MAX,
             List.of()
         );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "ToDegreesEvaluator[field=Attribute[channel=0]]",
-            DataTypes.DOUBLE,
-            d -> {
-                double deg = Math.toDegrees(d);
-                return Double.isNaN(deg) || Double.isInfinite(deg) ? null : deg;
-            },
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            d -> {
-                double deg = Math.toDegrees(d);
-                ArrayList<String> warnings = new ArrayList<>(2);
-                if (Double.isNaN(deg) || Double.isInfinite(deg)) {
-                    warnings.add("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.");
-                    warnings.add("Line -1:-1: java.lang.ArithmeticException: not a finite double number: " + deg);
-                }
-                return warnings;
+        TestCaseSupplier.forUnaryDouble(suppliers, "ToDegreesEvaluator[field=Attribute[channel=0]]", DataTypes.DOUBLE, d -> {
+            double deg = Math.toDegrees(d);
+            return Double.isNaN(deg) || Double.isInfinite(deg) ? null : deg;
+        }, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, d -> {
+            double deg = Math.toDegrees(d);
+            ArrayList<String> warnings = new ArrayList<>(2);
+            if (Double.isNaN(deg) || Double.isInfinite(deg)) {
+                warnings.add("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.");
+                warnings.add("Line -1:-1: java.lang.ArithmeticException: not a finite double number: " + deg);
             }
-        );
+            return warnings;
+        });
         TestCaseSupplier.unary(
             suppliers,
             "ToDegreesEvaluator[field=Attribute[channel=0]]",

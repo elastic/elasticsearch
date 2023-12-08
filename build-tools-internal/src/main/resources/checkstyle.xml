@@ -195,8 +195,9 @@
     </module>
 
     <module name="NeedBraces">
-        <property name="tokens" value="LITERAL_ELSE"/>
+        <property name="tokens" value="LITERAL_DO,LITERAL_ELSE,LITERAL_FOR,LITERAL_WHILE"/>
         <property name="allowSingleLineStatement" value="false"/>
+        <property name="allowEmptyLoopBody" value="true"/>
     </module>
 
   </module>

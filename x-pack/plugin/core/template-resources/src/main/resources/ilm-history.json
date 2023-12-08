@@ -10,7 +10,10 @@
       "index.number_of_shards": 1,
       "index.number_of_replicas": 0,
       "index.auto_expand_replicas": "0-1",
+      "index.lifecycle.prefer_ilm": false,
       "index.lifecycle.name": "ilm-history-ilm-policy"
+    },
+    "lifecycle": {
     },
     "mappings": {
         "dynamic": false,

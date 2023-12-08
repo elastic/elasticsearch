@@ -11,7 +11,10 @@
       "index.number_of_shards": 1,
       "index.number_of_replicas": 0,
       "index.auto_expand_replicas": "0-1",
-      "index.lifecycle.name": "slm-history-ilm-policy"
+      "index.lifecycle.name": "slm-history-ilm-policy",
+      "index.lifecycle.prefer_ilm": false
+    },
+    "lifecycle": {
     },
     "mappings": {
       "dynamic": false,

@@ -254,6 +254,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             assertWarnings(testCase.getExpectedWarnings());
         }
     }
+
     private Object toJavaObjectUnsignedLongAware(Block block, int position) {
         Object result;
         result = toJavaObject(block, position);
@@ -263,6 +264,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         return result;
     }
+
     /**
      * Evaluates a {@link Block} of values, all copied from the input pattern, read directly from the page.
      * <p>
@@ -526,7 +528,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (testCase.expectedType == DataTypes.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
-        assertThat(result, testCase.getMatcher());        if (testCase.getExpectedWarnings() != null) {
+        assertThat(result, testCase.getMatcher());
+        if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());
         }
     }

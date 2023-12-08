@@ -75,11 +75,13 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
         searchSourceBuilder.query(apiKeyBoolQueryBuilder);
 
         // copy all the aggregations without any verifications
-        for (AggregationBuilder aggregator : request.getAggsBuilder().getAggregatorFactories()) {
-            searchSourceBuilder.aggregation(aggregator);
-        }
-        for (PipelineAggregationBuilder pipelineAggregator : request.getAggsBuilder().getPipelineAggregatorFactories()) {
-            searchSourceBuilder.aggregation(pipelineAggregator);
+        if (request.getAggsBuilder() != null) {
+            for (AggregationBuilder aggregator : request.getAggsBuilder().getAggregatorFactories()) {
+                searchSourceBuilder.aggregation(aggregator);
+            }
+            for (PipelineAggregationBuilder pipelineAggregator : request.getAggsBuilder().getPipelineAggregatorFactories()) {
+                searchSourceBuilder.aggregation(pipelineAggregator);
+            }
         }
 
         if (request.getFieldSortBuilders() != null) {

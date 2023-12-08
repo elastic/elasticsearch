@@ -625,6 +625,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             null,
             null,
             null,
+            null,
             randomBoolean()
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
@@ -718,6 +719,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
 
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
             QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery().addIds(apiKeyId)),
+            null,
             null,
             null,
             null,

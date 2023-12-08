@@ -43,7 +43,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             suppliers,
             read,
             DataTypes.UNSIGNED_LONG,
-            (n) -> n,
+            n -> n,
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
             List.of()
@@ -118,7 +118,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             suppliers,
             evaluatorName.apply("Long"),
             DataTypes.UNSIGNED_LONG,
-            (n) -> BigInteger.valueOf(n),
+            BigInteger::valueOf,
             0L,
             Long.MAX_VALUE,
             List.of()
@@ -142,7 +142,7 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             suppliers,
             evaluatorName.apply("Int"),
             DataTypes.UNSIGNED_LONG,
-            (n) -> BigInteger.valueOf(n),
+            BigInteger::valueOf,
             0,
             Integer.MAX_VALUE,
             List.of()

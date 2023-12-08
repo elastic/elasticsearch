@@ -27,7 +27,7 @@ public final class ApiKeyAuthenticationMetrics {
 
     public static final String ATTRIBUTE_API_KEY_ID = "es.security.api_key_id";
     public static final String ATTRIBUTE_API_KEY_TYPE = "es.security.api_key_type";
-    public static final String ATTRIBUTE_AUTHC_FAILURE_REASON = "es.security.authc_failure_reason";
+    public static final String ATTRIBUTE_AUTHC_FAILURE_REASON = "es.security.api_key_authc_failure_reason";
 
     private final LongCounter successCounter;
     private final LongCounter failuresCounter;

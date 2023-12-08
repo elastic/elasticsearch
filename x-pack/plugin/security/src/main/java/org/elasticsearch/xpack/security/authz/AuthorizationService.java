@@ -16,18 +16,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -115,8 +115,8 @@ public class AuthorizationService {
         PRINCIPAL_ROLES_FIELD_NAME,
         new String[] { SystemUser.ROLE_NAME }
     );
-    private static final String IMPLIED_INDEX_ACTION = IndexAction.NAME + ":op_type/index";
-    private static final String IMPLIED_CREATE_ACTION = IndexAction.NAME + ":op_type/create";
+    private static final String IMPLIED_INDEX_ACTION = TransportIndexAction.NAME + ":op_type/index";
+    private static final String IMPLIED_CREATE_ACTION = TransportIndexAction.NAME + ":op_type/create";
 
     private static final Logger logger = LogManager.getLogger(AuthorizationService.class);
 
@@ -557,7 +557,12 @@ public class AuthorizationService {
                 runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             } else {
                 Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
-                final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME, authzContext);
+                final RequestInfo aliasesRequestInfo = new RequestInfo(
+                    authentication,
+                    request,
+                    TransportIndicesAliasesAction.NAME,
+                    authzContext
+                );
                 authzEngine.authorizeIndexAction(
                     aliasesRequestInfo,
                     authzInfo,
@@ -903,8 +908,8 @@ public class AuthorizationService {
         return switch (docWriteRequest.opType()) {
             case INDEX -> IMPLIED_INDEX_ACTION;
             case CREATE -> IMPLIED_CREATE_ACTION;
-            case UPDATE -> UpdateAction.NAME;
-            case DELETE -> DeleteAction.NAME;
+            case UPDATE -> TransportUpdateAction.NAME;
+            case DELETE -> TransportDeleteAction.NAME;
         };
     }
 

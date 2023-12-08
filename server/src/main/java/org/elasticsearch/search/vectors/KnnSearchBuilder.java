@@ -347,7 +347,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         Integer requestSize = context.requestSize();
         int size = requestSize == null || requestSize < 0 ? DEFAULT_SIZE : requestSize;
         int adjustedK = k == null ? size : k;
-        int adjustedNumCands = numCands == null ? (int) Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK, NUM_CANDS_LIMIT) : numCands;
+        int adjustedNumCands = numCands == null
+            ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK, NUM_CANDS_LIMIT))
+            : numCands;
         if (adjustedNumCands < adjustedK) {
             throw new IllegalArgumentException(
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"

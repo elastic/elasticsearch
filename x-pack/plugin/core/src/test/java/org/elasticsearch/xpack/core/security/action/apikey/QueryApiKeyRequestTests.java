@@ -65,6 +65,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
 
         final QueryApiKeyRequest request3 = new QueryApiKeyRequest(
             QueryBuilders.matchAllQuery(),
+            null,
             42,
             20,
             List.of(
@@ -92,6 +93,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
     public void testValidate() {
         final QueryApiKeyRequest request1 = new QueryApiKeyRequest(
             null,
+            null,
             randomIntBetween(0, Integer.MAX_VALUE),
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
@@ -102,6 +104,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
 
         final QueryApiKeyRequest request2 = new QueryApiKeyRequest(
             null,
+            null,
             randomIntBetween(Integer.MIN_VALUE, -1),
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
@@ -111,6 +114,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
         assertThat(request2.validate().getMessage(), containsString("[from] parameter cannot be negative"));
 
         final QueryApiKeyRequest request3 = new QueryApiKeyRequest(
+            null,
             null,
             randomIntBetween(0, Integer.MAX_VALUE),
             randomIntBetween(Integer.MIN_VALUE, -1),

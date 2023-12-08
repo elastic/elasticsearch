@@ -161,7 +161,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     }
 
     /**
-    * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}
+    * Overridden to ensure that {@link SearchExecutionContext} has a non-null {@link IndexReader}; this query should always be rewritten
     */
     @Override
     public void testToQuery() throws IOException {
@@ -172,10 +172,8 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
                 TextExpansionQueryBuilder queryBuilder = createTestQueryBuilder();
-                Query query = queryBuilder.toQuery(context);
-
-                assertTrue(query instanceof BooleanQuery);
-                // TODO
+                IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
+                assertEquals("text_expansion should have been rewritten to another query type", e.getMessage());
             }
         }
     }

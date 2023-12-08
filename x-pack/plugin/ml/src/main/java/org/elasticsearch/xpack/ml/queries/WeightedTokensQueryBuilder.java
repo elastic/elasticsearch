@@ -171,6 +171,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
                 qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
             }
         }
+        qb.setMinimumNumberShouldMatch(1);
         return qb.build();
     }
 

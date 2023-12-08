@@ -13,6 +13,7 @@ import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -41,6 +42,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -48,10 +50,8 @@ import static org.hamcrest.Matchers.hasSize;
 public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<WeightedTokensQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
-
-    private static final int NUM_TOKENS = 10;
-
     private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(new TextExpansionResults.WeightedToken("foo", .42f));
+    private static final int NUM_TOKENS = WEIGHTED_TOKENS.size();
 
     @Override
     protected WeightedTokensQueryBuilder doCreateTestQueryBuilder() {
@@ -113,15 +113,74 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     @Override
     public void testToQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            // Index at least one document so we have a freq > 0
             Document document = new Document();
-            document.add(new FloatDocValuesField(RANK_FEATURES_FIELD, 1.0f));
+            document.add(new FeatureField(RANK_FEATURES_FIELD, "foo", 1.0f));
             iw.addDocument(document);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                WeightedTokensQueryBuilder queryBuilder = createTestQueryBuilder();
-                Query query = queryBuilder.doToQuery(context);
+                WeightedTokensQueryBuilder firstQuery = createTestQueryBuilder();
+                WeightedTokensQueryBuilder controlQuery = copyQuery(firstQuery);
+                QueryBuilder rewritten = rewriteQuery(firstQuery, context);
+                Query firstLuceneQuery = rewritten.toQuery(context);
+                assertNotNull("toQuery should not return null", firstLuceneQuery);
+                assertLuceneQuery(firstQuery, firstLuceneQuery, context);
+                assertEquals(
+                    "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
+                    firstQuery,
+                    controlQuery
+                );
+                assertEquals(
+                    "equals is not symmetric after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
+                    controlQuery,
+                    firstQuery
+                );
+                assertThat(
+                    "query copy's hashcode is different from original hashcode after calling toQuery, firstQuery: "
+                        + firstQuery
+                        + ", secondQuery: "
+                        + controlQuery,
+                    controlQuery.hashCode(),
+                    equalTo(firstQuery.hashCode())
+                );
+                WeightedTokensQueryBuilder secondQuery = copyQuery(firstQuery);
 
-                assertEquals(RANK_FEATURES_FIELD, queryBuilder.getFieldName());
+                // query _name never should affect the result of toQuery, we randomly set it to make sure
+                if (randomBoolean()) {
+                    secondQuery.queryName(
+                        secondQuery.queryName() == null
+                            ? randomAlphaOfLengthBetween(1, 30)
+                            : secondQuery.queryName() + randomAlphaOfLengthBetween(1, 10)
+                    );
+                }
+                context = new SearchExecutionContext(context);
+                Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
+                assertNotNull("toQuery should not return null", secondLuceneQuery);
+                assertLuceneQuery(secondQuery, secondLuceneQuery, context);
+
+                if (builderGeneratesCacheableQueries()) {
+                    assertEquals(
+                        "two equivalent query builders lead to different lucene queries hashcode",
+                        secondLuceneQuery.hashCode(),
+                        firstLuceneQuery.hashCode()
+                    );
+                    assertEquals(
+                        "two equivalent query builders lead to different lucene queries",
+                        rewrite(secondLuceneQuery),
+                        rewrite(firstLuceneQuery)
+                    );
+                }
+
+                if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
+                    secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
+                    Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
+                    assertNotEquals(
+                        "modifying the boost doesn't affect the corresponding lucene query",
+                        rewrite(firstLuceneQuery),
+                        rewrite(thirdLuceneQuery)
+                    );
+                }
+
             }
         }
     }

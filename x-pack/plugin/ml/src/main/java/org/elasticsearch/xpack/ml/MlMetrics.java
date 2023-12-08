@@ -178,7 +178,7 @@ public class MlMetrics extends AbstractLifecycleComponent implements ClusterStat
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.anomaly_detectors.starting.count",
+                "es.ml.datafeeds.starting.count",
                 "Count of datafeeds in the starting state cluster-wide.",
                 "datafeeds",
                 () -> new LongWithAttributes(mlTaskStatusCounts.datafeedStartingCount, isMasterMap)
@@ -186,7 +186,7 @@ public class MlMetrics extends AbstractLifecycleComponent implements ClusterStat
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.anomaly_detectors.started.count",
+                "es.ml.datafeeds.started.count",
                 "Count of datafeeds in the started state cluster-wide.",
                 "datafeeds",
                 () -> new LongWithAttributes(mlTaskStatusCounts.datafeedStartedCount, isMasterMap)
@@ -194,7 +194,7 @@ public class MlMetrics extends AbstractLifecycleComponent implements ClusterStat
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.anomaly_detectors.stopping.count",
+                "es.ml.datafeeds.stopping.count",
                 "Count of datafeeds in the stopping state cluster-wide.",
                 "datafeeds",
                 () -> new LongWithAttributes(mlTaskStatusCounts.datafeedStoppingCount, isMasterMap)

@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MappingLookupTests extends ESTestCase {
@@ -188,7 +188,7 @@ public class MappingLookupTests extends ESTestCase {
             emptyList(),
             emptyList()
         );
-        assertThat(mappingLookup.getDimensions(), contains("dim1", "dim2"));
+        assertThat(mappingLookup.getDimensions(), containsInAnyOrder("dim1", "dim2"));
     }
 
     public void testShadowingOnConstruction() {

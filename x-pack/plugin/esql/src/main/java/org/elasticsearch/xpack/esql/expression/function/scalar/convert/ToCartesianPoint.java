@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -28,8 +29,8 @@ public class ToCartesianPoint extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
-        Map.entry(LONG, (fieldEval, source) -> fieldEval),
-        Map.entry(UNSIGNED_LONG, (fieldEval, source) -> fieldEval),
+        Map.entry(LONG, ToCartesianPointFromLongEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToCartesianPointFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToCartesianPointFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );
@@ -59,7 +60,12 @@ public class ToCartesianPoint extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
-    static long fromKeyword(BytesRef in) {
-        return CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(in.utf8ToString()));
+    static SpatialPoint fromKeyword(BytesRef in) {
+        return CARTESIAN.stringAsPoint(in.utf8ToString());
+    }
+
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
+    static SpatialPoint fromLong(long encoded) {
+        return CARTESIAN.longAsPoint(encoded);
     }
 }

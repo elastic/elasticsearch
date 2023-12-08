@@ -86,10 +86,7 @@ public abstract class IndexRouting {
         if (fromDynamicTemplates.size() > 1) {
             // Sort and deduplicate dynamic dimensions so that they are always processed in the same order, regardless of their
             // ordering in the dynamic template spec.
-            fromDynamicTemplates = fromDynamicTemplates.stream()
-                .sorted()
-                .distinct()
-                .collect(Collectors.toList());
+            fromDynamicTemplates = fromDynamicTemplates.stream().sorted().distinct().collect(Collectors.toList());
         }
         List<String> combined = new ArrayList<>(fromRoutingPath);
         combined.addAll(fromDynamicTemplates);

@@ -118,5 +118,5 @@ PUT _data_stream/my-weather-sensor-data-stream/_lifecycle
       }
     ]
 }
------------------------------------------------------------------
+--------------------------------------------------------------------
 //TEST[skip:downsampling requires waiting for indices to be out of time bounds]

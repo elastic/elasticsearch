@@ -18,8 +18,8 @@ not be included yet.
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
 * <<features-apis,Features APIs>>
-* <<ccr-apis,{ccr-cap} APIs>>
 * <<connector-apis, Connector APIs>>
+* <<ccr-apis,{ccr-cap} APIs>>
 * <<data-stream-apis,Data stream APIs>>
 * <<docs, Document APIs>>
 * <<enrich-apis,Enrich APIs>>

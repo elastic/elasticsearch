@@ -124,7 +124,7 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
             var authResult = future.actionGet();
             assertThat(authResult.isAuthenticated(), equalTo(true));
         }
-        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticationMetrics.METRIC_SUCCESS_COUNT);
+        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticator.METRIC_SUCCESS_COUNT);
         assertThat(successMetrics.size(), equalTo(numOfAuthentications));
 
         successMetrics.forEach(metric -> {
@@ -136,8 +136,8 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
                 metric.attributes(),
                 equalTo(
                     Map.ofEntries(
-                        Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                        Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
+                        Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                        Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
                     )
                 )
             );
@@ -247,27 +247,27 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         ApiKeyCredentials apiKeyCredentials,
         String failureMessage
     ) {
-        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticationMetrics.METRIC_FAILURES_COUNT);
+        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticator.METRIC_FAILURES_COUNT);
         assertThat(failuresMetrics.size(), equalTo(1));
         assertThat(
             failuresMetrics.get(0).attributes(),
             equalTo(
                 Map.ofEntries(
-                    Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                    Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                    Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_AUTHC_FAILURE_REASON, failureMessage)
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON, failureMessage)
                 )
             )
         );
     }
 
     private void assertZeroSuccessAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
-        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticationMetrics.METRIC_SUCCESS_COUNT);
+        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticator.METRIC_SUCCESS_COUNT);
         assertThat(successMetrics.size(), equalTo(0));
     }
 
     private void assertZeroFailedAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
-        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticationMetrics.METRIC_FAILURES_COUNT);
+        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticator.METRIC_FAILURES_COUNT);
         assertThat(failuresMetrics.size(), equalTo(0));
     }
 

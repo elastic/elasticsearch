@@ -722,11 +722,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Consumer<V> verify,
         AggTestConfig aggTestConfig
     ) throws IOException {
+        testCase(buildIndex, verify, aggTestConfig, false);
+    }
+
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<V> verify,
+        AggTestConfig aggTestConfig,
+        boolean useLogDocMergePolicy
+    ) throws IOException {
         boolean timeSeries = aggTestConfig.builder().isInSortOrderExecutionRequired();
         try (Directory directory = newDirectory()) {
             // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order.
-            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()))
-                .setMergePolicy(new LogDocMergePolicy());
+            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            if (useLogDocMergePolicy) {
+                config.setMergePolicy(new LogDocMergePolicy());
+            }
             if (timeSeries) {
                 Sort sort = new Sort(
                     new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),

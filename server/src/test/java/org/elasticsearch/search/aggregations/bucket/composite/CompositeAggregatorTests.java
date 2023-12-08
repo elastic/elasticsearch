@@ -767,7 +767,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES));
+        }, new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES), true);
     }
 
     /**
@@ -820,7 +820,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 builder,
                 new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            )
+            ),
+            true
         );
     }
 
@@ -875,7 +876,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 builder,
                 new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            )
+            ),
+            true
         );
     }
 

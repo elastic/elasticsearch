@@ -458,22 +458,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         GetHealthAction.Response healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
             .actionGet();
-        List<HealthIndicatorResult> masterIsStableIndicator = healthResponse.getIndicatorResults()
-            .stream()
-            .filter(indicator -> indicator.name().equals(StableMasterHealthIndicatorService.NAME))
-            .toList();
-        assertThat(masterIsStableIndicator.size(), is(1));
+        HealthIndicatorResult masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
         // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not
         // be computed
-        if (masterIsStableIndicator.get(0).status() == HealthStatus.GREEN) {
+        if (masterIsStableIndicator.status() == HealthStatus.GREEN) {
             // the shards capacity indicator is dictating the overall status
             assertThat(healthResponse.getStatus(), is(HealthStatus.RED));
-            HealthIndicatorResult dslIndicator = healthResponse.getIndicatorResults()
-                .stream()
-                .filter(indicator -> indicator.name().equals(DataStreamLifecycleHealthIndicatorService.NAME))
-                .toList()
-                .get(0);
-
+            HealthIndicatorResult dslIndicator = healthResponse.findIndicator(DataStreamLifecycleHealthIndicatorService.NAME);
             assertThat(dslIndicator.status(), is(HealthStatus.YELLOW));
             assertThat(dslIndicator.impacts(), is(STAGNATING_INDEX_IMPACT));
             assertThat(
@@ -517,14 +508,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         });
 
         healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000)).actionGet();
-        masterIsStableIndicator = healthResponse.getIndicatorResults()
-            .stream()
-            .filter(indicator -> indicator.name().equals(StableMasterHealthIndicatorService.NAME))
-            .toList();
-        assertThat(masterIsStableIndicator.size(), is(1));
+        masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
         // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not
         // be computed
-        if (masterIsStableIndicator.get(0).status() == HealthStatus.GREEN) {
+        if (masterIsStableIndicator.status() == HealthStatus.GREEN) {
             assertThat(healthResponse.getStatus(), is(HealthStatus.GREEN));
         }
     }
@@ -622,22 +609,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
             GetHealthAction.Response healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
                 .actionGet();
-            List<HealthIndicatorResult> masterIsStableIndicator = healthResponse.getIndicatorResults()
-                .stream()
-                .filter(indicator -> indicator.name().equals(StableMasterHealthIndicatorService.NAME))
-                .toList();
-            assertThat(masterIsStableIndicator.size(), is(1));
+            HealthIndicatorResult masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
             // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not
             // be computed
-            if (masterIsStableIndicator.get(0).status() == HealthStatus.GREEN) {
+            if (masterIsStableIndicator.status() == HealthStatus.GREEN) {
                 // the dsl indicator should turn the overall status yell;ow
                 assertThat(healthResponse.getStatus(), is(HealthStatus.YELLOW));
-                HealthIndicatorResult dslIndicator = healthResponse.getIndicatorResults()
-                    .stream()
-                    .filter(indicator -> indicator.name().equals(DataStreamLifecycleHealthIndicatorService.NAME))
-                    .toList()
-                    .get(0);
-
+                HealthIndicatorResult dslIndicator = healthResponse.findIndicator(DataStreamLifecycleHealthIndicatorService.NAME);
                 assertThat(dslIndicator.status(), is(HealthStatus.YELLOW));
                 assertThat(dslIndicator.impacts(), is(STAGNATING_INDEX_IMPACT));
                 assertThat(
@@ -684,22 +662,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             });
 
             healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000)).actionGet();
-            masterIsStableIndicator = healthResponse.getIndicatorResults()
-                .stream()
-                .filter(indicator -> indicator.name().equals(StableMasterHealthIndicatorService.NAME))
-                .toList();
-            assertThat(masterIsStableIndicator.size(), is(1));
+            masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
             // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not
             // be computed
             if (masterIsStableIndicator.get(0).status() == HealthStatus.GREEN) {
-                // the dsl indicator should turn the overall status yellow
+                // the dsl indicator should turn the overall status yell;ow
                 assertThat(healthResponse.getStatus(), is(HealthStatus.GREEN));
-                HealthIndicatorResult dslIndicator = healthResponse.getIndicatorResults()
-                    .stream()
-                    .filter(indicator -> indicator.name().equals(DataStreamLifecycleHealthIndicatorService.NAME))
-                    .toList()
-                    .get(0);
-
+                HealthIndicatorResult dslIndicator = healthResponse.findIndicator(DataStreamLifecycleHealthIndicatorService.NAME);
                 assertThat(dslIndicator.status(), is(HealthStatus.GREEN));
                 assertThat(dslIndicator.impacts().size(), is(0));
                 assertThat(dslIndicator.symptom(), is("Data streams are executing their lifecycles without issues"));

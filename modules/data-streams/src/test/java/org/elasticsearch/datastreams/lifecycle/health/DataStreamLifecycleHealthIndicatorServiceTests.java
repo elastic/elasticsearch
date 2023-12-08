@@ -40,10 +40,13 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         service = new DataStreamLifecycleHealthIndicatorService();
     }
 
-    public void testUnknownWhenNoDSLHealthData() {
+    public void testGreenWhenNoDSLHealthData() {
         HealthIndicatorResult result = service.calculate(true, new HealthInfo(Map.of(), null));
-        assertThat(result.status(), is(HealthStatus.UNKNOWN));
-        assertThat(result.symptom(), is("No data stream lifecycle health data available yet"));
+        assertThat(result.status(), is(HealthStatus.GREEN));
+        assertThat(
+            result.symptom(),
+            is("No data stream lifecycle health data available yet. Health information will be reported after the first run.")
+        );
         assertThat(result.details(), is(HealthIndicatorDetails.EMPTY));
         assertThat(result.impacts(), is(List.of()));
         assertThat(result.diagnosisList(), is(List.of()));

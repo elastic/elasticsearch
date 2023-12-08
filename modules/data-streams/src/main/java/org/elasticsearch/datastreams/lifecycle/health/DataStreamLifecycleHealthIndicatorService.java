@@ -28,7 +28,7 @@ import static java.util.stream.Collectors.toList;
 
 public class DataStreamLifecycleHealthIndicatorService implements HealthIndicatorService {
 
-    public static final String NAME = "dsl";
+    public static final String NAME = "data_stream_lifecycle";
     public static final String DSL_EXPLAIN_HELP_URL = "https://ela.st/dsl-explain";
 
     public static final String STAGNATING_BACKING_INDEX_IMPACT_ID = "stagnating_backing_index";
@@ -65,8 +65,8 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
             // DSL reports health information on every run, so data will eventually arrive to the health node. In the meantime, let's
             // report UNKNOWN health
             return createIndicator(
-                HealthStatus.UNKNOWN,
-                "No data stream lifecycle health data available yet",
+                HealthStatus.GREEN,
+                "No data stream lifecycle health data available yet. Health information will be reported after the first run.",
                 HealthIndicatorDetails.EMPTY,
                 List.of(),
                 List.of()

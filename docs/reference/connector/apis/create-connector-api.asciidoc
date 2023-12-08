@@ -1,7 +1,7 @@
 [[create-connector-api]]
-=== Create Connector API
+=== Create connector API
 ++++
-<titleabbrev>Create Connector</titleabbrev>
+<titleabbrev>Create connector</titleabbrev>
 ++++
 
 Creates a connector.
@@ -20,13 +20,14 @@ PUT _connector/123
 [[create-connector-api-request]]
 ==== {api-request-title}
 `POST _connector`
+
 `PUT _connector/<connector_id>`
 
 
 [[create-connector-api-prereqs]]
 ==== {api-prereq-title}
 
-* In order to utilize connectors for syncing data, it's essential to have the Elastic connectors service running.
+* To sync data using connectors, it's essential to have the Elastic connectors service running.
 * The `service_type` parameter should reference an existing connector service type.
 
 
@@ -56,7 +57,7 @@ Creates a connector document in the internal index and initializes its configura
 (Optional, string) The name of the connector.
 
 `is_native`::
-(Optional, boolean) Indicates if it's a native connector. Defaults to false.
+(Optional, boolean) Indicates if it's a native connector. Defaults to `false`.
 
 `language`::
 (Optional, string) Language analyzer for the data. Limited to supported languages.

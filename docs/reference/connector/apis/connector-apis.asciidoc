@@ -11,7 +11,7 @@ preview::[]
 
 The connector and sync jobs API provides a convenient way to create and manage Elastic connectors and sync jobs in an internal index.
 
-This API provides an alternative to relying solely on Kibana UI for connector and sync job management. The API comes with a set of
+This API provides an alternative to relying solely on {kib} UI for connector and sync job management. The API comes with a set of
 validations and assertions to ensure that the state representation in the internal index remains valid.
 
 [discrete]

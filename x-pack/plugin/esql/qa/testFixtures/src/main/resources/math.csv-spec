@@ -335,7 +335,7 @@ ROW base = -4, exponent = 0.5
 // end::powNeg-sqrt[]
 ;
 warning:Line 2:12: evaluation of [POW(base, exponent)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:12: java.lang.ArithmeticException: invalid result when computing pow
+warning:Line 2:12: java.lang.ArithmeticException: not a finite double number: NaN
 
 // tag::powNeg-sqrt-result[]
 base:integer | exponent:double | s:double
@@ -410,7 +410,7 @@ x:double
 powIntULOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = pow(2, 9223372036854775808);
 warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:9: java.lang.ArithmeticException: invalid result when computing pow
+warning:Line 1:9: java.lang.ArithmeticException: not a finite double number: Infinity
 
 x:double
 null

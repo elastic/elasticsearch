@@ -26,7 +26,7 @@ POST _connector
 [[create-connector-api-prereqs]]
 ==== {api-prereq-title}
 
-* In order to utilize connectors for syncing data, it's essential to have the Elastic connectors service running.
+* To sync data using connectors, it's essential to have the Elastic connectors service running.
 * The `service_type` parameter should reference an existing connector service type.
 
 

@@ -128,13 +128,27 @@ setup:
                   tokens_weight_threshold: 0.4
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
-  - set: { no_boost_score: hits.hits.0._score }
 
 ---
 "Test named, boosted text expansion search with pruning config":
   - skip:
       version: " - 8.11.99"
       reason: "pruning introduced in 8.12.0"
+  - do:
+      search:
+        index: index-with-rank-features
+        body:
+          query:
+            text_expansion:
+              ml.tokens:
+                model_id: text_expansion_model
+                model_text: "octopus comforter smells"
+                pruning_config:
+                  tokens_freq_ratio_threshold: 4
+                  tokens_weight_threshold: 0.4
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+  - set: { no_boost_score: hits.hits.0._score }
 
   - do:
       search:

@@ -692,6 +692,7 @@ public abstract class TransportReplicationAction<
                     e
                 );
                 replicaRequest.getRequest().onRetry();
+                replicaRequest.incRef();
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
@@ -702,7 +703,7 @@ public abstract class TransportReplicationAction<
                             transportReplicaAction,
                             replicaRequest,
                             new ActionListenerResponseHandler<>(
-                                onCompletionListener,
+                                ActionListener.runAfter(onCompletionListener, replicaRequest::decRef),
                                 ReplicaResponse::new,
                                 TransportResponseHandler.TRANSPORT_WORKER
                             )
@@ -711,7 +712,11 @@ public abstract class TransportReplicationAction<
 
                     @Override
                     public void onClusterServiceClose() {
-                        responseWithFailure(new NodeClosedException(clusterService.localNode()));
+                        try {
+                            responseWithFailure(new NodeClosedException(clusterService.localNode()));
+                        } finally {
+                            replicaRequest.decRef();
+                        }
                     }
 
                     @Override

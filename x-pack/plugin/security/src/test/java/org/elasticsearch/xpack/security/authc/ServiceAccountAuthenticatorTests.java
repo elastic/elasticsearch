@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +32,8 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -98,6 +102,61 @@ public class ServiceAccountAuthenticatorTests extends ESTestCase {
 
         // verify that there were no failures recorded
         assertZeroFailedAuthMetrics(telemetryPlugin);
+    }
+
+    public void testRecordingFailedAuthenticationMetrics() {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        final String nodeName = randomAlphaOfLengthBetween(3, 8);
+        final ServiceAccountAuthenticator serviceAccountAuthenticator = new ServiceAccountAuthenticator(
+            serviceAccountService,
+            nodeName,
+            telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry()
+        );
+
+        final ServiceAccount.ServiceAccountId accountId = new ServiceAccount.ServiceAccountId(
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        final String tokenName = randomAlphaOfLengthBetween(3, 8);
+        final String tokenSource = randomFrom(TokenInfo.TokenSource.values()).name().toLowerCase(Locale.ROOT);
+        final ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(accountId, tokenName);
+
+        final Authenticator.Context context = mockServiceAccountAuthenticatorContext(serviceAccountToken);
+        var failureError = new ElasticsearchSecurityException("failed to authenticate test service account", RestStatus.UNAUTHORIZED);
+        when(context.getRequest().exceptionProcessingRequest(same(failureError), any())).thenReturn(failureError);
+
+        doAnswer(invocation -> {
+            final ActionListener<Authentication> listener = invocation.getArgument(2);
+            listener.onFailure(failureError);
+            return Void.TYPE;
+        }).when(serviceAccountService).authenticateToken(same(serviceAccountToken), same(nodeName), anyActionListener());
+
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        serviceAccountAuthenticator.authenticate(context, future);
+        var e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e, sameInstance(failureError));
+
+        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(ServiceAccountAuthenticator.METRIC_FAILURES_COUNT);
+        assertThat(failuresMetrics.size(), equalTo(1));
+        assertThat(
+            failuresMetrics.get(0).attributes(),
+            equalTo(
+                Map.ofEntries(
+                    Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_SERVICE_ACCOUNT_ID, accountId.asPrincipal()),
+                    Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_SERVICE_ACCOUNT_TOKEN_NAME, tokenName),
+                    Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON, "failed to authenticate test service account")
+                )
+            )
+        );
+
+        // verify that there were no successes recorded
+        assertZeroSuccessAuthMetrics(telemetryPlugin);
+    }
+
+    private void assertZeroSuccessAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
+        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(ServiceAccountAuthenticator.METRIC_SUCCESS_COUNT);
+        assertThat(successMetrics.size(), equalTo(0));
     }
 
     private void assertZeroFailedAuthMetrics(TestTelemetryPlugin telemetryPlugin) {

@@ -114,8 +114,8 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                                 continue;
                             }
                             List<Object> matchedQueries = new ArrayList<>(namedMatchesList.size());
-                            for (int j = 0; j < namedMatchesList.size(); j++) {
-                                matchedQueries.add(namedMatchesList.get(j).getName());
+                            for (NamedMatches match : namedMatchesList) {
+                                matchedQueries.add(match.getName());
                             }
                             String matchedFieldName = fieldName + "_" + docSlots.get(i) + "_matched_queries";
                             hitContext.hit().setDocumentField(matchedFieldName, new DocumentField(matchedFieldName, matchedQueries));

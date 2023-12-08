@@ -370,7 +370,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
               }
             }
             """;
-        prepareIndex("houses").setId("query_3_bedroom_house_with_fireplace").setSource(source, XContentType.JSON).get();
+        prepareIndex("houses").setId("query_3_bedroom_detached_house_with_fireplace").setSource(source, XContentType.JSON).get();
         indicesAdmin().prepareRefresh().get();
 
         source = """
@@ -396,8 +396,6 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
               "price": 1000000
             }
             """);
-        prepareIndex("houses").setId("house1").setSource(house1_doc, XContentType.JSON).get();
-        indicesAdmin().prepareRefresh().get();
 
         BytesArray house2_doc = new BytesArray("""
             {
@@ -407,8 +405,6 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
               "price": 500000
             }
             """);
-        prepareIndex("houses").setId("house2").setSource(house2_doc, XContentType.JSON).get();
-        indicesAdmin().prepareRefresh().get();
 
         QueryBuilder query = new PercolateQueryBuilder("my_query", List.of(house1_doc, house2_doc), XContentType.JSON);
         SearchResponse response = client().prepareSearch("houses").setQuery(query).get();

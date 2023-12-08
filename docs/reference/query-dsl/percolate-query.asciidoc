@@ -550,7 +550,7 @@ The slightly different response:
 <1> The highlight fields have been prefixed with the document slot they belong to,
     in order to know which highlight field belongs to what document.
 
-==== Named queries withing percolator queries
+==== Named queries within percolator queries
 
 If a stored percolator query is a complex query, and you want to track which
 its sub-queries matched a percolated document, then you can use the `\_name`
@@ -675,7 +675,7 @@ GET /my-index-000001/_search
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"took": 13,/"took": "$body.took",/]
+// TESTRESPONSE[s/"took": 55,/"took": "$body.took",/]
 <1> The first document matched only the first sub-query.
 <2> The second document matched only the second sub-query.
 <3> The third document matched both sub-queries.

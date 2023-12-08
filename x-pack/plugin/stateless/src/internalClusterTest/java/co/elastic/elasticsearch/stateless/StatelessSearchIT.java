@@ -30,10 +30,10 @@ import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShard
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -885,7 +885,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.startsWith(GetAction.NAME) || action.startsWith(MultiGetAction.NAME)) {
+                if (action.startsWith(TransportGetAction.TYPE.name()) || action.startsWith(TransportMultiGetAction.NAME)) {
                     assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
                 } else if (action.startsWith(TransportGetFromTranslogAction.NAME)
                     || action.startsWith(TransportShardMultiGetFomTranslogAction.NAME)) {

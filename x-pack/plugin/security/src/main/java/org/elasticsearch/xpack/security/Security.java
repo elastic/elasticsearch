@@ -1942,7 +1942,7 @@ public class Security extends Plugin
     }
 
     /**
-     * This method uses a transport action internally to access classes that are injectable but are not part of the plugin contract.
+     * This method uses a transport action internally to access classes that are injectable but not part of the plugin contract.
      * See {@link TransportReloadRemoteClusterCredentialsAction} for more context.
      */
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {

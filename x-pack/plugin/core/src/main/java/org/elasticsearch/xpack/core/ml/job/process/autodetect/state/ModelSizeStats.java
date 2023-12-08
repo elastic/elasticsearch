@@ -533,7 +533,6 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         public Builder(String jobId) {
             this.jobId = jobId;
             memoryStatus = MemoryStatus.OK;
-            assignmentMemoryBasis = AssignmentMemoryBasis.MODEL_MEMORY_LIMIT;
             categorizationStatus = CategorizationStatus.OK;
             logTime = new Date();
         }

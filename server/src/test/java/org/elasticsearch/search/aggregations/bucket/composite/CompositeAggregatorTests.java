@@ -21,6 +21,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -3095,7 +3096,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testParentFactoryValidation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = newRandomIndexWriter(directory)) {
                 Document document = new Document();
                 document.clear();
                 addToDocument(0, document, createDocument("term-field", "a", "long", 100L));
@@ -3650,6 +3651,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
             if (forceMerge == false) {
                 config.setMergePolicy(NoMergePolicy.INSTANCE);
+            } else {
+                // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order.
+                config.setMergePolicy(new LogDocMergePolicy());
             }
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 Document document = new Document();

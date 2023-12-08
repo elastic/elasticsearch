@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -158,8 +159,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Build the expression being tested, for the given source and list of arguments.  Test classes need to implement this
      * to have something to test.
+     *
      * @param source the source
-     * @param args arg list from the test case, should match the length expected
+     * @param args   arg list from the test case, should match the length expected
      * @return an expression for evaluating the function being tested on the given arguments
      */
     protected abstract Expression build(Source source, List<Expression> args);
@@ -256,8 +258,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Evaluates a {@link Block} of values, all copied from the input pattern, read directly from the page.
      * <p>
-     *     Note that this'll sometimes be a {@link Vector} of values if the
-     *     input pattern contained only a single value.
+     * Note that this'll sometimes be a {@link Vector} of values if the
+     * input pattern contained only a single value.
      * </p>
      */
     public final void testEvaluateBlockWithoutNulls() {
@@ -267,8 +269,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Evaluates a {@link Block} of values, all copied from the input pattern, read from an intermediate operator.
      * <p>
-     *     Note that this'll sometimes be a {@link Vector} of values if the
-     *     input pattern contained only a single value.
+     * Note that this'll sometimes be a {@link Vector} of values if the
+     * input pattern contained only a single value.
      * </p>
      */
     public final void testEvaluateBlockWithoutNullsFloating() {
@@ -296,8 +298,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * read directly from the {@link Page}, using the
      * {@link CrankyCircuitBreakerService} which fails randomly.
      * <p>
-     *     Note that this'll sometimes be a {@link Vector} of values if the
-     *     input pattern contained only a single value.
+     * Note that this'll sometimes be a {@link Vector} of values if the
+     * input pattern contained only a single value.
      * </p>
      */
     public final void testCrankyEvaluateBlockWithoutNulls() {
@@ -314,8 +316,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * read from an intermediate operator, using the
      * {@link CrankyCircuitBreakerService} which fails randomly.
      * <p>
-     *     Note that this'll sometimes be a {@link Vector} of values if the
-     *     input pattern contained only a single value.
+     * Note that this'll sometimes be a {@link Vector} of values if the
+     * input pattern contained only a single value.
      * </p>
      */
     public final void testCrankyEvaluateBlockWithoutNullsFloating() {
@@ -544,7 +546,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             LogManager.getLogger(getTestClass()).info("Skipping function info checks because we're running a portion of the tests");
             return;
         }
-        FunctionDefinition definition = definition();
+        FunctionDefinition definition = definition(functionName());
         if (definition == null) {
             LogManager.getLogger(getTestClass()).info("Skipping function info checks because the function isn't registered");
             return;
@@ -588,14 +590,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Adds cases with {@code null} and asserts that the result is {@code null}.
      * <p>
-     *     Note: This won't add more than a single null to any existing test case,
-     *     just to keep the number of test cases from exploding totally.
+     * Note: This won't add more than a single null to any existing test case,
+     * just to keep the number of test cases from exploding totally.
      * </p>
-     * @param  entirelyNullPreservesType should a test case that only contains parameters
-     *                                   with the {@code null} type keep it's expected type?
-     *                                   This is <strong>mostly</strong> going to be {@code true}
-     *                                   except for functions that base their type entirely
-     *                                   on input types like {@link Greatest} or {@link Coalesce}.
+     *
+     * @param entirelyNullPreservesType should a test case that only contains parameters
+     *                                  with the {@code null} type keep it's expected type?
+     *                                  This is <strong>mostly</strong> going to be {@code true}
+     *                                  except for functions that base their type entirely
+     *                                  on input types like {@link Greatest} or {@link Coalesce}.
      */
     protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
         typesRequired(testCaseSuppliers);
@@ -691,8 +694,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              * the full combinatorial explosions of all nulls - just a single null.
              * Hopefully <null>, <null> cases will function the same as <null>, <valid>
              * cases.
-             */
-            .filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
+             */.filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
             .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types))
             .forEach(suppliers::add);
         return suppliers;
@@ -911,30 +913,44 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             LogManager.getLogger(getTestClass()).info("Skipping rendering signature because we're running a portion of the tests");
             return;
         }
-        FunctionDefinition definition = definition();
-        if (definition == null) {
+        String rendered = buildSignatureSvg(functionName());
+        if (rendered == null) {
             LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the function isn't registered");
-            return;
+        } else {
+            LogManager.getLogger(getTestClass()).info("Writing function signature");
+            writeToTempDir("signature", rendered, "svg");
         }
+    }
 
-        String rendered = RailRoadDiagram.functionSignature(definition);
-        LogManager.getLogger(getTestClass()).info("Writing function signature");
-        writeToTempDir("signature", rendered, "svg");
+    private static String buildSignatureSvg(String name) throws IOException {
+        String binaryOperator = binaryOperator(name);
+        if (binaryOperator != null) {
+            return RailRoadDiagram.binaryOperator(binaryOperator);
+        }
+        String unaryOperator = unaryOperator(name);
+        if (unaryOperator != null) {
+            return RailRoadDiagram.unaryOperator(unaryOperator);
+        }
+        FunctionDefinition definition = definition(name);
+        if (definition != null) {
+            return RailRoadDiagram.functionSignature(definition);
+        }
+        return null;
     }
 
     /**
      * Unique signatures encountered by this test.
      * <p>
-     *     We clear this at the beginning of the test class with
-     *     {@link #clearSignatures} out of paranoia. It <strong>is</strong>
-     *     shared by many tests, after all.
+     * We clear this at the beginning of the test class with
+     * {@link #clearSignatures} out of paranoia. It <strong>is</strong>
+     * shared by many tests, after all.
      * </p>
      * <p>
-     *     After each test method we add the signature it operated on via
-     *     {@link #trackSignature}. Once the test class is done we render
-     *     all the unique signatures to a temp file with {@link #renderTypesTable}.
-     *     We use a temp file because that's all we're allowed to write to.
-     *     Gradle will move the files into the docs after this is done.
+     * After each test method we add the signature it operated on via
+     * {@link #trackSignature}. Once the test class is done we render
+     * all the unique signatures to a temp file with {@link #renderTypesTable}.
+     * We use a temp file because that's all we're allowed to write to.
+     * Gradle will move the files into the docs after this is done.
      * </p>
      */
     private static final Map<List<DataType>, DataType> signatures = new HashMap<>();
@@ -960,7 +976,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
-        FunctionDefinition definition = definition();
+        String name = functionName(); // TODO types table for operators
+        FunctionDefinition definition = definition(name);
         if (definition == null) {
             LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");
             return;
@@ -995,8 +1012,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("types", rendered, "asciidoc");
     }
 
-    private static FunctionDefinition definition() {
-        String name = functionName();
+    private static String functionName() {
+        return StringUtils.camelCaseToUnderscore(getTestClass().getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
+    }
+
+    private static FunctionDefinition definition(String name) {
         EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
         if (registry.functionExists(name)) {
             return registry.resolveFunction(name);
@@ -1004,15 +1024,44 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return null;
     }
 
-    private static String functionName() {
-        return StringUtils.camelCaseToUnderscore(getTestClass().getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
+    /**
+     * If this test is a for a binary operator return its symbol, otherwise return {@code null}.
+     * This is functionally the reverse of the combination of
+     * {@link ExpressionBuilder#visitArithmeticBinary} and {@link ExpressionBuilder#visitComparison}.
+     */
+    private static String binaryOperator(String name) {
+        return switch (name) {
+            case "add" -> "+";
+            case "div" -> "/";
+            case "equals" -> "==";
+            case "greater_than" -> ">";
+            case "greater_than_or_equal_to" -> ">=";
+            case "less_than" -> "<";
+            case "less_than_or_equal_to" -> "<=";
+            case "mod" -> "%";
+            case "mul" -> "*";
+            case "not_equals" -> "!=";
+            case "sub" -> "-";
+            default -> null;
+        };
+    }
+
+    /**
+     * If this tests is for a unary operator return its symbol, otherwise return {@code null}.
+     * This is functionally the reverse of {@link ExpressionBuilder#visitArithmeticUnary}.
+     */
+    private static String unaryOperator(String name) {
+        return switch (name) {
+            case "neg" -> "-";
+            default -> null;
+        };
     }
 
     /**
      * Write some text to a tempdir so we can copy it to the docs later.
      * <p>
-     *     We need to write to a tempdir instead of the docs because the tests
-     *     don't have write permission to the docs.
+     * We need to write to a tempdir instead of the docs because the tests
+     * don't have write permission to the docs.
      * </p>
      */
     private static void writeToTempDir(String subdir, String str, String extension) throws IOException {

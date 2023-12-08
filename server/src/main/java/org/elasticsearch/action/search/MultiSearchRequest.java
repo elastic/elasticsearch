@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -247,6 +248,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     Object ignoreUnavailable = null;
                     Object ignoreThrottled = null;
                     Object allowNoIndices = null;
+                    Object failureStore = null;
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
                         if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
@@ -277,17 +279,23 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         } else if (parserConfig.restApiVersion() == RestApiVersion.V_7
                             && ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
                                 deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
-                            } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
-                                // Skip, the parser handled the key/value
-                            } else {
-                                throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
-                            }
+                            } else if (DataStream.isFailureStoreEnabled() && "failure_store".equals(entry.getKey())
+                                || "failureStore".equals(entry.getKey())) {
+                                    failureStore = value;
+                                } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                                    // Skip, the parser handled the key/value
+                                } else {
+                                    throw new IllegalArgumentException(
+                                        "key [" + entry.getKey() + "] is not supported in the metadata section"
+                                    );
+                                }
                     }
                     defaultOptions = IndicesOptions.fromParameters(
                         expandWildcards,
                         ignoreUnavailable,
                         allowNoIndices,
                         ignoreThrottled,
+                        failureStore,
                         defaultOptions
                     );
                 }

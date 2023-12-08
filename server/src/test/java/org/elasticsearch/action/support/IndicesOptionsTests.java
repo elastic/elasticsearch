@@ -41,6 +41,7 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
+            boolean includeFailureStore = randomBoolean();
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(),
                 randomBoolean(),
@@ -50,7 +51,9 @@ public class IndicesOptionsTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
-                randomBoolean()
+                randomBoolean(),
+                includeFailureStore,
+                includeFailureStore == false && randomBoolean()
             );
 
             BytesStreamOutput output = new BytesStreamOutput();
@@ -69,6 +72,8 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
 
             assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
+
+            assertThat(indicesOptions2.failureStoreState(), equalTo(indicesOptions.failureStoreState()));
         }
     }
 
@@ -176,6 +181,16 @@ public class IndicesOptionsTests extends ESTestCase {
         boolean allowNoIndices = randomBoolean();
         String allowNoIndicesString = Boolean.toString(allowNoIndices);
 
+        final boolean includeFailureStore = randomBoolean();
+        final boolean onlyFailureStore = includeFailureStore == false && randomBoolean();
+        String failureStore;
+        if (includeFailureStore) {
+            failureStore = "include";
+        } else if (onlyFailureStore) {
+            failureStore = "only";
+        } else {
+            failureStore = "exclude";
+        }
         IndicesOptions defaultOptions = IndicesOptions.fromOptions(
             randomBoolean(),
             randomBoolean(),
@@ -185,7 +200,9 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
         );
 
         IndicesOptions updatedOptions = IndicesOptions.fromParameters(
@@ -193,6 +210,7 @@ public class IndicesOptionsTests extends ESTestCase {
             ignoreUnavailableString,
             allowNoIndicesString,
             ignoreThrottled,
+            failureStore,
             defaultOptions
         );
 
@@ -201,6 +219,8 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(expandWildcardsHidden, updatedOptions.expandWildcardsHidden());
         assertEquals(ignoreUnavailable, updatedOptions.ignoreUnavailable());
         assertEquals(allowNoIndices, updatedOptions.allowNoIndices());
+        assertEquals(includeFailureStore, updatedOptions.includeFailureStore());
+        assertEquals(onlyFailureStore, updatedOptions.onlyFailureStore());
         assertEquals(defaultOptions.allowAliasesToMultipleIndices(), updatedOptions.allowAliasesToMultipleIndices());
         assertEquals(defaultOptions.forbidClosedIndices(), updatedOptions.forbidClosedIndices());
         assertEquals(defaultOptions.ignoreAliases(), updatedOptions.ignoreAliases());

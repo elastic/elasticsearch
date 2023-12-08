@@ -8,6 +8,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -27,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.SUPPORTS_FAILURE_STORE_REQUEST_OPTION;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 
@@ -34,7 +36,15 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
  * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
  */
-public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> expandWildcards) implements ToXContentFragment {
+public record IndicesOptions(
+    EnumSet<Option> options,
+    EnumSet<WildcardStates> expandWildcards,
+    @Nullable FailureStoreState failureStoreState
+) implements ToXContentFragment {
+
+    public IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> expandWildcards) {
+        this(options, expandWildcards, null);
+    }
 
     public enum WildcardStates {
         OPEN,
@@ -82,6 +92,35 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
                 case "all" -> states.addAll(EnumSet.allOf(WildcardStates.class));
                 default -> throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
             }
+        }
+    }
+
+    public enum FailureStoreState {
+        INCLUDE,
+        EXCLUDE,
+        ONLY;
+
+        public static FailureStoreState parseParameter(Object value) {
+            if (value == null) {
+                return EXCLUDE;
+            }
+            return switch ((String) value) {
+                case "include" -> INCLUDE;
+                case "exclude" -> EXCLUDE;
+                case "only" -> ONLY;
+                default -> throw new IllegalArgumentException("No valid expand wildcard value [" + value + "]");
+            };
+        }
+
+        public static XContentBuilder toXContent(FailureStoreState failureStoreState, XContentBuilder builder) throws IOException {
+            if (failureStoreState != null) {
+                builder.field("failure_store", failureStoreState.getXContentValue());
+            }
+            return builder;
+        }
+
+        public String getXContentValue() {
+            return toString().toLowerCase(Locale.ROOT);
         }
     }
 
@@ -227,6 +266,20 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
     }
 
     /**
+     * @return whether failure store indices need to be included
+     */
+    public boolean includeFailureStore() {
+        return FailureStoreState.INCLUDE.equals(failureStoreState);
+    }
+
+    /**
+     * @return whether only failure store indices need to be included
+     */
+    public boolean onlyFailureStore() {
+        return FailureStoreState.ONLY.equals(failureStoreState);
+    }
+
+    /**
      * @return a copy of the {@link WildcardStates} that these indices options will expand to
      */
     public EnumSet<WildcardStates> expandWildcards() {
@@ -243,12 +296,18 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         out.writeEnumSet(options);
         out.writeEnumSet(expandWildcards);
+        if (out.getTransportVersion().onOrAfter(SUPPORTS_FAILURE_STORE_REQUEST_OPTION)) {
+            out.writeOptionalEnum(failureStoreState);
+        }
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         EnumSet<Option> options = in.readEnumSet(Option.class);
         EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
-        return new IndicesOptions(options, states);
+        FailureStoreState failureStoreState = in.getTransportVersion().onOrAfter(SUPPORTS_FAILURE_STORE_REQUEST_OPTION)
+            ? in.readOptionalEnum(FailureStoreState.class)
+            : null;
+        return new IndicesOptions(options, states, failureStoreState);
     }
 
     public static IndicesOptions fromOptions(
@@ -276,6 +335,8 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             true,
             false,
             false,
+            false,
+            false,
             false
         );
     }
@@ -296,7 +357,9 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             defaultOptions.allowAliasesToMultipleIndices(),
             defaultOptions.forbidClosedIndices(),
             defaultOptions.ignoreAliases(),
-            defaultOptions.ignoreThrottled()
+            defaultOptions.ignoreThrottled(),
+            false,
+            false
         );
     }
 
@@ -319,7 +382,9 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             allowAliasesToMultipleIndices,
             forbidClosedIndices,
             ignoreAliases,
-            ignoreThrottled
+            ignoreThrottled,
+            false,
+            false
         );
     }
 
@@ -334,9 +399,37 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         boolean ignoreAliases,
         boolean ignoreThrottled
     ) {
+        return fromOptions(
+            ignoreUnavailable,
+            allowNoIndices,
+            expandToOpenIndices,
+            expandToClosedIndices,
+            expandToHiddenIndices,
+            allowAliasesToMultipleIndices,
+            forbidClosedIndices,
+            ignoreAliases,
+            ignoreThrottled,
+            false,
+            false
+        );
+    }
+
+    public static IndicesOptions fromOptions(
+        boolean ignoreUnavailable,
+        boolean allowNoIndices,
+        boolean expandToOpenIndices,
+        boolean expandToClosedIndices,
+        boolean expandToHiddenIndices,
+        boolean allowAliasesToMultipleIndices,
+        boolean forbidClosedIndices,
+        boolean ignoreAliases,
+        boolean ignoreThrottled,
+        boolean includeFailureStore,
+        boolean onlyFailureStore
+    ) {
         final EnumSet<Option> opts = EnumSet.noneOf(Option.class);
         final EnumSet<WildcardStates> wildcards = EnumSet.noneOf(WildcardStates.class);
-
+        FailureStoreState failureStoreState = null;
         if (ignoreUnavailable) {
             opts.add(Option.IGNORE_UNAVAILABLE);
         }
@@ -364,7 +457,16 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         if (ignoreThrottled) {
             opts.add(Option.IGNORE_THROTTLED);
         }
-        return new IndicesOptions(opts, wildcards);
+        if (DataStream.isFailureStoreEnabled()) {
+            if (onlyFailureStore) {
+                failureStoreState = FailureStoreState.ONLY;
+            } else if (includeFailureStore) {
+                failureStoreState = FailureStoreState.INCLUDE;
+            } else {
+                failureStoreState = FailureStoreState.EXCLUDE;
+            }
+        }
+        return new IndicesOptions(opts, wildcards, failureStoreState);
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
@@ -377,6 +479,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             request.param("ignore_unavailable"),
             request.param("allow_no_indices"),
             request.param("ignore_throttled"),
+            DataStream.isFailureStoreEnabled() ? request.param("failure_store") : null,
             defaultSettings
         );
     }
@@ -387,6 +490,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             map.containsKey("ignore_unavailable") ? map.get("ignore_unavailable") : map.get("ignoreUnavailable"),
             map.containsKey("allow_no_indices") ? map.get("allow_no_indices") : map.get("allowNoIndices"),
             map.containsKey("ignore_throttled") ? map.get("ignore_throttled") : map.get("ignoreThrottled"),
+            map.containsKey("failure_store") ? map.get("failure_store") : map.get("failureStore"),
             defaultSettings
         );
     }
@@ -403,7 +507,8 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             || "ignore_throttled".equals(name)
             || "ignoreThrottled".equals(name)
             || "allow_no_indices".equals(name)
-            || "allowNoIndices".equals(name);
+            || "allowNoIndices".equals(name)
+            || DataStream.isFailureStoreEnabled() && "failure_store".equals(name);
     }
 
     public static IndicesOptions fromParameters(
@@ -411,13 +516,19 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         Object ignoreUnavailableString,
         Object allowNoIndicesString,
         Object ignoreThrottled,
+        Object failureStoreString,
         IndicesOptions defaultSettings
     ) {
-        if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null && ignoreThrottled == null) {
+        if (wildcardsString == null
+            && ignoreUnavailableString == null
+            && allowNoIndicesString == null
+            && ignoreThrottled == null
+            && failureStoreString == null) {
             return defaultSettings;
         }
 
         EnumSet<WildcardStates> wildcards = WildcardStates.parseParameter(wildcardsString, defaultSettings.expandWildcards);
+        FailureStoreState failureStore = FailureStoreState.parseParameter(failureStoreString);
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
@@ -429,7 +540,9 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             defaultSettings.allowAliasesToMultipleIndices(),
             defaultSettings.forbidClosedIndices(),
             defaultSettings.ignoreAliases(),
-            nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled())
+            nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled()),
+            FailureStoreState.INCLUDE.equals(failureStore),
+            FailureStoreState.ONLY.equals(failureStore)
         );
     }
 
@@ -443,6 +556,9 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         builder.field("ignore_unavailable", ignoreUnavailable());
         builder.field("allow_no_indices", allowNoIndices());
         builder.field("ignore_throttled", ignoreThrottled());
+        if (DataStream.isFailureStoreEnabled() && failureStoreState != null) {
+            builder.field("failure_store", failureStoreState.getXContentValue());
+        }
         return builder;
     }
 
@@ -450,6 +566,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField("ignore_unavailable");
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField("ignore_throttled").withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField("allow_no_indices");
+    private static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);
@@ -461,6 +578,8 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
         boolean ignoreThrottled = defaults == null ? false : defaults.ignoreThrottled();
+        FailureStoreState failureStoreState = DataStream.isFailureStoreEnabled() && defaults != null ? defaults.failureStoreState() : null;
+
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
         String currentFieldName = null;
         if (token != Token.START_OBJECT) {
@@ -506,13 +625,14 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
                     allowNoIndices = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreThrottled = parser.booleanValue();
-                } else {
-                    throw new ElasticsearchParseException(
-                        "could not read indices options. unexpected index option [" + currentFieldName + "]"
-                    );
-                }
-            } else {
-                throw new ElasticsearchParseException("could not read indices options. unexpected object field [" + currentFieldName + "]");
+                } else if (DataStream.isFailureStoreEnabled()
+                    && FAILURE_STORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        failureStoreState = FailureStoreState.parseParameter(parser.text());
+                    } else {
+                        throw new ElasticsearchParseException(
+                            "could not read indices options. Unexpected index option [" + currentFieldName + "]"
+                        );
+                    }
             }
         }
 
@@ -537,7 +657,9 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             true,
             false,
             false,
-            ignoreThrottled
+            ignoreThrottled,
+            FailureStoreState.INCLUDE.equals(failureStoreState),
+            FailureStoreState.ONLY.equals(failureStoreState)
         );
     }
 
@@ -651,6 +773,9 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             + ignoreAliases()
             + ", ignore_throttled="
             + ignoreThrottled()
+            + (DataStream.isFailureStoreEnabled()
+                ? ", include_failure_store=" + includeFailureStore() + ", only_failure_store=" + onlyFailureStore()
+                : "")
             + ']';
     }
 }

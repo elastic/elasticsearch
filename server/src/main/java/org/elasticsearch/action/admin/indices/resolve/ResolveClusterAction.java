@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -35,11 +36,13 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -59,8 +62,8 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
  * Action to provide information about clusters to help with cross-cluster search scenarios.
  *
  * The action accepts an index expression that can include remote clusters. Exclusion notation
- * for clusters is also permitted. For example: logs*,*:logs*,-remote7:*, will query
- * the local cluster ("logs*"), all configured remote clusters except for the cluster with
+ * for clusters is also permitted. For example: logs*,*:logs*,-remote7:*, will run the action
+ * the local cluster ("logs*"), and all configured remote clusters except for the cluster with
  * alias "remote7".
  *
  * The response will indicate for each cluster whether it is connected to the querying cluster,
@@ -269,7 +272,7 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
             for (Map.Entry<String, ResolveClusterInfo> entry : infoMap.entrySet()) {
                 String clusterAlias = entry.getKey();
                 if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    clusterAlias = "(local)";
+                    clusterAlias = SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION;
                 }
                 builder.startObject(clusterAlias);
                 ResolveClusterInfo clusterInfo = entry.getValue();
@@ -390,6 +393,10 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                     }, failure -> {
                         if (notConnectedError(failure)) {
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                        } else if (clusterResolveEndpointNotFound(failure)) {
+                            // if the endpoint returns an error that it does not _resolve/cluster, we know we are connected
+                            // TODO: call remoteClusterClient.admin().indices().resolveIndex() to fill in 'matching_indices'?
+                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable));
                         } else {
                             Throwable cause = ExceptionsHelper.unwrapCause(failure);
                             // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
@@ -411,6 +418,16 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                 );
                 listener.onResponse(new ResolveClusterAction.Response(clusterInfoMap));
             }
+        }
+
+        private boolean clusterResolveEndpointNotFound(Exception failure) {
+            // if the _cluster/resolve endpoint is not present on the remote cluster, the error returned will be:
+            // org.elasticsearch.transport.RemoteTransportException: [<host>][<ip>:<port>][indices:admin/resolve/cluster]
+            // Cause: org.elasticsearch.transport.ActionNotFoundTransportException: No handler for action [indices:admin/resolve/cluster]
+            if (failure instanceof RemoteTransportException) {
+                return ExceptionsHelper.unwrap(failure, ActionNotFoundTransportException.class) != null;
+            }
+            return false;
         }
 
         /**

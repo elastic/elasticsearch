@@ -4,7 +4,7 @@
 Converts an input value to a long value.
 
 The input can be a single- or multi-valued field or an expression. The input
-type must be of a boolean, date, string or numeric type.
+type must be of a boolean, date, string, numeric type or spatial point type.
 
 Example:
 
@@ -34,3 +34,13 @@ milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
 converted to long.
 
 Boolean *true* will be converted to long *1*, *false* to *0*.
+
+If the input parameter is a spatial point (`geo_point` or `point`),
+its value will be converted to the encoded value used in Lucene indexing.
+For `geo_point` values, the latitude is encoded to the high 4 bytes,
+and the longitude is encoded to the lower 4 bytes.
+For `point` values, the `x` value is encoded to the high 4 bytes,
+and the `y` value is encoded to the lower 4 bytes.
+The resulting value can be converted back into the original point type
+using the `TO_GEOPOINT` and `TO_CARTESIANPOINT` functions.
+Note that the encoding/decoding involves some loss of precision.

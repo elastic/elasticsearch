@@ -24,7 +24,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -643,7 +642,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return searcher;
     }
 
-    @Nullable
     public Integer requestSize() {
         return requestSize;
     }

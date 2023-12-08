@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -250,7 +249,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return field;
     }
 
-    @Nullable
     public Integer k() {
         return k;
     }

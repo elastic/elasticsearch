@@ -5,8 +5,7 @@
       "description": "Returns the details about a connector."
     },
     "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "es.connector_api_feature_flag_enabled",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

@@ -50,7 +50,7 @@ public class ConnectorSyncJobTests extends ESTestCase {
                                 "canceled_at": "2023-12-01T14:19:39.394194Z",
                                 "completed_at": "2023-12-01T14:19:39.394194Z",
                                 "connector": {
-                                    "connector_id": "connector-id",
+                                    "id": "connector-id",
                                     "filtering": [
                                         {
                                             "active": {
@@ -162,7 +162,7 @@ public class ConnectorSyncJobTests extends ESTestCase {
         String content = XContentHelper.stripWhitespace("""
             {
                                 "connector": {
-                                    "connector_id": "connector-id",
+                                    "id": "connector-id",
                                     "filtering": [
                                         {
                                             "active": {

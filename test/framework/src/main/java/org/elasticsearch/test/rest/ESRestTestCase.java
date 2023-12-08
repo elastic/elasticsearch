@@ -1744,8 +1744,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getIndexMappingAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexMapping(index);
-        return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("mappings");
+        Map<String, Object> indexMapping = getIndexMapping(index);
+        return (Map<String, Object>) ((Map<String, Object>) indexMapping.get(index)).get("mappings");
     }
 
     protected static boolean indexExists(String index) throws IOException {

@@ -1,0 +1,8 @@
+[discrete]
+[[esql-unary-operators]]
+=== Unary operators
+
+These unary mathematical operators are supported:
+
+[.text-center]
+image::esql/functions/signature/neg.svg[Embedded,opts=inline]

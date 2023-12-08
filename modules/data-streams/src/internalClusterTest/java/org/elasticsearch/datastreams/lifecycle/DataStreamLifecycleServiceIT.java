@@ -466,7 +466,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not
         // be computed
         if (masterIsStableIndicator.get(0).status() == HealthStatus.GREEN) {
-            // the shards capacity indicator is dicating the overall status
+            // the shards capacity indicator is dictating the overall status
             assertThat(healthResponse.getStatus(), is(HealthStatus.RED));
             HealthIndicatorResult dslIndicator = healthResponse.getIndicatorResults()
                 .stream()

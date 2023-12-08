@@ -659,6 +659,19 @@ public class IndexRoutingTests extends ESTestCase {
         );
     }
 
+    public void testRoutingPathAndDynamicDimensionsWithDuplicatesThroughPathMatch() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(
+            buildMetadata(IndexVersion.current(), shards, "static,c*"),
+            List.of("dynamic", "common")
+        );
+        assertIndexShard(
+            routing,
+            Map.of("static", "dog", "dynamic", "kitty", "common", "cat"),
+            Math.floorMod(hash(List.of("common", "cat", "dynamic", "kitty", "static", "dog")), shards)
+        );
+    }
+
     public void testDynamicDimensionsEmpty() throws IOException {
         int shards = between(2, 1000);
         IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(

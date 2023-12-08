@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.security.Security;
  * This is a local-only action which updates remote cluster credentials for remote cluster connections, from keystore settings reloaded via
  * a call to {@link org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction}.
  *
- * It's invoked as part of the `reload` call in the Security plugin {@link Security#reload(Settings)}.
+ * It's invoked as part of the {@link Security#reload(Settings)} call.
  *
  * This action is largely an implementation detail to work around the fact that Security is a plugin without direct access to many core
  * classes, including the {@link RemoteClusterService} which is required for credentials update. A transport action gives us access to

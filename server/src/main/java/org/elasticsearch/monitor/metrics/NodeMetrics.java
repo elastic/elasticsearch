@@ -217,7 +217,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             registry.registerLongAsyncCounter(
                 "es.node.stats.indices.indexing.docs.total",
                 "Total number of indexed documents",
-                "number",
+                "documents",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCount())
             )
         );
@@ -226,7 +226,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             registry.registerLongGauge(
                 "es.node.stats.indices.indexing.docs.current",
                 "Current number of indexing documents",
-                "number",
+                "documents",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCurrent())
             )
         );
@@ -235,7 +235,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             registry.registerLongAsyncCounter(
                 "es.node.stats.indices.indexing.failed.total",
                 "Total number of failed indexing operations",
-                "number",
+                "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexFailedCount())
             )
         );
@@ -244,7 +244,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             registry.registerLongAsyncCounter(
                 "es.node.stats.indices.deletion.docs.total",
                 "Total number of deleted documents",
-                "number",
+                "documents",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCount())
             )
         );
@@ -253,8 +253,26 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             registry.registerLongGauge(
                 "es.node.stats.indices.deletion.docs.current",
                 "Current number of deleting documents",
-                "number",
+                "documents",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCurrent())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.time",
+                "Total indices indexing time",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexTime().millis())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.deletion.time",
+                "Total indices deletion time",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteTime().millis())
             )
         );
 
@@ -271,8 +289,17 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             registry.registerLongAsyncCounter(
                 "es.node.stats.indices.noop.total",
                 "Total number of noop shard operations",
-                "number",
+                "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getNoopUpdateCount())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.rejections.total",
+                "Total number of indexing rejections due to breaching `indexing_pressure.memory.limit` threshold",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getPrimaryRejections())
             )
         );
 

@@ -309,6 +309,26 @@ public class DynamicTemplateParseTests extends ESTestCase {
         assertEquals("""
             {"match_mapping_type":"string","mapping":{"store":true}}""", Strings.toString(builder));
 
+        // type-based template with single-entry array - still serializes as single string, rather than list
+        templateDef = new HashMap<>();
+        templateDef.put("match_mapping_type", List.of("string"));
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"match_mapping_type":"string","mapping":{"store":true}}""", Strings.toString(builder));
+
+        // type-based template with multi-entry array - now serializes as list
+        templateDef = new HashMap<>();
+        templateDef.put("match_mapping_type", List.of("string", "long"));
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"match_mapping_type":["string","long"],"mapping":{"store":true}}""", Strings.toString(builder));
+
         // name-based template
         templateDef = new HashMap<>();
         if (randomBoolean()) {

@@ -119,7 +119,6 @@ public class ServiceAccountAuthenticatorTests extends ESTestCase {
             randomAlphaOfLengthBetween(3, 8)
         );
         final String tokenName = randomAlphaOfLengthBetween(3, 8);
-        final String tokenSource = randomFrom(TokenInfo.TokenSource.values()).name().toLowerCase(Locale.ROOT);
         final ServiceAccountToken serviceAccountToken = ServiceAccountToken.newToken(accountId, tokenName);
 
         final Authenticator.Context context = mockServiceAccountAuthenticatorContext(serviceAccountToken);

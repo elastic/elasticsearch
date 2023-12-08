@@ -71,7 +71,7 @@ $endif$
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$
-        try (var builder = blockFactory.new$Type$BlockBuilder(positions.length)) {
+        try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -108,7 +108,7 @@ $endif$
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$
-        try (var builder = blockFactory.new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
+        try (var builder = blockFactory().new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -171,10 +171,10 @@ $endif$
     @Override
     public void closeInternal() {
     $if(BytesRef)$
-        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     $else$
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     $endif$
     }
 }

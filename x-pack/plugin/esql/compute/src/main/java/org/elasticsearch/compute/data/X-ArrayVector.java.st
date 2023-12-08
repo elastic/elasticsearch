@@ -79,7 +79,7 @@ $endif$
     $if(BytesRef)$
         final var scratch = new BytesRef();
     $endif$
-        try ($Type$Vector.Builder builder = blockFactory.new$Type$VectorBuilder(positions.length)) {
+        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(positions.length)) {
             for (int pos : positions) {
             $if(BytesRef)$
                 builder.append$Type$(values.get(pos, scratch));
@@ -129,7 +129,7 @@ $if(BytesRef)$
             throw new IllegalStateException("can't release already released vector [" + this + "]");
         }
         released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }
 $endif$

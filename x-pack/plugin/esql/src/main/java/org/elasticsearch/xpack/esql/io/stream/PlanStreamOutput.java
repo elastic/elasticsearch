@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.io.IOException;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSourceNoText;
+
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
  * output with methods that write plan nodes, Attributes, Expressions, etc.
@@ -52,9 +54,7 @@ public final class PlanStreamOutput extends OutputStreamStreamOutput {
 
     public void writeSource(Source source) throws IOException {
         writeBoolean(true);
-        writeInt(source.source().getLineNumber());
-        writeInt(source.source().getColumnNumber());
-        writeInt(source.text().length());
+        writeSourceNoText(this, source);
     }
 
     public void writeNoSource() throws IOException {

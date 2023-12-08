@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -301,7 +301,7 @@ public class PrivilegeTests extends ESTestCase {
             CreateServiceAccountTokenAction.NAME,
             CreateApiKeyAction.NAME,
             InvalidateApiKeyAction.NAME,
-            ClusterHealthAction.NAME,
+            TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
             ClusterStatsAction.NAME,
             NodeEnrollmentAction.NAME,
@@ -353,7 +353,7 @@ public class PrivilegeTests extends ESTestCase {
         );
         verifyClusterActionDenied(
             ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
-            ClusterHealthAction.NAME,
+            TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
             ClusterStatsAction.NAME,
             PutIndexTemplateAction.NAME,

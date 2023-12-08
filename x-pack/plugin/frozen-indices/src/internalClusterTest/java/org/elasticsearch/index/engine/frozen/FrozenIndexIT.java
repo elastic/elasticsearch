@@ -233,7 +233,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
             assertNoFailuresAndResponse(
-                prepareSearch().setIndices(indexName).setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
+                prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
                 searchResponse -> {
                     assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
                     assertHitCount(searchResponse, numDocs);

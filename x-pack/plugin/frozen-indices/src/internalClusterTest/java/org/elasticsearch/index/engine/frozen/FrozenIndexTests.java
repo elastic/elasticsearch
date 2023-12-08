@@ -144,7 +144,6 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         try {
             for (int from = 0; from < 3; from++) {
                 searchResponse = client().prepareSearch()
-                    .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
                     .setPointInTime(new PointInTimeBuilder(pitId))
                     .setSize(1)
                     .setFrom(from)

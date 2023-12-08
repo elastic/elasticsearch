@@ -1,5 +1,5 @@
 pr: 102880
-summary: WIP started working on ESQL reading points from source
-area: Geo
+summary: Reading points from source to reduce precision loss
+area: ES|QL
 type: enhancement
 issues: []

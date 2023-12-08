@@ -555,7 +555,7 @@ public class JwtRestIT extends ESRestTestCase {
         } else {
             keystoreSettings.put(setting, value);
         }
-        cluster.writeToKeystoreFile();
+        cluster.updateStoredSecureSettings();
         assertOK(adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
     }
 

@@ -180,8 +180,8 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     @Override
-    public void writeToKeystoreFile() {
-        execute(() -> nodes.parallelStream().forEach(Node::writeToKeystoreFile));
+    public void updateStoredSecureSettings() {
+        execute(() -> nodes.parallelStream().forEach(Node::updateStoredSecureSettings));
     }
 
     protected void waitUntilReady() {

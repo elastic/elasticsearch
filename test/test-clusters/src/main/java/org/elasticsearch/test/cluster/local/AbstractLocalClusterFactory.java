@@ -443,7 +443,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             });
         }
 
-        public void writeToKeystoreFile() {
+        public void updateStoredSecureSettings() {
+            if (usesSecureSecretsFile) {
+                throw new UnsupportedOperationException("updating stored secure settings is not supported in serverless test clusters");
+            }
             final Path keystoreFile = workingDir.resolve("config").resolve("elasticsearch.keystore");
             try {
                 Files.deleteIfExists(keystoreFile);

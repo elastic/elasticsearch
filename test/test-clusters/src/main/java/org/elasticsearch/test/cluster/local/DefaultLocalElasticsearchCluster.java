@@ -157,9 +157,9 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     }
 
     @Override
-    public void writeToKeystoreFile() {
+    public void updateStoredSecureSettings() {
         checkHandle();
-        handle.writeToKeystoreFile();
+        handle.updateStoredSecureSettings();
     }
 
     protected H getHandle() {

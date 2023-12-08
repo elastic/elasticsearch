@@ -1941,6 +1941,10 @@ public class Security extends Plugin
         });
     }
 
+    /**
+     * This method uses a transport action internally to access classes that are injectable but are not part of the plugin contract.
+     * See {@link TransportReloadRemoteClusterCredentialsAction} for more context.
+     */
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
         // Accepting a blocking call here since the underlying action is local-only and only performs fast in-memory ops
         // (extracts a subset of passed in `settingsWithKeystore` and stores them in a map)

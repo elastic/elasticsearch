@@ -31,7 +31,12 @@ public class RemoteClusterCredentialsManager {
 
     public void updateClusterCredentials(Settings settings) {
         clusterCredentials = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings);
-        logger.debug(() -> Strings.format("Updated remote cluster credentials: %s", clusterCredentials.keySet()));
+        logger.debug(
+            () -> Strings.format(
+                "Updated remote cluster credentials for clusters: [%s]",
+                Strings.collectionToCommaDelimitedString(clusterCredentials.keySet())
+            )
+        );
     }
 
     @Nullable

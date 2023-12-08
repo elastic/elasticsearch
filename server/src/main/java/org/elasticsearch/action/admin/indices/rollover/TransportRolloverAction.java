@@ -118,12 +118,40 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     protected void masterOperation(
         Task task,
         final RolloverRequest rolloverRequest,
-        final ClusterState oldState,
+        final ClusterState clusterState,
         final ActionListener<RolloverResponse> listener
     ) throws Exception {
 
         assert task instanceof CancellableTask;
-        Metadata metadata = oldState.metadata();
+        Metadata metadata = clusterState.metadata();
+        // We evaluate the names of the index for which we should evaluate conditions, as well as what our newly created index *would* be.
+        final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
+            clusterState,
+            rolloverRequest.getRolloverTarget(),
+            rolloverRequest.getNewIndexName(),
+            rolloverRequest.getCreateIndexRequest()
+        );
+        final String trialSourceIndexName = trialRolloverNames.sourceName();
+        final String trialRolloverIndexName = trialRolloverNames.rolloverName();
+        MetadataRolloverService.validateIndexName(clusterState, trialRolloverIndexName);
+
+        boolean lazyRolloverApplicable = rolloverRequest.isDryRun() == false
+            && rolloverRequest.getConditions().hasConditions() == false
+            && metadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
+        if (rolloverRequest.isLazy() && lazyRolloverApplicable) {
+            final RolloverResponse trialRolloverResponse = new RolloverResponse(
+                trialSourceIndexName,
+                trialRolloverIndexName,
+                Map.of(),
+                false,
+                false,
+                true,
+                false,
+                true
+            );
+            listener.onResponse(trialRolloverResponse);
+            return;
+        }
 
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
@@ -140,18 +168,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             statsRequest,
 
             listener.delegateFailureAndWrap((delegate, statsResponse) -> {
-                // Now that we have the stats for the cluster, we need to know the names of the index for which we should evaluate
-                // conditions, as well as what our newly created index *would* be.
-                final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
-                    oldState,
-                    rolloverRequest.getRolloverTarget(),
-                    rolloverRequest.getNewIndexName(),
-                    rolloverRequest.getCreateIndexRequest()
-                );
-                final String trialSourceIndexName = trialRolloverNames.sourceName();
-                final String trialRolloverIndexName = trialRolloverNames.rolloverName();
-
-                MetadataRolloverService.validateIndexName(oldState, trialRolloverIndexName);
 
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> trialConditionResults = evaluateConditions(
@@ -164,6 +180,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     trialRolloverIndexName,
                     trialConditionResults,
                     rolloverRequest.isDryRun(),
+                    false,
                     false,
                     false,
                     false
@@ -366,7 +383,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     false,
                                     true,
                                     true,
-                                    isShardsAcknowledged
+                                    isShardsAcknowledged,
+                                    false
                                 )
                             )
                     );

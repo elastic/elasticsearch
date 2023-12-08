@@ -169,6 +169,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .addMinPrimaryShardDocsCondition(randomNonNegativeLong())
                 .build()
         );
+        originalRequest.lazy(randomBoolean());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
@@ -176,6 +177,7 @@ public class RolloverRequestTests extends ESTestCase {
                 RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
+                assertThat(cloneRequest.isLazy(), equalTo(originalRequest.isLazy()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().getConditions().get(entry.getKey());
                     // here we compare the string representation as there is some information loss when serializing

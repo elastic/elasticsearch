@@ -20,6 +20,7 @@ POST _connector
 [[create-connector-api-request]]
 ==== {api-request-title}
 `POST _connector`
+
 `PUT _connector/<connector_id>`
 
 

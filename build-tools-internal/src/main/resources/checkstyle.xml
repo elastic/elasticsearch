@@ -194,5 +194,10 @@
             value="Do not negate boolean expressions with '!', but check explicitly with '== false' as it is more explicit"/>
     </module>
 
+    <module name="NeedBraces">
+        <property name="tokens" value="LITERAL_ELSE"/>
+        <property name="allowSingleLineStatement" value="false"/>
+    </module>
+
   </module>
 </module>

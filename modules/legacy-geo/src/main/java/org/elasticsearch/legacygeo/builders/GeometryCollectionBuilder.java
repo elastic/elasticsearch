@@ -163,7 +163,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
         }
 
         if (shapesList.size() == 1) return shapesList.get(0);
-        else return new XShapeCollection<>(shapesList, SPATIAL_CONTEXT);
+        return new XShapeCollection<>(shapesList, SPATIAL_CONTEXT);
         // note: ShapeCollection is probably faster than a Multi* geom.
     }
 

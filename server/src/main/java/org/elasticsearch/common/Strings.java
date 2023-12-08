@@ -364,7 +364,7 @@ public class Strings {
      */
     public static String[] splitStringByCommaToArray(final String s) {
         if (s == null || s.isEmpty()) return Strings.EMPTY_ARRAY;
-        else return s.split(",");
+        return s.split(",");
     }
 
     /**

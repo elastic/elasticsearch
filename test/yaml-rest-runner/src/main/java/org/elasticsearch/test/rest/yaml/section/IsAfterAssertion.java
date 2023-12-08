@@ -63,7 +63,7 @@ public class IsAfterAssertion extends Assertion {
         try {
             return Instant.parse(string);
         } catch (DateTimeParseException e) {
-            throw new AssertionError(onErrorMessage);
+            throw new AssertionError(onErrorMessage, e);
         }
     }
 }

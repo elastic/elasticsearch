@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -32,6 +33,7 @@ import java.util.List;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.search.aggregations.AggregatorFactories.parseAggregators;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -43,11 +45,19 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
         "query_api_key_request_payload",
-        a -> new Payload((QueryBuilder) a[0], (Integer) a[1], (Integer) a[2], (List<FieldSortBuilder>) a[3], (SearchAfterBuilder) a[4])
+        a -> new Payload(
+            (QueryBuilder) a[0],
+            (AggregatorFactories.Builder) a[1],
+            (Integer) a[2],
+            (Integer) a[3],
+            (List<FieldSortBuilder>) a[4],
+            (SearchAfterBuilder) a[5]
+        )
     );
 
     static {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseTopLevelQuery(p), new ParseField("query"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseAggregators(p), new ParseField("aggs"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("from"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("size"));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> {
@@ -98,6 +108,7 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
             final Payload payload = PARSER.parse(request.contentOrSourceParamParser(), null);
             queryApiKeyRequest = new QueryApiKeyRequest(
                 payload.queryBuilder,
+                payload.aggsBuilder,
                 payload.from,
                 payload.size,
                 payload.fieldSortBuilders,
@@ -105,13 +116,14 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
                 withLimitedBy
             );
         } else {
-            queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, withLimitedBy);
+            queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, null, withLimitedBy);
         }
         return channel -> client.execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest, new RestToXContentListener<>(channel));
     }
 
     private record Payload(
         @Nullable QueryBuilder queryBuilder,
+        @Nullable AggregatorFactories.Builder aggsBuilder,
         @Nullable Integer from,
         @Nullable Integer size,
         @Nullable List<FieldSortBuilder> fieldSortBuilders,

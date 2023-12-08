@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
@@ -103,6 +106,15 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         } else if (qb instanceof final TermQueryBuilder query) {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.termQuery(translatedFieldName, query.value()).caseInsensitive(query.caseInsensitive());
+        } else if (qb instanceof final MultiMatchQueryBuilder query) {
+            // this relies on the query fields map to be mutable
+            Map<String, Float> originalFields = new HashMap<>(query.fields());
+            query.fields().clear();
+            for (Map.Entry<String, Float> originalField : originalFields.entrySet()) {
+                query.fields().put(ApiKeyFieldNameTranslators.translate(originalField.getKey()), originalField.getValue());
+            }
+            assert query.fields().size() == originalFields.size();
+            return query;
         } else if (qb instanceof final ExistsQueryBuilder query) {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.existsQuery(translatedFieldName);

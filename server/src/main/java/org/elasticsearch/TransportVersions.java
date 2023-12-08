@@ -191,6 +191,7 @@ public class TransportVersions {
     public static final TransportVersion MISSED_INDICES_UPDATE_EXCEPTION_ADDED = def(8_558_00_0);
     public static final TransportVersion INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED = def(8_559_00_0);
     public static final TransportVersion ENRICH_ELASTICSEARCH_VERSION_REMOVED = def(8_560_00_0);
+    public static final TransportVersion QUERY_API_KEY_AGGS_ADDED = def(8_561_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

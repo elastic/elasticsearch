@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -71,6 +73,14 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
             request.isFilterForCurrentUser() ? authentication : null
         );
         searchSourceBuilder.query(apiKeyBoolQueryBuilder);
+
+        // copy all the aggregations without any verifications
+        for (AggregationBuilder aggregator : request.getAggsBuilder().getAggregatorFactories()) {
+            searchSourceBuilder.aggregation(aggregator);
+        }
+        for (PipelineAggregationBuilder pipelineAggregator : request.getAggsBuilder().getPipelineAggregatorFactories()) {
+            searchSourceBuilder.aggregation(pipelineAggregator);
+        }
 
         if (request.getFieldSortBuilders() != null) {
             translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);

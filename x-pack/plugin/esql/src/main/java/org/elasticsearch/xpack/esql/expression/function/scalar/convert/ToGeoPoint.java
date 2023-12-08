@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -30,8 +31,8 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
-        Map.entry(LONG, (fieldEval, source) -> fieldEval),
-        Map.entry(UNSIGNED_LONG, (fieldEval, source) -> fieldEval),
+        Map.entry(LONG, ToGeoPointFromLongEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToGeoPointFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToGeoPointFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new)
     );
@@ -65,7 +66,12 @@ public class ToGeoPoint extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
-    static long fromKeyword(BytesRef in) {
-        return GEO.pointAsLong(GEO.stringAsPoint(in.utf8ToString()));
+    static SpatialPoint fromKeyword(BytesRef in) {
+        return GEO.stringAsPoint(in.utf8ToString());
+    }
+
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
+    static SpatialPoint fromLong(long encoded) {
+        return GEO.longAsPoint(encoded);
     }
 }

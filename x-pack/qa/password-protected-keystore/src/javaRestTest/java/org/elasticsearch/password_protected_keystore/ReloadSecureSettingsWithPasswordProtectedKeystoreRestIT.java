@@ -12,6 +12,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.SettingsProvider;
+import org.elasticsearch.test.cluster.local.LocalClusterSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -37,12 +39,12 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
         .nodes(NUM_NODES)
         .keystorePassword(KEYSTORE_PASSWORD)
         .name("javaRestTest")
+        .keystore(nodeSpec -> Map.of("xpack.security.transport.ssl.secure_key_passphrase", "transport-password"))
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.anonymous.roles", "anonymous")
         .setting("xpack.security.transport.ssl.enabled", "true")
         .setting("xpack.security.transport.ssl.certificate", "transport.crt")
         .setting("xpack.security.transport.ssl.key", "transport.key")
-        .setting("xpack.security.transport.ssl.key_passphrase", "transport-password")
         .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .configFile("transport.key", Resource.fromClasspath("ssl/transport.key"))

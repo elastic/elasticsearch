@@ -252,7 +252,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
-        int requestSize = context.requestSize() == null ? DEFAULT_SIZE : context.requestSize();
+        int requestSize = context.requestSize() == null || context.requestSize() < 0 ? DEFAULT_SIZE : context.requestSize();
         int adjustedNumCands = numCands == null ? (int) Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * requestSize, NUM_CANDS_LIMIT) : numCands;
         if (fieldType == null) {
             throw new IllegalArgumentException("field [" + fieldName + "] does not exist in the mapping");

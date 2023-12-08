@@ -59,22 +59,32 @@ ZAH            | POINT(60.9007085300982 29.47529417462647)    | Zahedan Int'l   
 ;
 
 convertCartesianFromLong#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
+// tag::to_cartesianpoint-long[]
 row long = 5009771769843126025
-| eval pt = to_cartesianpoint(long);
+| eval pt = to_cartesianpoint(long)
+// end::to_cartesianpoint-long[]
+;
 
+// tag::to_cartesianpoint-long-result[]
 long:long           |pt:cartesian_point
 5009771769843126025 |POINT(4297.11 -1475.53)
+// end::to_cartesianpoint-long-result[]
 ;
 
 convertCartesianFromString#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
+// tag::to_cartesianpoint-str[]
 row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
 | mv_expand wkt
 | eval pt = to_cartesianpoint(wkt)
-| eval l = to_long(pt);
+| eval l = to_long(pt)
+// end::to_cartesianpoint-str[]
+;
 
+// tag::to_cartesianpoint-str-result[]
 wkt:keyword               |pt:cartesian_point      |l:long
 "POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53) |5009771769843126025
 "POINT(7580.93 2272.77)"  |POINT(7580.93 2272.77)  |5038656556796611666
+// end::to_cartesianpoint-str-result[]
 ;
 
 convertCartesianFromLongArray#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]

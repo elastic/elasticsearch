@@ -161,6 +161,7 @@ public class Querier {
             openPitRequest,
             listener.delegateFailureAndWrap((delegate, openPointInTimeResponse) -> {
                 String pitId = openPointInTimeResponse.getPointInTimeId();
+                search.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
                 search.indices(Strings.EMPTY_ARRAY);
                 search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
                 ActionListener<SearchResponse> closePitOnErrorListener = wrap(searchResponse -> {

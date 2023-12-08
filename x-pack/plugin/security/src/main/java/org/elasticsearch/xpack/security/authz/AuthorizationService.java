@@ -25,7 +25,6 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
@@ -86,7 +85,6 @@ import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
-import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -472,28 +470,13 @@ public class AuthorizationService {
                 l.onResponse(result);
             }));
         } else if (isIndexAction(action)) {
-            if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
-                /**
-                 * We override the {@link SearchRequest#indices} with the PIT's indices for the authorization check.
-                 * Although this copy also occurs in the rest layer, we cannot rely on it, as the action might be executed
-                 * directly in the transport client.
-                 * For backward compatibility reasons, we refrain from failing the request if {@link SearchRequest#indices}
-                 * is non-empty. Instead, we verify that the indices match the PIT definition and deny access if they don't.
-                 */
-                var indices = SearchContextId.decodeIndices(searchRequest.pointInTimeBuilder().getEncodedId());
-                if (searchRequest.indices().length > 0 && Arrays.equals(searchRequest.indices(), indices) == false) {
-                    IllegalArgumentException cause = new IllegalArgumentException(
-                        "indices defined in the [pit] don't match the request's indices"
-                    );
-                    auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-                    listener.onFailure(actionDenied(authentication, authzInfo, action, request, cause));
-                    return;
-                }
-                searchRequest.indices(indices);
-            }
-            logger.info("request resolved=" + request.getClass().getSimpleName());
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
+                if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
+                    var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
+                    resolvedIndicesListener.onResponse(resolvedIndices);
+                    return;
+                }
                 final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);

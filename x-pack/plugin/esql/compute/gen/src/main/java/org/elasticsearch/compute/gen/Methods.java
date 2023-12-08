@@ -41,6 +41,11 @@ import static org.elasticsearch.compute.gen.Types.LONG_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_FIXED_BUILDER;
+import static org.elasticsearch.compute.gen.Types.POINT_BLOCK;
+import static org.elasticsearch.compute.gen.Types.POINT_BLOCK_BUILDER;
+import static org.elasticsearch.compute.gen.Types.POINT_VECTOR;
+import static org.elasticsearch.compute.gen.Types.POINT_VECTOR_BUILDER;
+import static org.elasticsearch.compute.gen.Types.POINT_VECTOR_FIXED_BUILDER;
 
 /**
  * Finds declared methods for the code generator.
@@ -106,6 +111,9 @@ public class Methods {
         if (t.equals(TypeName.DOUBLE) || t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR)) {
             return "appendDouble";
         }
+        if (t.equals(Types.POINT) || t.equals(POINT_BLOCK) || t.equals(POINT_VECTOR)) {
+            return "appendPoint";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 
@@ -156,6 +164,15 @@ public class Methods {
         if (t.equals(DOUBLE_VECTOR_FIXED_BUILDER)) {
             return "newDoubleVectorFixedBuilder";
         }
+        if (t.equals(POINT_BLOCK_BUILDER)) {
+            return "newPointBlockBuilder";
+        }
+        if (t.equals(POINT_VECTOR_BUILDER)) {
+            return "newPointVectorBuilder";
+        }
+        if (t.equals(POINT_VECTOR_FIXED_BUILDER)) {
+            return "newPointVectorFixedBuilder";
+        }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }
 
@@ -179,6 +196,9 @@ public class Methods {
         if (elementType.equals(TypeName.DOUBLE)) {
             return "getDouble";
         }
+        if (elementType.equals(Types.POINT)) {
+            return "getPoint";
+        }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }
 
@@ -192,6 +212,7 @@ public class Methods {
             case "INT" -> "getInt";
             case "LONG" -> "getLong";
             case "DOUBLE" -> "getDouble";
+            case "POINT" -> "getPoint";
             case "BYTES_REF" -> "getBytesRef";
             default -> throw new IllegalArgumentException(
                 "don't know how to fetch primitive values from " + elementTypeName + ". define combineStates."

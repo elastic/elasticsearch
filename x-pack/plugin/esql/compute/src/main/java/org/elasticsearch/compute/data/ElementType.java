@@ -76,7 +76,7 @@ public enum ElementType {
             elementType = DOUBLE;
         } else if (type == String.class || type == BytesRef.class) {
             elementType = BYTES_REF;
-        } else if (type.isAssignableFrom(SpatialPoint.class)) {
+        } else if (SpatialPoint.class.isAssignableFrom(type)) {
             elementType = POINT;
         } else if (type == Boolean.class) {
             elementType = BOOLEAN;

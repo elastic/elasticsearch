@@ -11,6 +11,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -388,8 +389,8 @@ public final class CsvTestUtils {
             Long.class
         ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
-        GEO_POINT(x -> x == null ? null : GEO.pointAsLong(GEO.stringAsPoint(x)), Long.class),
-        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(x)), Long.class);
+        GEO_POINT(x -> x == null ? null : GEO.stringAsPoint(x), SpatialPoint.class),
+        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.stringAsPoint(x), SpatialPoint.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -440,7 +441,7 @@ public final class CsvTestUtils {
             return LOOKUP.get(name.toUpperCase(Locale.ROOT));
         }
 
-        public static Type asType(ElementType elementType) {
+        public static Type asType(ElementType elementType, Type actualType) {
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;
@@ -448,10 +449,17 @@ public final class CsvTestUtils {
                 case NULL -> NULL;
                 case BYTES_REF -> KEYWORD;
                 case BOOLEAN -> BOOLEAN;
-                case POINT -> GEO_POINT;    // TODO: how to differentiate between geo and cartesian points
+                case POINT -> pointBlockType(actualType);
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
+        }
+
+        private static Type pointBlockType(Type actualType) {
+            if (actualType == CARTESIAN_POINT || actualType == GEO_POINT) {
+                return actualType;
+            }
+            throw new IllegalArgumentException("Unsupported spatial point type: " + actualType);
         }
 
         Object convert(String value) {

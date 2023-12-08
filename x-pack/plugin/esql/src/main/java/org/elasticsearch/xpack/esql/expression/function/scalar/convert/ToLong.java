@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -34,14 +35,16 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class ToLong extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(LONG, (fieldEval, source) -> fieldEval),
         Map.entry(DATETIME, (fieldEval, source) -> fieldEval),
-        Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
-        Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
+        Map.entry(GEO_POINT, ToLongFromGeoPointEvaluator.Factory::new),
+        Map.entry(CARTESIAN_POINT, ToLongFromCartesianPointEvaluator.Factory::new),
         Map.entry(BOOLEAN, ToLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToLongFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToLongFromStringEvaluator.Factory::new),
@@ -113,5 +116,15 @@ public class ToLong extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromInt")
     static long fromInt(int i) {
         return i;
+    }
+
+    @ConvertEvaluator(extraName = "FromGeoPoint")
+    static long fromGeoPoint(SpatialPoint point) {
+        return GEO.pointAsLong(point);
+    }
+
+    @ConvertEvaluator(extraName = "FromCartesianPoint")
+    static long fromCartesianPoint(SpatialPoint point) {
+        return CARTESIAN.pointAsLong(point);
     }
 }

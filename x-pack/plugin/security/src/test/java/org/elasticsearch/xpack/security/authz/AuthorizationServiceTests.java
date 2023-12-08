@@ -1239,10 +1239,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testSearchPITAgainstIndex() {
         RoleDescriptor role = new RoleDescriptor(
-                "search_index",
-                null,
-                new IndicesPrivileges[]{IndicesPrivileges.builder().indices("index-*").privileges("read").build()},
-                null
+            "search_index",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("read").build() },
+            null
         );
         roleMap.put(role.getName(), role);
         final Authentication authentication = createAuthentication(new User("test search user", role.getName()));
@@ -1255,17 +1255,17 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         PointInTimeBuilder pit = new PointInTimeBuilder(createEncodedPIT(indexMetadata.getIndex()));
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().pointInTimeBuilder(pit))
-                .allowPartialSearchResults(false);
+            .allowPartialSearchResults(false);
         final ShardSearchRequest shardRequest = new ShardSearchRequest(
-                new OriginalIndices(new String[]{indexName}, searchRequest.indicesOptions()),
-                searchRequest,
-                new ShardId(indexMetadata.getIndex(), 0),
-                0,
-                1,
-                AliasFilter.EMPTY,
-                1.0f,
-                System.currentTimeMillis(),
-                null
+            new OriginalIndices(new String[] { indexName }, searchRequest.indicesOptions()),
+            searchRequest,
+            new ShardId(indexMetadata.getIndex(), 0),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            System.currentTimeMillis(),
+            null
         );
         this.setFakeOriginatingAction = false;
         authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest, true, () -> {
@@ -1287,18 +1287,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         });
         assertThat(searchRequest.indices().length, equalTo(0));
         verify(auditTrail).accessGranted(
-                eq(requestId),
-                eq(authentication),
-                eq(TransportSearchAction.TYPE.name()),
-                eq(searchRequest),
-                authzInfoRoles(new String[]{role.getName()})
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(searchRequest),
+            authzInfoRoles(new String[] { role.getName() })
         );
         verify(auditTrail).accessGranted(
-                eq(requestId),
-                eq(authentication),
-                eq(SearchTransportService.QUERY_ACTION_NAME),
-                eq(shardRequest),
-                authzInfoRoles(new String[]{role.getName()})
+            eq(requestId),
+            eq(authentication),
+            eq(SearchTransportService.QUERY_ACTION_NAME),
+            eq(shardRequest),
+            authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
     }

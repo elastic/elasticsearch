@@ -830,7 +830,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         // add a sort tiebreaker for PIT search requests if not explicitly set
         Object[] searchAfter = source.searchAfter();
         if (source.pointInTimeBuilder() != null && source.sorts() != null && source.sorts().isEmpty() == false
-            // skip the tiebreaker if it is not provided in the search after values
+        // skip the tiebreaker if it is not provided in the search after values
             && (searchAfter == null || searchAfter.length == source.sorts().size() + 1)) {
             SortBuilder<?> lastSort = source.sorts().get(source.sorts().size() - 1);
             if (lastSort instanceof FieldSortBuilder == false

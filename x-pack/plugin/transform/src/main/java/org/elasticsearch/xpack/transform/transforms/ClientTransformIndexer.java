@@ -532,9 +532,7 @@ class ClientTransformIndexer extends TransformIndexer {
         PointInTimeBuilder pit = originalRequest.pointInTimeBuilder();
         if (pit != null) {
             // remove the indices from the request, they will be derived from the provided pit
-            searchRequest = new SearchRequest(originalRequest)
-                    .indices(new String[0])
-                    .indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
+            searchRequest = new SearchRequest(originalRequest).indices(new String[0]).indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
         } else {
             searchRequest = originalRequest;
         }

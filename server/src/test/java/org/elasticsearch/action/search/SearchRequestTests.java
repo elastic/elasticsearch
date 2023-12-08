@@ -459,18 +459,19 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest("test").source(
-                    new SearchSourceBuilder()
-                            .pointInTimeBuilder(new PointInTimeBuilder(""))
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(""))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[indices] cannot be used with point in time. Do not specify any index with point in time.", validationErrors.validationErrors().get(0));
+            assertEquals(
+                "[indices] cannot be used with point in time. Do not specify any index with point in time.",
+                validationErrors.validationErrors().get(0)
+            );
         }
         {
             SearchRequest searchRequest = new SearchRequest().indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
-                    .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(""))
-            );
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -478,8 +479,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().routing("route1")
-                    .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(""))
-                    );
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -487,8 +487,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().preference("pref1")
-                    .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(""))
-                    );
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());

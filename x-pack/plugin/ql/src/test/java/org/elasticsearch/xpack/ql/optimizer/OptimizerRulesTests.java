@@ -1769,7 +1769,6 @@ public class OptimizerRulesTests extends ESTestCase {
         // expected
         Filter expected = new Filter(EMPTY, new Aggregate(EMPTY, combinedFilter, emptyList(), emptyList()), aggregateCondition);
         assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
-
     }
 
     public void testIsNotNullOnOperatorWithOneField() {
@@ -1777,9 +1776,9 @@ public class OptimizerRulesTests extends ESTestCase {
         var fieldA = getFieldAttribute("a");
         Expression inn = isNotNull(new Add(EMPTY, fieldA, ONE));
         Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, isNotNull(fieldA));
+        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
 
-        assertEquals(expected, new OptimizerRules.NullableSimplification().apply(f));
+        assertEquals(expected, new OptimizerRules.InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnOperatorWithTwoFields() {
@@ -1788,9 +1787,9 @@ public class OptimizerRulesTests extends ESTestCase {
         var fieldB = getFieldAttribute("b");
         Expression inn = isNotNull(new Add(EMPTY, fieldA, fieldB));
         Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)));
+        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
-        assertEquals(expected, new OptimizerRules.NullableSimplification().apply(f));
+        assertEquals(expected, new OptimizerRules.InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnFunctionWithOneField() {
@@ -1802,9 +1801,9 @@ public class OptimizerRulesTests extends ESTestCase {
         );
 
         Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, isNotNull(fieldA));
+        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
 
-        assertEquals(expected, new OptimizerRules.NullableSimplification().apply(f));
+        assertEquals(expected, new OptimizerRules.InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnFunctionWithTwoFields() {
@@ -1815,9 +1814,9 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression inn = isNotNull(new TestStartsWith(EMPTY, fieldA, fieldB, false));
 
         Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)));
+        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
-        assertEquals(expected, new OptimizerRules.NullableSimplification().apply(f));
+        assertEquals(expected, new OptimizerRules.InferIsNotNull().apply(f));
     }
 
     public static class TestStartsWith extends StartsWith {

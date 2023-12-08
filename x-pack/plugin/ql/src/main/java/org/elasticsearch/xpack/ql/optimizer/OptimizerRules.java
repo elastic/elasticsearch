@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.SurrogateFunction;
-import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
@@ -1789,22 +1788,25 @@ public final class OptimizerRules {
     }
 
     /**
-     * Simplify IsNull/IsNotNull targets by resolving the underlying expression to its root fields with unknown
+     * Simplify IsNotNull targets by resolving the underlying expression to its root fields with unknown
      * nullability.
      * e.g.
-     * (x + 1) / 2 IS NULL --> x IS NULL
-     * SUBSTRING(x, 3) > 4 IS NULL --> x IS NULL
-     * When dealing with multiple fields, the a conjunction/disjunction based on the predicate:
-     * (x + y) / 4 IS NULL --> x IS NULL OR x IS NULL
-     * (x + y) / 4 IS NOT NULL --> x IS NOT NULL AND y IS NOT NULL
+     * (x + 1) / 2 IS NOT NULL --> x IS NOT NULL AND (x+1) / 2 IS NOT NULL
+     * SUBSTRING(x, 3) > 4 IS NOT NULL --> x IS NOT NULL AND SUBSTRING(x, 3) > 4 IS NOT NULL
+     * When dealing with multiple fields, a conjunction/disjunction based on the predicate:
+     * (x + y) / 4 IS NOT NULL --> x IS NOT NULL AND y IS NOT NULL AND (x + y) / 4 IS NOT NULL
      * This handles the case of fields nested inside functions or expressions in order to avoid:
      * - having to evaluate the whole expression
      * - not pushing down the filter due to expression evaluation
+     * IS NULL cannot be simplified since it leads to a disjunction which cannot prevents the simplified IS NULL
+     * to be pushed down:
+     * (x + 1) IS NULL --> x IS NULL OR x + 1 IS NULL
+     * and x IS NULL cannot be pushed down
      * <br/>
      * Implementation-wise this rule goes bottom-up, keeping an alias up to date to the current plan
-     * and then looks for replacing the target of the IS NULL / IS NOT NULL expressions accordingly.
+     * and then looks for replacing the target.
      */
-    public static class NullableSimplification extends Rule<LogicalPlan, LogicalPlan> {
+    public static class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
@@ -1819,36 +1821,18 @@ public final class OptimizerRules {
             // inspect just this plan properties
             plan.forEachExpression(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
             // now go about finding isNull/isNotNull
-            LogicalPlan newPlan = plan.transformExpressionsOnlyUp(UnaryScalarFunction.class, f -> simplifyExpression(f, aliases));
+            LogicalPlan newPlan = plan.transformExpressionsOnlyUp(IsNotNull.class, inn -> inferNotNullable(inn, aliases));
             return newPlan;
         }
 
-        private Expression simplifyExpression(UnaryScalarFunction function, AttributeMap<Expression> aliases) {
-            Expression result = function;
-            if (function instanceof IsNotNull || function instanceof IsNull) {
-                result = simplifyNullable(function, aliases);
-            }
-
-            return result;
-        }
-
-        private Expression simplifyNullable(UnaryScalarFunction function, AttributeMap<Expression> aliases) {
-            Expression result = function;
-            Set<Expression> refs = resolveExpressionAsRootAttributes(function.field(), aliases);
+        private Expression inferNotNullable(IsNotNull inn, AttributeMap<Expression> aliases) {
+            Expression result = inn;
+            Set<Expression> refs = resolveExpressionAsRootAttributes(inn.field(), aliases);
             // no refs found or could not detect - return the original function
             if (refs.size() > 0) {
-                boolean isNotNull = function instanceof IsNotNull;
-
-                java.util.function.Function<List<Expression>, Expression> combiner = isNotNull
-                    ? Predicates::combineAnd
-                    : Predicates::combineOr;
-
-                java.util.function.Function<Expression, Expression> constructor = e -> isNotNull
-                    ? new IsNotNull(function.source(), e)
-                    : new IsNull(function.source(), e);
-
-                // convert the list to a set
-                result = combiner.apply(refs.stream().map(constructor).toList());
+                // add IsNull for the filters along with the initial inn
+                var innList = CollectionUtils.combine(refs.stream().map(r -> (Expression) new IsNotNull(inn.source(), r)).toList(), inn);
+                result = Predicates.combineAnd(innList);
             }
             return result;
         }

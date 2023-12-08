@@ -195,6 +195,7 @@
     </module>
 
     <module name="NeedBraces">
+        <!-- We have many generated equals classes with LITERAL_IF and no braces, so we leave it out here -->
         <property name="tokens" value="LITERAL_DO,LITERAL_ELSE,LITERAL_FOR,LITERAL_WHILE"/>
         <property name="allowSingleLineStatement" value="false"/>
         <property name="allowEmptyLoopBody" value="true"/>

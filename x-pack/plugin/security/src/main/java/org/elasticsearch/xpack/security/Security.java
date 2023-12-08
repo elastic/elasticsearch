@@ -1921,7 +1921,7 @@ public class Security extends Plugin
 
             if (false == reloadExceptions.isEmpty()) {
                 final var combinedException = new ElasticsearchException(
-                    "secure settings reload failed for one or more security component(s)"
+                    "secure settings reload failed for one or more security components"
                 );
                 reloadExceptions.forEach(combinedException::addSuppressed);
                 throw combinedException;

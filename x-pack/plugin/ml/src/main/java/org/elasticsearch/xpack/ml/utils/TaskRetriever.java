@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.ml.utils;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.downloadModelTaskDescription;
 
@@ -28,16 +33,18 @@ public class TaskRetriever {
      * @param modelId the id of the model to check for an existing task
      * @param waitForCompletion a boolean flag determine if the request should wait for an existing task to complete before returning (aka
      *                          wait for the download to complete)
+     * @param timeout the timeout value in seconds that the request should fail if it does not complete
+     * @param errorMessageOnWaitTimeout Message to use if the request times out with {@code waitForCompletion == true}
      * @param listener a listener, if a task is found it is returned via {@code ActionListener.onResponse(taskInfo)}.
      *                 If a task is not found null is returned
-     * @param timeout the timeout value in seconds that the request should fail if it does not complete
      */
     public static void getDownloadTaskInfo(
         Client client,
         String modelId,
         boolean waitForCompletion,
-        ActionListener<TaskInfo> listener,
-        TimeValue timeout
+        TimeValue timeout,
+        Supplier<String> errorMessageOnWaitTimeout,
+        ActionListener<TaskInfo> listener
     ) {
         client.admin()
             .cluster()
@@ -53,6 +60,8 @@ public class TaskRetriever {
                 if (tasks.size() > 0) {
                     // there really shouldn't be more than a single task but if there is we'll just use the first one
                     listener.onResponse(tasks.get(0));
+                } else if (waitForCompletion && didItTimeout(response)) {
+                    listener.onFailure(taskDidNotCompleteException(errorMessageOnWaitTimeout.get()));
                 } else {
                     listener.onResponse(null);
                 }
@@ -66,6 +75,28 @@ public class TaskRetriever {
                     )
                 )
             ));
+    }
+
+    private static boolean didItTimeout(ListTasksResponse response) {
+        if (response.getNodeFailures().isEmpty() == false) {
+            // if one node timed out then the others will also have timed out
+            var firstNodeFailure = response.getNodeFailures().get(0);
+            if (firstNodeFailure.status() == RestStatus.REQUEST_TIMEOUT) {
+                return true;
+            }
+            var rootCause = firstNodeFailure.getRootCause();
+            if (rootCause instanceof ElasticsearchTimeoutException) {
+                return true;
+            }
+            if (rootCause instanceof ElasticsearchException esException) {
+                return esException.status() == RestStatus.REQUEST_TIMEOUT;
+            }
+        }
+        return false;
+    }
+
+    private static ElasticsearchException taskDidNotCompleteException(String message) {
+        return new ElasticsearchStatusException(message, RestStatus.REQUEST_TIMEOUT);
     }
 
     private TaskRetriever() {}

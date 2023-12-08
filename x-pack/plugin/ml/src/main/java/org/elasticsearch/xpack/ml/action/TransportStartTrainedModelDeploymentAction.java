@@ -560,21 +560,28 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ActionListener<Runnable> nextStepListener
     ) {
         // check task is present, do not wait for completion
-        TaskRetriever.getDownloadTaskInfo(mlOriginClient, modelId, false, ActionListener.wrap(taskInfo -> {
-            if (taskInfo == null) {
-                nextStepListener.onResponse(null);
-            } else {
-                failOrRespondWith0(
-                    () -> new ElasticsearchStatusException(
-                        Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
-                        RestStatus.REQUEST_TIMEOUT
-                    ),
-                    errorIfDefinitionIsMissing,
-                    modelId,
-                    failureListener
-                );
-            }
-        }, failureListener::onFailure), timeout);
+        TaskRetriever.getDownloadTaskInfo(
+            mlOriginClient,
+            modelId,
+            timeout != null,
+            timeout,
+            () -> Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
+            ActionListener.wrap(taskInfo -> {
+                if (taskInfo == null) {
+                    nextStepListener.onResponse(null);
+                } else {
+                    failOrRespondWith0(
+                        () -> new ElasticsearchStatusException(
+                            Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
+                            RestStatus.REQUEST_TIMEOUT
+                        ),
+                        errorIfDefinitionIsMissing,
+                        modelId,
+                        failureListener
+                    );
+                }
+            }, failureListener::onFailure)
+        );
     }
 
     private static void failOrRespondWith0(

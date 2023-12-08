@@ -403,14 +403,21 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         ActionListener<Void> storeModelListener,
         TimeValue timeout
     ) {
-        TaskRetriever.getDownloadTaskInfo(client, modelId, isWaitForCompletion, ActionListener.wrap(taskInfo -> {
-            if (taskInfo != null) {
-                getModelInformation(client, modelId, sendResponseListener);
-            } else {
-                // no task exists so proceed with creating the model
-                storeModelListener.onResponse(null);
-            }
-        }, sendResponseListener::onFailure), timeout);
+        TaskRetriever.getDownloadTaskInfo(
+            client,
+            modelId,
+            isWaitForCompletion,
+            timeout,
+            () -> "Timed out waiting for model download to complete",
+            ActionListener.wrap(taskInfo -> {
+                if (taskInfo != null) {
+                    getModelInformation(client, modelId, sendResponseListener);
+                } else {
+                    // no task exists so proceed with creating the model
+                    storeModelListener.onResponse(null);
+                }
+            }, sendResponseListener::onFailure)
+        );
     }
 
     private static void getExistingTaskInfo(Client client, String modelId, boolean waitForCompletion, ActionListener<TaskInfo> listener) {

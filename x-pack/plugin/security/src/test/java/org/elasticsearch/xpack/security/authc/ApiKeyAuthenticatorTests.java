@@ -14,16 +14,24 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.AuditableRequest;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -37,7 +45,11 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
 
     public void testAuditingOnAuthenticationTermination() {
         final ApiKeyService apiKeyService = mock(ApiKeyService.class);
-        final ApiKeyAuthenticator apiKeyAuthenticator = new ApiKeyAuthenticator(apiKeyService, randomAlphaOfLengthBetween(3, 8));
+        final ApiKeyAuthenticator apiKeyAuthenticator = new ApiKeyAuthenticator(
+            apiKeyService,
+            randomAlphaOfLengthBetween(3, 8),
+            MeterRegistry.NOOP
+        );
 
         final Authenticator.Context context = mock(Authenticator.Context.class);
 
@@ -72,4 +84,199 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         }
     }
 
+    public void testRecordingSuccessfulAuthenticationMetrics() {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        final ApiKeyAuthenticator apiKeyAuthenticator = new ApiKeyAuthenticator(
+            apiKeyService,
+            randomAlphaOfLengthBetween(3, 8),
+            telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry()
+        );
+
+        final ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(
+            randomAlphaOfLength(12),
+            new SecureString(randomAlphaOfLength(20).toCharArray()),
+            randomFrom(ApiKey.Type.values())
+        );
+
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Authenticator.Context context = mockApiKeyAuthenticationContext(threadContext, apiKeyCredentials);
+
+        doAnswer(invocation -> {
+            final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
+            listener.onResponse(
+                AuthenticationResult.success(
+                    new User(randomAlphaOfLengthBetween(3, 8)),
+                    Map.ofEntries(
+                        Map.entry(AuthenticationField.API_KEY_ID_KEY, apiKeyCredentials.getId()),
+                        Map.entry(AuthenticationField.API_KEY_TYPE_KEY, apiKeyCredentials.getExpectedType().value())
+                    )
+                )
+            );
+            return null;
+        }).when(apiKeyService).tryAuthenticate(same(threadContext), same(apiKeyCredentials), anyActionListener());
+
+        // Randomly call authentication multiple times
+        final int numOfAuthentications = randomInt(3);
+        for (int i = 0; i < numOfAuthentications; i++) {
+            final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+            apiKeyAuthenticator.authenticate(context, future);
+            var authResult = future.actionGet();
+            assertThat(authResult.isAuthenticated(), equalTo(true));
+        }
+        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticationMetrics.METRIC_SUCCESS_COUNT);
+        assertThat(successMetrics.size(), equalTo(numOfAuthentications));
+
+        successMetrics.forEach(metric -> {
+            // verify that we always record a single authentication
+            assertThat(metric.getLong(), equalTo(1L));
+
+            // and that all attributes are present
+            assertThat(
+                metric.attributes(),
+                equalTo(
+                    Map.ofEntries(
+                        Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                        Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
+                    )
+                )
+            );
+        });
+
+        // verify that there were no failures recorded
+        assertZeroFailedAuthMetrics(telemetryPlugin);
+    }
+
+    public void testRecordingFailedAuthenticationMetrics() {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        final ApiKeyAuthenticator apiKeyAuthenticator = new ApiKeyAuthenticator(
+            apiKeyService,
+            randomAlphaOfLengthBetween(3, 8),
+            telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry()
+        );
+
+        final ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(
+            randomAlphaOfLength(12),
+            new SecureString(randomAlphaOfLength(20).toCharArray()),
+            randomFrom(ApiKey.Type.values())
+        );
+
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Authenticator.Context context = mockApiKeyAuthenticationContext(threadContext, apiKeyCredentials);
+
+        final Exception exception = randomFrom(new ElasticsearchException("API key auth exception"), null);
+        final AuthenticationResult<User> failedAuth;
+
+        final boolean failWithTermination = randomBoolean();
+        if (failWithTermination) {
+            failedAuth = AuthenticationResult.terminate("terminated API key auth", exception);
+        } else {
+            failedAuth = AuthenticationResult.unsuccessful("unsuccessful API key auth", exception);
+        }
+
+        doAnswer(invocation -> {
+            final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
+            listener.onResponse(failedAuth);
+            return Void.TYPE;
+        }).when(apiKeyService).tryAuthenticate(same(threadContext), same(apiKeyCredentials), anyActionListener());
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        apiKeyAuthenticator.authenticate(context, future);
+
+        if (failWithTermination) {
+            final Exception e = expectThrows(Exception.class, future::actionGet);
+            if (exception == null) {
+                assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+                assertThat(e.getMessage(), containsString("terminated API key auth"));
+            } else {
+                assertThat(e, sameInstance(exception));
+            }
+            assertSingleFailedAuthMetric(telemetryPlugin, apiKeyCredentials, "terminated API key auth");
+        } else {
+            var authResult = future.actionGet();
+            assertThat(authResult.isAuthenticated(), equalTo(false));
+            assertSingleFailedAuthMetric(telemetryPlugin, apiKeyCredentials, "unsuccessful API key auth");
+        }
+
+        // verify that there were no successes recorded
+        assertZeroSuccessAuthMetrics(telemetryPlugin);
+    }
+
+    public void testRecordingFailedAuthenticationMetricsOnExceptions() {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final ApiKeyService apiKeyService = mock(ApiKeyService.class);
+
+        final ApiKeyAuthenticator apiKeyAuthenticator = new ApiKeyAuthenticator(
+            apiKeyService,
+            randomAlphaOfLengthBetween(3, 8),
+            telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry()
+        );
+
+        final ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(
+            randomAlphaOfLength(12),
+            new SecureString(randomAlphaOfLength(20).toCharArray()),
+            randomFrom(ApiKey.Type.values())
+        );
+
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Authenticator.Context context = mockApiKeyAuthenticationContext(threadContext, apiKeyCredentials);
+        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException("API key auth exception");
+        when(context.getRequest().exceptionProcessingRequest(same(exception), any())).thenReturn(exception);
+
+        doAnswer(invocation -> {
+            final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
+            listener.onFailure(exception);
+            return Void.TYPE;
+        }).when(apiKeyService).tryAuthenticate(same(threadContext), same(apiKeyCredentials), anyActionListener());
+
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        apiKeyAuthenticator.authenticate(context, future);
+
+        var e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e, sameInstance(exception));
+
+        // expecting single recorded auth failure with message same as the thrown exception
+        assertSingleFailedAuthMetric(telemetryPlugin, apiKeyCredentials, "API key auth exception");
+
+        // verify that there were no successes recorded
+        assertZeroSuccessAuthMetrics(telemetryPlugin);
+    }
+
+    private void assertSingleFailedAuthMetric(
+        TestTelemetryPlugin telemetryPlugin,
+        ApiKeyCredentials apiKeyCredentials,
+        String failureMessage
+    ) {
+        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticationMetrics.METRIC_FAILURES_COUNT);
+        assertThat(failuresMetrics.size(), equalTo(1));
+        assertThat(
+            failuresMetrics.get(0).attributes(),
+            equalTo(
+                Map.ofEntries(
+                    Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                    Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                    Map.entry(ApiKeyAuthenticationMetrics.ATTRIBUTE_AUTHC_FAILURE_REASON, failureMessage)
+                )
+            )
+        );
+    }
+
+    private void assertZeroSuccessAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
+        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticationMetrics.METRIC_SUCCESS_COUNT);
+        assertThat(successMetrics.size(), equalTo(0));
+    }
+
+    private void assertZeroFailedAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
+        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticationMetrics.METRIC_FAILURES_COUNT);
+        assertThat(failuresMetrics.size(), equalTo(0));
+    }
+
+    private Authenticator.Context mockApiKeyAuthenticationContext(ThreadContext threadContext, ApiKeyCredentials apiKeyCredentials) {
+        final Authenticator.Context context = mock(Authenticator.Context.class);
+        when(context.getMostRecentAuthenticationToken()).thenReturn(apiKeyCredentials);
+        when(context.getThreadContext()).thenReturn(threadContext);
+        final AuditableRequest auditableRequest = mock(AuditableRequest.class);
+        when(context.getRequest()).thenReturn(auditableRequest);
+        return context;
+    }
 }

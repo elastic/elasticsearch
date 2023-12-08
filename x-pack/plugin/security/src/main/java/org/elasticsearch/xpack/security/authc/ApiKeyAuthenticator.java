@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -23,12 +24,14 @@ class ApiKeyAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyAuthenticator.class);
 
+    private final ApiKeyAuthenticationMetrics authenticationMetrics;
     private final ApiKeyService apiKeyService;
     private final String nodeName;
 
-    ApiKeyAuthenticator(ApiKeyService apiKeyService, String nodeName) {
+    ApiKeyAuthenticator(ApiKeyService apiKeyService, String nodeName, MeterRegistry meterRegistry) {
         this.apiKeyService = apiKeyService;
         this.nodeName = nodeName;
+        this.authenticationMetrics = new ApiKeyAuthenticationMetrics(meterRegistry);
     }
 
     @Override
@@ -54,6 +57,7 @@ class ApiKeyAuthenticator implements Authenticator {
         apiKeyService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
                 final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
+                authenticationMetrics.recordSuccessfulAuthentication(apiKeyCredentials);
                 listener.onResponse(AuthenticationResult.success(authentication));
             } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                 Exception e = (authResult.getException() != null)
@@ -61,6 +65,7 @@ class ApiKeyAuthenticator implements Authenticator {
                     : Exceptions.authenticationError(authResult.getMessage());
                 logger.debug(() -> "API key service terminated authentication for request [" + context.getRequest() + "]", e);
                 context.getRequest().exceptionProcessingRequest(e, authenticationToken);
+                authenticationMetrics.recordFailedAuthentication(apiKeyCredentials, authResult.getMessage());
                 listener.onFailure(e);
             } else {
                 if (authResult.getMessage() != null) {
@@ -73,8 +78,12 @@ class ApiKeyAuthenticator implements Authenticator {
                         logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
                     }
                 }
+                authenticationMetrics.recordFailedAuthentication(apiKeyCredentials, authResult.getMessage());
                 listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));
             }
-        }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null))));
+        }, e -> {
+            authenticationMetrics.recordFailedAuthentication(apiKeyCredentials, e.getMessage());
+            listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null));
+        }));
     }
 }

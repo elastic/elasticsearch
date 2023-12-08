@@ -87,6 +87,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -632,7 +633,8 @@ public class Security extends Plugin
                 services.xContentRegistry(),
                 services.environment(),
                 services.nodeEnvironment().nodeMetadata(),
-                services.indexNameExpressionResolver()
+                services.indexNameExpressionResolver(),
+                services.telemetryProvider()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -650,7 +652,8 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeMetadata nodeMetadata,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        TelemetryProvider telemetryProvider
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -926,7 +929,8 @@ public class Security extends Plugin
                 tokenService,
                 apiKeyService,
                 serviceAccountService,
-                operatorPrivilegesService.get()
+                operatorPrivilegesService.get(),
+                telemetryProvider.getMeterRegistry()
             )
         );
         components.add(authcService.get());

@@ -202,7 +202,14 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         QueryRewriteContext queryRewriteContext
     ) {
         if (tokenPruningConfig != null) {
-            return new WeightedTokensQueryBuilder(fieldName, textExpansionResults.getWeightedTokens(), tokenPruningConfig);
+            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+                fieldName,
+                textExpansionResults.getWeightedTokens(),
+                tokenPruningConfig
+            );
+            weightedTokensQueryBuilder.queryName(queryName);
+            weightedTokensQueryBuilder.boost(boost);
+            return weightedTokensQueryBuilder;
         }
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {

@@ -109,7 +109,9 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
             };
             ResolveClusterAction.Request request = new ResolveClusterAction.Request(indexExpressions);
 
-            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin().indices().resolveCluster(request);
+            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(ResolveClusterAction.INSTANCE, request);
             ResolveClusterAction.Response response = future.actionGet(10, TimeUnit.SECONDS);
             assertNotNull(response);
 
@@ -148,7 +150,9 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 REMOTE_CLUSTER_2 + ":" + remoteIndex2 };
             ResolveClusterAction.Request request = new ResolveClusterAction.Request(indexExpressions);
 
-            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin().indices().resolveCluster(request);
+            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(ResolveClusterAction.INSTANCE, request);
             ResolveClusterAction.Response response = future.actionGet(10, TimeUnit.SECONDS);
             assertNotNull(response);
 
@@ -187,7 +191,9 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 REMOTE_CLUSTER_2 + ":" + remoteIndex2.substring(0, 2) + "*" };
             ResolveClusterAction.Request request = new ResolveClusterAction.Request(indexExpressions);
 
-            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin().indices().resolveCluster(request);
+            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(ResolveClusterAction.INSTANCE, request);
             ResolveClusterAction.Response response = future.actionGet(10, TimeUnit.SECONDS);
             assertNotNull(response);
 
@@ -225,7 +231,9 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 REMOTE_CLUSTER_2 + ":" + remoteIndex2.substring(0, 2) + "*" };
             ResolveClusterAction.Request request = new ResolveClusterAction.Request(indexExpressions);
 
-            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin().indices().resolveCluster(request);
+            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(ResolveClusterAction.INSTANCE, request);
             ResolveClusterAction.Response response = future.actionGet(10, TimeUnit.SECONDS);
             assertNotNull(response);
 
@@ -266,7 +274,9 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 REMOTE_CLUSTER_2 + ":" + remoteIndex2 };
             ResolveClusterAction.Request request = new ResolveClusterAction.Request(indexExpressions);
 
-            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin().indices().resolveCluster(request);
+            ActionFuture<ResolveClusterAction.Response> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(ResolveClusterAction.INSTANCE, request);
             ResolveClusterAction.Response response = future.actionGet(10, TimeUnit.SECONDS);
             assertNotNull(response);
 

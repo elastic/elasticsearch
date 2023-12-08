@@ -383,33 +383,35 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                         EsExecutors.DIRECT_EXECUTOR_SERVICE
                     );
                     ResolveClusterAction.Request remoteRequest = new ResolveClusterAction.Request(originalIndices.indices());
-                    remoteClusterClient.admin().indices().resolveCluster(remoteRequest, ActionListener.wrap(response -> {
-                        ResolveClusterInfo info = response.getResolveClusterInfo().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                        clusterInfoMap.put(
-                            clusterAlias,
-                            new ResolveClusterInfo(info.isConnected(), skipUnavailable, info.getMatchingIndices(), info.getBuild())
-                        );
-                        terminalHandler.run();
-                    }, failure -> {
-                        if (notConnectedError(failure)) {
-                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
-                        } else if (clusterResolveEndpointNotFound(failure)) {
-                            // if the endpoint returns an error that it does not _resolve/cluster, we know we are connected
-                            // TODO: call remoteClusterClient.admin().indices().resolveIndex() to fill in 'matching_indices'?
-                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable));
-                        } else {
-                            Throwable cause = ExceptionsHelper.unwrapCause(failure);
-                            // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
-                            // determine based on the error, so we default to false in the face of any error and report it
-                            // back to the user for consideration
-                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
-                            logger.warn(
-                                () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
-                                failure
+                    remoteClusterClient.admin()
+                        .indices()
+                        .execute(ResolveClusterAction.INSTANCE, remoteRequest, ActionListener.wrap(response -> {
+                            ResolveClusterInfo info = response.getResolveClusterInfo().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                            clusterInfoMap.put(
+                                clusterAlias,
+                                new ResolveClusterInfo(info.isConnected(), skipUnavailable, info.getMatchingIndices(), info.getBuild())
                             );
-                        }
-                        terminalHandler.run();
-                    }));
+                            terminalHandler.run();
+                        }, failure -> {
+                            if (notConnectedError(failure)) {
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                            } else if (clusterResolveEndpointNotFound(failure)) {
+                                // if the endpoint returns an error that it does not _resolve/cluster, we know we are connected
+                                // TODO: call remoteClusterClient.admin().indices().resolveIndex() to fill in 'matching_indices'?
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable));
+                            } else {
+                                Throwable cause = ExceptionsHelper.unwrapCause(failure);
+                                // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
+                                // determine based on the error, so we default to false in the face of any error and report it
+                                // back to the user for consideration
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
+                                logger.warn(
+                                    () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
+                                    failure
+                                );
+                            }
+                            terminalHandler.run();
+                        }));
                 }
             } else {
                 clusterInfoMap.put(

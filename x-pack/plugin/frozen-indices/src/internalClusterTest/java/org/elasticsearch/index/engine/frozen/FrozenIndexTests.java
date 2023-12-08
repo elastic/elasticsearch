@@ -143,11 +143,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         String pitId = openReaders(TimeValue.timeValueMinutes(1), indexName);
         try {
             for (int from = 0; from < 3; from++) {
-                searchResponse = client().prepareSearch()
-                    .setPointInTime(new PointInTimeBuilder(pitId))
-                    .setSize(1)
-                    .setFrom(from)
-                    .get();
+                searchResponse = client().prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(1).setFrom(from).get();
                 assertHitCount(searchResponse, 3);
                 assertEquals(1, searchResponse.getHits().getHits().length);
                 SearchService searchService = getInstanceFromNode(SearchService.class);

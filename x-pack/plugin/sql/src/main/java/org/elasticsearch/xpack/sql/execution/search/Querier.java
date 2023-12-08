@@ -205,7 +205,7 @@ public class Querier {
         if (source.pointInTimeBuilder() == null) {
             searchRequest.indices(indices);
             searchRequest.indicesOptions(
-                    includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
+                includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
             );
         }
         searchRequest.source(source);

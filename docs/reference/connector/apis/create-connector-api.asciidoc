@@ -8,7 +8,7 @@ Creates a connector.
 
 [source,console]
 --------------------------------------------------
-POST _connector
+PUT _connector/123
 {
   "index_name": "search-google-drive",
   "name": "My Connector",
@@ -76,15 +76,20 @@ Creates a connector document in the internal index and initializes its configura
 ==== {api-response-codes-title}
 
 `200`::
-Indicates that connector was created succesfully.
+Indicates that an existing connector was updated successfully.
 
+`201`::
+Indicates that the connector was created successfully.
+
+`400`::
+Indicates that the request was malformed.
 
 [[create-connector-api-example]]
 ==== {api-examples-title}
 
 [source,console]
 ----
-POST _connector
+PUT _connector/my-connector
 {
   "index_name": "search-google-drive",
   "name": "My Connector",
@@ -99,6 +104,21 @@ The API returns the following result:
 [source,console-result]
 ----
 {
-  "id": "AU_oRIwBoQoEFXSZzPHY"
+  "result": "created"
 }
 ----
+
+
+// TESTSETUP
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE _connector/123
+
+DELETE _connector/my-connector
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////

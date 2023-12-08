@@ -26,6 +26,7 @@ cos                      |"double cos(n:integer|long|double|unsigned_long)"     
 cosh                     |"double cosh(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
 count                    |? count(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 count_distinct           |? count_distinct(arg1:?, arg2:?)                        |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+date_diff                |integer date_diff(unit:text, startTimestamp:date, endTimestamp:date) |[unit, startTimestamp, endTimestamp] |[text, date, date]  |["A valid date unit", "A string representing a start timestamp", "A string representing a end timestamp"] |integer | "Subtract 2 dates and return their difference in multiples of a unit specified in the 1st argument" | [false, false, false] | false
 date_extract             |? date_extract(arg1:?, arg2:?)                          |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 date_format              |? date_format(arg1:?, arg2:?)                           |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 date_parse               |"date date_parse(?datePattern:keyword, dateString:keyword|text)"|[datePattern, dateString]|["keyword", "keyword|text"]|[A valid date pattern, A string representing a date]|date                 |Parses a string into a date value | [true, false]       | false         
@@ -117,6 +118,7 @@ synopsis:keyword
 "double cosh(n:integer|long|double|unsigned_long)"
 ? count(arg1:?)
 ? count_distinct(arg1:?, arg2:?)
+integer date_diff(unit:text, startTimestamp:date, endTimestamp:date)
 ? date_extract(arg1:?, arg2:?)
 ? date_format(arg1:?, arg2:?)
 "date date_parse(?datePattern:keyword, dateString:keyword|text)"
@@ -209,5 +211,5 @@ countFunctions#[skip:-8.11.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-84     | 84     | 84
+85     | 85     | 85
 ;

@@ -290,6 +290,18 @@ Udi            |Jansch         |1.93
 Uri            |Lenart         |1.75
 ;
 
+dateDiff
+// tag::dateDiff[]
+ROW date1=TO_DATETIME("2023-12-02T11:00:00.000Z"), date2=TO_DATETIME("2023-12-02T11:30:00.000Z")
+| EVAL date_diff=DATE_DIFF("minutes", date1, date2)
+// end::dateDiff[]
+;
+
+// tag::dateDiff-result[]
+date1:date                | date2:date                | date_diff:integer
+2023-12-02T11:00:00.000Z  | 2023-12-02T11:30:00.000Z  | 30
+// end::dateDiff-result[]
+;
 
 dateExtract
 // tag::dateExtract[]

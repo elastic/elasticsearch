@@ -9,13 +9,13 @@ preview::[]
 
 ---
 
-The connector and sync job management API provides a convenient way to create and manage Elastic connectors in an internal index.
+The connector and sync jobs API provides a convenient way to create and manage Elastic connectors and sync jobs in an internal index.
 
-This provides an alternative to relying solely on Kibana UI for connector and sync job management. The API comes with a set of
+This API provides an alternative to relying solely on Kibana UI for connector and sync job management. The API comes with a set of
 validations and assertions to ensure that the state representation in the internal index remains valid.
 
 [discrete]
-[[connector-apis]]
+[[elastic-connector-apis]]
 === Connector APIs
 
 You can use these APIs to create, get, delete and update connectors.
@@ -35,4 +35,3 @@ Use the following APIs to manage sync jobs:
 
 
 include::create-connector-api.asciidoc[]
-

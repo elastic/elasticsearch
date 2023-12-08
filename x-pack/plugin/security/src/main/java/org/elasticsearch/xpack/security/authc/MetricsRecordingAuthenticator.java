@@ -34,6 +34,10 @@ abstract class MetricsRecordingAuthenticator implements Authenticator {
         this.successCounter.incrementBy(1L, attributes);
     }
 
+    protected void recordSuccessfulAuthentication() {
+        this.successCounter.incrementBy(1L);
+    }
+
     /**
      * Records failed authentication.
      *

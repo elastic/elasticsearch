@@ -351,7 +351,7 @@ public class CompositeRolesStore {
     public void getRoleDescriptors(Subject subject, ActionListener<Set<RoleDescriptor>> listener) {
         tryGetRoleDescriptorForInternalUser(subject).ifPresentOrElse(roleDescriptor -> listener.onResponse(Set.of(roleDescriptor)), () -> {
             final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
-            assert roleReferences.size() == 1;
+            assert roleReferences.size() == 1; // we only handle the singleton case today, but that may change with derived API keys
 
             ActionListener.run(listener.<RolesRetrievalResult>map(rolesRetrievalResult -> {
                 if (rolesRetrievalResult.isSuccess() == false) {

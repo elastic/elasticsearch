@@ -56,7 +56,7 @@ Creates a connector document in the internal index and initializes its configura
 (Optional, string) The name of the connector.
 
 `is_native`::
-(Optional, boolean) Indicates if it's a native connector. Defaults to false.
+(Optional, boolean) Indicates if it's a native connector. Defaults to `false`.
 
 `language`::
 (Optional, string) Language analyzer for the data. Limited to supported languages.

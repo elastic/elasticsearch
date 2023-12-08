@@ -29,7 +29,7 @@ import static java.util.stream.Collectors.toList;
 public class DataStreamLifecycleHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "data_stream_lifecycle";
-    public static final String DSL_EXPLAIN_HELP_URL = "https://ela.st/dsl-explain";
+    public static final String DSL_EXPLAIN_HELP_URL = "https://ela.st/explain-data-stream-lifecycle";
 
     public static final String STAGNATING_BACKING_INDEX_IMPACT_ID = "stagnating_backing_index";
 

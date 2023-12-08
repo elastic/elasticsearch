@@ -733,9 +733,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
     ) throws IOException {
         boolean timeSeries = aggTestConfig.builder().isInSortOrderExecutionRequired();
         try (Directory directory = newDirectory()) {
-            // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order.
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (useLogDocMergePolicy) {
+                // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order for nested aggs.
                 config.setMergePolicy(new LogDocMergePolicy());
             }
             if (timeSeries) {

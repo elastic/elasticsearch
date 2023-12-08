@@ -7,10 +7,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.PointBlock;
+import org.elasticsearch.compute.data.PointVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -33,7 +34,7 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
 
   @Override
   public Block evalVector(Vector v) {
-    LongVector vector = (LongVector) v;
+    PointVector vector = (PointVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0), positionCount);
@@ -46,14 +47,14 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static BytesRef evalValue(LongVector container, int index) {
-    long value = container.getLong(index);
+  private static BytesRef evalValue(PointVector container, int index) {
+    SpatialPoint value = container.getPoint(index);
     return ToString.fromGeoPoint(value);
   }
 
   @Override
   public Block evalBlock(Block b) {
-    LongBlock block = (LongBlock) b;
+    PointBlock block = (PointBlock) b;
     int positionCount = block.getPositionCount();
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
@@ -81,8 +82,8 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static BytesRef evalValue(LongBlock container, int index) {
-    long value = container.getLong(index);
+  private static BytesRef evalValue(PointBlock container, int index) {
+    SpatialPoint value = container.getPoint(index);
     return ToString.fromGeoPoint(value);
   }
 

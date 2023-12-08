@@ -194,6 +194,14 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return sourceLines;
     }
 
+    public List<Double> getAnnualCO2TonsInclusive() {
+        return annualCO2TonsInclusive;
+    }
+
+    public List<Double> getAnnualCostsUSDInclusive() {
+        return annualCostsUSDInclusive;
+    }
+
     public long getSelfCPU() {
         return selfCPU;
     }

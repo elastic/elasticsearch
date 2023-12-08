@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
 
@@ -141,6 +142,16 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
             }
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+                if (Set.of(
+                    TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName(),
+                    TOKENS_WEIGHT_THRESHOLD.getPreferredName(),
+                    ONLY_SCORE_PRUNED_TOKENS_FIELD.getPreferredName()
+                ).contains(currentFieldName) == false) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + PRUNING_CONFIG.getPreferredName() + "] unknown token [" + currentFieldName + "]"
+                    );
+                }
             } else if (token.isValue()) {
                 if (TOKENS_FREQ_RATIO_THRESHOLD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ratioThreshold = parser.intValue();

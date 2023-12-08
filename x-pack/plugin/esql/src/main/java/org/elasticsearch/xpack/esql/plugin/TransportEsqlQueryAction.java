@@ -74,6 +74,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             transportService,
             exchangeService,
             enrichLookupService,
+            clusterService,
             threadPool,
             bigArrays,
             blockFactory

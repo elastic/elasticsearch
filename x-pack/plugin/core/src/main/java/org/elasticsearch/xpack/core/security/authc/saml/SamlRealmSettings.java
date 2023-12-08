@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizatio
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -102,7 +103,7 @@ public class SamlRealmSettings {
     );
 
     public static final AttributeSetting PRINCIPAL_ATTRIBUTE = new AttributeSetting("principal");
-    public static final AttributeSetting GROUPS_ATTRIBUTE = new AttributeSetting("groups");
+    public static final AttributeSettingWithDelimiter GROUPS_ATTRIBUTE = new AttributeSettingWithDelimiter("groups");
     public static final AttributeSetting DN_ATTRIBUTE = new AttributeSetting("dn");
     public static final AttributeSetting NAME_ATTRIBUTE = new AttributeSetting("name");
     public static final AttributeSetting MAIL_ATTRIBUTE = new AttributeSetting("mail");
@@ -219,6 +220,42 @@ public class SamlRealmSettings {
 
         public Setting.AffixSetting<String> getPattern() {
             return pattern;
+        }
+    }
+
+    /**
+     * The SAML realm offers a setting where a multivalued attribute can be configured to have a delimiter for its values, for the case
+     * when all values are provided in a single string item, separated by a delimiter.
+     * As in {@link AttributeSetting} there are two settings:
+     * <ul>
+     * <li>The name of the SAML attribute to use</li>
+     * <li>A delimiter to apply to that attribute value in order to extract the substrings that should be used.</li>
+     * </ul>
+     * For example, the Elasticsearch Group could be configured to come from the SAML "department" attribute, where all groups are provided
+     * as a csv value in a single list item.
+     */
+    public static final class AttributeSettingWithDelimiter {
+        public static final String ATTRIBUTE_DELIMITERS_PREFIX = "attribute_delimiters.";
+        private final Setting.AffixSetting<String> delimiter;
+        private final AttributeSetting attributeSetting;
+
+        public AttributeSetting getAttributeSetting() {
+            return attributeSetting;
+        }
+
+        public AttributeSettingWithDelimiter(String name) {
+            this.attributeSetting = new AttributeSetting(name);
+            this.delimiter = RealmSettings.simpleString(TYPE, ATTRIBUTE_DELIMITERS_PREFIX + name, Setting.Property.NodeScope);
+        }
+
+        public Setting.AffixSetting<String> getDelimiter() {
+            return this.delimiter;
+        }
+
+        public Collection<Setting.AffixSetting<?>> settings() {
+            List<Setting.AffixSetting<?>> settings = new ArrayList<>(attributeSetting.settings());
+            settings.add(getDelimiter());
+            return settings;
         }
     }
 }

@@ -133,6 +133,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return isNull;
     }
 
+    public int queryId() {
+        return queryId;
+    }
+
     @Override
     public QuerySearchResult queryResult() {
         return this;

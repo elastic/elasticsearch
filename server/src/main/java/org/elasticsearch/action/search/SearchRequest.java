@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * A request to execute search against one or more indices (or all).
@@ -590,6 +591,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    /**
+     * Returns the number of queries executed for this search request.
+     * Multiple queries are used for ranking.
+     */
+    public int queryCount() {
+        return source == null
+            ? 1
+            : source.knnSearch().size() + source.subSearches().size() + (source.rankBuilder() != null
+                && (source.aggregations() != null || resolveTrackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) ? 1 : 0);
     }
 
     public PointInTimeBuilder pointInTimeBuilder() {

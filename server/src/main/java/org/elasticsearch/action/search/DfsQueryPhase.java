@@ -12,7 +12,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
@@ -29,8 +28,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
-
-import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * This search phase fans out to every shards to execute a distributed search with a pre-collected distributed frequencies for all
@@ -86,66 +83,60 @@ final class DfsQueryPhase extends SearchPhase {
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-            List<SearchSourceBuilder> sources = rewriteSourceBuilder(
-                dfsResult.getShardSearchRequest().source(),
-                dfsResult.getShardSearchRequest().shardRequestIndex()
+            ShardSearchRequest shardRequest = rewriteShardSearchRequest(dfsResult.getShardSearchRequest());
+            QuerySearchRequest querySearchRequest = new QuerySearchRequest(
+                context.getOriginalIndices(dfsResult.getShardIndex()),
+                dfsResult.getContextId(),
+                shardRequest,
+                dfs
             );
-            for (SearchSourceBuilder source : sources) {
-                ShardSearchRequest shardRequest = dfsResult.getShardSearchRequest();
-                shardRequest.source(source);
-                QuerySearchRequest querySearchRequest = new QuerySearchRequest(
-                    context.getOriginalIndices(dfsResult.getShardIndex()),
-                    dfsResult.getContextId(),
-                    shardRequest,
-                    dfs
-                );
-                final int shardIndex = dfsResult.getShardIndex();
-                searchTransportService.sendExecuteQuery(
-                    connection,
-                    querySearchRequest,
-                    context.getTask(),
-                    new SearchActionListener<>(shardTarget, shardIndex) {
+            final int shardIndex = dfsResult.getShardIndex();
+            searchTransportService.sendExecuteQuery(
+                connection,
+                querySearchRequest,
+                context.getTask(),
+                new SearchActionListener<>(shardTarget, shardIndex) {
 
-                        @Override
-                        protected void innerOnResponse(QuerySearchResult response) {
-                            try {
-                                response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
-                                counter.onResult(response);
-                            } catch (Exception e) {
-                                context.onPhaseFailure(DfsQueryPhase.this, "", e);
-                            }
+                    @Override
+                    protected void innerOnResponse(QuerySearchResult response) {
+                        try {
+                            response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
+                            counter.onResult(response);
+                        } catch (Exception e) {
+                            context.onPhaseFailure(DfsQueryPhase.this, "", e);
                         }
+                    }
 
-                        @Override
-                        public void onFailure(Exception exception) {
-                            try {
-                                context.getLogger()
-                                    .debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
-                                progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
-                                counter.onFailure(shardIndex, shardTarget, exception);
-                            } finally {
-                                if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
-                                    // the query might not have been executed at all (for example because thread pool rejected
-                                    // execution) and the search context that was created in dfs phase might not be released.
-                                    // release it again to be in the safe side
-                                    context.sendReleaseSearchContext(
-                                        querySearchRequest.contextId(),
-                                        connection,
-                                        context.getOriginalIndices(shardIndex)
-                                    );
-                                }
+                    @Override
+                    public void onFailure(Exception exception) {
+                        try {
+                            context.getLogger()
+                                .debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
+                            progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
+                            counter.onFailure(shardIndex, shardTarget, exception);
+                        } finally {
+                            if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
+                                // the query might not have been executed at all (for example because thread pool rejected
+                                // execution) and the search context that was created in dfs phase might not be released.
+                                // release it again to be in the safe side
+                                context.sendReleaseSearchContext(
+                                    querySearchRequest.contextId(),
+                                    connection,
+                                    context.getOriginalIndices(shardIndex)
+                                );
                             }
                         }
                     }
-                );
-            }
+                }
+            );
         }
     }
 
     // package private for testing
-    List<SearchSourceBuilder> rewriteSourceBuilder(SearchSourceBuilder source, int shardIndex) {
+    ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+        SearchSourceBuilder source = request.source();
         if (source == null || source.knnSearch().isEmpty()) {
-            return List.of(source);
+            return request;
         }
 
         List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.subSearches());
@@ -154,7 +145,7 @@ final class DfsQueryPhase extends SearchPhase {
         for (DfsKnnResults dfsKnnResults : knnResults) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();
             for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
-                if (scoreDoc.shardIndex == shardIndex) {
+                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
                     scoreDocs.add(scoreDoc);
                 }
             }
@@ -168,33 +159,9 @@ final class DfsQueryPhase extends SearchPhase {
             i++;
         }
 
-        if (source.rankBuilder() != null) {
-            List<SearchSourceBuilder> sources = new ArrayList<>();
-            if (source.aggregations() != null
-                || source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) {
-                SearchSourceBuilder compoundSource = source.shallowCopyForQueryPhase();
-                compoundSource.queryId(0);
-                compoundSource.subSearches(List.of(new SubSearchSourceBuilder(source.query())));
-                compoundSource.from(source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
-                compoundSource.size(0);
-                compoundSource.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
-                compoundSource.terminateAfter(source.terminateAfter());
-                sources.add(compoundSource);
-            }
-            for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
-                SearchSourceBuilder rankSource = source.shallowCopyForQueryPhase();
-                rankSource.queryId(sources.size());
-                rankSource.subSearches(List.of(subSearchSourceBuilder));
-                rankSource.from(source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
-                rankSource.size(source.rankBuilder().windowSize());
-                rankSource.trackTotalHits(false);
-                rankSource.terminateAfter(source.terminateAfter());
-                sources.add(rankSource);
-            }
-            return sources;
-        } else {
-            source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
-            return List.of(source);
-        }
+        source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
+        request.source(source);
+
+        return request;
     }
 }

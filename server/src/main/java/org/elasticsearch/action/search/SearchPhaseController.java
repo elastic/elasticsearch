@@ -710,6 +710,28 @@ public final class SearchPhaseController {
             : source.from());
     }
 
+    static List<Integer> getTopDocsSizesPerQuery(SearchRequest request) {
+        if (request.source() == null) {
+            return List.of(SearchService.DEFAULT_SIZE);
+        }
+        List<Integer> topDocsSizesPerQuery = new ArrayList<>();
+        int queryCount = request.queryCount();
+        int qci = 0;
+        if (queryCount > request.source().knnSearch().size() + request.source().subSearches().size()) {
+            topDocsSizesPerQuery.add(0);
+            ++qci;
+        }
+        while (qci < queryCount) {
+            topDocsSizesPerQuery.add(
+                request.source().rankBuilder().windowSize() + (request.source().from() == -1
+                    ? SearchService.DEFAULT_FROM
+                    : request.source().from())
+            );
+            ++qci;
+        }
+        return topDocsSizesPerQuery;
+    }
+
     public record ReducedQueryPhase(
         // the sum of all hits across all reduces shards
         TotalHits totalHits,
@@ -812,7 +834,7 @@ public final class SearchPhaseController {
             this,
             isCanceled,
             listener,
-            numShards,
+            numShards * request.queryCount(),
             onPartialMergeFailure
         );
     }

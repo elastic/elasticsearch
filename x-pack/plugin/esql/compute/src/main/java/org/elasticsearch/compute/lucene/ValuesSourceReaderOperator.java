@@ -52,6 +52,18 @@ import java.util.stream.Collectors;
  */
 public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     /**
+     * Minimum number of documents for which it is more efficient to use a
+     * sequential stored field reader when reading stored fields.
+     * <p>
+     *     The sequential stored field reader decompresses a whole block of docs
+     *     at a time so for very short lists it won't be faster to use it. We use
+     *     {@code 10} documents as the boundary for "very short" because it's what
+     *     search does, not because we've done extensive testing on the number.
+     * </p>
+     */
+    static final int SEQUENTIAL_BOUNDARY = 10;
+
+    /**
      * Creates a factory for {@link ValuesSourceReaderOperator}.
      * @param fields fields to load
      * @param shardContexts per-shard loading information
@@ -168,12 +180,19 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 );
             }
             LeafReaderContext ctx = ctx(shard, segment);
+            StoredFieldLoader storedFieldLoader;
+            if (useSequentialStoredFieldsReader(docVector.docs())) {
+                storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
+                trackStoredFields(storedFieldsSpec, true);
+            } else {
+                storedFieldLoader = StoredFieldLoader.fromSpec(storedFieldsSpec);
+                trackStoredFields(storedFieldsSpec, false);
+            }
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 // TODO enable the optimization by passing non-null to docs if correct
-                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                storedFieldLoader.getLoader(ctx, null),
                 storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
             );
-            trackStoredFields(storedFieldsSpec); // TODO when optimization is enabled add it to tracking
             for (int p = 0; p < docs.getPositionCount(); p++) {
                 int doc = docs.getInt(p);
                 if (storedFields != null) {
@@ -223,7 +242,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                         storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
                     );
                     if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                        trackStoredFields(storedFieldsSpec);
+                        trackStoredFields(storedFieldsSpec, false);
                     }
                 }
                 storedFields.advanceTo(doc);
@@ -241,9 +260,25 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private void trackStoredFields(StoredFieldsSpec spec) {
+    /**
+     * Is it more efficient to use a sequential stored field reader
+     * when reading stored fields for the documents contained in {@code docIds}?
+     */
+    private boolean useSequentialStoredFieldsReader(IntVector docIds) {
+        return docIds.getPositionCount() >= SEQUENTIAL_BOUNDARY
+            && docIds.getInt(docIds.getPositionCount() - 1) - docIds.getInt(0) == docIds.getPositionCount() - 1;
+    }
+
+    private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {
         readersBuilt.merge(
-            "stored_fields[" + "requires_source:" + spec.requiresSource() + ", fields:" + spec.requiredStoredFields().size() + "]",
+            "stored_fields["
+                + "requires_source:"
+                + spec.requiresSource()
+                + ", fields:"
+                + spec.requiredStoredFields().size()
+                + ", sequential: "
+                + sequential
+                + "]",
             1,
             (prev, one) -> prev + one
         );

@@ -35,6 +35,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -559,6 +560,10 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
      * Can match against searchable snapshots is tested via both the Search API and the SearchShards (transport-only) API.
      * The latter is a way to do only a can-match rather than all search phases.
      */
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/97878",
+        value = "org.elasticsearch.snapshots:DEBUG,org.elasticsearch.indices.recovery:DEBUG,org.elasticsearch.action.search:DEBUG"
+    )
     public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -622,7 +627,18 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         // All shards failed, since all shards are unassigned and the IndexMetadata min/max timestamp
         // is not available yet
-        expectThrows(SearchPhaseExecutionException.class, () -> client().search(request).actionGet());
+        expectThrows(SearchPhaseExecutionException.class, () -> {
+            SearchResponse response = client().search(request).actionGet();
+            logger.info(
+                "[TEST DEBUG INFO] Search hits: {} Successful shards: {}, failed shards: {}, skipped shards: {}, total shards: {}",
+                response.getHits().getTotalHits().value,
+                response.getSuccessfulShards(),
+                response.getFailedShards(),
+                response.getSkippedShards(),
+                response.getTotalShards()
+            );
+            fail("This search call is expected to throw an exception but it did not");
+        });
 
         // test with SearchShards API
         boolean allowPartialSearchResults = false;
@@ -639,15 +655,13 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         {
             SearchShardsResponse searchShardsResponse = null;
             try {
-                client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
+                searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
             } catch (SearchPhaseExecutionException e) {
                 // ignore as this is expected to happen
             }
             if (searchShardsResponse != null) {
-                if (searchShardsResponse != null) {
-                    for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
-                        assertFalse("no shard should be marked as skipped", group.skipped());
-                    }
+                for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
+                    assertFalse("no shard should be marked as skipped", group.skipped());
                 }
             }
         }
@@ -680,7 +694,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         {
             SearchShardsResponse searchShardsResponse = null;
             try {
-                client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
+                searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
             } catch (SearchPhaseExecutionException e) {
                 // ignore as this is expected to happen
             }

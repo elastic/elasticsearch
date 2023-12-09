@@ -14,7 +14,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -41,7 +41,9 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -147,22 +149,33 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     @Override
     protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
         licenseChecker.requireSupportedLicense();
-        GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
-        responseBuilder.setRequestedDuration(request.getRequestedDuration());
-        responseBuilder.setAwsCostFactor(request.getAwsCostFactor());
-        responseBuilder.setCustomCO2PerKWH(request.getCustomCO2PerKWH());
-        responseBuilder.setCustomDatacenterPUE(request.getCustomDatacenterPUE());
-        responseBuilder.setCustomPerCoreWatt(request.getCustomPerCoreWatt());
-        responseBuilder.setCustomCostPerCoreHour(request.getCustomCostPerCoreHour());
+        GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(request);
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         if (request.getIndices() == null) {
-            searchProfilingEvents(client, request, submitListener, responseBuilder);
+            searchProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
         } else {
-            searchGenericEvents(client, request, submitListener, responseBuilder);
+            searchGenericEvents(submitTask, client, request, submitListener, responseBuilder);
+        }
+    }
+
+    /**
+     * Checks whether a task has been cancelled and notifies the provided listener if required.
+     * @param task The task to check. May be a cancelable task.
+     * @param listener Listener to notify.
+     * @return <code>true</code> iff the task has been cancelled. Callers must terminate as early as possible.
+     */
+    private boolean mayNotifyOfCancellation(Task task, ActionListener<GetStackTracesResponse> listener) {
+        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+            log.info("{} got cancelled.", task);
+            listener.onFailure(new TaskCancelledException("get stacktraces task cancelled"));
+            return true;
+        } else {
+            return false;
         }
     }
 
     private void searchProfilingEvents(
+        Task submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -185,7 +198,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     resampledIndex
                 );
                 log.debug(watch::report);
-                searchEventGroupedByStackTrace(client, request, submitListener, responseBuilder, resampledIndex);
+                searchEventGroupedByStackTrace(submitTask, client, request, submitListener, responseBuilder, resampledIndex);
             }, e -> {
                 // All profiling-events data streams are created lazily. In a relatively empty cluster it can happen that there are so few
                 // data that we need to resort to the "full" events stream. As this is an edge case we'd rather fail instead of prematurely
@@ -194,7 +207,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
                     EventsIndex fullIndex = EventsIndex.FULL_INDEX;
                     log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
-                    searchEventGroupedByStackTrace(client, request, submitListener, responseBuilder, fullIndex);
+                    searchEventGroupedByStackTrace(submitTask, client, request, submitListener, responseBuilder, fullIndex);
                 } else {
                     submitListener.onFailure(e);
                 }
@@ -202,6 +215,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     }
 
     private void searchGenericEvents(
+        Task submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -217,7 +231,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             .addAggregation(
                 new CountedTermsAggregationBuilder("group_by").size(MAX_TRACE_EVENTS_RESULT_SIZE).field(request.getStackTraceIds())
             )
-            .execute(handleEventsGroupedByStackTrace(client, responseBuilder, submitListener, searchResponse -> {
+            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
                 long totalSamples = 0;
                 StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
 
@@ -248,6 +262,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     }
 
     private void searchEventGroupedByStackTrace(
+        Task submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -284,7 +299,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     )
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
-            .execute(handleEventsGroupedByStackTrace(client, responseBuilder, submitListener, searchResponse -> {
+            .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
                 long totalCount = getAggValueAsLong(searchResponse, "total_count");
 
                 Resampler resampler = new Resampler(request, responseBuilder.getSamplingRate(), totalCount);
@@ -338,6 +353,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     }
 
     private ActionListener<SearchResponse> handleEventsGroupedByStackTrace(
+        Task submitTask,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -355,7 +371,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                 responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
                 responseBuilder.setStackTraceEvents(stackTraceEvents);
-                retrieveStackTraces(client, responseBuilder, submitListener);
+                retrieveStackTraces(submitTask, client, responseBuilder, submitListener);
             } else {
                 submitListener.onResponse(responseBuilder.build());
             }
@@ -376,22 +392,30 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     }
 
     private void retrieveStackTraces(
+        Task submitTask,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
+        if (mayNotifyOfCancellation(submitTask, submitListener)) {
+            return;
+        }
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
-        List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
         ClusterState clusterState = clusterService.state();
         List<Index> indices = resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
+        // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
+        int sliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, indices) ? 1 : desiredSlices;
+        log.trace("Using [{}] slice(s) to lookup stacktraces.", sliceCount);
+        List<List<String>> slicedEventIds = sliced(eventIds, sliceCount);
 
         // Build a set of unique host IDs.
-        Set<String> uniqueHostIDs = new HashSet<>(responseBuilder.hostEventCounts.size());
-        for (HostEventCount hec : responseBuilder.hostEventCounts) {
+        Set<String> uniqueHostIDs = new HashSet<>(responseBuilder.getHostEventCounts().size());
+        for (HostEventCount hec : responseBuilder.getHostEventCounts()) {
             uniqueHostIDs.add(hec.hostID);
         }
 
         StackTraceHandler handler = new StackTraceHandler(
+            submitTask,
             clusterState,
             client,
             responseBuilder,
@@ -436,7 +460,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     // package private for testing
     static <T> List<List<T>> sliced(List<T> c, int slices) {
-        if (c.size() <= slices) {
+        if (c.size() <= slices || slices == 1) {
             return List.of(c);
         }
         List<List<T>> slicedList = new ArrayList<>();
@@ -451,6 +475,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     private class StackTraceHandler {
         private final AtomicInteger expectedResponses;
+        private final Task submitTask;
         private final ClusterState clusterState;
         private final Client client;
         private final GetStackTracesResponseBuilder responseBuilder;
@@ -467,6 +492,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Map<String, HostMetadata> hostMetadata;
 
         private StackTraceHandler(
+            Task submitTask,
             ClusterState clusterState,
             Client client,
             GetStackTracesResponseBuilder responseBuilder,
@@ -475,6 +501,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             int expectedResponses,
             int expectedHosts
         ) {
+            this.submitTask = submitTask;
             this.clusterState = clusterState;
             this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
             this.expectedResponses = new AtomicInteger(expectedResponses);
@@ -526,20 +553,21 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 instanceTypeService,
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
-                responseBuilder.customCO2PerKWH,
-                responseBuilder.customDatacenterPUE,
-                responseBuilder.customPerCoreWatt
+                responseBuilder.getCustomCO2PerKWH(),
+                responseBuilder.getCustomDatacenterPUE(),
+                responseBuilder.getCustomPerCoreWattX86(),
+                responseBuilder.getCustomPerCoreWattARM64()
             );
             CostCalculator costCalculator = new CostCalculator(
                 instanceTypeService,
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
-                responseBuilder.awsCostFactor,
-                responseBuilder.customCostPerCoreHour
+                responseBuilder.getAWSCostFactor(),
+                responseBuilder.getCustomCostPerCoreHour()
             );
-            Map<String, TraceEvent> events = responseBuilder.stackTraceEvents;
+            Map<String, TraceEvent> events = responseBuilder.getStackTraceEvents();
             List<String> missingStackTraces = new ArrayList<>();
-            for (HostEventCount hec : responseBuilder.hostEventCounts) {
+            for (HostEventCount hec : responseBuilder.getHostEventCounts()) {
                 TraceEvent event = events.get(hec.stacktraceID);
                 if (event == null) {
                     // If this happens, hostEventsCounts and events are out of sync, which indicates a bug.
@@ -572,6 +600,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 );
                 log.debug(watch::report);
                 retrieveStackTraceDetails(
+                    submitTask,
                     clusterState,
                     client,
                     responseBuilder,
@@ -584,6 +613,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     }
 
     private void retrieveStackTraceDetails(
+        Task submitTask,
         ClusterState clusterState,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
@@ -591,8 +621,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         List<String> executableIds,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
-        List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, desiredDetailSlices);
-        List<List<String>> slicedExecutableIds = sliced(executableIds, desiredDetailSlices);
+        if (mayNotifyOfCancellation(submitTask, submitListener)) {
+            return;
+        }
         List<Index> stackFrameIndices = resolver.resolve(
             clusterState,
             "profiling-stackframes",
@@ -605,6 +636,18 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             responseBuilder.getStart(),
             responseBuilder.getEnd()
         );
+        // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
+        int stackFrameSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, stackFrameIndices) ? 1 : desiredDetailSlices;
+        int executableSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, executableIndices) ? 1 : desiredDetailSlices;
+        log.trace(
+            "Using [{}] slice(s) to lookup stack frames and [{}] slice(s) to lookup executables.",
+            stackFrameSliceCount,
+            executableSliceCount
+        );
+
+        List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, stackFrameSliceCount);
+        List<List<String>> slicedExecutableIds = sliced(executableIds, executableSliceCount);
+
         DetailsHandler handler = new DetailsHandler(
             responseBuilder,
             submitListener,
@@ -645,6 +688,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
         private final AtomicInteger expectedSlices;
+        private final AtomicInteger totalInlineFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraceDetails");
 
         private DetailsHandler(
@@ -675,7 +719,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     if (stackFrames.containsKey(frame.getId()) == false) {
                         StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
                         if (stackFrame.isEmpty() == false) {
-                            stackFrames.putIfAbsent(frame.getId(), stackFrame);
+                            if (stackFrames.putIfAbsent(frame.getId(), stackFrame) == null) {
+                                totalInlineFrames.addAndGet(stackFrame.inlineFrameCount());
+                            }
                         } else {
                             log.trace("Stack frame with id [{}] has no properties.", frame.getId());
                         }
@@ -714,6 +760,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
+                builder.addTotalFrames(totalInlineFrames.get());
                 log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
                 log.debug(watch::report);
                 submitListener.onResponse(builder.build());
@@ -726,139 +773,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             client.prepareMultiGet()
                 .addIds(index.getName(), slice)
                 .setRealtime(realtime)
-                .execute(new ThreadedActionListener<>(responseExecutor, listener));
-        }
-    }
-
-    private static class GetStackTracesResponseBuilder {
-        private Map<String, StackTrace> stackTraces;
-        private Instant start;
-        private Instant end;
-        private int totalFrames;
-        private Map<String, StackFrame> stackFrames;
-        private Map<String, String> executables;
-        private Map<String, TraceEvent> stackTraceEvents;
-        private List<HostEventCount> hostEventCounts;
-        private double samplingRate;
-        private long totalSamples;
-        private Double requestedDuration;
-        private Double awsCostFactor;
-        private Double customCO2PerKWH;
-        private Double customDatacenterPUE;
-        private Double customPerCoreWatt;
-        private Double customCostPerCoreHour;
-
-        public void setStackTraces(Map<String, StackTrace> stackTraces) {
-            this.stackTraces = stackTraces;
-        }
-
-        public Instant getStart() {
-            return start;
-        }
-
-        public void setStart(Instant start) {
-            this.start = start;
-        }
-
-        public Instant getEnd() {
-            return end;
-        }
-
-        public void setEnd(Instant end) {
-            this.end = end;
-        }
-
-        public void setTotalFrames(int totalFrames) {
-            this.totalFrames = totalFrames;
-        }
-
-        public void setStackFrames(Map<String, StackFrame> stackFrames) {
-            this.stackFrames = stackFrames;
-        }
-
-        public void setExecutables(Map<String, String> executables) {
-            this.executables = executables;
-        }
-
-        public void setStackTraceEvents(Map<String, TraceEvent> stackTraceEvents) {
-            this.stackTraceEvents = stackTraceEvents;
-        }
-
-        public void setHostEventCounts(List<HostEventCount> hostEventCounts) {
-            this.hostEventCounts = hostEventCounts;
-        }
-
-        public Map<String, TraceEvent> getStackTraceEvents() {
-            return stackTraceEvents;
-        }
-
-        public void setSamplingRate(double rate) {
-            this.samplingRate = rate;
-        }
-
-        public double getSamplingRate() {
-            return samplingRate;
-        }
-
-        public void setRequestedDuration(double requestedDuration) {
-            this.requestedDuration = requestedDuration;
-        }
-
-        public double getRequestedDuration() {
-            if (requestedDuration != null) {
-                return requestedDuration;
-            }
-            // If "requested_duration" wasn't specified, we use the time range from the query response.
-            return end.getEpochSecond() - start.getEpochSecond();
-        }
-
-        public void setAwsCostFactor(Double awsCostFactor) {
-            this.awsCostFactor = awsCostFactor;
-        }
-
-        public void setCustomCO2PerKWH(Double customCO2PerKWH) {
-            this.customCO2PerKWH = customCO2PerKWH;
-        }
-
-        public void setCustomDatacenterPUE(Double customDatacenterPUE) {
-            this.customDatacenterPUE = customDatacenterPUE;
-        }
-
-        public void setCustomPerCoreWatt(Double customPerCoreWatt) {
-            this.customPerCoreWatt = customPerCoreWatt;
-        }
-
-        public void setCustomCostPerCoreHour(Double customCostPerCoreHour) {
-            this.customCostPerCoreHour = customCostPerCoreHour;
-        }
-
-        public void setTotalSamples(long totalSamples) {
-            this.totalSamples = totalSamples;
-        }
-
-        public GetStackTracesResponse build() {
-            // Merge the TraceEvent data into the StackTraces.
-            if (stackTraces != null) {
-                for (Map.Entry<String, StackTrace> entry : stackTraces.entrySet()) {
-                    String stacktraceID = entry.getKey();
-                    TraceEvent event = stackTraceEvents.get(stacktraceID);
-                    if (event != null) {
-                        StackTrace stackTrace = entry.getValue();
-                        stackTrace.count = event.count;
-                        stackTrace.annualCO2Tons = event.annualCO2Tons;
-                        stackTrace.annualCostsUSD = event.annualCostsUSD;
-                    }
-                }
-            }
-            return new GetStackTracesResponse(
-                stackTraces,
-                stackFrames,
-                executables,
-                stackTraceEvents,
-                totalFrames,
-                samplingRate,
-                totalSamples
-            );
+                .execute(new RefCountAwareThreadedActionListener<>(responseExecutor, listener));
         }
     }
 

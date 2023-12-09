@@ -23,8 +23,8 @@ public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * Constructs unregister repository request builder with specified repository name
      */
-    public DeleteRepositoryRequestBuilder(ElasticsearchClient client, DeleteRepositoryAction action, String name) {
-        super(client, action, new DeleteRepositoryRequest(name));
+    public DeleteRepositoryRequestBuilder(ElasticsearchClient client, String name) {
+        super(client, DeleteRepositoryAction.INSTANCE, new DeleteRepositoryRequest(name));
     }
 
     /**

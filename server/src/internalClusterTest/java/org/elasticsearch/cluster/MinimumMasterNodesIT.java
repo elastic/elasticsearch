@@ -105,10 +105,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify we get the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(
-                prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
-                equalTo(100L)
-            );
+            assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
         }
 
         String masterNode = internalCluster().getMasterName();

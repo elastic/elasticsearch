@@ -711,8 +711,8 @@ public final class SearchPhaseController {
     }
 
     static List<Integer> getTopDocsSizesPerQuery(SearchRequest request) {
-        if (request.source() == null) {
-            return List.of(SearchService.DEFAULT_SIZE);
+        if (request.source().rankBuilder() == null) {
+            return List.of(getTopDocsSize(request));
         }
         List<Integer> topDocsSizesPerQuery = new ArrayList<>();
         int queryCount = request.queryCount();

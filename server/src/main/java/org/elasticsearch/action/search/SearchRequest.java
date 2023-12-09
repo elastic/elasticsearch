@@ -598,10 +598,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * Multiple queries are used for ranking.
      */
     public int queryCount() {
-        return source == null
+        return source == null || source.rankBuilder() == null
             ? 1
-            : source.knnSearch().size() + source.subSearches().size() + (source.rankBuilder() != null
-                && (source.aggregations() != null || resolveTrackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) ? 1 : 0);
+            : source.knnSearch().size() + source.subSearches().size() + (source.aggregations() != null
+                || resolveTrackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED ? 1 : 0);
     }
 
     public PointInTimeBuilder pointInTimeBuilder() {

@@ -259,10 +259,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         PendingMerges(int batchReduceSize, int trackTotalHitsUpTo, List<Integer> topDocsSizesPerQuery) {
             this.batchReduceSize = batchReduceSize;
-            pendingMerges.add(new QueryPhaseResultConsumer.PendingMerge(0, trackTotalHitsUpTo, topDocsSizesPerQuery.get(0)));
+            pendingMerges.add(new QueryPhaseResultConsumer.PendingMerge(0, topDocsSizesPerQuery.get(0), trackTotalHitsUpTo));
             mergeResults.add(null);
             for (int qci = 1; qci < topDocsSizesPerQuery.size(); ++qci) {
-                pendingMerges.add(new QueryPhaseResultConsumer.PendingMerge(qci, 0, topDocsSizesPerQuery.get(qci)));
+                pendingMerges.add(new QueryPhaseResultConsumer.PendingMerge(qci, topDocsSizesPerQuery.get(qci), 0));
                 mergeResults.add(null);
             }
         }

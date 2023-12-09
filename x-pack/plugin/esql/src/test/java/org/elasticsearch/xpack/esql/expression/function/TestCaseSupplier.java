@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -48,6 +50,8 @@ import static org.hamcrest.Matchers.equalTo;
 public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
     implements
         Supplier<TestCaseSupplier.TestCase> {
+
+    private static Logger logger = LogManager.getLogger(TestCaseSupplier.class);
     /**
      * Build a test case without types.
      *
@@ -530,6 +534,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     supplier.type(),
                     "value"
                 );
+                logger.info("Value is " + value + " of type " + value.getClass());
+                logger.info("expectedValue is " + expectedValue.apply(value));
                 TestCase testCase = new TestCase(
                     List.of(typed),
                     expectedEvaluatorToString,
@@ -949,6 +955,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         @Override
         public String toString() {
+            if (type == DataTypes.UNSIGNED_LONG && data instanceof Long longData) {
+                return type.toString() + "(" + NumericUtils.unsignedLongAsBigInteger(longData).toString() + ")";
+            }
             return type.toString() + "(" + (data == null ? "null" : data.toString()) + ")";
         }
     }

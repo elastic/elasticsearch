@@ -25,7 +25,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<
     IndicesAliasesRequestBuilder> {
 
     public IndicesAliasesRequestBuilder(ElasticsearchClient client) {
-        super(client, IndicesAliasesAction.INSTANCE, new IndicesAliasesRequest());
+        super(client, TransportIndicesAliasesAction.TYPE, new IndicesAliasesRequest());
     }
 
     /**

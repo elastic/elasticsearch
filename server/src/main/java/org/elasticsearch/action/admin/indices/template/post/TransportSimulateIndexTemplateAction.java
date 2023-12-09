@@ -307,7 +307,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             }
         );
 
-        Settings settings = Settings.builder().put(templateSettings).put(additionalSettings.build()).build();
+        Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
         DataStreamLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
             lifecycle = DataStreamLifecycle.DEFAULT;

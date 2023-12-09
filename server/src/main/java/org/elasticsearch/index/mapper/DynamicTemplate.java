@@ -315,9 +315,9 @@ public class DynamicTemplate implements ToXContentObject {
         // unmatch_mapping_type filters down the matched mapping types.
         if (unmatchMappingType != null) {
             final Set<XContentFieldType> unmatchSet = Set.of(parseMatchMappingType(unmatchMappingType));
-            Set<XContentFieldType> matchSet = new LinkedHashSet<XContentFieldType>(Arrays.asList(xContentFieldTypes));
-            matchSet.removeAll(unmatchSet);
-            xContentFieldTypes = matchSet.toArray(XContentFieldType[]::new);
+            xContentFieldTypes = Stream.of(xContentFieldTypes)
+                .filter(Predicate.not(unmatchSet::contains))
+                .toArray(XContentFieldType[]::new);
         }
 
         // If match_mapping_type is "*", filter down matched mapping types

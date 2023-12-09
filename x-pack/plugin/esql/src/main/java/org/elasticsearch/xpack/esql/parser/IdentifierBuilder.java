@@ -37,7 +37,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         String result;
         if (quotedNode != null) {
             String identifier = quotedNode.getText();
-            result = identifier.substring(1, identifier.length() - 1);
+            result = identifier.substring(1, identifier.length() - 1).replace("``", "`");
         } else {
             result = unquotedNode.getText();
         }

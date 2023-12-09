@@ -782,3 +782,12 @@ FROM sample_data
 
 median_duration:double | client_ip:ip
 ;
+
+fieldEscaping
+FROM sample_data
+| stats count(`event_duration`) |  keep `count(``event_duration``)`
+;
+
+count(`event_duration`):l
+7
+;

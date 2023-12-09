@@ -818,9 +818,9 @@ public class StatementParserTests extends ESTestCase {
 
     public void testQuotedName() {
         // row `my-field`=123 | stats count(`my-field`) | eval x = `count(`my-field`)`
-        LogicalPlan plan = processingCommand("stats count(`my-field`) |  keep `count(my-field)`");
+        LogicalPlan plan = processingCommand("stats count(`my-field`) |  keep `count(``my-field``)`");
         var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("count(my-field)"));
+        assertThat(Expressions.names(project.projections()), contains("count(`my-field`)"));
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

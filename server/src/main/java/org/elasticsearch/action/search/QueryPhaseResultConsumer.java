@@ -497,7 +497,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
 
         public synchronized List<List<TopDocs>> consumeTopDocs() {
-            int qci = pendingMerges.size();
+            int qci = 0;
             List<List<TopDocs>> topDocsPerQuery = new ArrayList<>(qci);
             for (PendingMerge pendingMerge : pendingMerges) {
                 if (pendingMerge.topDocsSize == 0) {

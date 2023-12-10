@@ -17,8 +17,8 @@ import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthActio
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -2384,7 +2384,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ) {
                 if (action.equals(EnrichReindexAction.INSTANCE)) {
                     super.doExecute(
-                        DeleteIndexAction.INSTANCE,
+                        TransportDeleteIndexAction.TYPE,
                         new DeleteIndexRequest(createdEnrichIndex),
                         listener.delegateFailureAndWrap((delegate, response) -> {
                             if (response.isAcknowledged() == false) {

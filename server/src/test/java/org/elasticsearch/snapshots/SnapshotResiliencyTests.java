@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAct
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
@@ -41,7 +40,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
@@ -2035,7 +2033,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    DeleteIndexAction.INSTANCE,
+                    TransportDeleteIndexAction.TYPE,
                     new TransportDeleteIndexAction(
                         transportService,
                         clusterService,
@@ -2125,7 +2123,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    DeleteSnapshotAction.INSTANCE,
+                    TransportDeleteSnapshotAction.TYPE,
                     new TransportDeleteSnapshotAction(
                         transportService,
                         clusterService,

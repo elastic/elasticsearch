@@ -82,16 +82,16 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequestBuilder;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
@@ -112,16 +112,16 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -147,16 +147,16 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.delete.TransportDeleteDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.import_index.TransportImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
@@ -907,7 +907,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void cloneSnapshot(CloneSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
-            execute(CloneSnapshotAction.INSTANCE, request, listener);
+            execute(TransportCloneSnapshotAction.TYPE, request, listener);
         }
 
         @Override
@@ -922,7 +922,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void deleteSnapshot(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
-            execute(DeleteSnapshotAction.INSTANCE, request, listener);
+            execute(TransportDeleteSnapshotAction.TYPE, request, listener);
         }
 
         @Override
@@ -1087,22 +1087,22 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<AcknowledgedResponse> importDanglingIndex(ImportDanglingIndexRequest request) {
-            return execute(ImportDanglingIndexAction.INSTANCE, request);
+            return execute(TransportImportDanglingIndexAction.TYPE, request);
         }
 
         @Override
         public void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
-            execute(ImportDanglingIndexAction.INSTANCE, request, listener);
+            execute(TransportImportDanglingIndexAction.TYPE, request, listener);
         }
 
         @Override
         public ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request) {
-            return execute(DeleteDanglingIndexAction.INSTANCE, request);
+            return execute(TransportDeleteDanglingIndexAction.TYPE, request);
         }
 
         @Override
         public void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
-            execute(DeleteDanglingIndexAction.INSTANCE, request, listener);
+            execute(TransportDeleteDanglingIndexAction.TYPE, request, listener);
         }
 
         @Override
@@ -1117,13 +1117,13 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void putStoredScript(final PutStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
-            execute(PutStoredScriptAction.INSTANCE, request, listener);
+            execute(TransportPutStoredScriptAction.TYPE, request, listener);
 
         }
 
         @Override
         public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
-            execute(DeleteStoredScriptAction.INSTANCE, request, listener);
+            execute(TransportDeleteStoredScriptAction.TYPE, request, listener);
         }
 
         @Override
@@ -1239,12 +1239,12 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<AcknowledgedResponse> delete(final DeleteIndexRequest request) {
-            return execute(DeleteIndexAction.INSTANCE, request);
+            return execute(TransportDeleteIndexAction.TYPE, request);
         }
 
         @Override
         public void delete(final DeleteIndexRequest request, final ActionListener<AcknowledgedResponse> listener) {
-            execute(DeleteIndexAction.INSTANCE, request, listener);
+            execute(TransportDeleteIndexAction.TYPE, request, listener);
         }
 
         @Override

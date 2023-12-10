@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -112,7 +112,7 @@ public final class IndexPrivilege extends Privilege {
         AutoCreateAction.NAME,
         CreateDataStreamAction.NAME
     );
-    private static final Automaton DELETE_INDEX_AUTOMATON = patterns(DeleteIndexAction.NAME, DeleteDataStreamAction.NAME);
+    private static final Automaton DELETE_INDEX_AUTOMATON = patterns(TransportDeleteIndexAction.TYPE.name(), DeleteDataStreamAction.NAME);
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(
         GetAliasesAction.NAME,
         GetIndexAction.NAME,

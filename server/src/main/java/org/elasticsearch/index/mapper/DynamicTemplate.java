@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,6 +26,7 @@ import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class DynamicTemplate implements ToXContentObject {
@@ -260,8 +260,8 @@ public class DynamicTemplate implements ToXContentObject {
         List<String> pathUnmatch = new ArrayList<>(4);
         Map<String, Object> mapping = null;
         boolean runtime = false;
-        Object matchMappingType = null;
-        Object unmatchMappingType = null;
+        List<String> matchMappingType = new ArrayList<>(4);
+        List<String> unmatchMappingType = new ArrayList<>(4);
         String matchPattern = MatchType.DEFAULT.toString();
 
         for (Map.Entry<String, Object> entry : conf.entrySet()) {
@@ -275,9 +275,9 @@ public class DynamicTemplate implements ToXContentObject {
             } else if ("path_unmatch".equals(propName)) {
                 addEntriesToPatternList(pathUnmatch, propName, entry);
             } else if ("match_mapping_type".equals(propName)) {
-                matchMappingType = entry.getValue();
+                addEntriesToPatternList(matchMappingType, propName, entry);
             } else if ("unmatch_mapping_type".equals(propName)) {
-                unmatchMappingType = entry.getValue();
+                addEntriesToPatternList(unmatchMappingType, propName, entry);
             } else if ("match_pattern".equals(propName)) {
                 matchPattern = entry.getValue().toString();
             } else if ("mapping".equals(propName)) {
@@ -307,48 +307,48 @@ public class DynamicTemplate implements ToXContentObject {
             throw new MapperParsingException("template [" + name + "] must have either mapping or runtime set");
         }
 
-        if (matchMappingType == null && (unmatchMappingType != null || matchPatternsAreDefined(match, pathMatch))) {
-            matchMappingType = "*";
-        }
-        XContentFieldType[] xContentFieldTypes = parseMatchMappingType(matchMappingType);
+        // match, path_match, and unmatch_mapping_type all imply
+        // "match_mapping_type: *" if not explicitly specified.
+        final boolean wildcardMatchMappingType = ((matchMappingType.isEmpty()
+            && matchPatternsAreDefined(match, pathMatch, unmatchMappingType))
+            || (matchMappingType.size() == 1 && matchMappingType.get(0).equals("*")));
 
-        // unmatch_mapping_type filters down the matched mapping types.
-        if (unmatchMappingType != null) {
-            final Set<XContentFieldType> unmatchSet = Set.of(parseMatchMappingType(unmatchMappingType));
-            xContentFieldTypes = Stream.of(xContentFieldTypes)
-                .filter(Predicate.not(unmatchSet::contains))
-                .toArray(XContentFieldType[]::new);
-        }
-
-        // If match_mapping_type is "*", filter down matched mapping types
-        // to those allowed by runtime fields. Otherwise, throw an exception
-        // if match_mapping_type explicitly matches field types that are not
-        // allowed as runtime fields.
-        if (runtime && xContentFieldTypes.length > 0) {
-            final boolean matchAny = matchMappingType.equals("*");
-            final XContentFieldType[] filteredXContentFieldTypes = Arrays.stream(xContentFieldTypes)
-                .filter(XContentFieldType::supportsRuntimeField)
-                .toArray(XContentFieldType[]::new);
-            final int diff = xContentFieldTypes.length - filteredXContentFieldTypes.length;
-            if (matchAny == false && diff > 0) {
-                final String[] unsupported = Arrays.stream(xContentFieldTypes)
+        Stream<XContentFieldType> matchXContentFieldTypes;
+        if (wildcardMatchMappingType) {
+            matchXContentFieldTypes = Stream.of(XContentFieldType.values());
+        } else {
+            if (runtime) {
+                final List<String> unsupported = matchMappingType.stream()
+                    .map(XContentFieldType::fromString)
                     .filter(Predicate.not(XContentFieldType::supportsRuntimeField))
                     .map(XContentFieldType::toString)
-                    .toArray(String[]::new);
-                throw new MapperParsingException(
-                    "Dynamic template ["
-                        + name
-                        + "] defines a runtime field but type"
-                        + (diff == 1 ? "" : "s")
-                        + " ["
-                        + String.join(", ", unsupported)
-                        + "] "
-                        + (diff == 1 ? "is" : "are")
-                        + " not supported as runtime field"
-                );
+                    .toList();
+                if (unsupported.isEmpty() == false) {
+                    final int numUnsupported = unsupported.size();
+                    throw new MapperParsingException(
+                        "Dynamic template ["
+                            + name
+                            + "] defines a runtime field but type"
+                            + (numUnsupported == 1 ? "" : "s")
+                            + " ["
+                            + String.join(", ", unsupported)
+                            + "] "
+                            + (numUnsupported == 1 ? "is" : "are")
+                            + " not supported as runtime field"
+                    );
+                }
             }
-            xContentFieldTypes = filteredXContentFieldTypes;
+            matchXContentFieldTypes = matchMappingType.stream().map(XContentFieldType::fromString);
         }
+        if (runtime) {
+            matchXContentFieldTypes = matchXContentFieldTypes.filter(XContentFieldType::supportsRuntimeField);
+        }
+
+        final Set<XContentFieldType> unmatchXContentFieldTypesSet = unmatchMappingType.stream()
+            .map(XContentFieldType::fromString)
+            .collect(Collectors.toSet());
+        final XContentFieldType[] xContentFieldTypes = matchXContentFieldTypes.filter(Predicate.not(unmatchXContentFieldTypesSet::contains))
+            .toArray(XContentFieldType[]::new);
 
         final MatchType matchType = MatchType.fromString(matchPattern);
         List<String> allPatterns = Stream.of(match.stream(), unmatch.stream(), pathMatch.stream(), pathUnmatch.stream())
@@ -360,31 +360,27 @@ public class DynamicTemplate implements ToXContentObject {
             matchType.validate(pattern, name);
         }
 
-        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xContentFieldTypes, matchType, mapping, runtime);
-    }
-
-    private static XContentFieldType[] parseMatchMappingType(Object matchMappingType) {
-        final XContentFieldType[] xContentFieldTypes;
-        if (matchMappingType instanceof List<?> ls) {
-            xContentFieldTypes = ls.stream().map(Object::toString).map(XContentFieldType::fromString).toArray(XContentFieldType[]::new);
-        } else if ("*".equals(matchMappingType)) {
-            xContentFieldTypes = XContentFieldType.values();
-        } else if (matchMappingType != null) {
-            final XContentFieldType xContentFieldType = XContentFieldType.fromString(matchMappingType.toString());
-            xContentFieldTypes = new XContentFieldType[] { xContentFieldType };
-        } else {
-            xContentFieldTypes = new XContentFieldType[0];
-        }
-        return xContentFieldTypes;
+        return new DynamicTemplate(
+            name,
+            pathMatch,
+            pathUnmatch,
+            match,
+            unmatch,
+            matchMappingType,
+            unmatchMappingType,
+            xContentFieldTypes,
+            matchType,
+            mapping,
+            runtime
+        );
     }
 
     /**
-     * @param match list of match patterns (can be empty but not null)
-     * @param pathMatch list of pathMatch patterns (can be empty but not null)
-     * @return return true if there is at least 1 match or pathMatch pattern defined
+     * @param matchLists zero or more lists of match patterns (can be empty but not null)
+     * @return return true if any of the given lists is non-empty
      */
-    private static boolean matchPatternsAreDefined(List<String> match, List<String> pathMatch) {
-        return match.size() + pathMatch.size() > 0;
+    private static boolean matchPatternsAreDefined(final List<?>... matchLists) {
+        return Stream.of(matchLists).anyMatch(Predicate.not(List::isEmpty));
     }
 
     private static void addEntriesToPatternList(List<String> matchList, String propName, Map.Entry<String, Object> entry) {
@@ -411,6 +407,8 @@ public class DynamicTemplate implements ToXContentObject {
     private final List<String> match;
     private final List<String> unmatch;
     private final MatchType matchType;
+    private final List<String> matchMappingType;
+    private final List<String> unmatchMappingType;
     private final XContentFieldType[] xContentFieldTypes;
     private final Map<String, Object> mapping;
     private final boolean runtimeMapping;
@@ -421,6 +419,8 @@ public class DynamicTemplate implements ToXContentObject {
         List<String> pathUnmatch,
         List<String> match,
         List<String> unmatch,
+        List<String> matchMappingType,
+        List<String> unmatchMappingType,
         XContentFieldType[] xContentFieldTypes,
         MatchType matchType,
         Map<String, Object> mapping,
@@ -432,6 +432,8 @@ public class DynamicTemplate implements ToXContentObject {
         this.match = match;
         this.unmatch = unmatch;
         this.matchType = matchType;
+        this.matchMappingType = matchMappingType;
+        this.unmatchMappingType = unmatchMappingType;
         this.xContentFieldTypes = xContentFieldTypes;
         this.mapping = mapping;
         this.runtimeMapping = runtimeMapping;
@@ -592,21 +594,18 @@ public class DynamicTemplate implements ToXContentObject {
                 builder.field("path_unmatch", pathUnmatch);
             }
         }
-        // If we can match all types (considering runtime support), then we can skip serializing "match_mapping_type".
-        if (xContentFieldTypes.length == 1) {
-            builder.field("match_mapping_type", xContentFieldTypes[0]);
-        } else if (xContentFieldTypes.length != 0) {
-            final long numPossibleXContentFieldTypes;
-            if (runtimeMapping) {
-                numPossibleXContentFieldTypes = List.of(XContentFieldType.values())
-                    .stream()
-                    .filter(XContentFieldType::supportsRuntimeField)
-                    .count();
+        if (matchMappingType.isEmpty() == false) {
+            if (matchMappingType.size() == 1) {
+                builder.field("match_mapping_type", matchMappingType.get(0));
             } else {
-                numPossibleXContentFieldTypes = XContentFieldType.values().length;
+                builder.field("match_mapping_type", matchMappingType);
             }
-            if (xContentFieldTypes.length < numPossibleXContentFieldTypes) {
-                builder.field("match_mapping_type", List.of(xContentFieldTypes).stream().map(XContentFieldType::toString).toList());
+        }
+        if (unmatchMappingType.isEmpty() == false) {
+            if (unmatchMappingType.size() == 1) {
+                builder.field("unmatch_mapping_type", unmatchMappingType.get(0));
+            } else {
+                builder.field("unmatch_mapping_type", unmatchMappingType);
             }
         }
         if (matchType != MatchType.DEFAULT) {

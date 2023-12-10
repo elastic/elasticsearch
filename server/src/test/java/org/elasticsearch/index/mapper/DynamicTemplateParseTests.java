@@ -331,9 +331,6 @@ public class DynamicTemplateParseTests extends ESTestCase {
 
         // name-based template
         templateDef = new HashMap<>();
-        if (randomBoolean()) {
-            templateDef.put("match_mapping_type", "*");
-        }
         templateDef.put("match", "*name");
         templateDef.put("unmatch", "first_name");
         templateDef.put("mapping", Collections.singletonMap("store", true));
@@ -345,9 +342,6 @@ public class DynamicTemplateParseTests extends ESTestCase {
 
         // name-based template with array of match patterns
         templateDef = new HashMap<>();
-        if (randomBoolean()) {
-            templateDef.put("match_mapping_type", "*");
-        }
         templateDef.put("match", List.of("*name", "user*"));
         templateDef.put("unmatch", "first_name");
         templateDef.put("mapping", Collections.singletonMap("store", true));
@@ -357,13 +351,22 @@ public class DynamicTemplateParseTests extends ESTestCase {
         assertEquals("""
             {"match":["*name","user*"],"unmatch":"first_name","mapping":{"store":true}}""", Strings.toString(builder));
 
+        // name-based template with explicit match_mapping_type wildcard pattern
+        templateDef = new HashMap<>();
+        templateDef.put("match_mapping_type", "*");
+        templateDef.put("match", "*name");
+        templateDef.put("unmatch", "first_name");
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"match":"*name","unmatch":"first_name","match_mapping_type":"*","mapping":{"store":true}}""", Strings.toString(builder));
+
         // path-based template
         templateDef = new HashMap<>();
         templateDef.put("path_match", "*name");
         templateDef.put("path_unmatch", "first_name");
-        if (randomBoolean()) {
-            templateDef.put("match_mapping_type", "*");
-        }
         templateDef.put("mapping", Collections.singletonMap("store", true));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
@@ -375,9 +378,6 @@ public class DynamicTemplateParseTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("path_match", List.of("*name"));
         templateDef.put("path_unmatch", List.of("first_name"));
-        if (randomBoolean()) {
-            templateDef.put("match_mapping_type", "*");
-        }
         templateDef.put("mapping", Collections.singletonMap("store", true));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
@@ -389,9 +389,6 @@ public class DynamicTemplateParseTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("path_match", List.of("*name", "user*"));
         templateDef.put("path_unmatch", List.of("first_name", "username"));
-        if (randomBoolean()) {
-            templateDef.put("match_mapping_type", "*");
-        }
         templateDef.put("mapping", Collections.singletonMap("store", true));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
@@ -406,9 +403,6 @@ public class DynamicTemplateParseTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("match", "^a$");
         templateDef.put("match_pattern", "regex");
-        if (randomBoolean()) {
-            templateDef.put("match_mapping_type", "*");
-        }
         templateDef.put("mapping", Collections.singletonMap("store", true));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
@@ -424,6 +418,31 @@ public class DynamicTemplateParseTests extends ESTestCase {
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), equalTo("""
             {"mapping":{"store":true}}"""));
+
+        // match_mapping_type and unmatch_mapping_type with single values
+        templateDef = new HashMap<>();
+        templateDef.put("match_mapping_type", "*");
+        templateDef.put("unmatch_mapping_type", "string");
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"match_mapping_type":"*","unmatch_mapping_type":"string","mapping":{"store":true}}""", Strings.toString(builder));
+
+        // match_mapping_type and unmatch_mapping_type with multi-entry arrays
+        templateDef = new HashMap<>();
+        templateDef.put("match_mapping_type", List.of("string", "object"));
+        templateDef.put("unmatch_mapping_type", List.of("object", "string"));
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            """
+                {"match_mapping_type":["string","object"],"unmatch_mapping_type":["object","string"],"mapping":{"store":true}}""",
+            Strings.toString(builder)
+        );
     }
 
     public void testSerializationRuntimeMappings() throws Exception {
@@ -441,9 +460,6 @@ public class DynamicTemplateParseTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("match", "*name");
         templateDef.put("unmatch", "first_name");
-        if (randomBoolean()) {
-            templateDef.put("match_mapping_type", "*");
-        }
         templateDef.put("runtime", Collections.singletonMap("type", "new_type"));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();

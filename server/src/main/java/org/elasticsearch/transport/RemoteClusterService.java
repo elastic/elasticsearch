@@ -323,11 +323,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             })
         );
         for (var aliasWithAddedCredentials : result.aliasesWithAddedCredentials()) {
-            logger.debug("Rebuilding connection for remote cluster [{}] with added credential", aliasWithAddedCredentials);
+            logger.debug("Rebuilding connection for remote cluster [{}] with added credentials", aliasWithAddedCredentials);
             updateRemoteCluster(aliasWithAddedCredentials, settings, true, groupedListener);
         }
         for (var aliasWithRemovedCredentials : result.aliasesWithRemovedCredentials()) {
-            logger.debug("Rebuilding connection for remote cluster [{}] with added credential", aliasWithRemovedCredentials);
+            logger.debug("Rebuilding connection for remote cluster [{}] with removed credentials", aliasWithRemovedCredentials);
             updateRemoteCluster(aliasWithRemovedCredentials, settings, true, groupedListener);
         }
     }
@@ -377,12 +377,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private synchronized void updateRemoteCluster(
         String clusterAlias,
         Settings newSettings,
-        boolean forceRebuild,
+        boolean credentialsChanged,
         ActionListener<RemoteClusterConnectionStatus> listener
     ) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
+
+        // TODO: short-circuit case when credentials change, but there is no other remote cluster configuration yet
 
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, newSettings) == false) {
@@ -402,7 +404,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
-        } else if (remote.shouldRebuildConnection(newSettings) || forceRebuild) {
+        } else if (credentialsChanged || remote.shouldRebuildConnection(newSettings)) {
             // Changes to connection configuration. Must tear down existing connection
             try {
                 IOUtils.close(remote);

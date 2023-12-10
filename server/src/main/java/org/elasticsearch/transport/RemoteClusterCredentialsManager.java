@@ -18,7 +18,8 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 
@@ -36,10 +37,16 @@ public class RemoteClusterCredentialsManager {
         final Map<String, SecureString> newClusterCredentials = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings);
         if (clusterCredentials.isEmpty()) {
             setCredentialsAndLog(newClusterCredentials);
-            return new UpdateRemoteClusterCredentialsResult(newClusterCredentials.keySet(), Collections.emptySet());
+            return new UpdateRemoteClusterCredentialsResult(new TreeSet<>(clusterCredentials.keySet()), Collections.emptySortedSet());
         }
-        final Set<String> aliasesWithAddedCredentials = Sets.difference(newClusterCredentials.keySet(), clusterCredentials.keySet());
-        final Set<String> aliasesWithRemovedCredentials = Sets.difference(clusterCredentials.keySet(), newClusterCredentials.keySet());
+        final SortedSet<String> aliasesWithAddedCredentials = Sets.sortedDifference(
+            newClusterCredentials.keySet(),
+            clusterCredentials.keySet()
+        );
+        final SortedSet<String> aliasesWithRemovedCredentials = Sets.sortedDifference(
+            clusterCredentials.keySet(),
+            newClusterCredentials.keySet()
+        );
         setCredentialsAndLog(newClusterCredentials);
         assert Sets.haveEmptyIntersection(aliasesWithRemovedCredentials, aliasesWithAddedCredentials);
         return new UpdateRemoteClusterCredentialsResult(aliasesWithAddedCredentials, aliasesWithRemovedCredentials);
@@ -55,7 +62,12 @@ public class RemoteClusterCredentialsManager {
         );
     }
 
-    public record UpdateRemoteClusterCredentialsResult(Set<String> aliasesWithAddedCredentials, Set<String> aliasesWithRemovedCredentials) {
+    public record UpdateRemoteClusterCredentialsResult(
+        // Use sorted sets since we will iterate over these, and call a synchronized method. Establishing a deterministic order to prevent
+        // deadlocks
+        SortedSet<String> aliasesWithAddedCredentials,
+        SortedSet<String> aliasesWithRemovedCredentials
+    ) {
         int totalSize() {
             return aliasesWithAddedCredentials.size() + aliasesWithRemovedCredentials.size();
         }

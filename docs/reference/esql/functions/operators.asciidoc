@@ -9,6 +9,7 @@ Boolean operators for comparing against one or multiple expressions.
 
 // tag::op_list[]
 * <<esql-binary-operators>>
+* <<esql-unary-operators>>
 * <<esql-logical-operators>>
 * <<esql-predicates>>
 * <<esql-cidr_match>>
@@ -23,6 +24,7 @@ Boolean operators for comparing against one or multiple expressions.
 // end::op_list[]
 
 include::binary.asciidoc[]
+include::unary.asciidoc[]
 include::logical.asciidoc[]
 include::predicates.asciidoc[]
 include::cidr_match.asciidoc[]

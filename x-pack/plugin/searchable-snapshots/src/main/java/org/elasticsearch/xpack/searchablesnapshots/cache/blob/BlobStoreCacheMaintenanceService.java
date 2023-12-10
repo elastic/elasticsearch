@@ -692,7 +692,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         private void setCurrentResponse(SearchResponse response) {
             if (response != null) {
-                response.incRef();
+                response.mustIncRef();
             }
             var previous = searchResponse.getAndSet(response);
             if (previous != null) {

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -34,10 +35,16 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
     ActionResponse.Empty> {
 
     private final RemoteClusterService remoteClusterService;
+    private final ClusterService clusterService;
 
     @Inject
-    public TransportReloadRemoteClusterCredentialsAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportReloadRemoteClusterCredentialsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters
+    ) {
         super(ReloadRemoteClusterCredentialsAction.NAME, actionFilters, transportService.getTaskManager());
+        this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
@@ -47,8 +54,19 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         ReloadRemoteClusterCredentialsAction.Request request,
         ActionListener<ActionResponse.Empty> listener
     ) {
+        // TODO do we need to check cluster state block?
+        // Need this to construct a complete view of remote cluster settings
+        final Settings persistentSettings = clusterService.state().metadata().persistentSettings();
+        final Settings transientSettings = clusterService.state().metadata().transientSettings();
+        final Settings combinedSettings = Settings.builder()
+            .put(request.getSettings(), true)
+            .put(persistentSettings, false)
+            .put(transientSettings, false)
+            .build();
         // We avoid stashing and marking context as system to keep the action as minimal as possible (i.e., avoid copying context)
-        remoteClusterService.updateRemoteClusterCredentials(request.getSettings());
-        listener.onResponse(ActionResponse.Empty.INSTANCE);
+        remoteClusterService.updateRemoteClusterCredentials(
+            combinedSettings,
+            ActionListener.wrap(nothing -> listener.onResponse(ActionResponse.Empty.INSTANCE), listener::onFailure)
+        );
     }
 }

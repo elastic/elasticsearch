@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -304,8 +306,30 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
-    public void updateRemoteClusterCredentials(Settings settings) {
-        remoteClusterCredentialsManager.updateClusterCredentials(settings);
+    public synchronized void updateRemoteClusterCredentials(Settings settings, ActionListener<Void> listener) {
+        final UpdateRemoteClusterCredentialsResult result = remoteClusterCredentialsManager.updateClusterCredentials(settings);
+        if (result.totalSize() == 0) {
+            logger.debug("No connection rebuilding required after credentials update");
+            listener.onResponse(null);
+            return;
+        }
+        logger.debug("Rebuilding [{}] connections after credentials update", result.totalSize());
+        final GroupedActionListener<RemoteClusterConnectionStatus> groupedListener = new GroupedActionListener<>(
+            result.totalSize(),
+            listener.map(remoteClusterConnectionStatuses -> {
+                assert remoteClusterConnectionStatuses.size() == result.totalSize();
+                logger.debug("Remote connections statuses after credential update: [{}]", remoteClusterConnectionStatuses);
+                return null;
+            })
+        );
+        for (var aliasWithAddedCredentials : result.aliasesWithAddedCredentials()) {
+            logger.debug("Rebuilding connection for remote cluster [{}] with added credential", aliasWithAddedCredentials);
+            updateRemoteCluster(aliasWithAddedCredentials, settings, true, groupedListener);
+        }
+        for (var aliasWithRemovedCredentials : result.aliasesWithRemovedCredentials()) {
+            logger.debug("Rebuilding connection for remote cluster [{}] with added credential", aliasWithRemovedCredentials);
+            updateRemoteCluster(aliasWithRemovedCredentials, settings, true, groupedListener);
+        }
     }
 
     public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {
@@ -346,9 +370,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param newSettings the updated settings for the remote connection
      * @param listener a listener invoked once every configured cluster has been connected to
      */
-    synchronized void updateRemoteCluster(
+    void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<RemoteClusterConnectionStatus> listener) {
+        updateRemoteCluster(clusterAlias, newSettings, false, listener);
+    }
+
+    private synchronized void updateRemoteCluster(
         String clusterAlias,
         Settings newSettings,
+        boolean forceRebuild,
         ActionListener<RemoteClusterConnectionStatus> listener
     ) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
@@ -373,7 +402,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
-        } else if (remote.shouldRebuildConnection(newSettings)) {
+        } else if (remote.shouldRebuildConnection(newSettings) || forceRebuild) {
             // Changes to connection configuration. Must tear down existing connection
             try {
                 IOUtils.close(remote);

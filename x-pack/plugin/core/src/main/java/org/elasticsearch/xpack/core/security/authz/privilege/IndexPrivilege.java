@@ -152,9 +152,9 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton CROSS_CLUSTER_REPLICATION_AUTOMATON = patterns(
         "indices:data/read/xpack/ccr/shard_changes*",
         IndicesStatsAction.NAME + "*",
-        RetentionLeaseActions.Add.ACTION_NAME + "*",
-        RetentionLeaseActions.Remove.ACTION_NAME + "*",
-        RetentionLeaseActions.Renew.ACTION_NAME + "*"
+        RetentionLeaseActions.TransportAddAction.TYPE.name() + "*",
+        RetentionLeaseActions.TransportRemoveAction.TYPE.name() + "*",
+        RetentionLeaseActions.TransportRenewAction.TYPE.name() + "*"
     );
     private static final Automaton CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON = patterns(
         "indices:internal/admin/ccr/restore/session/clear*",

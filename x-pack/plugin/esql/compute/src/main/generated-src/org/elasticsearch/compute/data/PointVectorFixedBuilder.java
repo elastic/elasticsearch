@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.SpatialPoint;
 
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+
 /**
  * Builder for {@link PointVector}s that never grows. Prefer this to
  * {@link PointVectorBuilder} if you know the precise size up front because
@@ -43,7 +45,7 @@ final class PointVectorFixedBuilder implements PointVector.FixedBuilder {
         return size == 1
             ? ConstantPointVector.RAM_BYTES_USED
             : PointArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * 16
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * (16 + NUM_BYTES_OBJECT_REF)
             );
     }
 

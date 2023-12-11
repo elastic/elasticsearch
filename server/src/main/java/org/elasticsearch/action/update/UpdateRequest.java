@@ -930,7 +930,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             out.writeBoolean(requireAlias);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
-            out.writeOptionalBoolean(requireDataStream);
+            out.writeBoolean(requireDataStream);
         }
     }
 

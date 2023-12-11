@@ -64,7 +64,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         WriteLoadForecaster writeLoadForecaster
     ) {
         super(
-            "cluster:admin/desired_balance/get",
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

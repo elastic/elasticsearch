@@ -112,8 +112,8 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var baseEval = Cast.cast(base.dataType(), DataTypes.DOUBLE, toEvaluator.apply(base));
-        var expEval = Cast.cast(exponent.dataType(), DataTypes.DOUBLE, toEvaluator.apply(exponent));
+        var baseEval = Cast.cast(source(), base.dataType(), DataTypes.DOUBLE, toEvaluator.apply(base));
+        var expEval = Cast.cast(source(), exponent.dataType(), DataTypes.DOUBLE, toEvaluator.apply(exponent));
         return new PowEvaluator.Factory(source(), baseEval, expEval);
     }
 

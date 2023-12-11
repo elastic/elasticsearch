@@ -60,6 +60,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -709,7 +710,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterService.maybeEnsureConnectedAndGetConnection(
                 clusterAlias,
                 skipUnavailable == false,
-                ActionListener.wrap(connection -> {
+                singleListener.delegateFailureAndWrap((delegate, connection) -> {
                     final String[] indices = entry.getValue().indices();
                     final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                     // TODO: support point-in-time
@@ -728,7 +729,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             TransportSearchShardsAction.TYPE.name(),
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new, responseExecutor)
+                            new ActionListenerResponseHandler<>(delegate, SearchShardsResponse::new, responseExecutor)
                         );
                     } else {
                         // does not do a can-match
@@ -741,13 +742,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                singleListener.map(SearchShardsResponse::fromLegacyResponse),
+                                delegate.map(SearchShardsResponse::fromLegacyResponse),
                                 ClusterSearchShardsResponse::new,
                                 responseExecutor
                             )
                         );
                     }
-                }, singleListener::onFailure)
+                })
             );
         }
     }
@@ -764,7 +765,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         ActionListener<SearchResponse> originalListener
     ) {
-        return new CCSActionListener<>(clusterAlias, skipUnavailable, countDown, exceptions, clusters, originalListener) {
+        return new CCSActionListener<>(
+            clusterAlias,
+            skipUnavailable,
+            countDown,
+            exceptions,
+            clusters,
+            ActionListener.releaseAfter(originalListener, searchResponseMerger)
+        ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
                 // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
@@ -775,6 +783,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             @Override
             SearchResponse createFinalResponse() {
                 return searchResponseMerger.getMergedResponse(clusters);
+            }
+
+            @Override
+            protected void releaseResponse(SearchResponse searchResponse) {
+                searchResponse.decRef();
             }
         };
     }
@@ -1286,7 +1299,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     && task.getProgressListener() == SearchProgressListener.NOOP) {
                     task.setProgressListener(new CCSSingleCoordinatorSearchProgressListener());
                 }
-                final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
+                final SearchPhaseResults<SearchPhaseResult> queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                     executor,
                     circuitBreaker,
                     task::isCancelled,
@@ -1492,12 +1505,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         originalListener.onFailure(e);
                         return;
                     }
-                    originalListener.onResponse(response);
+                    try {
+                        originalListener.onResponse(response);
+                    } finally {
+                        releaseResponse(response);
+                    }
                 } else {
                     originalListener.onFailure(exceptions.get());
                 }
             }
         }
+
+        protected void releaseResponse(FinalResponse response) {}
 
         abstract FinalResponse createFinalResponse();
     }

@@ -24,17 +24,7 @@ public class DoubleUpDownCounterAdapter extends AbstractInstrument<DoubleUpDownC
         org.elasticsearch.telemetry.metric.DoubleUpDownCounter {
 
     public DoubleUpDownCounterAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, name, description, unit);
-    }
-
-    @Override
-    protected io.opentelemetry.api.metrics.DoubleUpDownCounter buildInstrument(Meter meter) {
-        return Objects.requireNonNull(meter)
-            .upDownCounterBuilder(getName())
-            .ofDoubles()
-            .setDescription(getDescription())
-            .setUnit(getUnit())
-            .build();
+        super(meter, new Builder(name, description, unit));
     }
 
     @Override
@@ -45,5 +35,16 @@ public class DoubleUpDownCounterAdapter extends AbstractInstrument<DoubleUpDownC
     @Override
     public void add(double inc, Map<String, Object> attributes) {
         getInstrument().add(inc, OtelHelper.fromMap(attributes));
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<DoubleUpDownCounter> {
+        private Builder(String name, String description, String unit) {
+            super(name, description, unit);
+        }
+
+        @Override
+        public DoubleUpDownCounter build(Meter meter) {
+            return Objects.requireNonNull(meter).upDownCounterBuilder(name).ofDoubles().setDescription(description).setUnit(unit).build();
+        }
     }
 }

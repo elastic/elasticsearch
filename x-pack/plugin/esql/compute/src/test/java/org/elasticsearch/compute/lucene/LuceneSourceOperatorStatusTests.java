@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -19,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTestCase<LuceneSourceOperator.Status> {
     public static LuceneSourceOperator.Status simple() {
-        return new LuceneSourceOperator.Status(2, Set.of("*:*"), Set.of("a:0", "a:1"), 0, 1, 5, 123, 99990, 8000);
+        return new LuceneSourceOperator.Status(2, Set.of("*:*"), new TreeSet<>(List.of("a:0", "a:1")), 0, 1, 5, 123, 99990, 8000);
     }
 
     public static String simpleToJson() {

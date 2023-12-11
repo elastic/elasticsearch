@@ -267,10 +267,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    public record StuffForNumericType(Number min, Number max, BinaryOperator<Number> expected, String evaluatorName) {}
+    public record NumericTypeTestConfig(Number min, Number max, BinaryOperator<Number> expected, String evaluatorName) {}
 
-    public record AllTheTypeSpecificSettings(StuffForNumericType intStuff, StuffForNumericType longStuff, StuffForNumericType doubleStuff) {
-        public StuffForNumericType get(DataType type) {
+    public record NumericTypeTestConfigs(
+        NumericTypeTestConfig intStuff,
+        NumericTypeTestConfig longStuff,
+        NumericTypeTestConfig doubleStuff
+    ) {
+        public NumericTypeTestConfig get(DataType type) {
             if (type == DataTypes.INTEGER) {
                 return intStuff;
             }
@@ -317,7 +321,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     public static List<TestCaseSupplier> forBinaryWithWidening(
-        AllTheTypeSpecificSettings typeStuff,
+        NumericTypeTestConfigs typeStuff,
         String lhsName,
         String rhsName,
         List<String> warnings
@@ -328,7 +332,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {
                 DataType expected = widen(lhsType, rhsType);
-                StuffForNumericType expectedTypeStuff = typeStuff.get(expected);
+                NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
                 String evaluator = expectedTypeStuff.evaluatorName()
                     + "["
                     + lhsName

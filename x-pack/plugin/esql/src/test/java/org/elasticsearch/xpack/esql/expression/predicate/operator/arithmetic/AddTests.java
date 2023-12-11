@@ -45,20 +45,20 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(
             TestCaseSupplier.forBinaryWithWidening(
-                new TestCaseSupplier.AllTheTypeSpecificSettings(
-                    new TestCaseSupplier.StuffForNumericType(
+                new TestCaseSupplier.NumericTypeTestConfigs(
+                    new TestCaseSupplier.NumericTypeTestConfig(
                         (Integer.MIN_VALUE >> 1) - 1,
                         (Integer.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.intValue() + r.intValue(),
                         "AddIntsEvaluator"
                     ),
-                    new TestCaseSupplier.StuffForNumericType(
+                    new TestCaseSupplier.NumericTypeTestConfig(
                         (Long.MIN_VALUE >> 1) - 1,
                         (Long.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.longValue() + r.longValue(),
                         "AddLongsEvaluator"
                     ),
-                    new TestCaseSupplier.StuffForNumericType(
+                    new TestCaseSupplier.NumericTypeTestConfig(
                         Double.NEGATIVE_INFINITY,
                         Double.POSITIVE_INFINITY,
                         (l, r) -> l.doubleValue() + r.doubleValue(),

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -50,11 +49,6 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
 
         public String[] getLifecycleIds() {
             return this.lifecycleIds;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

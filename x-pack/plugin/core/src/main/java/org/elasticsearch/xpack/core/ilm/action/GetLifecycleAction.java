@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -127,11 +126,6 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         public String[] getPolicyNames() {
             return policyNames;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

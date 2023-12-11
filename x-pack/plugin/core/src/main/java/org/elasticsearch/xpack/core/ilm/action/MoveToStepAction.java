@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -83,11 +82,6 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
 
         public PartialStepKey getNextStepKey() {
             return nextStepKey;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         public static Request parseRequest(String name, XContentParser parser) {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,11 +60,6 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
 
     public boolean shouldDeleteMetadata() {
         return deleteMetadata;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,24 +79,5 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             return Strings.toString(this, true, true);
         }
 
-    }
-
-    public static class Request extends AcknowledgedRequest<Request> {
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public Request() {}
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
     }
 }

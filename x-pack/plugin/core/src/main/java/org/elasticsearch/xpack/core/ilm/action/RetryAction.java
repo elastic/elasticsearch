@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -64,11 +63,6 @@ public class RetryAction extends ActionType<AcknowledgedResponse> {
         public Request indicesOptions(IndicesOptions indicesOptions) {
             this.indicesOptions = indicesOptions;
             return this;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

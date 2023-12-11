@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -129,11 +128,6 @@ public class PutDataStreamLifecycleAction {
             builder.field("lifecycle", lifecycle);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

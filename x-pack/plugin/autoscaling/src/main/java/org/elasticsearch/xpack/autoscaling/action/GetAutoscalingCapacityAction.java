@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -49,11 +48,6 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

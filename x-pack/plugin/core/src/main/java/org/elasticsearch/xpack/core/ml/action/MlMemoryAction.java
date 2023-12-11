@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -85,11 +84,6 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
 
         public String getNodeId() {
             return nodeId;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

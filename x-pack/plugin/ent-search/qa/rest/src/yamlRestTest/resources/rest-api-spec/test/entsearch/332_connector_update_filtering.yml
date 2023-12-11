@@ -90,7 +90,7 @@ setup:
                   errors: []
                   state: valid
 
-  - match: { result: updated }
+  - match: { acknowledged: true }
 
   - do:
       connector.get:

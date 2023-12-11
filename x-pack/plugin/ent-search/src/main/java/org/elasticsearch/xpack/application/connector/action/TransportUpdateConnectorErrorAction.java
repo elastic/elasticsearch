@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -18,9 +19,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
-public class TransportUpdateConnectorErrorAction extends HandledTransportAction<
-    UpdateConnectorErrorAction.Request,
-    UpdateConnectorErrorAction.Response> {
+public class TransportUpdateConnectorErrorAction extends HandledTransportAction<UpdateConnectorErrorAction.Request, AcknowledgedResponse> {
 
     protected final ConnectorIndexService connectorIndexService;
 
@@ -42,11 +41,7 @@ public class TransportUpdateConnectorErrorAction extends HandledTransportAction<
     }
 
     @Override
-    protected void doExecute(
-        Task task,
-        UpdateConnectorErrorAction.Request request,
-        ActionListener<UpdateConnectorErrorAction.Response> listener
-    ) {
-        connectorIndexService.updateConnectorError(request, listener.map(r -> new UpdateConnectorErrorAction.Response(r.getResult())));
+    protected void doExecute(Task task, UpdateConnectorErrorAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        connectorIndexService.updateConnectorError(request, listener.map(r -> AcknowledgedResponse.TRUE));
     }
 }

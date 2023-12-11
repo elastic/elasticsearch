@@ -18,7 +18,7 @@ setup:
       connector.check_in:
         connector_id: test-connector
 
-  - match: { result: updated }
+  - match: { acknowledged: true }
 
   - do:
       connector.get:

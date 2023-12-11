@@ -31,7 +31,7 @@ setup:
               interval: 3 0 0 * * ?
 
 
-  - match: { result: updated }
+  - match: { acknowledged: true }
 
   - do:
       connector.get:

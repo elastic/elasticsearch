@@ -22,7 +22,7 @@ setup:
           error: "some error"
 
 
-  - match: { result: updated }
+  - match: { acknowledged: true }
 
   - do:
       connector.get:

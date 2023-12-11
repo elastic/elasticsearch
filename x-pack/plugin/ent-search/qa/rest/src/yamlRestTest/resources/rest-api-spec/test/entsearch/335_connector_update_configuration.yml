@@ -40,7 +40,7 @@ setup:
               value: 123
 
 
-  - match: { result: updated }
+  - match: { acknowledged: true }
 
   - do:
       connector.get:
@@ -76,7 +76,7 @@ setup:
                   type: greater_than
               value: 456
 
-  - match: { result: updated }
+  - match: { acknowledged: true }
 
   - do:
       connector.get:

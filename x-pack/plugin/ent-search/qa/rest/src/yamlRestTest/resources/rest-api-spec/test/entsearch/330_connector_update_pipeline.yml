@@ -38,7 +38,7 @@ setup:
             reduce_whitespace: true
             run_ml_inference: false
 
-  - match: { result: updated }
+  - match: { acknowledged: true }
 
   - do:
       connector.get:

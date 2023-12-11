@@ -22,7 +22,7 @@ setup:
           name: test-name
 
 
-  - match: { result: updated }
+  - match: { acknowledged: true }
 
   - do:
       connector.get:
@@ -39,7 +39,7 @@ setup:
           name: test-name
           description: test-description
 
-  - match: { result: updated }
+  - match: { acknowledged: true }
 
   - do:
       connector.get:

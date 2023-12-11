@@ -16,7 +16,6 @@ PUT _connector/my-connector
   "service_type": "google_drive"
 }
 --------------------------------------------------
-
 ////
 [source,console]
 ----
@@ -24,8 +23,6 @@ DELETE _connector/my-connector
 ----
 // TEST[continued]
 ////
-
-
 
 [[create-connector-api-request]]
 ==== {api-request-title}

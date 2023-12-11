@@ -621,6 +621,7 @@ public class Stateless extends Plugin
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,
             IngestLoadSampler.SAMPLING_FREQUENCY_SETTING,
             IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
+            IndicesMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,

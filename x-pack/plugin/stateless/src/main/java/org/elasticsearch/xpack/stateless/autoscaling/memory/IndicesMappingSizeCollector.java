@@ -60,6 +60,13 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    public static final Setting<TimeValue> CUT_OFF_TIMEOUT_SETTING = Setting.timeSetting(
+        "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.cut_off_timeout",
+        // Safe timeout value, all mappings will eventually be synced by the periodic task
+        TimeValue.timeValueMinutes(2),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private static final Logger logger = LogManager.getLogger(IndicesMappingSizeCollector.class);
     private static final org.apache.logging.log4j.Logger log4jLogger = org.apache.logging.log4j.LogManager.getLogger(
         IndicesMappingSizeCollector.class
@@ -70,6 +77,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     private final ThreadPool threadPool;
     private final Executor executor;
     private final TimeValue publicationFrequency;
+    private final TimeValue cutOffTimeout;
     private final AtomicLong seqNo = new AtomicLong();
     private volatile PublishTask publishTask;
 
@@ -80,7 +88,14 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         final ThreadPool threadPool,
         final Settings settings
     ) {
-        this(isIndexNode, indicesService, publisher, threadPool, PUBLISHING_FREQUENCY_SETTING.get(settings));
+        this(
+            isIndexNode,
+            indicesService,
+            publisher,
+            threadPool,
+            PUBLISHING_FREQUENCY_SETTING.get(settings),
+            CUT_OFF_TIMEOUT_SETTING.get(settings)
+        );
     }
 
     IndicesMappingSizeCollector(
@@ -88,7 +103,8 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         final IndicesService indicesService,
         final IndicesMappingSizePublisher publisher,
         final ThreadPool threadPool,
-        final TimeValue publicationFrequency
+        final TimeValue publicationFrequency,
+        final TimeValue cutOffTimeout
     ) {
         this.isIndexNode = isIndexNode;
         this.indicesService = indicesService;
@@ -96,6 +112,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         this.threadPool = threadPool;
         this.executor = threadPool.generic();
         this.publicationFrequency = publicationFrequency;
+        this.cutOffTimeout = cutOffTimeout;
     }
 
     public static IndicesMappingSizeCollector create(
@@ -129,27 +146,27 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     }
 
     public void publishIndicesMappingSize(Map<Index, IndexMappingSize> indicesMappingSize) {
+        publishIndicesMappingSize(indicesMappingSize, cutOffTimeout, new ActionListener<>() {
+            @Override
+            public void onResponse(ActionResponse.Empty empty) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.log(getExceptionLogLevel(e), () -> "Unable to publish indices mapping size", e);
+            }
+        });
+    }
+
+    void publishIndicesMappingSize(
+        Map<Index, IndexMappingSize> indicesMappingSize,
+        TimeValue cutOffTimeout,
+        ActionListener<ActionResponse.Empty> actionListener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         final HeapMemoryUsage heapMemoryUsage = new HeapMemoryUsage(seqNo.incrementAndGet(), indicesMappingSize);
 
-        new RetryableAction<>(
-            log4jLogger,
-            threadPool,
-            TimeValue.timeValueMillis(50),
-            // Safe timeout value, all mappings will eventually be synced by the periodic task
-            TimeValue.timeValueSeconds(2),
-            new ActionListener<ActionResponse.Empty>() {
-                @Override
-                public void onResponse(ActionResponse.Empty empty) {}
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.log(getExceptionLogLevel(e), () -> "Unable to publish indices mapping size", e);
-                }
-            },
-            threadPool.generic()
-        ) {
+        new RetryableAction<>(log4jLogger, threadPool, TimeValue.timeValueMillis(50), cutOffTimeout, actionListener, threadPool.generic()) {
 
             @Override
             public void tryAction(ActionListener<ActionResponse.Empty> listener) {

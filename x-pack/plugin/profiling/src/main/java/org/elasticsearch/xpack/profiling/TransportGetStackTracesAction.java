@@ -526,7 +526,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
                             totalFrames.addAndGet(stacktrace.frameIds.size());
                             stackFrameIds.addAll(stacktrace.frameIds);
-                            stacktrace.forNativeAndKernelFrames(executableId -> executableIds.add(executableId));
+                            stacktrace.forNativeAndKernelFrames(e -> executableIds.add(e));
                         }
                     }
                 }

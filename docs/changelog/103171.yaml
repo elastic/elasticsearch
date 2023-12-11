@@ -1,0 +1,7 @@
+pr: 103171
+summary: "Add `unmatch_mapping_type`, and support array of types"
+area: Mapping
+type: feature
+issues:
+ - 102807
+ - 102795

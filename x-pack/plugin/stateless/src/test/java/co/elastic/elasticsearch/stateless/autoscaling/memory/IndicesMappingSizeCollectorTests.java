@@ -48,7 +48,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -65,7 +65,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
     private static final int FREQUENCY_IN_SECONDS = 1;
 
     private static final Settings TEST_SETTINGS = Settings.builder()
-        .put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(FREQUENCY_IN_SECONDS))
+        .put(CUT_OFF_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(FREQUENCY_IN_SECONDS))
         .build();
 
     private final ThreadPool testThreadPool = new TestThreadPool(IndicesMappingSizeCollectorTests.class.getSimpleName());
@@ -152,5 +152,41 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
         collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
         collector.publishIndicesMappingSize(Map.of(TEST_INDEX, new IndexMappingSize(randomNonNegativeInt(), "newTestShardNodeId")));
         safeAwait(published);
+    }
+
+    public void testIndexMappingRetryRequestAreCancelledAfterTimeout() {
+        var unableToPublishMetricsLatch = new CountDownLatch(1);
+        publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool), () -> TransportVersions.V_8_500_050) {
+            @Override
+            public void publishIndicesMappingSize(HeapMemoryUsage heapMemoryUsage, ActionListener<ActionResponse.Empty> listener) {
+                logger.info("Publishing {}", heapMemoryUsage);
+                listener.onFailure(
+                    new RemoteTransportException(
+                        "Memory metrics service error",
+                        new AutoscalingMissedIndicesUpdateException("Unable to publish metrics")
+                    )
+                );
+            }
+        };
+        collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
+        collector.publishIndicesMappingSize(
+            Map.of(TEST_INDEX, new IndexMappingSize(randomNonNegativeInt(), "newTestShardNodeId")),
+            TimeValue.timeValueMillis(500),
+            new ActionListener<ActionResponse.Empty>() {
+                @Override
+                public void onResponse(ActionResponse.Empty empty) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    // onFailure gets called with the latest thrown exception
+                    var cause = e.getCause();
+                    assertEquals(AutoscalingMissedIndicesUpdateException.class, cause.getClass());
+                    assertEquals("Unable to publish metrics", cause.getMessage());
+                    unableToPublishMetricsLatch.countDown();
+                }
+            }
+        );
+
+        safeAwait(unableToPublishMetricsLatch);
     }
 }

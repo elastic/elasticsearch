@@ -52,10 +52,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
             ServiceUtils.getEmbeddingSize(
                 model,
                 this,
-                ActionListener.wrap(
-                    size -> listener.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
             );
         } else {
             listener.onResponse(model);

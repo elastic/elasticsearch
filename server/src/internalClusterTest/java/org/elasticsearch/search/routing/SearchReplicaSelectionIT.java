@@ -65,7 +65,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
 
         // Now after more searches, we should select a node with the lowest ARS rank.
         for (int i = 0; i < 5; i++) {
-            client.prepareSearch().setQuery(matchAllQuery()).get();
+            client.prepareSearch().setQuery(matchAllQuery()).get().decRef();
         }
 
         ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().get();

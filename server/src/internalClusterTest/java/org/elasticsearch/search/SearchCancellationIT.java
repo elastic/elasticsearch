@@ -169,21 +169,25 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         logger.info("Executing search");
         TimeValue keepAlive = TimeValue.timeValueSeconds(5);
+        String scrollId;
         SearchResponse searchResponse = prepareSearch("test").setScroll(keepAlive)
             .setSize(2)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .get();
+        try {
+            assertNotNull(searchResponse.getScrollId());
 
-        assertNotNull(searchResponse.getScrollId());
+            // Enable block so the second request would block
+            for (ScriptedBlockPlugin plugin : plugins) {
+                plugin.reset();
+                plugin.enableBlock();
+            }
 
-        // Enable block so the second request would block
-        for (ScriptedBlockPlugin plugin : plugins) {
-            plugin.reset();
-            plugin.enableBlock();
+            scrollId = searchResponse.getScrollId();
+            logger.info("Executing scroll with id {}", scrollId);
+        } finally {
+            searchResponse.decRef();
         }
-
-        String scrollId = searchResponse.getScrollId();
-        logger.info("Executing scroll with id {}", scrollId);
         ActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
             .setScroll(keepAlive)
             .execute();

@@ -64,13 +64,17 @@ public class TrainTestSplitterFactory {
                 client,
                 searchRequestBuilder::get
             );
-            return new SingleClassReservoirTrainTestSplitter(
-                fieldNames,
-                regression.getDependentVariable(),
-                regression.getTrainingPercent(),
-                regression.getRandomizeSeed(),
-                searchResponse.getHits().getTotalHits().value
-            );
+            try {
+                return new SingleClassReservoirTrainTestSplitter(
+                    fieldNames,
+                    regression.getDependentVariable(),
+                    regression.getTrainingPercent(),
+                    regression.getRandomizeSeed(),
+                    searchResponse.getHits().getTotalHits().value
+                );
+            } finally {
+                searchResponse.decRef();
+            }
         } catch (Exception e) {
             String msg = "[" + config.getId() + "] Error searching total number of training docs";
             LOGGER.error(msg, e);
@@ -96,20 +100,24 @@ public class TrainTestSplitterFactory {
                 client,
                 searchRequestBuilder::get
             );
-            Aggregations aggs = searchResponse.getAggregations();
-            Terms terms = aggs.get(aggName);
-            Map<String, Long> classCounts = new HashMap<>();
-            for (Terms.Bucket bucket : terms.getBuckets()) {
-                classCounts.put(String.valueOf(bucket.getKey()), bucket.getDocCount());
-            }
+            try {
+                Aggregations aggs = searchResponse.getAggregations();
+                Terms terms = aggs.get(aggName);
+                Map<String, Long> classCounts = new HashMap<>();
+                for (Terms.Bucket bucket : terms.getBuckets()) {
+                    classCounts.put(String.valueOf(bucket.getKey()), bucket.getDocCount());
+                }
 
-            return new StratifiedTrainTestSplitter(
-                fieldNames,
-                classification.getDependentVariable(),
-                classCounts,
-                classification.getTrainingPercent(),
-                classification.getRandomizeSeed()
-            );
+                return new StratifiedTrainTestSplitter(
+                    fieldNames,
+                    classification.getDependentVariable(),
+                    classCounts,
+                    classification.getTrainingPercent(),
+                    classification.getRandomizeSeed()
+                );
+            } finally {
+                searchResponse.decRef();
+            }
         } catch (Exception e) {
             String msg = "[" + config.getId() + "] Dependent variable terms search failed";
             LOGGER.error(msg, e);

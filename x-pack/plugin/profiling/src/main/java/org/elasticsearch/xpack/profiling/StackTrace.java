@@ -17,18 +17,36 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 final class StackTrace implements ToXContentObject {
+    static final int NATIVE_FRAME_TYPE = 3;
+    static final int KERNEL_FRAME_TYPE = 4;
     List<Integer> addressOrLines;
     List<String> fileIds;
     List<String> frameIds;
     List<Integer> typeIds;
 
-    StackTrace(List<Integer> addressOrLines, List<String> fileIds, List<String> frameIds, List<Integer> typeIds) {
+    double annualCO2Tons;
+    double annualCostsUSD;
+    long count;
+
+    StackTrace(
+        List<Integer> addressOrLines,
+        List<String> fileIds,
+        List<String> frameIds,
+        List<Integer> typeIds,
+        double annualCO2Tons,
+        double annualCostsUSD,
+        long count
+    ) {
         this.addressOrLines = addressOrLines;
         this.fileIds = fileIds;
         this.frameIds = frameIds;
         this.typeIds = typeIds;
+        this.annualCO2Tons = annualCO2Tons;
+        this.annualCostsUSD = annualCostsUSD;
+        this.count = count;
     }
 
     private static final int BASE64_FRAME_ID_LENGTH = 32;
@@ -197,7 +215,16 @@ final class StackTrace implements ToXContentObject {
         // Step 2: Convert the run-length byte encoding into a list of uint8s.
         List<Integer> typeIDs = runLengthDecodeBase64Url(inputFrameTypes, inputFrameTypes.length(), countsFrameIDs);
 
-        return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs);
+        return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs, 0, 0, 0);
+    }
+
+    public void forNativeAndKernelFrames(Consumer<String> consumer) {
+        for (int i = 0; i < this.fileIds.size(); i++) {
+            Integer frameType = this.typeIds.get(i);
+            if (frameType != null && (frameType == NATIVE_FRAME_TYPE || frameType == KERNEL_FRAME_TYPE)) {
+                consumer.accept(this.fileIds.get(i));
+            }
+        }
     }
 
     @Override
@@ -207,6 +234,9 @@ final class StackTrace implements ToXContentObject {
         builder.field("file_ids", this.fileIds);
         builder.field("frame_ids", this.frameIds);
         builder.field("type_ids", this.typeIds);
+        builder.field("annual_co2_tons", this.annualCO2Tons);
+        builder.field("annual_costs_usd", this.annualCostsUSD);
+        builder.field("count", this.count);
         builder.endObject();
         return builder;
     }
@@ -222,8 +252,10 @@ final class StackTrace implements ToXContentObject {
             && fileIds.equals(that.fileIds)
             && frameIds.equals(that.frameIds)
             && typeIds.equals(that.typeIds);
+        // Don't compare metadata like annualized co2, annualized costs and count.
     }
 
+    // Don't hash metadata like annualized co2, annualized costs and count.
     @Override
     public int hashCode() {
         return Objects.hash(addressOrLines, fileIds, frameIds, typeIds);

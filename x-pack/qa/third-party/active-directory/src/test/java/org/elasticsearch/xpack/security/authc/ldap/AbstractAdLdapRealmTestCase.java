@@ -258,8 +258,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
         DocWriteResponse indexResponse = client.prepareIndex(index)
             .setSource(jsonBuilder().startObject().field("name", "value").endObject())
-            .execute()
-            .actionGet();
+            .get();
 
         assertEquals(
             "user " + user + " should have write access to index " + index,
@@ -281,7 +280,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         authenticateUser(client, user, 3);
 
         try {
-            client.prepareIndex(index).setSource(jsonBuilder().startObject().field("name", "value").endObject()).execute().actionGet();
+            client.prepareIndex(index).setSource(jsonBuilder().startObject().field("name", "value").endObject()).get();
             fail("Write access to index " + index + " should not be allowed for user " + user);
         } catch (ElasticsearchSecurityException e) {
             // expected

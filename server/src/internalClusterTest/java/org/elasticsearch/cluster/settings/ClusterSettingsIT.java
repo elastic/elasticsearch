@@ -212,8 +212,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsResponse response1 = clusterAdmin().prepareUpdateSettings()
             .setTransientSettings(transientSettings1)
             .setPersistentSettings(persistentSettings1)
-            .execute()
-            .actionGet();
+            .get();
 
         assertAcked(response1);
         assertThat(response1.getTransientSettings().get(key1), notNullValue());
@@ -227,8 +226,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsResponse response2 = clusterAdmin().prepareUpdateSettings()
             .setTransientSettings(transientSettings2)
             .setPersistentSettings(persistentSettings2)
-            .execute()
-            .actionGet();
+            .get();
 
         assertAcked(response2);
         assertThat(response2.getTransientSettings().get(key1), notNullValue());
@@ -242,8 +240,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsResponse response3 = clusterAdmin().prepareUpdateSettings()
             .setTransientSettings(transientSettings3)
             .setPersistentSettings(persistentSettings3)
-            .execute()
-            .actionGet();
+            .get();
 
         assertAcked(response3);
         assertThat(response3.getTransientSettings().get(key1), nullValue());
@@ -502,7 +499,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         }
 
         // It should work now
-        ClusterUpdateSettingsResponse response = request.execute().actionGet();
+        ClusterUpdateSettingsResponse response = request.get();
 
         assertAcked(response);
         assertThat(response.getTransientSettings().get(key1), notNullValue());
@@ -515,10 +512,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
 
         try {
-            indicesAdmin().prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.refresh_interval", "10"))
-                .execute()
-                .actionGet();
+            indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "10")).get();
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("[index.refresh_interval] with value [10]"));
@@ -542,7 +536,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsRequestBuilder throwBuilder = clusterAdmin().prepareUpdateSettings();
         consumer.accept(Settings.builder().put("logger._root", "BOOM"), throwBuilder);
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> throwBuilder.execute().actionGet());
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> throwBuilder.get());
         assertEquals("Unknown level constant [BOOM].", e.getMessage());
 
         try {
@@ -550,7 +544,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             ClusterUpdateSettingsRequestBuilder updateBuilder = clusterAdmin().prepareUpdateSettings();
             consumer.accept(testSettings, updateBuilder);
 
-            updateBuilder.execute().actionGet();
+            updateBuilder.get();
             assertEquals(Level.TRACE, LogManager.getLogger("test").getLevel());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
         } finally {
@@ -560,12 +554,12 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 final Settings.Builder defaultSettings = Settings.builder().putNull("logger.test").putNull("logger._root");
                 consumer.accept(defaultSettings, undoBuilder);
 
-                undoBuilder.execute().actionGet();
+                undoBuilder.get();
             } else {
                 final Settings.Builder defaultSettings = Settings.builder().putNull("logger.*");
                 consumer.accept(defaultSettings, undoBuilder);
 
-                undoBuilder.execute().actionGet();
+                undoBuilder.get();
             }
             assertEquals(level, LogManager.getLogger("test").getLevel());
             assertEquals(level, LogManager.getRootLogger().getLevel());
@@ -593,15 +587,15 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsRequestBuilder builder = clusterAdmin().prepareUpdateSettings();
         consumer.accept(settings, builder);
 
-        builder.execute().actionGet();
-        ClusterStateResponse state = clusterAdmin().prepareState().execute().actionGet();
+        builder.get();
+        ClusterStateResponse state = clusterAdmin().prepareState().get();
         assertEquals(value, getter.apply(state.getState().getMetadata()).get(key));
 
         ClusterUpdateSettingsRequestBuilder updateBuilder = clusterAdmin().prepareUpdateSettings();
         consumer.accept(updatedSettings, updateBuilder);
-        updateBuilder.execute().actionGet();
+        updateBuilder.get();
 
-        ClusterStateResponse updatedState = clusterAdmin().prepareState().execute().actionGet();
+        ClusterStateResponse updatedState = clusterAdmin().prepareState().get();
         assertEquals(updatedValue, getter.apply(updatedState.getState().getMetadata()).get(key));
     }
 }

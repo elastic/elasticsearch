@@ -16,7 +16,10 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'indices', 'esql', 'xpack', 'enrich'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster'
+  }
+  restTests {
+    includeXpack 'esql'
   }
 }
 

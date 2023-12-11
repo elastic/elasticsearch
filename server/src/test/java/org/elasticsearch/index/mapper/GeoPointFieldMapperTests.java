@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
+import java.util.function.Function;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -604,13 +604,17 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Tuple<Object, GeoPoint> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), this::mapping);
+                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), encode(v.v2()), this::mapping);
                 }
                 List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
                 List<Object> in = values.stream().map(Tuple::v1).toList();
-                List<Map<String, Object>> outList = values.stream().map(t -> encode(t.v2())).sorted().map(this::decode).toList();
+                // The results are currently sorted in order of encoded values, so we need to sort the expected values too
+                List<GeoPoint> outList = values.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
-                return new SyntheticSourceExample(in, out, this::mapping);
+
+                List<Long> outBlockList = outList.stream().map(this::encode).toList();
+                Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
 
             private Tuple<Object, GeoPoint> generateValue() {
@@ -627,26 +631,30 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             }
 
             private Object randomGeoPointInput(GeoPoint point) {
-                if (randomBoolean()) {
-                    return Map.of("lat", point.lat(), "lon", point.lon());
-                }
-                List<Double> coords = new ArrayList<>();
-                coords.add(point.lon());
-                coords.add(point.lat());
-                if (ignoreZValue) {
-                    coords.add(randomDouble());
-                }
-                return Map.of("coordinates", coords, "type", "point");
+                return switch (randomInt(4)) {
+                    case 0 -> Map.of("lat", point.lat(), "lon", point.lon());
+                    case 1 -> new double[] { point.lon(), point.lat() };
+                    case 2 -> "POINT( " + point.lon() + " " + point.lat() + " )";
+                    default -> {
+                        List<Double> coords = new ArrayList<>();
+                        coords.add(point.lon());
+                        coords.add(point.lat());
+                        if (ignoreZValue) {
+                            coords.add(randomDouble());
+                        }
+                        yield Map.of("coordinates", coords, "type", "point");
+                    }
+                };
             }
 
             private long encode(GeoPoint point) {
                 return new LatLonDocValuesField("f", point.lat(), point.lon()).numericValue().longValue();
             }
 
-            private Map<String, Object> decode(long point) {
+            private GeoPoint decode(long point) {
                 double lat = GeoEncodingUtils.decodeLatitude((int) (point >> 32));
                 double lon = GeoEncodingUtils.decodeLongitude((int) (point & 0xFFFFFFFF));
-                return new TreeMap<>(Map.of("lat", lat, "lon", lon));
+                return new GeoPoint(lat, lon);
             }
 
             private void mapping(XContentBuilder b) throws IOException {
@@ -688,5 +696,19 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> asJacksonNumberOutput(((Number) v).longValue());
+    }
+
+    protected static Object asJacksonNumberOutput(long l) {
+        // Cast to int to mimic jackson-core behaviour in NumberOutput.outputLong()
+        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
+            return (int) l;
+        } else {
+            return l;
+        }
     }
 }

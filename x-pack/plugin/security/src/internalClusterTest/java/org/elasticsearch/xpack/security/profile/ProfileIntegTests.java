@@ -119,9 +119,9 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
 
         // Trigger index creation by indexing
-        var indexResponse = client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))
-            .setSource(Map.of("user_profile", Map.of("uid", randomAlphaOfLength(22))))
-            .get();
+        var indexResponse = prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS)).setSource(
+            Map.of("user_profile", Map.of("uid", randomAlphaOfLength(22)))
+        ).get();
         assertThat(indexResponse.status().getStatus(), equalTo(201));
 
         final GetIndexResponse getIndexResponse = getProfileIndexResponse();
@@ -779,8 +779,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
     public void testGetUsersWithProfileUid() throws IOException {
         new ChangePasswordRequestBuilder(client()).username(ElasticUser.NAME)
             .password(TEST_PASSWORD_SECURE_STRING.clone().getChars(), Hasher.BCRYPT)
-            .execute()
-            .actionGet();
+            .get();
 
         final Profile elasticUserProfile = doActivateProfile(ElasticUser.NAME, TEST_PASSWORD_SECURE_STRING);
         final Profile nativeRacUserProfile = doActivateProfile(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD);

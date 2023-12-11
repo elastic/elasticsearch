@@ -113,7 +113,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 source.field("numeric_value", randomDouble());
             }
-            client().prepareIndex("idx").setSource(source.endObject()).get();
+            prepareIndex("idx").setSource(source.endObject()).get();
         }
         refresh();
         ensureSearchable();

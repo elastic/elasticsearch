@@ -91,15 +91,14 @@ public class NestedIT extends ESIntegTestCase {
                 source = source.startObject().field("value", i + 1 + j).endObject();
             }
             source = source.endArray().endObject();
-            builders.add(client().prepareIndex("idx").setId("" + i + 1).setSource(source));
+            builders.add(prepareIndex("idx").setId("" + i + 1).setSource(source));
         }
 
         prepareCreate("empty_bucket_idx").setMapping("value", "type=integer", "nested", "type=nested").get();
         ensureGreen("empty_bucket_idx");
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx")
-                    .setId("" + i)
+                prepareIndex("empty_bucket_idx").setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .field("value", i * 2)
@@ -146,8 +145,7 @@ public class NestedIT extends ESIntegTestCase {
         ensureGreen("idx_nested_nested_aggs");
 
         builders.add(
-            client().prepareIndex("idx_nested_nested_aggs")
-                .setId("1")
+            prepareIndex("idx_nested_nested_aggs").setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startArray("nested1")
@@ -431,7 +429,7 @@ public class NestedIT extends ESIntegTestCase {
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
-        indexRequests.add(client().prepareIndex("idx2").setId("1").setSource("""
+        indexRequests.add(prepareIndex("idx2").setId("1").setSource("""
             {
               "dates": {
                 "month": {
@@ -453,7 +451,7 @@ public class NestedIT extends ESIntegTestCase {
                 }
               ]
             }""", XContentType.JSON));
-        indexRequests.add(client().prepareIndex("idx2").setId("2").setSource("""
+        indexRequests.add(prepareIndex("idx2").setId("2").setSource("""
             {
               "dates": {
                 "month": {
@@ -545,8 +543,7 @@ public class NestedIT extends ESIntegTestCase {
         );
         ensureGreen("idx4");
 
-        client().prepareIndex("idx4")
-            .setId("1")
+        prepareIndex("idx4").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "product1")
@@ -565,8 +562,7 @@ public class NestedIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("idx4")
-            .setId("2")
+        prepareIndex("idx4").setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "product2")
@@ -682,8 +678,7 @@ public class NestedIT extends ESIntegTestCase {
             )
         );
 
-        client().prepareIndex("classes")
-            .setId("1")
+        prepareIndex("classes").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "QueryBuilder")
@@ -722,8 +717,7 @@ public class NestedIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("classes")
-            .setId("2")
+        prepareIndex("classes").setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Document")

@@ -87,9 +87,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(
-            client().prepareIndex()
-                .setId("1")
-                .setIndex("test")
+            prepareIndex("test").setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("test", "value")
@@ -101,9 +99,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 )
         );
         indexBuilders.add(
-            client().prepareIndex()
-                .setId("2")
-                .setIndex("test")
+            prepareIndex("test").setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("test", "value")
@@ -118,9 +114,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         int numDummyDocs = 20;
         for (int i = 1; i <= numDummyDocs; i++) {
             indexBuilders.add(
-                client().prepareIndex()
-                    .setId(Integer.toString(i + 3))
-                    .setIndex("test")
+                prepareIndex("test").setId(Integer.toString(i + 3))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("test", "value")
@@ -222,25 +216,17 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         // add tw docs within offset
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(
-            client().prepareIndex()
-                .setId("1")
-                .setIndex("test")
-                .setSource(jsonBuilder().startObject().field("test", "value").field("num", 0.5).endObject())
+            prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("test", "value").field("num", 0.5).endObject())
         );
         indexBuilders.add(
-            client().prepareIndex()
-                .setId("2")
-                .setIndex("test")
-                .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.7).endObject())
+            prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.7).endObject())
         );
 
         // add docs outside offset
         int numDummyDocs = 20;
         for (int i = 0; i < numDummyDocs; i++) {
             indexBuilders.add(
-                client().prepareIndex()
-                    .setId(Integer.toString(i + 3))
-                    .setIndex("test")
+                prepareIndex("test").setId(Integer.toString(i + 3))
                     .setSource(jsonBuilder().startObject().field("test", "value").field("num", 3.0 + i).endObject())
             );
         }
@@ -343,9 +329,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(
-            client().prepareIndex()
-                .setId("1")
-                .setIndex("test")
+            prepareIndex("test").setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("test", "value value")
@@ -357,9 +341,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 )
         );
         indexBuilders.add(
-            client().prepareIndex()
-                .setId("2")
-                .setIndex("test")
+            prepareIndex("test").setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("test", "value")
@@ -448,9 +430,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             )
         );
 
-        client().prepareIndex()
-            .setId("1")
-            .setIndex("test")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("test", "value")
@@ -525,9 +505,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             )
         );
 
-        client().prepareIndex()
-            .setId("1")
-            .setIndex("test")
+        prepareIndex("test").setId("1")
             .setRefreshPolicy(IMMEDIATE)
             .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject())
             .get();
@@ -925,9 +903,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             String date = "2013-05-" + dayString;
 
             indexBuilders.add(
-                client().prepareIndex()
-                    .setId(Integer.toString(i))
-                    .setIndex("test")
+                prepareIndex("test").setId(Integer.toString(i))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("test", "value")
@@ -1122,9 +1098,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         );
 
         // Index for testing MIN and MAX
-        IndexRequestBuilder doc1 = client().prepareIndex()
-            .setId("1")
-            .setIndex("test")
+        IndexRequestBuilder doc1 = prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("test", "value")
@@ -1140,9 +1114,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                     .endArray()
                     .endObject()
             );
-        IndexRequestBuilder doc2 = client().prepareIndex()
-            .setId("2")
-            .setIndex("test")
+        IndexRequestBuilder doc2 = prepareIndex("test").setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("test", "value")
@@ -1199,16 +1171,11 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         // Now test AVG and SUM
 
-        doc1 = client().prepareIndex()
-            .setId("1")
-            .setIndex("test")
+        doc1 = prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject().field("test", "value").startArray("num").value(0.0).value(1.0).value(2.0).endArray().endObject()
             );
-        doc2 = client().prepareIndex()
-            .setId("2")
-            .setIndex("test")
-            .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject());
+        doc2 = prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject());
 
         indexRandom(true, doc1, doc2);
         assertResponse(

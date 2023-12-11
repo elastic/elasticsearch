@@ -143,9 +143,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         // now that we filtered out the watch status state, lets put it back in
-        DocWriteResponse indexResponse = client().prepareIndex()
-            .setIndex(".watches")
-            .setId("_id")
+        DocWriteResponse indexResponse = prepareIndex(".watches").setId("_id")
             .setSource(BytesReference.bytes(builder), XContentType.JSON)
             .get();
         assertThat(indexResponse.getId(), is("_id"));

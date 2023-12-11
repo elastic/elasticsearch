@@ -7,14 +7,18 @@
  */
 package org.elasticsearch.action.admin;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 
 import java.util.Map;
@@ -29,6 +33,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -100,9 +105,9 @@ public class HotThreadsIT extends ESIntegTestCase {
 
             indexRandom(
                 true,
-                client().prepareIndex("test").setId("1").setSource("field1", "value1"),
-                client().prepareIndex("test").setId("2").setSource("field1", "value2"),
-                client().prepareIndex("test").setId("3").setSource("field1", "value3")
+                prepareIndex("test").setId("1").setSource("field1", "value1"),
+                prepareIndex("test").setId("2").setSource("field1", "value2"),
+                prepareIndex("test").setId("3").setSource("field1", "value3")
             );
             ensureSearchable();
             while (latch.getCount() > 0) {
@@ -175,5 +180,26 @@ public class HotThreadsIT extends ESIntegTestCase {
                 assertTrue(result.indexOf("ignoreIdleThreads=true") != -1);
             }
         }
+    }
+
+    @TestLogging(reason = "testing logging at various levels", value = "org.elasticsearch.action.admin.HotThreadsIT:TRACE")
+    public void testLogLocalHotThreads() {
+        final var level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        assertThat(
+            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+                logger,
+                level,
+                getTestName(),
+                ReferenceDocs.LOGGING,
+                () -> HotThreads.logLocalHotThreads(logger, level, getTestName(), ReferenceDocs.LOGGING)
+            ).utf8ToString(),
+            allOf(
+                containsString("Hot threads at"),
+                containsString("interval=500ms"),
+                containsString("busiestThreads=500"),
+                containsString("ignoreIdleThreads=false"),
+                containsString("cpu usage by thread")
+            )
+        );
     }
 }

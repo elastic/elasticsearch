@@ -32,7 +32,7 @@ import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.GroupSpec;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -52,7 +52,8 @@ import static java.util.stream.Collectors.joining;
  */
 public class OrdinalsGroupingOperator implements Operator {
     public record OrdinalsGroupingOperatorFactory(
-        List<BlockDocValuesReader.Factory> readerFactories,
+        List<BlockLoader> blockLoaders,
+        List<ValuesSourceReaderOperator.ShardContext> shardContexts,
         ElementType groupingElementType,
         int docChannel,
         String groupingField,
@@ -64,7 +65,8 @@ public class OrdinalsGroupingOperator implements Operator {
         @Override
         public Operator get(DriverContext driverContext) {
             return new OrdinalsGroupingOperator(
-                readerFactories,
+                blockLoaders,
+                shardContexts,
                 groupingElementType,
                 docChannel,
                 groupingField,
@@ -81,7 +83,8 @@ public class OrdinalsGroupingOperator implements Operator {
         }
     }
 
-    private final List<BlockDocValuesReader.Factory> readerFactories;
+    private final List<BlockLoader> blockLoaders;
+    private final List<ValuesSourceReaderOperator.ShardContext> shardContexts;
     private final int docChannel;
     private final String groupingField;
 
@@ -99,7 +102,8 @@ public class OrdinalsGroupingOperator implements Operator {
     private ValuesAggregator valuesAggregator;
 
     public OrdinalsGroupingOperator(
-        List<BlockDocValuesReader.Factory> readerFactories,
+        List<BlockLoader> blockLoaders,
+        List<ValuesSourceReaderOperator.ShardContext> shardContexts,
         ElementType groupingElementType,
         int docChannel,
         String groupingField,
@@ -109,7 +113,8 @@ public class OrdinalsGroupingOperator implements Operator {
         DriverContext driverContext
     ) {
         Objects.requireNonNull(aggregatorFactories);
-        this.readerFactories = readerFactories;
+        this.blockLoaders = blockLoaders;
+        this.shardContexts = shardContexts;
         this.groupingElementType = groupingElementType;
         this.docChannel = docChannel;
         this.groupingField = groupingField;
@@ -131,10 +136,10 @@ public class OrdinalsGroupingOperator implements Operator {
         requireNonNull(page, "page is null");
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         final int shardIndex = docVector.shards().getInt(0);
-        final var readerFactory = readerFactories.get(shardIndex);
+        final var blockLoader = blockLoaders.get(shardIndex);
         boolean pagePassed = false;
         try {
-            if (docVector.singleSegmentNonDecreasing() && readerFactory.supportsOrdinals()) {
+            if (docVector.singleSegmentNonDecreasing() && blockLoader.supportsOrdinals()) {
                 final IntVector segmentIndexVector = docVector.segments();
                 assert segmentIndexVector.isConstant();
                 final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
@@ -144,7 +149,7 @@ public class OrdinalsGroupingOperator implements Operator {
                             return new OrdinalSegmentAggregator(
                                 driverContext.blockFactory(),
                                 this::createGroupingAggregators,
-                                () -> readerFactory.ordinals(k.segmentIndex),
+                                () -> blockLoader.ordinals(shardContexts.get(k.shardIndex).reader().leaves().get(k.segmentIndex)),
                                 bigArrays
                             );
                         } catch (IOException e) {
@@ -158,7 +163,8 @@ public class OrdinalsGroupingOperator implements Operator {
                 if (valuesAggregator == null) {
                     int channelIndex = page.getBlockCount(); // extractor will append a new block at the end
                     valuesAggregator = new ValuesAggregator(
-                        readerFactories,
+                        blockLoaders,
+                        shardContexts,
                         groupingElementType,
                         docChannel,
                         groupingField,
@@ -458,7 +464,8 @@ public class OrdinalsGroupingOperator implements Operator {
         private final HashAggregationOperator aggregator;
 
         ValuesAggregator(
-            List<BlockDocValuesReader.Factory> factories,
+            List<BlockLoader> blockLoaders,
+            List<ValuesSourceReaderOperator.ShardContext> shardContexts,
             ElementType groupingElementType,
             int docChannel,
             String groupingField,
@@ -467,7 +474,12 @@ public class OrdinalsGroupingOperator implements Operator {
             int maxPageSize,
             DriverContext driverContext
         ) {
-            this.extractor = new ValuesSourceReaderOperator(BlockFactory.getNonBreakingInstance(), factories, docChannel, groupingField);
+            this.extractor = new ValuesSourceReaderOperator(
+                BlockFactory.getNonBreakingInstance(),
+                List.of(new ValuesSourceReaderOperator.FieldInfo(groupingField, blockLoaders)),
+                shardContexts,
+                docChannel
+            );
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
                 () -> BlockHash.build(List.of(new GroupSpec(channelIndex, groupingElementType)), driverContext, maxPageSize, false),

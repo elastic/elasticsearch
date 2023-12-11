@@ -30,10 +30,12 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<CountedTermsAggregationBuilder> {
+public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<CountedTermsAggregationBuilder> {
     public static final String NAME = "counted_terms";
-    public static final ValuesSourceRegistry.RegistryKey<CountedTermsAggregatorSupplier> REGISTRY_KEY =
-        new ValuesSourceRegistry.RegistryKey<>(NAME, CountedTermsAggregatorSupplier.class);
+    static final ValuesSourceRegistry.RegistryKey<CountedTermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        CountedTermsAggregatorSupplier.class
+    );
 
     public static final ParseField REQUIRED_SIZE_FIELD_NAME = new ParseField("size");
 
@@ -50,7 +52,7 @@ class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<Coun
     // see TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(1, 0, 10, -1);
 
-    protected CountedTermsAggregationBuilder(String name) {
+    public CountedTermsAggregationBuilder(String name) {
         super(name);
     }
 

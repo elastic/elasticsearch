@@ -225,7 +225,6 @@ public class CancellableTasksIT extends ESIntegTestCase {
         assertFalse(cancelFuture.isDone());
         allowEntireRequest(rootRequest);
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
-        assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
         waitForRootTask(mainTaskFuture, false);
         CancelTasksResponse cancelError = clusterAdmin().prepareCancelTasks()
             .setTargetTaskId(taskId)

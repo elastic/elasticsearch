@@ -319,12 +319,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
                 // Counters are not supported by ESQL so we load them in null
-                return BlockDocValuesReader.nulls();
+                return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues()) {
-                return BlockDocValuesReader.longs(name());
+                return new BlockDocValuesReader.LongsBlockLoader(name());
             }
-            return BlockSourceReader.longs(new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+            return new BlockSourceReader.LongsBlockLoader(new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

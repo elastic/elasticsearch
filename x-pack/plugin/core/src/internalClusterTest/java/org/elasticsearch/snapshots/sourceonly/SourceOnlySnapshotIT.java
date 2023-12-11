@@ -32,6 +32,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -86,7 +87,8 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
         }
@@ -169,10 +171,10 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String indexName = "test-idx";
         createIndex(indexName);
-        client().prepareIndex(indexName).setSource("foo", "bar").get();
+        prepareIndex(indexName).setSource("foo", "bar").get();
         assertSuccessful(startFullSnapshot(repo, "snapshot-1"));
 
-        client().prepareIndex(indexName).setSource("foo", "baz").get();
+        prepareIndex(indexName).setSource("foo", "baz").get();
         assertSuccessful(startFullSnapshot(repo, "snapshot-2"));
 
         logger.info("--> randomly deleting files from the local _snapshot path to simulate corruption");
@@ -332,7 +334,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            builders[i] = client().prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
+            builders[i] = prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

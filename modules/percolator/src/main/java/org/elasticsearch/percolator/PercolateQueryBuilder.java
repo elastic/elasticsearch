@@ -664,6 +664,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(cache, circuitBreaker);
             }
+
+            @Override
+            public void addNamedQuery(String name, Query query) {
+                delegate.addNamedQuery(name, query);
+            }
         };
     }
 

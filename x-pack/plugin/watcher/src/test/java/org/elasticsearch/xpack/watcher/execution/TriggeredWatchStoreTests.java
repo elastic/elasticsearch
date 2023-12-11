@@ -18,12 +18,12 @@ import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -223,7 +223,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onResponse(searchResponse1);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         // First return a scroll response with a single hit and then with no hits
         hit = new SearchHit(0, "second_foo");
@@ -264,7 +264,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 listener.onFailure(new ElasticsearchException("test issue"));
             }
             return null;
-        }).when(client).execute(eq(SearchScrollAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchScrollAction.TYPE), any(), any());
 
         TriggeredWatch triggeredWatch = mock(TriggeredWatch.class);
         when(parser.parse(eq("_id"), eq(1L), any(BytesReference.class))).thenReturn(triggeredWatch);
@@ -275,7 +275,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             listener.onResponse(new ClearScrollResponse(true, 1));
             return null;
 
-        }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportClearScrollAction.TYPE), any(), any());
 
         assertThat(TriggeredWatchStore.validate(cs), is(true));
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
@@ -301,9 +301,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         assertThat(triggeredWatches, hasSize(watches.size()));
 
         verify(client, times(1)).execute(eq(RefreshAction.INSTANCE), any(), any());
-        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), any(), any());
-        verify(client, times(2)).execute(eq(SearchScrollAction.INSTANCE), any(), any());
-        verify(client, times(1)).execute(eq(ClearScrollAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), any(), any());
+        verify(client, times(2)).execute(eq(TransportSearchScrollAction.TYPE), any(), any());
+        verify(client, times(1)).execute(eq(TransportClearScrollAction.TYPE), any(), any());
     }
 
     // the elasticsearch migration helper is doing reindex using aliases, so we have to

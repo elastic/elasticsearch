@@ -41,13 +41,12 @@ public class FilterOperator extends AbstractPageMappingOperator {
         int rowCount = 0;
         int[] positions = new int[page.getPositionCount()];
 
-        try (Block.Ref ref = evaluator.eval(page)) {
-            if (ref.block().areAllValuesNull()) {
+        try (BooleanBlock test = (BooleanBlock) evaluator.eval(page)) {
+            if (test.areAllValuesNull()) {
                 // All results are null which is like false. No values selected.
                 page.releaseBlocks();
                 return null;
             }
-            BooleanBlock test = (BooleanBlock) ref.block();
             // TODO we can detect constant true or false from the type
             // TODO or we could make a new method in bool-valued evaluators that returns a list of numbers
             for (int p = 0; p < page.getPositionCount(); p++) {
@@ -78,7 +77,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
                 }
                 success = true;
             } finally {
-                Releasables.closeExpectNoException(page::releaseBlocks);
+                page.releaseBlocks();
                 if (success == false) {
                     Releasables.closeExpectNoException(filteredBlocks);
                 }

@@ -30,7 +30,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -61,9 +60,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -956,13 +953,7 @@ public final class NodeEnvironment implements Closeable {
                     return;
                 }
                 nextShardLockHotThreadsNanos = now + TimeUnit.SECONDS.toNanos(60);
-                final var hotThreads = new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect();
-                try (
-                    var stream = ChunkedLoggingStream.create(logger, Level.DEBUG, prefix, ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING);
-                    var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
-                ) {
-                    writer.write(hotThreads);
-                }
+                HotThreads.logLocalHotThreads(logger, Level.DEBUG, prefix, ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING);
             } catch (Exception e) {
                 logger.error(format("could not obtain %s", prefix), e);
             } finally {

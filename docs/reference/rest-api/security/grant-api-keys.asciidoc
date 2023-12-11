@@ -15,7 +15,7 @@ Creates an API key on behalf of another user.
 [[security-api-grant-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have the `grant_api_key` cluster privilege.
+* To use this API, you must have the `grant_api_key` or the `manage_api_key` cluster privilege.
 
 [[security-api-grant-api-key-desc]]
 ==== {api-description-title}
@@ -23,10 +23,13 @@ Creates an API key on behalf of another user.
 This API is similar to <<security-api-create-api-key>>, however it creates the
 API key for a user that is different than the user that runs the API.
 
-The caller must have authentication credentials (either an access token,
-or a username and password) for the user on whose behalf the API key will be
-created. It is not possible to use this API to create an API key without that
-user's credentials.
+The caller must have authentication credentials for the user on whose behalf
+the API key will be created. It is not possible to use this API to create an
+API key without that user's credentials.
+The supported user authentication credentials types are:
+ * username and password
+ * <<security-api-get-token, {es} access tokens>>
+ * <<jwt-auth-realm, JWTs>>
 
 The user, for whom the authentication credentials is provided,
 can optionally <<run-as-privilege,"run as">> (impersonate) another user.
@@ -55,8 +58,11 @@ The following parameters can be specified in the body of a POST request:
 
 `access_token`::
 (Required*, string)
-The user's access token. If you specify the `access_token` grant type, this
-parameter is required. It is not valid with other grant types.
+The user's <<security-api-get-token, {es} access token>>, or JWT. Both <<jwt-realm-oauth2, access>> and
+<<jwt-realm-oidc, id>> JWT token types are supported, and they depend on the underlying JWT realm configuration.
+The created API key will have a point in time snapshot of permissions of the user authenticated with this token
+(or even more restricted permissions, see the `role_descriptors` parameter).
+If you specify the `access_token` grant type, this parameter is required. It is not valid with other grant types.
 
 `api_key`::
 (Required, object)
@@ -83,15 +89,32 @@ It supports nested data structure.
 Within the `metadata` object, keys beginning with `_` are reserved for
 system usage.
 
+`client_authentication`::
+(Optional, object) When using the `access_token` grant type, and when supplying a
+JWT, this specifies the client authentication for <<jwt-auth-realm, JWTs>> that
+need it (i.e. what's normally specified by the `ES-Client-Authentication` request header).
+
+`scheme`:::
+(Required, string) The scheme (case-sensitive) as it's supplied in the
+`ES-Client-Authentication` request header. Currently, the only supported
+value is <<jwt-auth-shared-secret-scheme-example, `SharedSecret`>>.
+
+`value`:::
+(Required, string) The value that follows the scheme for the client credentials
+as it's supplied in the `ES-Client-Authentication` request header. For example,
+if the request header would be `ES-Client-Authentication: SharedSecret myShar3dS3cret`
+if the client were to authenticate directly with a JWT, then `value` here should
+be `myShar3dS3cret`.
+
 `grant_type`::
 (Required, string)
 The type of grant. Supported grant types are: `access_token`,`password`.
 
 `access_token`:::
 (Required*, string)
-In this type of grant, you must supply an access token that was created by the
-{es} token service. For more information, see
-<<security-api-get-token>> and <<encrypt-http-communication>>.
+In this type of grant, you must supply either an access token, that was created by the
+{es} token service (see <<security-api-get-token>> and <<encrypt-http-communication>>),
+or a <<jwt-auth-realm, JWT>> (either a JWT `access_token` or a JWT `id_token`).
 
 `password`:::
 In this type of grant, you must supply the user ID and password for which you

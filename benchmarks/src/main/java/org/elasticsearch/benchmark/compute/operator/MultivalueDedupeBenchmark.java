@@ -159,18 +159,18 @@ public class MultivalueDedupeBenchmark {
     @Benchmark
     @OperationsPerInvocation(AggregatorBenchmark.BLOCK_LENGTH)
     public void adaptive() {
-        MultivalueDedupe.dedupeToBlockAdaptive(Block.Ref.floating(block), BlockFactory.getNonBreakingInstance()).close();
+        MultivalueDedupe.dedupeToBlockAdaptive(block, BlockFactory.getNonBreakingInstance()).close();
     }
 
     @Benchmark
     @OperationsPerInvocation(AggregatorBenchmark.BLOCK_LENGTH)
     public void copyAndSort() {
-        MultivalueDedupe.dedupeToBlockUsingCopyAndSort(Block.Ref.floating(block), BlockFactory.getNonBreakingInstance()).close();
+        MultivalueDedupe.dedupeToBlockUsingCopyAndSort(block, BlockFactory.getNonBreakingInstance()).close();
     }
 
     @Benchmark
     @OperationsPerInvocation(AggregatorBenchmark.BLOCK_LENGTH)
     public void copyMissing() {
-        MultivalueDedupe.dedupeToBlockUsingCopyMissing(Block.Ref.floating(block), BlockFactory.getNonBreakingInstance()).close();
+        MultivalueDedupe.dedupeToBlockUsingCopyMissing(block, BlockFactory.getNonBreakingInstance()).close();
     }
 }

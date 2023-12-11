@@ -7,13 +7,20 @@
 
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.geo.GeoSqlSpecTestCase;
+import org.elasticsearch.xpack.sql.qa.jdbc.DataLoader;
 import org.junit.ClassRule;
 
 public class GeoJdbcSqlSpecIT extends GeoSqlSpecTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+
+    @Override
+    protected void loadDataset(RestClient client) throws Exception {
+        DataLoader.loadDatasetIntoEs(client, false);
+    }
 
     @Override
     protected String getTestRestCluster() {

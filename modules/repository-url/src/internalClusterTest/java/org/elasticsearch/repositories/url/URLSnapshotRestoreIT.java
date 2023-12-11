@@ -107,8 +107,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
             .prepareRestoreSnapshot("url-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices("test-idx")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));

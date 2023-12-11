@@ -12,13 +12,13 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
@@ -157,7 +157,7 @@ public class Querier {
             .keepAlive(cfg.pageTimeout());
 
         client.execute(
-            OpenPointInTimeAction.INSTANCE,
+            TransportOpenPointInTimeAction.TYPE,
             openPitRequest,
             listener.delegateFailureAndWrap((delegate, openPointInTimeResponse) -> {
                 String pitId = openPointInTimeResponse.getPointInTimeId();
@@ -188,7 +188,7 @@ public class Querier {
             client = client instanceof ParentTaskAssigningClient wrapperClient ? wrapperClient.unwrap() : client;
 
             client.execute(
-                ClosePointInTimeAction.INSTANCE,
+                TransportClosePointInTimeAction.TYPE,
                 new ClosePointInTimeRequest(pointInTimeId),
                 listener.delegateFailureAndWrap((l, clearPointInTimeResponse) -> l.onResponse(clearPointInTimeResponse.isSucceeded()))
             );

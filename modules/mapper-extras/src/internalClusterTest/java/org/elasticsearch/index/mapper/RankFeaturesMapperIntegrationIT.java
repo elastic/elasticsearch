@@ -106,14 +106,11 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
 
         BulkResponse bulk = client().prepareBulk()
             .add(
-                client().prepareIndex(INDEX_NAME)
-                    .setId("all")
+                prepareIndex(INDEX_NAME).setId("all")
                     .setSource(Map.of("all_rank_features", Map.of(LOWER_RANKED_FEATURE, 10, HIGHER_RANKED_FEATURE, 20)))
             )
-            .add(client().prepareIndex(INDEX_NAME).setId("lower").setSource(Map.of("all_rank_features", Map.of(LOWER_RANKED_FEATURE, 10))))
-            .add(
-                client().prepareIndex(INDEX_NAME).setId("higher").setSource(Map.of("all_rank_features", Map.of(HIGHER_RANKED_FEATURE, 20)))
-            )
+            .add(prepareIndex(INDEX_NAME).setId("lower").setSource(Map.of("all_rank_features", Map.of(LOWER_RANKED_FEATURE, 10))))
+            .add(prepareIndex(INDEX_NAME).setId("higher").setSource(Map.of("all_rank_features", Map.of(HIGHER_RANKED_FEATURE, 20))))
             .get();
         assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
         assertThat(refresh().getFailedShards(), equalTo(0));

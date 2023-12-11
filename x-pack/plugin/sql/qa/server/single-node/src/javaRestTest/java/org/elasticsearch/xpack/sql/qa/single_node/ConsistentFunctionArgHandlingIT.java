@@ -52,7 +52,7 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
  */
 public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
 
     @Override
     protected String getTestRestCluster() {

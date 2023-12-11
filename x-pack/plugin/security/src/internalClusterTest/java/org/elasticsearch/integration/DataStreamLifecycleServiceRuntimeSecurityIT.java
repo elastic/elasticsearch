@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
@@ -168,7 +169,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         Map<String, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            List<String> allIndices = errorStore.getAllIndices();
+            Set<String> allIndices = errorStore.getAllIndices();
             for (var index : allIndices) {
                 ErrorEntry error = errorStore.getError(index);
                 if (error != null) {

@@ -241,8 +241,8 @@ public class ConnectorSyncJobTests extends ESTestCase {
 
         ConnectorSyncJob.fromXContentBytes(new BytesArray(content), XContentType.JSON);
     }
-                                                        
-         public void testFromXContent_WithAllNullableFieldsSetToNull_DoesNotThrow() throws IOException {
+
+    public void testFromXContent_WithAllNullableFieldsSetToNull_DoesNotThrow() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
             "cancelation_requested_at": null,

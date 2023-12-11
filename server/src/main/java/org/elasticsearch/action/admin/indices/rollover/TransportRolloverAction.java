@@ -139,10 +139,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
         MetadataRolloverService.validateIndexName(clusterState, trialRolloverIndexName);
 
-        boolean lazyRolloverApplicable = rolloverRequest.isDryRun() == false
-            && rolloverRequest.getConditions().hasConditions() == false
-            && metadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
-        if (rolloverRequest.isLazy() && lazyRolloverApplicable) {
+        boolean isDataStream = metadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
+        if (shouldRolloverLazily(rolloverRequest, isDataStream) && rolloverRequest.isDryRun() == false) {
             metadataDataStreamsService.setRolloverNeeded(
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.ackTimeout(),
@@ -193,7 +191,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     false,
                     false,
-                    false
+                    shouldRolloverLazily(rolloverRequest, isDataStream)
                 );
 
                 // If this is a dry run, return with the results without invoking a cluster state update
@@ -265,6 +263,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 maxPrimaryShardDocs
             );
         }
+    }
+
+    static boolean shouldRolloverLazily(RolloverRequest rolloverRequest, boolean isDataStream) {
+        return rolloverRequest.isLazy() && isDataStream && rolloverRequest.getConditions().hasConditions() == false;
     }
 
     record RolloverTask(

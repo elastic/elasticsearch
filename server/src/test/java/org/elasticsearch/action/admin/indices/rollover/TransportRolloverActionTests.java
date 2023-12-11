@@ -401,6 +401,25 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(response.getConditionStatus().get("[max_docs: 300]"), is(true));
     }
 
+    public void testLazyRolloverApplicable() {
+        RolloverRequest rolloverRequest = new RolloverRequest();
+
+        assertThat(TransportRolloverAction.shouldRolloverLazily(rolloverRequest, true), equalTo(false));
+
+        rolloverRequest.lazy(true);
+        // Should be lazy
+        assertThat(TransportRolloverAction.shouldRolloverLazily(rolloverRequest, true), equalTo(true));
+        rolloverRequest.setConditions(new RolloverConditions());
+        rolloverRequest.dryRun(true);
+        assertThat(TransportRolloverAction.shouldRolloverLazily(rolloverRequest, true), equalTo(true));
+
+        // Has conditions, so lazy is not applicable
+        rolloverRequest.setConditions(new RolloverConditions(Map.of(randomAlphaOfLength(10), createTestCondition())));
+
+        // Not a data stream, so lazy is not applicable
+        assertThat(TransportRolloverAction.shouldRolloverLazily(rolloverRequest, false), equalTo(false));
+    }
+
     private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {
         final CommonStats primaryStats = mock(CommonStats.class);
         when(primaryStats.getDocs()).thenReturn(new DocsStats(primariesDocs, 0, between(1, 10000)));

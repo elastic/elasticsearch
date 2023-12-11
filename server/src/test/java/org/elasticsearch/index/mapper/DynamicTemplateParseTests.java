@@ -471,9 +471,6 @@ public class DynamicTemplateParseTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("path_match", "*name");
         templateDef.put("path_unmatch", "first_name");
-        if (randomBoolean()) {
-            templateDef.put("match_mapping_type", "*");
-        }
         templateDef.put("runtime", Collections.emptyMap());
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
@@ -484,9 +481,6 @@ public class DynamicTemplateParseTests extends ESTestCase {
         // regex matching
         templateDef = new HashMap<>();
         templateDef.put("match", "^a$");
-        if (randomBoolean()) {
-            templateDef.put("match_mapping_type", "*");
-        }
         templateDef.put("match_pattern", "regex");
         templateDef.put("runtime", Collections.emptyMap());
         template = DynamicTemplate.parse("my_template", templateDef);

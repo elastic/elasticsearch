@@ -79,7 +79,7 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(TRANSFORM_NEW_API_ENDPOINT, Version.V_7_5_0),
             entry(ML_INDICES_HIDDEN, Version.V_7_7_0),
             entry(ML_ANALYTICS_MAPPINGS, Version.V_7_3_0),
-            entry(REST_ELASTIC_PRODUCT_HEADER_PRESENT, Version.V_7_17_2)
+            entry(REST_ELASTIC_PRODUCT_HEADER_PRESENT, Version.V_8_0_1)
         );
     }
 }

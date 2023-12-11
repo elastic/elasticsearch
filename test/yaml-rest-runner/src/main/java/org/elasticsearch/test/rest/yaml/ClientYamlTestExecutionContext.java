@@ -230,15 +230,15 @@ public class ClientYamlTestExecutionContext {
         return clientYamlTestClient.getEsVersion();
     }
 
-    public Version masterVersion() {
-        return clientYamlTestClient.getMasterVersion();
-    }
-
     public String os() {
         return clientYamlTestClient.getOs();
     }
 
     public ClientYamlTestCandidate getClientYamlTestCandidate() {
         return clientYamlTestCandidate;
+    }
+
+    public boolean clusterHasFeature(String featureId) {
+        return clientYamlTestClient.clusterHasFeature(featureId);
     }
 }

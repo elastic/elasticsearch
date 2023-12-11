@@ -595,6 +595,7 @@ public class BlockFactoryTests extends ESTestCase {
         ).block();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103119")
     public void testAllowPassingBlockToDifferentContext() throws Exception {
         long overLimit1 = between(0, 10 * 1024);
         long maxOverLimit1 = randomLongBetween(overLimit1, 100 * 1024);
@@ -646,6 +647,22 @@ public class BlockFactoryTests extends ESTestCase {
         assertThat(localBreaker2.getReservedBytes(), lessThanOrEqualTo(maxOverLimit2));
         localBreaker1.close();
         localBreaker2.close();
+    }
+
+    public void testOwningFactoryOfVectorBlock() {
+        BlockFactory parentFactory = blockFactory(ByteSizeValue.ofBytes(between(1024, 4096)));
+        LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(parentFactory.breaker(), between(0, 1024), between(0, 1024));
+        BlockFactory localFactory = new BlockFactory(localBreaker, bigArrays, parentFactory);
+        int numValues = between(2, 10);
+        try (var builder = localFactory.newIntVectorBuilder(numValues)) {
+            for (int i = 0; i < numValues; i++) {
+                builder.appendInt(randomInt());
+            }
+            IntBlock block = builder.build().asBlock();
+            assertThat(block.blockFactory(), equalTo(localFactory));
+            block.allowPassingToDifferentDriver();
+            assertThat(block.blockFactory(), equalTo(parentFactory));
+        }
     }
 
     static BytesRef randomBytesRef() {

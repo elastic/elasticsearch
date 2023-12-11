@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -34,9 +35,11 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
 
     private final SearchUsageHolder searchUsageHolder;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder) {
+    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, NamedWriteableRegistry namedWriteableRegistry) {
         this.searchUsageHolder = searchUsageHolder;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -58,14 +61,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         // Note that ccs_minimize_roundtrips is also set this way, which is a supported option.
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(
-                submit.getSearchRequest(),
-                request,
-                parser,
-                client.getNamedWriteableRegistry(),
-                setSize,
-                searchUsageHolder
-            )
+            parser -> parseSearchRequest(submit.getSearchRequest(), request, parser, namedWriteableRegistry, setSize, searchUsageHolder)
         );
 
         if (request.hasParam("wait_for_completion_timeout")) {

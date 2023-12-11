@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -62,6 +63,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
     private final TransportSearchAction transportSearchAction;
     private final SearchTransportService searchTransportService;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
 
@@ -71,13 +73,15 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         SearchService searchService,
         ActionFilters actionFilters,
         TransportSearchAction transportSearchAction,
-        SearchTransportService searchTransportService
+        SearchTransportService searchTransportService,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -194,6 +198,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             return new AbstractSearchAsyncAction<>(
                 actionName,
                 logger,
+                namedWriteableRegistry,
                 searchTransportService,
                 connectionLookup,
                 aliasFilter,

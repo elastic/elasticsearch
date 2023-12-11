@@ -10,6 +10,7 @@ package org.elasticsearch.test.diewithdignity;
 
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ public class DieWithDignityPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         final RestController restController,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,

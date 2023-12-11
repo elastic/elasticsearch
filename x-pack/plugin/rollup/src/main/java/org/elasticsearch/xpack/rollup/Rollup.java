@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -86,6 +87,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -94,7 +96,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return Arrays.asList(
-            new RestRollupSearchAction(),
+            new RestRollupSearchAction(namedWriteableRegistry),
             new RestPutRollupJobAction(),
             new RestStartRollupJobAction(),
             new RestStopRollupJobAction(),

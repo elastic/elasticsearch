@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -58,8 +57,7 @@ public class NoOpNodeClient extends NodeClient {
         TaskManager taskManager,
         Supplier<String> localNodeId,
         Transport.Connection localConnection,
-        RemoteClusterService remoteClusterService,
-        NamedWriteableRegistry namedWriteableRegistry
+        RemoteClusterService remoteClusterService
     ) {
         throw new UnsupportedOperationException("cannot initialize " + this.getClass().getSimpleName());
     }

@@ -75,6 +75,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

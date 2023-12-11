@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
+import static org.mockito.Mockito.mock;
 
 public class RestReindexActionTests extends RestActionTestCase {
 
@@ -31,7 +32,7 @@ public class RestReindexActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestReindexAction();
+        action = new RestReindexAction(mock(NamedWriteableRegistry.class));
         controller().registerHandler(action);
     }
 

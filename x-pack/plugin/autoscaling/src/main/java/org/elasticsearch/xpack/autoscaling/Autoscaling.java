@@ -130,6 +130,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         final RestController controller,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,

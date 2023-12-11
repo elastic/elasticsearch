@@ -10,6 +10,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -32,6 +33,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
 
     private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
+
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    public RestSearchTemplateAction(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+    }
 
     @Override
     public List<Route> routes() {
@@ -62,7 +69,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchRequest,
             request,
             null,
-            client.getNamedWriteableRegistry(),
+            namedWriteableRegistry,
             size -> searchRequest.source().size(size)
         );
 

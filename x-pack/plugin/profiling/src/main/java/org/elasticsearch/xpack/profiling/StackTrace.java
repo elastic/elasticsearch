@@ -215,6 +215,17 @@ final class StackTrace implements ToXContentObject {
         return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs, 0, 0, 0);
     }
 
+    public void forNativeAndKernelFrames(java.util.function.Consumer<String> consumer) {
+        final int NATIVE_FRAME_TYPE = 3;
+        final int KERNEL_FRAME_TYPE = 4;
+        for (int i = 0; i < this.fileIds.size(); i++) {
+            Integer frameType = this.typeIds.get(i);
+            if (frameType != null && (frameType == NATIVE_FRAME_TYPE || frameType == KERNEL_FRAME_TYPE)) {
+                consumer.accept(this.fileIds.get(i));
+            }
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

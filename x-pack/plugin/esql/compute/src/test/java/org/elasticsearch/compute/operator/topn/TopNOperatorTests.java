@@ -506,8 +506,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            // TODO: Get working for POINT
-            if (e == ElementType.UNKNOWN || e == ElementType.POINT) {
+            if (e == ElementType.UNKNOWN) {
                 continue;
             }
             elementTypes.add(e);
@@ -579,8 +578,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            // TODO: Get working for POINT
-            if (e == ElementType.UNKNOWN || e == ElementType.POINT) {
+            if (e == ElementType.UNKNOWN) {
                 continue;
             }
             elementTypes.add(e);
@@ -966,9 +964,8 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         for (int type = 0; type < blocksCount; type++) {
-            // TODO Get working for POINT
             ElementType e = randomValueOtherThanMany(
-                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == ElementType.POINT,
+                t -> t == ElementType.UNKNOWN || t == ElementType.DOC,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

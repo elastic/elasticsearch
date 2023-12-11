@@ -25,10 +25,6 @@ interface ValueExtractor {
     void writeValue(BreakingBytesRefBuilder values, int position);
 
     static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
-        // TODO: figure out why sometimes the integration tests have LongBlock instead of PointBlock
-        if (elementType == ElementType.POINT && block.elementType() == ElementType.LONG) {
-            return ValueExtractorForLong.extractorFor(encoder, inKey, (LongBlock) block);
-        }
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
             throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }

@@ -29,8 +29,7 @@ public class MultivalueDedupePoint {
      * with low overhead to an {@code n*log(n)} strategy with higher overhead.
      * The choice of number has been experimentally derived.
      */
-    private static final int ALWAYS_COPY_MISSING = 300;
-
+    private static final int ALWAYS_COPY_MISSING = 110;
     private final PointBlock block;
     private SpatialPoint[] work = new SpatialPoint[ArrayUtil.oversize(2, 16)];
     private int w;

@@ -48,6 +48,7 @@ import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.compute.data.BlockTestUtils.randomSpatialPoint;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -60,7 +61,7 @@ public class MultivalueDedupeTests extends ESTestCase {
         List<ElementType> supported = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
             // TODO: get working for POINT (also BlockHashRandomizedTests)
-            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC, ElementType.POINT)) {
+            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC)) {
                 continue;
             }
             supported.add(elementType);
@@ -82,7 +83,7 @@ public class MultivalueDedupeTests extends ESTestCase {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : supportedTypes()) {
             // TODO: get working for POINT (also BlockHashRandomizedTests)
-            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC, ElementType.POINT)) {
+            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC)) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
@@ -231,7 +232,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                 int prevSize = between(1, 10000);
                 Set<SpatialPoint> previousValues = new HashSet<>(prevSize);
                 while (previousValues.size() < prevSize) {
-                    previousValues.add(randomBoolean() ? randomGeoPoint() : randomCartesianPoint());
+                    previousValues.add(randomSpatialPoint());
                 }
                 assertPointHash(previousValues, b);
             }

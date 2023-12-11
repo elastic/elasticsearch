@@ -53,8 +53,8 @@ $if(BytesRef)$
     private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
 $elseif(double)$
     private static final int ALWAYS_COPY_MISSING = 110;
-$elseif(int)$
-    private static final int ALWAYS_COPY_MISSING = 300;
+$elseif(Point)$
+    private static final int ALWAYS_COPY_MISSING = 110;
 $else$
     private static final int ALWAYS_COPY_MISSING = 300;
 $endif$

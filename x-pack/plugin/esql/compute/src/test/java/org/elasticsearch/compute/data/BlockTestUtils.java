@@ -17,7 +17,6 @@ import java.util.List;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomCartesianPoint;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -39,7 +38,7 @@ public class BlockTestUtils {
             case BOOLEAN -> randomBoolean();
             case DOC -> new BlockUtils.Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
             case NULL -> null;
-            case POINT -> randomBoolean() ? randomGeoPoint() : randomCartesianPoint();
+            case POINT -> randomSpatialPoint();
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }
@@ -115,5 +114,14 @@ public class BlockTestUtils {
 
     public static List<Page> deepCopyOf(List<Page> pages, BlockFactory blockFactory) {
         return pages.stream().map(page -> deepCopyOf(page, blockFactory)).toList();
+    }
+
+    public static SpatialPoint randomSpatialPoint() {
+        // For testing purposes we use only SpatialPoint, not GeoPoint, to ensure the equals methods works without knowing the mapping
+        if (randomBoolean()) {
+            return new SpatialPoint(randomGeoPoint());  // Destroy geo type information
+        } else {
+            return randomSpatialPoint();
+        }
     }
 }

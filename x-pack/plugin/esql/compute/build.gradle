@@ -469,6 +469,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  keyExtractorInputFile
     it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForDouble.java"
   }
+  template {
+    it.properties = pointProperties
+    it.inputFile =  keyExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForPoint.java"
+  }
   File valueExtractorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/topn/X-ValueExtractor.java.st")
   template {
     it.properties = bytesRefProperties

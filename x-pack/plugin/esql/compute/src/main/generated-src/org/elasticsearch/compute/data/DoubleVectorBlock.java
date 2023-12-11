@@ -88,4 +88,9 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
     }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
 }

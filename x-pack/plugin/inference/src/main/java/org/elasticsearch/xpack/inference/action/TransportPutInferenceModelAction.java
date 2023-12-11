@@ -131,7 +131,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         if (service.get().isInClusterService()) {
             // Find the cluster platform as the service may need that
             // information when creating the model
-            MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(ActionListener.wrap(architectures -> {
+            MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(listener.delegateFailureAndWrap((delegate, architectures) -> {
                 if (architectures.isEmpty() && clusterIsInElasticCloud(clusterService.getClusterSettings())) {
                     parseAndStoreModel(
                         service.get(),
@@ -140,13 +140,13 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                         requestAsMap,
                         // In Elastic cloud ml nodes run on Linux x86
                         Set.of("linux-x86_64"),
-                        listener
+                        delegate
                     );
                 } else {
                     // The architecture field could be an empty set, the individual services will need to handle that
-                    parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, architectures, listener);
+                    parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, architectures, delegate);
                 }
-            }, listener::onFailure), client, threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME));
+            }), client, threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME));
         } else {
             // Not an in cluster service, it does not care about the cluster platform
             parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, Set.of(), listener);
@@ -165,15 +165,12 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
         service.checkModelConfig(
             model,
-            ActionListener.wrap(
+            listener.delegateFailureAndWrap(
                 // model is valid good to persist then start
-                verifiedModel -> {
-                    modelRegistry.storeModel(
-                        verifiedModel,
-                        ActionListener.wrap(r -> { startModel(service, verifiedModel, listener); }, listener::onFailure)
-                    );
-                },
-                listener::onFailure
+                (delegate, verifiedModel) -> modelRegistry.storeModel(
+                    verifiedModel,
+                    delegate.delegateFailureAndWrap((l, r) -> startModel(service, verifiedModel, l))
+                )
             )
         );
     }
@@ -181,10 +178,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
         service.start(
             model,
-            ActionListener.wrap(
-                ok -> listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations())),
-                listener::onFailure
-            )
+            listener.delegateFailureAndWrap((l, ok) -> l.onResponse(new PutInferenceModelAction.Response(model.getConfigurations())))
         );
     }
 

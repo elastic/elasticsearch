@@ -56,11 +56,8 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
         DeleteInferenceModelAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
-        modelRegistry.deleteModel(
-            request.getModelId(),
-            ActionListener.wrap(r -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
-        );
+    ) {
+        modelRegistry.deleteModel(request.getModelId(), listener.delegateFailureAndWrap((l, r) -> l.onResponse(AcknowledgedResponse.TRUE)));
     }
 
     @Override

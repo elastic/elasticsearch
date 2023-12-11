@@ -254,4 +254,11 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     protected String[] shuffleProtectedFields() {
         return new String[] { TOKENS_FIELD.getPreferredName() };
     }
+
+    public void testThatTokensAreCorrectlyPruned() {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        TextExpansionQueryBuilder queryBuilder = createTestQueryBuilder();
+        QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
+        assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
+    }
 }

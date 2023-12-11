@@ -224,7 +224,7 @@ setup:
               ml.tokens:
                 tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}]
                 pruning_config:
-                  tokens_freq_ratio_threshold: 4
+                  tokens_freq_ratio_threshold: 1
                   tokens_weight_threshold: 0.4
                   only_score_pruned_tokens: false
   - match: { hits.total.value: 4 }
@@ -264,6 +264,26 @@ setup:
                 tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}]
                 pruning_config:
                   tokens_freq_ratio_threshold: 4
+                  tokens_weight_threshold: 0.4
+                  only_score_pruned_tokens: true
+  - match: { hits.total.value: 0 }
+
+---
+"Test weighted tokens search that prunes tokens based on frequency":
+  - skip:
+      version: " - 8.11.99"
+      reason: "weighted token search introduced in 8.12.0"
+
+  - do:
+      search:
+        index: index-with-rank-features
+        body:
+          query:
+            weighted_tokens:
+              ml.tokens:
+                tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}, {"is": 1.0}, {"the": 1.0}, {"best": 1.0}, {"of": 1.0}, {"the": 1.0}, {"bunch": 1.0}]
+                pruning_config:
+                  tokens_freq_ratio_threshold: 3
                   tokens_weight_threshold: 0.4
                   only_score_pruned_tokens: true
   - match: { hits.total.value: 0 }

@@ -357,10 +357,6 @@ public class BlockFactory {
         return new BytesRefBlockBuilder(estimatedSize, bigArrays, this);
     }
 
-    public PointBlock.Builder newPointBlockBuilder(int estimatedSize) {
-        return new PointBlockBuilder(estimatedSize, this);
-    }
-
     public BytesRefBlock newBytesRefArrayBlock(BytesRefArray values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         var b = new BytesRefArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, this);
         adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), true);
@@ -391,15 +387,8 @@ public class BlockFactory {
         return v;
     }
 
-    /**
-     * Build a {@link PointVector.FixedBuilder} that never grows.
-     */
-    public PointVector.FixedBuilder newPointVectorFixedBuilder(int size) {
-        return new PointVectorFixedBuilder(size, this);
-    }
-
-    public PointVector.Builder newPointVectorBuilder(int estimatedSize) {
-        return new PointVectorBuilder(estimatedSize, this);
+    public PointBlock.Builder newPointBlockBuilder(int estimatedSize) {
+        return new PointBlockBuilder(estimatedSize, this);
     }
 
     public final PointBlock newPointArrayBlock(
@@ -410,7 +399,6 @@ public class BlockFactory {
         MvOrdering mvOrdering
     ) {
         return newPointArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, 0L);
-
     }
 
     public PointBlock newPointArrayBlock(
@@ -426,8 +414,19 @@ public class BlockFactory {
         return b;
     }
 
-    public PointVector newPointArrayVector(SpatialPoint[] values, int positionCount) {
-        return new PointArrayVector(values, positionCount);
+    public PointVector.Builder newPointVectorBuilder(int estimatedSize) {
+        return new PointVectorBuilder(estimatedSize, this);
+    }
+
+    /**
+     * Build a {@link PointVector.FixedBuilder} that never grows.
+     */
+    public PointVector.FixedBuilder newPointVectorFixedBuilder(int size) {
+        return new PointVectorFixedBuilder(size, this);
+    }
+
+    public final PointVector newPointArrayVector(SpatialPoint[] values, int positionCount) {
+        return newPointArrayVector(values, positionCount, 0L);
     }
 
     public PointVector newPointArrayVector(SpatialPoint[] values, int positionCount, long preAdjustedBytes) {
@@ -444,10 +443,6 @@ public class BlockFactory {
         var b = new ConstantPointVector(value, positions, this).asBlock();
         adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
         return b;
-    }
-
-    public PointVector newConstantPointVector(double x, double y, int positions) {
-        return newConstantPointVector(new SpatialPoint(x, y), positions);
     }
 
     public PointVector newConstantPointVector(SpatialPoint value, int positions) {

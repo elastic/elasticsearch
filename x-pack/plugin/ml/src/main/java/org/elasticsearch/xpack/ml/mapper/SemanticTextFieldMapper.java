@@ -42,15 +42,8 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
 
-    private final String modelId;
-
-    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, String modelId, CopyTo copyTo) {
+    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, CopyTo copyTo) {
         super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
-        this.modelId = modelId;
-    }
-
-    public String getModelId() {
-        return modelId;
     }
 
     @Override
@@ -89,11 +82,6 @@ public class SemanticTextFieldMapper extends FieldMapper {
             super(name);
         }
 
-        public Builder modelId(String modelId) {
-            this.modelId.setValue(modelId);
-            return this;
-        }
-
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { modelId, meta };
@@ -101,12 +89,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
-            return new SemanticTextFieldMapper(
-                name(),
-                new SemanticTextFieldType(name(), modelId.getValue(), meta.getValue()),
-                modelId.getValue(),
-                copyTo
-            );
+            return new SemanticTextFieldMapper(name(), new SemanticTextFieldType(name(), modelId.getValue(), meta.getValue()), copyTo);
         }
     }
 

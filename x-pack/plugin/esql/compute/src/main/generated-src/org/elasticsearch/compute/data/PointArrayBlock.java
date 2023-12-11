@@ -14,6 +14,8 @@ import java.util.Arrays;
 import java.util.BitSet;
 
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 
 /**
  * Block implementation that stores an array of SpatialPoint.
@@ -104,9 +106,9 @@ public final class PointArrayBlock extends AbstractArrayBlock implements PointBl
     }
 
     public static long ramBytesEstimated(SpatialPoint[] values, int[] firstValueIndexes, BitSet nullsMask) {
-        long valuesEstimate = RamUsageEstimator.alignObjectSize((long) NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * values.length * 2);
-        return BASE_RAM_BYTES_USED + valuesEstimate + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator
-            .sizeOfBitSet(nullsMask);
+        long valuesEstimate = (long) NUM_BYTES_ARRAY_HEADER + ((long) Long.BYTES * 2 + (long) NUM_BYTES_OBJECT_REF) * values.length;
+        return BASE_RAM_BYTES_USED + alignObjectSize(valuesEstimate) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override

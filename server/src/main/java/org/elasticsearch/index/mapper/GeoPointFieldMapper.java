@@ -488,6 +488,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             // if (hasDocValues()) {
             // return new BlockDocValuesReader.LongsBlockLoader(name());
             // }
+            // TODO: Enhance BlockLoaderContext with knowledge about preferring to load from source (see EsPhysicalOperationProviders)
             return new BlockSourceReader.PointsBlockLoader(
                 valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
             );

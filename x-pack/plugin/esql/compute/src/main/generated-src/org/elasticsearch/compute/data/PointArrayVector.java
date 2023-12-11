@@ -13,6 +13,8 @@ import org.elasticsearch.common.geo.SpatialPoint;
 import java.util.Arrays;
 
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 
 /**
  * Vector implementation that stores an array of SpatialPoint values.
@@ -67,8 +69,8 @@ public final class PointArrayVector extends AbstractVector implements PointVecto
     }
 
     public static long ramBytesEstimated(SpatialPoint[] values) {
-        long valuesEstimate = RamUsageEstimator.alignObjectSize((long) NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * values.length * 2);
-        return BASE_RAM_BYTES_USED + valuesEstimate;
+        long valuesEstimate = (long) NUM_BYTES_ARRAY_HEADER + ((long) Long.BYTES * 2 + (long) NUM_BYTES_OBJECT_REF) * values.length;
+        return BASE_RAM_BYTES_USED + alignObjectSize(valuesEstimate);
     }
 
     @Override

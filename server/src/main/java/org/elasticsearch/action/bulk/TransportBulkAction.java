@@ -811,7 +811,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         + DocWriteRequest.REQUIRE_DATA_STREAM
                         + "] request flag is [true] and ["
                         + request.index()
-                        + "] has no parent data stream",
+                        + "] is not a data stream",
                     request.index()
                 );
                 addFailure(request, idx, exception);

@@ -9,6 +9,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -72,6 +73,9 @@ public class RetryTests extends ESTestCase {
         request.add(new UpdateRequest("shop", "3"));
         request.add(new UpdateRequest("shop", "4"));
         request.add(new UpdateRequest("shop", "5"));
+        for (DocWriteRequest<?> docWriteRequest : request.requests()) {
+            ((UpdateRequest) docWriteRequest).decRef();
+        }
         return request;
     }
 

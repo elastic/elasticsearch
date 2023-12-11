@@ -10,6 +10,7 @@ package org.elasticsearch.search.geo;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeometryNormalizer;
@@ -79,7 +80,9 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
                 "type": "Point"
               }
             }""";
-        client().index(new IndexRequest(defaultIndexName).id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+        IndexRequest indexRequest = new IndexRequest(defaultIndexName).id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE);
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
 
         String doc2 = """
             {
@@ -88,7 +91,9 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
                 "type": "Point"
               }
             }""";
-        client().index(new IndexRequest(defaultIndexName).id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+        indexRequest = new IndexRequest(defaultIndexName).id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE);
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
 
         String doc3 = """
             {
@@ -97,7 +102,9 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
                 "type": "Point"
               }
             }""";
-        client().index(new IndexRequest(defaultIndexName).id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+        indexRequest = new IndexRequest(defaultIndexName).id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE);
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
 
         @SuppressWarnings("unchecked")
         CheckedSupplier<GeoShapeQueryBuilder, IOException> querySupplier = randomFrom(
@@ -155,7 +162,11 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
         Rectangle envelope = new Rectangle(178, -178, 10, -10);
 
         XContentBuilder docSource = GeoJson.toXContent(envelope, jsonBuilder().startObject().field(defaultFieldName), null).endObject();
-        prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(defaultIndexName).setId("1")
+            .setSource(docSource)
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         Point filterShape = new Point(179, 0);
 

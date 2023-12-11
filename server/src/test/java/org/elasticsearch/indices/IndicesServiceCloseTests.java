@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -136,7 +137,12 @@ public class IndicesServiceCloseTests extends ESTestCase {
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
         assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
-        node.client().prepareIndex("test").setId("1").setSource(Collections.emptyMap()).get();
+        IndexRequestBuilder indexRequestBuilder = node.client().prepareIndex("test").setId("1").setSource(Collections.emptyMap());
+        try {
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
         ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
@@ -165,7 +171,15 @@ public class IndicesServiceCloseTests extends ESTestCase {
                 .prepareCreate("test")
                 .setSettings(indexSettings(1, 0).put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
         );
-        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
+        IndexRequestBuilder indexRequestBuilder = node.client()
+            .prepareIndex("test")
+            .setId("1")
+            .setSource(Collections.singletonMap("foo", 3L));
+        try {
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
         ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
@@ -203,7 +217,15 @@ public class IndicesServiceCloseTests extends ESTestCase {
                 .prepareCreate("test")
                 .setSettings(indexSettings(1, 0).put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
         );
-        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
+        IndexRequestBuilder indexRequestBuilder = node.client()
+            .prepareIndex("test")
+            .setId("1")
+            .setSource(Collections.singletonMap("foo", 3L));
+        try {
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
         ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
@@ -240,7 +262,15 @@ public class IndicesServiceCloseTests extends ESTestCase {
                 .prepareCreate("test")
                 .setSettings(indexSettings(1, 0).put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
         );
-        node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
+        IndexRequestBuilder indexRequestBuilder = node.client()
+            .prepareIndex("test")
+            .setId("1")
+            .setSource(Collections.singletonMap("foo", 3L));
+        try {
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
         ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
         assertEquals(2, indicesService.indicesRefCount.refCount());

@@ -49,10 +49,16 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
     public void testNonExceptional() {
         try (BulkRequest bulkRequest = new BulkRequest()) {
-            bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
-            bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
+            IndexRequest indexRequest1 = new IndexRequest(randomAlphaOfLength(5));
+            bulkRequest.add(indexRequest1);
+            indexRequest1.decRef();
+            IndexRequest indexRequest2 = new IndexRequest(randomAlphaOfLength(5));
+            bulkRequest.add(indexRequest2);
+            indexRequest2.decRef();
             bulkRequest.add(new DeleteRequest(randomAlphaOfLength(5)));
-            bulkRequest.add(new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+            UpdateRequest updateRequest = new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            bulkRequest.add(updateRequest);
+            updateRequest.decRef();
             // Test emulating that index can be auto-created
             indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> true, noop);
             // Test emulating that index cannot be auto-created
@@ -64,10 +70,16 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
     public void testAllFail() {
         try (BulkRequest bulkRequest = new BulkRequest()) {
-            bulkRequest.add(new IndexRequest("no"));
-            bulkRequest.add(new IndexRequest("can't"));
+            IndexRequest indexRequest1 = new IndexRequest("no");
+            bulkRequest.add(indexRequest1);
+            indexRequest1.decRef();
+            IndexRequest indexRequest2 = new IndexRequest("can't");
+            bulkRequest.add(indexRequest2);
+            indexRequest2.decRef();
             bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
-            bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5)));
+            UpdateRequest updateRequest = new UpdateRequest("nothin", randomAlphaOfLength(5));
+            bulkRequest.add(updateRequest);
+            updateRequest.decRef();
             indicesThatCannotBeCreatedTestCase(Set.of("no", "can't", "do", "nothin"), bulkRequest, index -> true, index -> {
                 throw new IndexNotFoundException("Can't make it because I say so");
             });
@@ -76,8 +88,12 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
     public void testSomeFail() {
         try (BulkRequest bulkRequest = new BulkRequest()) {
-            bulkRequest.add(new IndexRequest("ok"));
-            bulkRequest.add(new IndexRequest("bad"));
+            IndexRequest indexRequest1 = new IndexRequest("ok");
+            bulkRequest.add(indexRequest1);
+            indexRequest1.decRef();
+            IndexRequest indexRequest2 = new IndexRequest("bad");
+            bulkRequest.add(indexRequest2);
+            indexRequest2.decRef();
             // Emulate auto_create_index=-bad,+*
             indicesThatCannotBeCreatedTestCase(Set.of("bad"), bulkRequest, index -> true, index -> {
                 if (index.equals("bad")) {

@@ -648,7 +648,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         new ShardId(concreteIndex, shardId),
                         shard -> new ArrayList<>()
                     );
-                    shardRequests.add(new BulkItemRequest(i, docWriteRequest));
+                    System.out.println("**** creating");
+                    try {
+                        shardRequests.add(new BulkItemRequest(i, docWriteRequest));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        throw e;
+                    }
+                    System.out.println("**** created");
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
                     String name = ia != null ? ia.getName() : docWriteRequest.index();
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), e);
@@ -676,6 +683,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0])
                 );
+                for (BulkItemRequest request : requests) {
+                    // The BulkShardRequest constructor has incremented the ref, and we are no longer directly referencing this object
+                    System.out.println("**** decreffing");
+                    request.decRef();
+                }
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
                 bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());

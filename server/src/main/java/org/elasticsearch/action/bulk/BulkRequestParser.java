@@ -338,53 +338,59 @@ public final class BulkRequestParser {
                     // of index request.
                     if ("index".equals(action)) {
                         if (opType == null) {
-                            indexRequestConsumer.accept(
-                                new IndexRequest(index).id(id)
-                                    .routing(routing)
-                                    .version(version)
-                                    .versionType(versionType)
-                                    .setPipeline(pipeline)
-                                    .setIfSeqNo(ifSeqNo)
-                                    .setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias)
-                                    .setListExecutedPipelines(listExecutedPipelines),
-                                type
-                            );
-                        } else {
-                            indexRequestConsumer.accept(
-                                new IndexRequest(index).id(id)
-                                    .routing(routing)
-                                    .version(version)
-                                    .versionType(versionType)
-                                    .create("create".equals(opType))
-                                    .setPipeline(pipeline)
-                                    .setIfSeqNo(ifSeqNo)
-                                    .setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias)
-                                    .setListExecutedPipelines(listExecutedPipelines),
-                                type
-                            );
-                        }
-                    } else if ("create".equals(action)) {
-                        indexRequestConsumer.accept(
-                            new IndexRequest(index).id(id)
+                            IndexRequest indexRequest = new IndexRequest(index).id(id)
                                 .routing(routing)
                                 .version(version)
                                 .versionType(versionType)
-                                .create(true)
                                 .setPipeline(pipeline)
                                 .setIfSeqNo(ifSeqNo)
                                 .setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                 .setDynamicTemplates(dynamicTemplates)
                                 .setRequireAlias(requireAlias)
-                                .setListExecutedPipelines(listExecutedPipelines),
-                            type
-                        );
+                                .setListExecutedPipelines(listExecutedPipelines);
+                            try {
+                                indexRequestConsumer.accept(indexRequest, type);
+                            } finally {
+                                indexRequest.decRef();
+                            }
+                        } else {
+                            IndexRequest indexRequest = new IndexRequest(index).id(id)
+                                .routing(routing)
+                                .version(version)
+                                .versionType(versionType)
+                                .create("create".equals(opType))
+                                .setPipeline(pipeline)
+                                .setIfSeqNo(ifSeqNo)
+                                .setIfPrimaryTerm(ifPrimaryTerm)
+                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                .setDynamicTemplates(dynamicTemplates)
+                                .setRequireAlias(requireAlias)
+                                .setListExecutedPipelines(listExecutedPipelines);
+                            try {
+                                indexRequestConsumer.accept(indexRequest, type);
+                            } finally {
+                                indexRequest.decRef();
+                            }
+                        }
+                    } else if ("create".equals(action)) {
+                        IndexRequest indexRequest = new IndexRequest(index).id(id)
+                            .routing(routing)
+                            .version(version)
+                            .versionType(versionType)
+                            .create(true)
+                            .setPipeline(pipeline)
+                            .setIfSeqNo(ifSeqNo)
+                            .setIfPrimaryTerm(ifPrimaryTerm)
+                            .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                            .setDynamicTemplates(dynamicTemplates)
+                            .setRequireAlias(requireAlias)
+                            .setListExecutedPipelines(listExecutedPipelines);
+                        try {
+                            indexRequestConsumer.accept(indexRequest, type);
+                        } finally {
+                            indexRequest.decRef();
+                        }
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException(
@@ -405,23 +411,27 @@ public final class BulkRequestParser {
                             .setIfPrimaryTerm(ifPrimaryTerm)
                             .setRequireAlias(requireAlias)
                             .routing(routing);
-                        try (
-                            XContentParser sliceParser = createParser(
-                                xContent,
-                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType)
-                            )
-                        ) {
-                            updateRequest.fromXContent(sliceParser);
-                        }
-                        if (fetchSourceContext != null) {
-                            updateRequest.fetchSource(fetchSourceContext);
-                        }
-                        IndexRequest upsertRequest = updateRequest.upsertRequest();
-                        if (upsertRequest != null) {
-                            upsertRequest.setPipeline(pipeline).setListExecutedPipelines(listExecutedPipelines);
-                        }
+                        try {
+                            try (
+                                XContentParser sliceParser = createParser(
+                                    xContent,
+                                    sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType)
+                                )
+                            ) {
+                                updateRequest.fromXContent(sliceParser);
+                            }
+                            if (fetchSourceContext != null) {
+                                updateRequest.fetchSource(fetchSourceContext);
+                            }
+                            IndexRequest upsertRequest = updateRequest.upsertRequest();
+                            if (upsertRequest != null) {
+                                upsertRequest.setPipeline(pipeline).setListExecutedPipelines(listExecutedPipelines);
+                            }
 
-                        updateRequestConsumer.accept(updateRequest);
+                            updateRequestConsumer.accept(updateRequest);
+                        } finally {
+                            updateRequest.decRef();
+                        }
                     }
                     // move pointers
                     from = nextMarker + 1;

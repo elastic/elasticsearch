@@ -34,7 +34,12 @@ public class BulkRequestModifierTests extends ESTestCase {
         int numRequests = scaledRandomIntBetween(8, 64);
         try (BulkRequest bulkRequest = new BulkRequest()) {
             for (int i = 0; i < numRequests; i++) {
-                bulkRequest.add(new IndexRequest("_index").id(String.valueOf(i)).source("{}", XContentType.JSON));
+                IndexRequest indexRequest = new IndexRequest("_index").id(String.valueOf(i)).source("{}", XContentType.JSON);
+                try {
+                    bulkRequest.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             CaptureActionListener actionListener = new CaptureActionListener();
             TransportBulkAction.BulkRequestModifier bulkRequestModifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);
@@ -79,7 +84,12 @@ public class BulkRequestModifierTests extends ESTestCase {
     public void testPipelineFailures() {
         try (BulkRequest originalBulkRequest = new BulkRequest()) {
             for (int i = 0; i < 32; i++) {
-                originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
+                IndexRequest indexRequest = new IndexRequest("index").id(String.valueOf(i));
+                try {
+                    originalBulkRequest.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
 
             TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
@@ -126,7 +136,12 @@ public class BulkRequestModifierTests extends ESTestCase {
     public void testNoFailures() {
         try (BulkRequest originalBulkRequest = new BulkRequest()) {
             for (int i = 0; i < 32; i++) {
-                originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
+                IndexRequest indexRequest = new IndexRequest("index").id(String.valueOf(i));
+                try {
+                    originalBulkRequest.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
 
             TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);

@@ -23,6 +23,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -165,9 +166,13 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             .build();
         createIndex("test", setting, mapping);
 
-        prepareIndex("test").setId(Integer.toString(1))
-            .setSource(jsonBuilder().startObject().field("field", queryString).endObject())
-            .get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(1))
+            .setSource(jsonBuilder().startObject().field("field", queryString).endObject());
+        try {
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
         client().admin().indices().prepareRefresh().get();
         TermVectorsRequestBuilder resp = client().prepareTermVectors("test", Integer.toString(1))
             .setPayloads(true)

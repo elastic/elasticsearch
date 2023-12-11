@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.settings.Settings;
@@ -103,10 +104,12 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .cluster()
             .prepareDeleteStoredScript("id")
             .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
-        client.prepareIndex("idx")
-            .setId("id")
-            .setSource("source", XContentType.JSON)
-            .execute(new AssertingActionListener<>(TransportIndexAction.NAME, client.threadPool()));
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex("idx").setId("id").setSource("source", XContentType.JSON);
+        try {
+            indexRequestBuilder.execute(new AssertingActionListener<>(TransportIndexAction.NAME, client.threadPool()));
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
 
         // choosing arbitrary cluster admin actions to test
         client.admin().cluster().prepareClusterStats().execute(new AssertingActionListener<>(ClusterStatsAction.NAME, client.threadPool()));

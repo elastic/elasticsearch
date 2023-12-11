@@ -900,6 +900,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest>
 
     @Override
     public boolean decRef() {
+        // new RuntimeException("decRef").printStackTrace(System.out);
         return refCounted.decRef();
     }
 

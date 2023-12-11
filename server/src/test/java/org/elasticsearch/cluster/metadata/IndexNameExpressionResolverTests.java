@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1896,11 +1897,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
-        DocWriteRequest<?> request = randomFrom(
-            new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_id"),
-            new DeleteRequest("test-alias")
-        );
+        IndexRequest indexRequest = new IndexRequest("test-alias");
+        UpdateRequest updateRequest = new UpdateRequest("test-alias", "_id");
+        DocWriteRequest<?> request = randomFrom(indexRequest, updateRequest, new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false)
@@ -1913,6 +1912,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     + " indices without one being designated as a write index"
             )
         );
+        indexRequest.decRef();
+        updateRequest.decRef();
     }
 
     public void testConcreteWriteIndexWithNoWriteIndexWithMultipleIndices() {
@@ -1932,11 +1933,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
-        DocWriteRequest<?> request = randomFrom(
-            new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_id"),
-            new DeleteRequest("test-alias")
-        );
+        IndexRequest indexRequest = new IndexRequest("test-alias");
+        UpdateRequest updateRequest = new UpdateRequest("test-alias", "_id");
+        DocWriteRequest<?> request = randomFrom(indexRequest, updateRequest, new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false)
@@ -1949,6 +1948,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     + " indices without one being designated as a write index"
             )
         );
+        indexRequest.decRef();
+        updateRequest.decRef();
     }
 
     public void testAliasResolutionNotAllowingMultipleIndices() {
@@ -3187,17 +3188,27 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 assertThat(infe.toString(), containsString("logs-foobar"));
                 assertThat(infe.getMetadataKeys().contains(IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY), is(true));
             }
+            if (request instanceof RefCounted refCountedRequest) {
+                refCountedRequest.decRef();
+            }
         }
         for (DocWriteRequest<?> request : docWriteRequestsForName.apply("my-index")) {
             IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
             assertThat(result.getName(), equalTo("my-index"));
             assertThat(result.getType(), equalTo(IndexAbstraction.Type.CONCRETE_INDEX));
+            if (request instanceof RefCounted refCountedRequest) {
+                refCountedRequest.decRef();
+            }
         }
         for (DocWriteRequest<?> request : docWriteRequestsForName.apply("my-alias")) {
             IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
             assertThat(result.getName(), equalTo("my-alias"));
             assertThat(result.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+            if (request instanceof RefCounted refCountedRequest) {
+                refCountedRequest.decRef();
+            }
         }
+
     }
 
     public void testResolveWriteIndexAbstractionNoWriteIndexForAlias() {
@@ -3214,7 +3225,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             )
             .build();
 
-        DocWriteRequest<?> request = new IndexRequest("my-alias");
+        IndexRequest request = new IndexRequest("my-alias");
         var e = expectThrows(
             IllegalArgumentException.class,
             () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state2, request)
@@ -3226,6 +3237,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     + " or the alias points to multiple indices without one being designated as a write index"
             )
         );
+        request.decRef();
     }
 
     public void testResolveWriteIndexAbstractionMissing() {
@@ -3233,8 +3245,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index")
         );
-        DocWriteRequest<?> request = new IndexRequest("logs-my-index");
+        IndexRequest request = new IndexRequest("logs-my-index");
         expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request));
+        request.decRef();
     }
 
     public void testResolveWriteIndexAbstractionMultipleMatches() {

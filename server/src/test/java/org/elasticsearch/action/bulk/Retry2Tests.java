@@ -70,11 +70,13 @@ public class Retry2Tests extends ESTestCase {
 
     private BulkRequest createBulkRequest() {
         BulkRequest request = new BulkRequest();
-        request.add(new UpdateRequest("shop", "1").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
-        request.add(new UpdateRequest("shop", "2").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
-        request.add(new UpdateRequest("shop", "3").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
-        request.add(new UpdateRequest("shop", "4").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
-        request.add(new UpdateRequest("shop", "5").doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
+        for (int i = 0; i < 5; i++) {
+            UpdateRequest updateRequest = new UpdateRequest("shop", Integer.toString(i + 1)).doc(
+                Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
+            );
+            request.add(updateRequest);
+            updateRequest.decRef();
+        }
         return request;
     }
 

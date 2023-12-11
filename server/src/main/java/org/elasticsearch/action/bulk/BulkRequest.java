@@ -175,6 +175,7 @@ public class BulkRequest extends ActionRequest
     }
 
     BulkRequest internalAdd(UpdateRequest request) {
+        request.incRef();
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
 
@@ -485,8 +486,8 @@ public class BulkRequest extends ActionRequest
         boolean success = refCounted.decRef();
         if (refCounted.hasReferences() == false) {
             for (DocWriteRequest<?> request : requests) {
-                if (request instanceof IndexRequest indexRequest) {
-                    success = indexRequest.decRef() && success;
+                if (request instanceof RefCounted refCountedRequest) {
+                    success = refCountedRequest.decRef() && success;
                 }
             }
         }

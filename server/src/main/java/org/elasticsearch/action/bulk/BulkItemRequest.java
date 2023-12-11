@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,9 +37,6 @@ public class BulkItemRequest implements Writeable, Accountable, RefCounted, Rele
     BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         id = in.readVInt();
         request = DocWriteRequest.readDocumentRequest(shardId, in);
-        if (this.request instanceof IndexRequest indexRequest) {
-            indexRequest.incRef();
-        }
         this.refCounted = LeakTracker.wrap(new BulkItemRequestRefCounted());
         if (in.readBoolean()) {
             if (shardId == null) {
@@ -56,8 +52,8 @@ public class BulkItemRequest implements Writeable, Accountable, RefCounted, Rele
         this.id = id;
         this.request = request;
         this.refCounted = LeakTracker.wrap(new BulkItemRequestRefCounted());
-        if (this.request instanceof IndexRequest indexRequest) {
-            indexRequest.incRef();
+        if (this.request instanceof RefCounted refCountedRequest) {
+            refCountedRequest.incRef();
         }
     }
 
@@ -139,8 +135,8 @@ public class BulkItemRequest implements Writeable, Accountable, RefCounted, Rele
     @Override
     public boolean decRef() {
         boolean success = refCounted.decRef();
-        if (this.request instanceof IndexRequest indexRequest) {
-            success = indexRequest.decRef() && success;
+        if (refCounted.hasReferences() == false && this.request instanceof RefCounted refCountedRequest) {
+            success = refCountedRequest.decRef() && success;
         }
         return success;
     }

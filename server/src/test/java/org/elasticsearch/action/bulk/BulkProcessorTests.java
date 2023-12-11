@@ -108,7 +108,9 @@ public class BulkProcessorTests extends ESTestCase {
         assertNull(threadPool.getThreadContext().getTransient(transientKey));
 
         // add a single item which won't be over the size or number of items
-        bulkProcessor.add(new IndexRequest());
+        IndexRequest indexRequest = new IndexRequest();
+        bulkProcessor.add(indexRequest);
+        indexRequest.decRef();
 
         // wait for flush to execute
         latch.await();
@@ -160,7 +162,9 @@ public class BulkProcessorTests extends ESTestCase {
                 .setBackoffPolicy(BackoffPolicy.constantBackoff(TimeValue.ZERO, Integer.MAX_VALUE))
                 .build()
         ) {
-            bulkProcessor.add(new IndexRequest());
+            IndexRequest indexRequest = new IndexRequest();
+            bulkProcessor.add(indexRequest);
+            indexRequest.decRef();
             bulkProcessor.flush();
             assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
         }
@@ -233,6 +237,7 @@ public class BulkProcessorTests extends ESTestCase {
 
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
+            CountDownLatch allIndexRequestsAdded = new CountDownLatch(maxDocuments);
 
             IndexRequest indexRequest = new IndexRequest();
             String bulkRequest = """
@@ -255,6 +260,7 @@ public class BulkProcessorTests extends ESTestCase {
                         } else {
                             bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
                         }
+                        allIndexRequestsAdded.countDown();
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToRuntime(e);
                     }
@@ -262,6 +268,8 @@ public class BulkProcessorTests extends ESTestCase {
             }
             startGate.countDown();
             startGate.await();
+            allIndexRequestsAdded.await();
+            indexRequest.decRef();
 
             for (Future<?> f : futures) {
                 try {
@@ -371,6 +379,7 @@ public class BulkProcessorTests extends ESTestCase {
             );
             List<Future<?>> futures = new ArrayList<>();
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
+            CountDownLatch allIndexRequestsAdded = new CountDownLatch(maxDocuments);
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
                 futures.add(executorService.submit(() -> {
                     try {
@@ -383,6 +392,7 @@ public class BulkProcessorTests extends ESTestCase {
                         } else {
                             bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
                         }
+                        allIndexRequestsAdded.countDown();
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToRuntime(e);
                     }
@@ -390,7 +400,8 @@ public class BulkProcessorTests extends ESTestCase {
             }
             startGate.countDown();
             startGate.await();
-
+            allIndexRequestsAdded.await();
+            indexRequest.decRef();
             for (Future<?> f : futures) {
                 try {
                     f.get();
@@ -487,7 +498,9 @@ public class BulkProcessorTests extends ESTestCase {
                 .setFlushCondition(flushEnabled::get)
                 .build()
         ) {
-            bulkProcessor.add(new IndexRequest());
+            IndexRequest indexRequest = new IndexRequest();
+            bulkProcessor.add(indexRequest);
+            indexRequest.decRef();
             bulkProcessor.flush();
             assertThat(attemptRef.get(), equalTo(0));
 

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -54,12 +56,16 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            prepareIndex("index").setId(Integer.toString(doc)).setSource("vector", randomVector(), "text", "hello world").get();
-            prepareIndex("index").setSource("text", "goodnight world").get();
+            indexData("index", Integer.toString(doc), "vector", randomVector(), "text", "hello world");
+            indexData("index", null, "text", "goodnight world");
         }
 
         indicesAdmin().prepareRefresh("index").get();
-        client().prepareUpdate("index", "0").setDoc("vector", (Object) null).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("index", "0")
+            .setDoc("vector", (Object) null)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        updateRequestBuilder.get();
+        updateRequestBuilder.request().decRef();
 
         float[] queryVector = randomVector();
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 20, 50, null).boost(5.0f);
@@ -99,8 +105,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            prepareIndex("index").setSource("vector", randomVector(), "text", "hello world").get();
-            prepareIndex("index").setSource("text", "goodnight world").get();
+            indexData("index", null, "vector", randomVector(), "text", "hello world");
+            indexData("index", null, "text", "goodnight world");
         }
 
         indicesAdmin().prepareRefresh("index").get();
@@ -147,7 +153,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
 
         for (int doc = 0; doc < 10; doc++) {
             String value = doc % 2 == 0 ? "first" : "second";
-            prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", value).get();
+            indexData("index", String.valueOf(doc), "vector", randomVector(), "field", value);
         }
 
         indicesAdmin().prepareRefresh("index").get();
@@ -189,9 +195,9 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "value").get();
+            indexData("index", String.valueOf(doc), "vector", randomVector(), "field", "value");
         }
-        prepareIndex("index").setId("lookup-doc").setSource("other-field", "value").get();
+        indexData("index", "lookup-doc", "other-field", "value");
 
         indicesAdmin().prepareRefresh("index").get();
 
@@ -236,9 +242,9 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            prepareIndex("index").setSource("vector", randomVector(1.0f, 2.0f), "text", "hello world", "number", 1).get();
-            prepareIndex("index").setSource("vector_2", randomVector(20f, 21f), "text", "hello world", "number", 2).get();
-            prepareIndex("index").setSource("text", "goodnight world", "number", 3).get();
+            indexData("index", null, "vector", randomVector(1.0f, 2.0f), "text", "hello world", "number", 1);
+            indexData("index", null, "vector_2", randomVector(20f, 21f), "text", "hello world", "number", 2);
+            indexData("index", null, "text", "goodnight world", "number", 3);
         }
         indicesAdmin().prepareRefresh("index").get();
 
@@ -299,7 +305,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         for (int doc = 0; doc < 10; doc++) {
             // Make them have hte same vector. This will allow us to test the recall is the same but scores take into account both fields
             float[] vector = randomVector();
-            prepareIndex("index").setSource("vector", vector, "vector_2", vector, "number", doc).get();
+            indexData("index", null, "vector", vector, "vector_2", vector, "number", doc);
         }
         indicesAdmin().prepareRefresh("index").get();
 
@@ -369,10 +375,10 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int expectedHits = 0;
         for (int doc = 0; doc < 10; doc++) {
             if (randomBoolean()) {
-                prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "hit").get();
+                indexData("index", String.valueOf(doc), "vector", randomVector(), "field", "hit");
                 ++expectedHits;
             } else {
-                prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "not hit").get();
+                indexData("index", String.valueOf(doc), "vector", randomVector(), "field", "not hit");
             }
         }
         indicesAdmin().prepareRefresh("index").get();
@@ -403,8 +409,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index2", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            prepareIndex("index1").setId(String.valueOf(doc)).setSource("vector", randomVector()).get();
-            prepareIndex("index2").setId(String.valueOf(doc)).setSource("vector", randomVector()).get();
+            indexData("index1", String.valueOf(doc), "vector", randomVector());
+            indexData("index2", String.valueOf(doc), "vector", randomVector());
         }
 
         indicesAdmin().prepareForceMerge("index1", "index2").setMaxNumSegments(1).get();
@@ -441,7 +447,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            prepareIndex("index").setSource("vector", randomVector(4096)).get();
+            indexData("index", null, "vector", randomVector(4096));
         }
 
         indicesAdmin().prepareRefresh("index").get();
@@ -477,5 +483,19 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             vector[i] = (float) randomDoubleBetween(dimLower, dimUpper, true);
         }
         return vector;
+    }
+
+    private void indexData(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            if (id != null) {
+                indexRequestBuilder = indexRequestBuilder.setId(id);
+            }
+            indexRequestBuilder = indexRequestBuilder.setSource(source);
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+
     }
 }

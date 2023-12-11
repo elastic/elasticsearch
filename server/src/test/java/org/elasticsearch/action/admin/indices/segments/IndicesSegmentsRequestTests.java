@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -39,7 +41,14 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         for (int j = 0; j < numDocs; ++j) {
             String id = Integer.toString(j);
-            prepareIndex("test").setId(id).setSource("text", "sometext").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(id).setSource("text", "sometext");
+            IndexRequest indexRequest = indexRequestBuilder.request();
+            try {
+                indexRequestBuilder.get();
+            } finally {
+                indexRequest.decRef();
+            }
+
         }
         client().admin().indices().prepareFlush("test").get();
         client().admin().indices().prepareRefresh().get();

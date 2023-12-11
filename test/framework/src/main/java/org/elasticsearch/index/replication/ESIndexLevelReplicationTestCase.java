@@ -231,11 +231,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             for (int doc = 0; doc < numOfDoc; doc++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).id(Integer.toString(docId.incrementAndGet()))
                     .source("{}", XContentType.JSON);
-                final BulkItemResponse response = index(indexRequest);
-                if (response.isFailed()) {
-                    throw response.getFailure().getCause();
-                } else {
-                    assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
+                try {
+                    final BulkItemResponse response = index(indexRequest);
+                    if (response.isFailed()) {
+                        throw response.getFailure().getCause();
+                    } else {
+                        assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
+                    }
+                } finally {
+                    indexRequest.decRef();
                 }
             }
             return numOfDoc;
@@ -244,11 +248,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public int appendDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
-                final BulkItemResponse response = index(indexRequest);
-                if (response.isFailed()) {
-                    throw response.getFailure().getCause();
-                } else if (response.isFailed() == false) {
-                    assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
+                try {
+                    final BulkItemResponse response = index(indexRequest);
+                    if (response.isFailed()) {
+                        throw response.getFailure().getCause();
+                    } else if (response.isFailed() == false) {
+                        assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
+                    }
+                } finally {
+                    indexRequest.decRef();
                 }
             }
             return numOfDoc;
@@ -273,6 +281,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             try (BulkShardRequest request = new BulkShardRequest(shardId, refreshPolicy, items)) {
                 new WriteReplicationAction(request, wrapBulkListener, this).execute();
                 return listener.get();
+            } finally {
+                items[0].decRef();
             }
         }
 
@@ -917,16 +927,18 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             IndexShard primary,
             Request request
         ) throws Exception {
-        try (
+        BulkItemRequest bulkItemRequest = new BulkItemRequest(0, request);
+        try {
             BulkShardRequest bulkShardRequest = new BulkShardRequest(
                 shardId,
                 request.getRefreshPolicy(),
-                new BulkItemRequest[] { new BulkItemRequest(0, request) }
-            )
-        ) {
+                new BulkItemRequest[] { bulkItemRequest }
+            );
             final PlainActionFuture<BulkShardRequest> res = new PlainActionFuture<>();
             executeShardBulkOnPrimary(primary, bulkShardRequest, res.map(TransportReplicationAction.PrimaryResult::replicaRequest));
             return res.get();
+        } finally {
+            bulkItemRequest.decRef();
         }
     }
 

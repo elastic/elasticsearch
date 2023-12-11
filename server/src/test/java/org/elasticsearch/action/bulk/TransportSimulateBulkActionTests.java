@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -133,11 +134,14 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             int bulkItemCount = randomIntBetween(0, 200);
             for (int i = 0; i < bulkItemCount; i++) {
                 Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
-                IndexRequest indexRequest = new IndexRequest(randomAlphaOfLength(10)).id(randomAlphaOfLength(10)).source(source);
+                IndexRequest indexRequest = new IndexRequest(randomAlphaOfLength(10)).id(randomAlphaOfLength(10))
+                    .setListExecutedPipelines(true)
+                    .source(source);
                 for (int j = 0; j < randomIntBetween(0, 10); j++) {
                     indexRequest.addPipeline(randomAlphaOfLength(12));
                 }
-                bulkRequest.add();
+                bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
             AtomicBoolean onResponseCalled = new AtomicBoolean(false);
             ActionListener<BulkResponse> listener = new ActionListener<>() {
@@ -164,12 +168,16 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                                     Strings.format(
                                         """
                                             {
+                                              "_id": "%s",
                                               "_index": "%s",
+                                              "_version": %s,
                                               "_source": %s,
                                               "executed_pipelines": [%s]
                                             }""",
+                                        indexRequest.id(),
                                         indexRequest.index(),
-                                        indexRequest.source(),
+                                        indexRequest.version(),
+                                        XContentHelper.convertToJson(indexRequest.source(), false, Requests.INDEX_CONTENT_TYPE),
                                         indexRequest.getExecutedPipelines()
                                             .stream()
                                             .map(pipeline -> "\"" + pipeline + "\"")

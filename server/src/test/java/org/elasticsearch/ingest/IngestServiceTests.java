@@ -212,6 +212,7 @@ public class IngestServiceTests extends ESTestCase {
 
         assertTrue(failure.get());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        indexRequest.decRef();
     }
 
     public void testUpdatePipelines() {
@@ -1096,6 +1097,8 @@ public class IngestServiceTests extends ESTestCase {
             bulkRequest.add(indexRequest1);
             IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline(id).setFinalPipeline("_none");
             bulkRequest.add(indexRequest2);
+            indexRequest1.decRef();
+            indexRequest2.decRef();
 
             final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
                 assertThat(e.getCause(), instanceOf(IllegalStateException.class));
@@ -1152,6 +1155,9 @@ public class IngestServiceTests extends ESTestCase {
                 .setPipeline("does_not_exist")
                 .setFinalPipeline("_none");
             bulkRequest.add(indexRequest3);
+            indexRequest1.decRef();
+            indexRequest2.decRef();
+            indexRequest3.decRef();
             @SuppressWarnings("unchecked")
             BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
             @SuppressWarnings("unchecked")
@@ -1217,6 +1223,7 @@ public class IngestServiceTests extends ESTestCase {
             bulkRequest.add(updateRequest);
             IndexRequest indexRequest = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_id1");
             bulkRequest.add(indexRequest);
+            indexRequest.decRef();
             @SuppressWarnings("unchecked")
             BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
             @SuppressWarnings("unchecked")
@@ -1258,6 +1265,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        indexRequest.decRef();
     }
 
     public void testDynamicTemplates() throws Exception {
@@ -1291,6 +1299,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
         latch.await();
         assertThat(indexRequest.getDynamicTemplates(), equalTo(Map.of("foo", "bar", "foo.bar", "baz")));
+        indexRequest.decRef();
     }
 
     public void testExecuteEmptyPipeline() throws Exception {
@@ -1312,6 +1321,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        indexRequest.decRef();
     }
 
     public void testExecutePropagateAllMetadataUpdates() throws Exception {
@@ -1374,6 +1384,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(indexRequest.versionType(), equalTo(VersionType.fromString(versionType)));
         assertThat(indexRequest.ifSeqNo(), equalTo(ifSeqNo));
         assertThat(indexRequest.ifPrimaryTerm(), equalTo(ifPrimaryTerm));
+        indexRequest.decRef();
     }
 
     public void testExecuteFailure() throws Exception {
@@ -1416,6 +1427,7 @@ public class IngestServiceTests extends ESTestCase {
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        indexRequest.decRef();
     }
 
     public void testExecuteSuccessWithOnFailure() throws Exception {
@@ -1464,6 +1476,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
         verify(failureHandler, never()).accept(eq(0), any(IngestProcessorException.class));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        indexRequest.decRef();
     }
 
     public void testExecuteFailureWithNestedOnFailure() throws Exception {
@@ -1508,6 +1521,7 @@ public class IngestServiceTests extends ESTestCase {
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        indexRequest.decRef();
     }
 
     public void testBulkRequestExecutionWithFailures() throws Exception {
@@ -1517,20 +1531,21 @@ public class IngestServiceTests extends ESTestCase {
             int numRequest = scaledRandomIntBetween(8, 64);
             int numIndexRequests = 0;
             for (int i = 0; i < numRequest; i++) {
-                DocWriteRequest<?> request;
                 if (randomBoolean()) {
+                    DocWriteRequest<?> request;
                     if (randomBoolean()) {
                         request = new DeleteRequest("_index", "_id");
                     } else {
                         request = new UpdateRequest("_index", "_id");
                     }
+                    bulkRequest.add(request);
                 } else {
                     IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
                     indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
-                    request = indexRequest;
                     numIndexRequests++;
+                    bulkRequest.add(indexRequest);
+                    indexRequest.decRef();
                 }
-                bulkRequest.add(request);
             }
 
             CompoundProcessor processor = mock(CompoundProcessor.class);
@@ -1591,6 +1606,7 @@ public class IngestServiceTests extends ESTestCase {
                 executedPipelinesExpected.add(shouldListExecutedPiplines);
                 indexRequest.setListExecutedPipelines(shouldListExecutedPiplines);
                 bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
 
             final Processor processor = mock(Processor.class);
@@ -1732,6 +1748,7 @@ public class IngestServiceTests extends ESTestCase {
         indexRequest.setPipeline("_id1").setFinalPipeline("_id2");
         indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
         ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
+        indexRequest.decRef();
 
         {
             final IngestStats ingestStats = ingestService.stats();
@@ -1876,6 +1893,7 @@ public class IngestServiceTests extends ESTestCase {
         assertProcessorStats(0, afterForthRequestStats, "_id1", 1, 1, 0); // not carried forward since type changed
         assertProcessorStats(1, afterForthRequestStats, "_id1", 2, 0, 0); // carried forward and added from old stats
         assertProcessorStats(0, afterForthRequestStats, "_id2", 1, 0, 0);
+        indexRequest.decRef();
     }
 
     public void testStatName() {
@@ -1948,6 +1966,9 @@ public class IngestServiceTests extends ESTestCase {
                 .setPipeline("_id")
                 .setFinalPipeline("_none");
             bulkRequest.add(indexRequest2);
+
+            indexRequest1.decRef();
+            indexRequest2.decRef();
 
             @SuppressWarnings("unchecked")
             final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -2045,6 +2066,7 @@ public class IngestServiceTests extends ESTestCase {
                 .setFinalPipeline("_none");
 
             ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
+            indexRequest.decRef();
         }
 
         assertThat(reference.get(), is(instanceOf(byte[].class)));
@@ -2115,6 +2137,14 @@ public class IngestServiceTests extends ESTestCase {
             bulkRequest.add(indexRequest6);
             bulkRequest.add(indexRequest7);
             bulkRequest.add(indexRequest8);
+            indexRequest1.decRef();
+            indexRequest2.decRef();
+            indexRequest3.decRef();
+            indexRequest4.decRef();
+            indexRequest5.decRef();
+            indexRequest6.decRef();
+            indexRequest7.decRef();
+            indexRequest8.decRef();
             ingestService.executeBulkRequest(8, bulkRequest.requests(), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
 
             assertThat(indexRequest1.getRawTimestamp(), nullValue());
@@ -2156,6 +2186,7 @@ public class IngestServiceTests extends ESTestCase {
 
         indexRequest.setPipeline("some-pipeline").setFinalPipeline("some-final-pipeline");
         assertTrue(hasPipeline(indexRequest));
+        indexRequest.decRef();
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
@@ -2172,6 +2203,7 @@ public class IngestServiceTests extends ESTestCase {
         assertTrue(hasPipeline(indexRequest));
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
+        indexRequest.decRef();
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
@@ -2179,6 +2211,7 @@ public class IngestServiceTests extends ESTestCase {
         assertTrue(hasPipeline(indexRequest));
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
+        indexRequest.decRef();
 
         // index name matches with ITMD:
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
@@ -2190,6 +2223,7 @@ public class IngestServiceTests extends ESTestCase {
         assertTrue(hasPipeline(indexRequest));
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
+        indexRequest.decRef();
     }
 
     public void testResolveFinalPipeline() {
@@ -2207,6 +2241,7 @@ public class IngestServiceTests extends ESTestCase {
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+        indexRequest.decRef();
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
@@ -2215,6 +2250,7 @@ public class IngestServiceTests extends ESTestCase {
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+        indexRequest.decRef();
 
         // index name matches with ITMD:
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
@@ -2227,6 +2263,7 @@ public class IngestServiceTests extends ESTestCase {
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+        indexRequest.decRef();
     }
 
     public void testResolveFinalPipelineWithDateMathExpression() {
@@ -2245,6 +2282,7 @@ public class IngestServiceTests extends ESTestCase {
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+        indexRequest.decRef();
     }
 
     public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
@@ -2256,6 +2294,7 @@ public class IngestServiceTests extends ESTestCase {
             assertFalse(hasPipeline(indexRequest));
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
+            indexRequest.decRef();
         }
 
         // request pipeline:
@@ -2266,6 +2305,7 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(hasPipeline(indexRequest));
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
+            indexRequest.decRef();
         }
 
         // request pipeline with default pipeline:
@@ -2280,6 +2320,7 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(hasPipeline(indexRequest));
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
+            indexRequest.decRef();
         }
 
         // request pipeline with final pipeline:
@@ -2295,6 +2336,7 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+            indexRequest.decRef();
         }
     }
 
@@ -2494,6 +2536,7 @@ public class IngestServiceTests extends ESTestCase {
             assertFalse(hasPipeline(indexRequest));
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
+            indexRequest.decRef();
         }
 
         // _none default pipeline:
@@ -2508,6 +2551,7 @@ public class IngestServiceTests extends ESTestCase {
             assertFalse(hasPipeline(indexRequest));
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
+            indexRequest.decRef();
         }
 
         // _none default pipeline with request pipeline:
@@ -2522,6 +2566,7 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(hasPipeline(indexRequest));
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
+            indexRequest.decRef();
         }
 
         // _none request pipeline with default pipeline:
@@ -2536,6 +2581,7 @@ public class IngestServiceTests extends ESTestCase {
             assertFalse(hasPipeline(indexRequest));
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
+            indexRequest.decRef();
         }
 
         // _none request pipeline with final pipeline:
@@ -2551,6 +2597,7 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+            indexRequest.decRef();
         }
 
         // _none final pipeline:
@@ -2566,6 +2613,7 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
             assertThat(indexRequest.getFinalPipeline(), equalTo(NOOP_PIPELINE_NAME));
+            indexRequest.decRef();
         }
     }
 

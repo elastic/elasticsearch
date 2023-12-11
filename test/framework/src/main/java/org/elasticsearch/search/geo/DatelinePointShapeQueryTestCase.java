@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
@@ -41,26 +42,29 @@ public class DatelinePointShapeQueryTestCase {
         tests.createMapping(defaultIndexName, defaultFieldName);
         tests.ensureGreen();
 
-        tests.client()
+        IndexRequestBuilder indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-169 0)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
-        tests.client()
+        indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("2")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-179 0)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
-        tests.client()
+        indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("3")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(171 0)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         Rectangle rectangle = new Rectangle(169, -178, 1, -1);
 
@@ -77,33 +81,37 @@ public class DatelinePointShapeQueryTestCase {
         tests.createMapping(defaultIndexName, defaultFieldName);
         tests.ensureGreen();
 
-        tests.client()
+        IndexRequestBuilder indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-169 7)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
-        tests.client()
+        indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("2")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-179 7)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
-        tests.client()
+        indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("3")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(179 7)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
-        tests.client()
+        indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("4")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(171 7)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         Polygon polygon = new Polygon(new LinearRing(new double[] { -177, 177, 177, -177, -177 }, new double[] { 10, 10, 5, 5, 10 }));
 
@@ -123,26 +131,29 @@ public class DatelinePointShapeQueryTestCase {
         tests.createMapping(BasePointShapeQueryTestCase.defaultIndexName, BasePointShapeQueryTestCase.defaultFieldName);
         tests.ensureGreen();
 
-        tests.client()
+        IndexRequestBuilder indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-169 7)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
-        tests.client()
+        indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("2")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-179 7)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
-        tests.client()
+        indexRequestBuilder = tests.client()
             .prepareIndex(defaultIndexName)
             .setId("3")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(171 7)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         Polygon polygon1 = new Polygon(new LinearRing(new double[] { -167, -171, 171, -167, -167 }, new double[] { 10, 10, 5, 5, 10 }));
 

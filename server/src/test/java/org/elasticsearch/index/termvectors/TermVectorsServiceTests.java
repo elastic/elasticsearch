@@ -11,6 +11,7 @@ package org.elasticsearch.index.termvectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +49,9 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         createIndex("test", Settings.EMPTY, mapping);
         ensureGreen();
 
-        prepareIndex("test").setId("0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -82,7 +85,10 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         int max = between(3, 10);
         try (BulkRequestBuilder bulk = client().prepareBulk()) {
             for (int i = 0; i < max; i++) {
-                bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog"));
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i))
+                    .setSource("text", "the quick brown fox jumped over the lazy dog");
+                bulk.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
             bulk.get();
         }
@@ -122,7 +128,10 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         int max = between(3, 10);
         try (BulkRequestBuilder bulk = client().prepareBulk()) {
             for (int i = 0; i < max; i++) {
-                bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog"));
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i))
+                    .setSource("text", "the quick brown fox jumped over the lazy dog");
+                bulk.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
             bulk.get();
         }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -75,11 +76,14 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             items
         );
         /*
-         * We're responsible for the lifecycle of the IndexRequests and the BulkItemRequests since they were created here, so we decref them
+         * We're responsible for the lifecycle of the requests and the BulkItemRequests since they were created here, so we decref them
          * here, so that when the returned BulkShardRequest is decRef'd, the reference counts correctly go to 0.
          */
         for (BulkItemRequest bulkItemRequest : items) {
             bulkItemRequest.decRef();
+            if (bulkItemRequest.request() instanceof RefCounted refCountedRequest) {
+                refCountedRequest.decRef();
+            }
         }
         return bulkShardRequest;
     }

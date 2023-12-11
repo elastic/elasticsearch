@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -72,7 +73,9 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                 .setSettings(Settings.builder().put("index.store.type", storeType.getSettingsKey()))
         );
         ensureGreen("test");
-        prepareIndex("test").setId("1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar", "bar", "baz", "baz", 42);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         indicesAdmin().prepareRefresh("test").get();
 
         IndicesStatsResponse rsp = indicesAdmin().prepareStats("test").get();
@@ -80,7 +83,9 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertThat(stats.getCount(), greaterThan(0L));
 
         // now check multiple segments stats are merged together
-        prepareIndex("test").setId("2").setSource("foo", "bar", "bar", "baz", "baz", 43).get();
+        indexRequestBuilder = prepareIndex("test").setId("2").setSource("foo", "bar", "bar", "baz", "baz", 43);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         indicesAdmin().prepareRefresh("test").get();
 
         rsp = indicesAdmin().prepareStats("test").get();
@@ -107,10 +112,10 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         createIndex("test", Settings.builder().put("refresh_interval", -1).build());
 
         // Index a document asynchronously so the request will only return when document is refreshed
-        ActionFuture<DocWriteResponse> index = prepareIndex("test").setId("test")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("test")
             .setSource("test", "test")
-            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-            .execute();
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        ActionFuture<DocWriteResponse> index = indexRequestBuilder.execute();
 
         // Wait for the refresh listener to appear in the stats. Wait a long time because NFS tests can be quite slow!
         logger.info("starting to wait");
@@ -132,6 +137,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         // Refresh the index and wait for the request to come back
         indicesAdmin().prepareRefresh("test").get();
         index.get();
+        indexRequestBuilder.request().decRef();
 
         // The document should appear in the statistics and the refresh listener should be gone
         IndicesStatsResponse stats = indicesAdmin().prepareStats("test").clear().setRefresh(true).setDocs(true).get();

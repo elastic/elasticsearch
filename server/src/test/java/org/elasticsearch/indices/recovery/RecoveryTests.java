@@ -463,12 +463,14 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             for (int i = 0; i < inflightDocs; i++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_" + i).source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                indexRequest.decRef();
                 for (IndexShard replica : randomSubsetOf(shards.getReplicas())) {
                     indexOnReplica(bulkShardRequest, shards, replica);
                 }
                 if (rarely()) {
                     shards.flush();
                 }
+                bulkShardRequest.decRef();
             }
             shards.syncGlobalCheckpoint();
             shards.promoteReplicaToPrimary(randomFrom(shards.getReplicas())).get();

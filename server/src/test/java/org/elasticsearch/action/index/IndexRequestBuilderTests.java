@@ -76,5 +76,7 @@ public class IndexRequestBuilderTests extends ESTestCase {
         doc.close();
         indexRequestBuilder.setSource(doc);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
+
+        indexRequestBuilder.request().decRef();
     }
 }

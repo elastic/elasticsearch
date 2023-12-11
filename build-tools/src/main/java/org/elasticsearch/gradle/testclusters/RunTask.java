@@ -202,7 +202,8 @@ public abstract class RunTask extends DefaultTestClustersTask {
                         mockServer.start();
                         node.setting("telemetry.metrics.enabled", "true");
                         node.setting("tracing.apm.agent.enabled", "true");
-                        node.setting("tracing.apm.agent.transaction_sample_rate", "0.01");
+                        node.setting("tracing.apm.agent.transaction_sample_rate", "0.10");
+                        node.setting("tracing.apm.agent.metrics_interval", "10s");
                         node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
                     } catch (IOException e) {
                         logger.warn("Unable to start APM server", e);

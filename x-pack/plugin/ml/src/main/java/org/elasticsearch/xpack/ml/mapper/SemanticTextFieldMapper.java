@@ -13,6 +13,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.InferenceModelFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -82,7 +83,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
 
-    public static class SemanticTextFieldType extends SimpleMappedFieldType {
+    public static class SemanticTextFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {
 
         private final String modelId;
 

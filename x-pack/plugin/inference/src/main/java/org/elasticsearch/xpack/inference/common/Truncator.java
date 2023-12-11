@@ -27,8 +27,8 @@ public class Truncator {
     static final Setting<Double> REDUCTION_PERCENTAGE_SETTING = Setting.doubleSetting(
         "xpack.inference.truncator.reducation_percentage",
         0.5,
-        0.0,
-        1.0,
+        0.01,
+        0.99,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

@@ -41,14 +41,14 @@ public class TruncatorTests extends ESTestCase {
         assertThat(truncator.truncate(List.of("")), is(new Truncator.TruncationResult(List.of(""), List.of(false))));
     }
 
-    public void testTruncate_Percentage_ReturnsAnEmptyString_WhenPercentageIs0() {
-        var truncator = createTruncator(0);
+    public void testTruncate_Percentage_ReturnsAnEmptyString_WhenPercentageIs0_01() {
+        var truncator = createTruncator(0.01);
         assertThat(truncator.truncate(List.of("abc")), is(new Truncator.TruncationResult(List.of(""), List.of(true))));
     }
 
-    public void testTruncate_Percentage_ReturnsTheSameValueStringIfPercentageIs1() {
-        var truncator = createTruncator(1);
-        assertThat(truncator.truncate(List.of("abc")), is(new Truncator.TruncationResult(List.of("abc"), List.of(false))));
+    public void testTruncate_Percentage_ReturnsStringWithTwoCharacters_IfPercentageIs0_99() {
+        var truncator = createTruncator(0.99);
+        assertThat(truncator.truncate(List.of("abc")), is(new Truncator.TruncationResult(List.of("ab"), List.of(true))));
     }
 
     public void testTruncate_Tokens_DoesNotTruncateWhenLimitIsNull() {
@@ -81,12 +81,12 @@ public class TruncatorTests extends ESTestCase {
         assertThat(truncate(List.of("abc"), 2), is(new Truncator.TruncationResult(List.of("abc"), List.of(false))));
     }
 
-    public void testTruncate_ThrowsIfPercentageIsGreaterThan1() {
-        expectThrows(IllegalArgumentException.class, () -> createTruncator(1.001));
+    public void testTruncate_ThrowsIfPercentageIsGreaterThan0_99() {
+        expectThrows(IllegalArgumentException.class, () -> createTruncator(0.991));
     }
 
-    public void testTruncate_ThrowsIfPercentageIsLessThan0() {
-        expectThrows(IllegalArgumentException.class, () -> createTruncator(-0.001));
+    public void testTruncate_ThrowsIfPercentageIsLessThan0_01() {
+        expectThrows(IllegalArgumentException.class, () -> createTruncator(0.0099));
     }
 
     public static Truncator createTruncator() {

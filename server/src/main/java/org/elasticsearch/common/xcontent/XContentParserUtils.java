@@ -181,7 +181,9 @@ public final class XContentParserUtils {
     }
 
     /**
-     * Parses a list of a given type from the given {@code parser} while passing the valueParser the current array index.
+     * This is the same as {@link #parseList(XContentParser, CheckedFunction)}
+     * except that it passes the array index while parsing the array. Parses a list of a given type from the given {@code parser}
+     * while passing the valueParser the current array index.
      * Assumes that the parser is currently positioned on a {@link Token#START_ARRAY} token and will fail if it is not.
      * The returned list may or may not be mutable.
      *

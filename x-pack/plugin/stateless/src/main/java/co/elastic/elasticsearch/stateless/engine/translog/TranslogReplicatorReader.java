@@ -64,6 +64,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     private final List<BlobMetadata> blobsToRead;
     private final List<BlobMetadata> blobsMissed = new ArrayList<>();
     private final long startNanos;
+    private long operationsReadNanos;
     private boolean shortCircuitDueToHole = false;
     private long previousTranslogShardGeneration = -1;
     private long filesWithShardOperations = 0;
@@ -125,13 +126,16 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     }
 
     private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {
+        long operationsReadStartNanos = System.nanoTime();
         try (
             StreamInput streamInput = new InputStreamStreamInput(
                 translogBlobContainer.readBlob(OperationPurpose.TRANSLOG, blobMetadata.name())
             )
         ) {
             CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
-            return getOperationIterator(blobMetadata.name(), streamInput, translogHeader);
+            Iterator<Translog.Operation> operationIterator = getOperationIterator(blobMetadata.name(), streamInput, translogHeader);
+            operationsReadNanos += System.nanoTime() - operationsReadStartNanos;
+            return operationIterator;
         } catch (NoSuchFileException e) {
             // Skip this file in case it is not relevant for this shard. We will fail when reading the next translog file if there is a hole
             // in the generations
@@ -230,12 +234,14 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             int blobCount = blobsToRead.size();
             logger.warn(
                 "slow [{}] stateless translog recovery [translogRecoveryStartFile={}, blobsToRead_count={}, blobsToRead_first={}, "
-                    + "blobsToRead_last={}, blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, operationBytesRead={}]",
+                    + "blobsToRead_last={}, operationsReadNanos={}, blobsToRead_bytes={}, filesWithShardOperations={}, operationsRead={}, "
+                    + "operationBytesRead={}]",
                 recoveryTime,
                 translogRecoveryStartFile,
                 blobCount,
                 blobCount > 0 ? blobsToRead.get(0).name() : "N/A",
                 blobCount > 0 ? blobsToRead.get(blobCount - 1).name() : "N/A",
+                TimeValue.timeValueNanos(operationsReadNanos),
                 new ByteSizeValue(blobsToRead.stream().mapToLong(BlobMetadata::length).sum(), ByteSizeUnit.BYTES),
                 filesWithShardOperations,
                 operationsRead,

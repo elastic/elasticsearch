@@ -9,10 +9,12 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeActionTests;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -118,7 +120,10 @@ public class TransportNodesActionTests extends ESTestCase {
         final TestTransportNodesAction action = getTestTransportNodesAction();
 
         final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        action.execute(null, new TestNodesRequest(), listener);
+        action.execute(null, new TestNodesRequest(), listener.delegateFailure((l, response) -> {
+            assertTrue(response.getNodes().stream().allMatch(TestNodeResponse::hasReferences));
+            l.onResponse(response);
+        }));
         assertFalse(listener.isDone());
 
         final Set<String> failedNodeIds = new HashSet<>();
@@ -127,7 +132,9 @@ public class TransportNodesActionTests extends ESTestCase {
         for (CapturingTransport.CapturedRequest capturedRequest : transport.getCapturedRequestsAndClear()) {
             if (randomBoolean()) {
                 successfulNodes.add(capturedRequest.node());
-                transport.handleResponse(capturedRequest.requestId(), new TestNodeResponse(capturedRequest.node()));
+                final var response = new TestNodeResponse(capturedRequest.node());
+                transport.handleResponse(capturedRequest.requestId(), response);
+                assertFalse(response.hasReferences()); // response is copied (via the wire protocol) so this instance is released
             } else {
                 failedNodeIds.add(capturedRequest.node().getId());
                 if (randomBoolean()) {
@@ -138,7 +145,16 @@ public class TransportNodesActionTests extends ESTestCase {
             }
         }
 
-        TestNodesResponse response = listener.actionGet(10, TimeUnit.SECONDS);
+        final TestNodesResponse response = listener.actionGet(10, TimeUnit.SECONDS);
+
+        final var allResponsesReleasedListener = new SubscribableListener<Void>();
+        try (var listeners = new RefCountingListener(allResponsesReleasedListener)) {
+            for (final var nodeResponse : response.getNodes()) {
+                nodeResponse.addCloseListener(listeners.acquire());
+            }
+        }
+        safeAwait(allResponsesReleasedListener);
+        assertTrue(response.getNodes().stream().noneMatch(TestNodeResponse::hasReferences));
 
         for (TestNodeResponse nodeResponse : response.getNodes()) {
             assertThat(successfulNodes, Matchers.hasItem(nodeResponse.getNode()));
@@ -213,7 +229,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     @BeforeClass
     public static void startThreadPool() {
-        THREAD_POOL = new TestThreadPool(TransportBroadcastByNodeActionTests.class.getSimpleName());
+        THREAD_POOL = new TestThreadPool(TransportNodesActionTests.class.getSimpleName());
     }
 
     @AfterClass
@@ -268,11 +284,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public TestTransportNodesAction getTestTransportNodesAction() {
         return new TestTransportNodesAction(
-            THREAD_POOL,
             clusterService,
             transportService,
             new ActionFilters(Collections.emptySet()),
-            TestNodesRequest::new,
             TestNodeRequest::new,
             THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
@@ -302,11 +316,9 @@ public class TransportNodesActionTests extends ESTestCase {
         TestNodeResponse> {
 
         TestTransportNodesAction(
-            ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
-            Writeable.Reader<TestNodesRequest> request,
             Writeable.Reader<TestNodeRequest> nodeRequest,
             Executor nodeExecutor
         ) {
@@ -319,7 +331,7 @@ public class TransportNodesActionTests extends ESTestCase {
             List<TestNodeResponse> responses,
             List<FailedNodeException> failures
         ) {
-            return new TestNodesResponse(clusterService.getClusterName(), request, responses, failures);
+            return new TestNodesResponse(clusterService.getClusterName(), responses, failures);
         }
 
         @Override
@@ -350,7 +362,7 @@ public class TransportNodesActionTests extends ESTestCase {
             Writeable.Reader<TestNodeRequest> nodeRequest,
             Executor nodeExecutor
         ) {
-            super(threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
+            super(clusterService, transportService, actionFilters, nodeRequest, nodeExecutor);
         }
 
         @Override
@@ -371,16 +383,8 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static class TestNodesResponse extends BaseNodesResponse<TestNodeResponse> {
 
-        private final TestNodesRequest request;
-
-        TestNodesResponse(
-            ClusterName clusterName,
-            TestNodesRequest request,
-            List<TestNodeResponse> nodeResponses,
-            List<FailedNodeException> failures
-        ) {
+        TestNodesResponse(ClusterName clusterName, List<TestNodeResponse> nodeResponses, List<FailedNodeException> failures) {
             super(clusterName, nodeResponses, failures);
-            this.request = request;
         }
 
         @Override
@@ -425,6 +429,10 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     private static class TestNodeResponse extends BaseNodeResponse {
+
+        private final SubscribableListener<Void> onClose = new SubscribableListener<>();
+        private final RefCounted refCounted = AbstractRefCounted.of(() -> onClose.onResponse(null));
+
         TestNodeResponse() {
             this(mock(DiscoveryNode.class));
         }
@@ -435,6 +443,30 @@ public class TransportNodesActionTests extends ESTestCase {
 
         protected TestNodeResponse(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
+
+        void addCloseListener(ActionListener<Void> listener) {
+            onClose.addListener(listener);
         }
     }
 

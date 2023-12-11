@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -146,6 +147,7 @@ public abstract class TransportNodesAction<
 
             @Override
             protected void onItemResponse(DiscoveryNode discoveryNode, NodeResponse nodeResponse) {
+                nodeResponse.mustIncRef();
                 synchronized (responses) {
                     responses.add(nodeResponse);
                 }
@@ -162,7 +164,11 @@ public abstract class TransportNodesAction<
             @Override
             protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
                 // ref releases all happen-before here so no need to be synchronized
-                return l -> newResponseAsync(task, request, responses, exceptions, l);
+                return l -> {
+                    try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
+                        newResponseAsync(task, request, responses, exceptions, l);
+                    }
+                };
             }
 
             @Override
@@ -182,9 +188,11 @@ public abstract class TransportNodesAction<
     }
 
     /**
-     * Create a new {@link NodesResponse} (multi-node response).
+     * Create a new {@link NodesResponse}. This method is executed on {@link #finalExecutor}.
      *
-     * @param request The associated request.
+     * @param request The request whose response we are constructing. {@link TransportNodesAction} may have already released all its
+     *                references to this object before calling this method, so it's up to individual implementations to retain their own
+     *                reference to the request if still needed here.
      * @param responses All successful node-level responses.
      * @param failures All node-level failures.
      * @return Never {@code null}.
@@ -194,7 +202,11 @@ public abstract class TransportNodesAction<
 
     /**
      * Create a new {@link NodesResponse}, possibly asynchronously. The default implementation is synchronous and calls
-     * {@link #newResponse(BaseNodesRequest, List, List)}
+     * {@link #newResponse(BaseNodesRequest, List, List)}. This method is executed on {@link #finalExecutor}.
+     *
+     * @param request The request whose response we are constructing. {@link TransportNodesAction} may have already released all its
+     *                references to this object before calling this method, so it's up to individual implementations to retain their own
+     *                reference to the request if still needed here.
      */
     protected void newResponseAsync(
         Task task,

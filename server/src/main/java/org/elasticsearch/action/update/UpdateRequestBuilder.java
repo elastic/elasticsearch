@@ -27,11 +27,11 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         WriteRequestBuilder<UpdateRequestBuilder> {
 
     public UpdateRequestBuilder(ElasticsearchClient client) {
-        super(client, UpdateAction.INSTANCE, new UpdateRequest());
+        super(client, TransportUpdateAction.TYPE, new UpdateRequest());
     }
 
     public UpdateRequestBuilder(ElasticsearchClient client, String index, String id) {
-        super(client, UpdateAction.INSTANCE, new UpdateRequest(index, id));
+        super(client, TransportUpdateAction.TYPE, new UpdateRequest(index, id));
     }
 
     /**

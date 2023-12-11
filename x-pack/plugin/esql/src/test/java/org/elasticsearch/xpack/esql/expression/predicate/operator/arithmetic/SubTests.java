@@ -155,7 +155,8 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
                 "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.INTEGER,
                 is(nullValue())
-            );
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
         })));
     }
 

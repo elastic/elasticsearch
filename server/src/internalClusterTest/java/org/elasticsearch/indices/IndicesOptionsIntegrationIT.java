@@ -408,7 +408,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         expectThrows(IndexNotFoundException.class, () -> prepareSearch("test2", "test3").setQuery(matchAllQuery()).get());
 
         // you should still be able to run empty searches without things blowing up
-        prepareSearch().setQuery(matchAllQuery()).get();
+        prepareSearch().setQuery(matchAllQuery()).get().decRef();
     }
 
     // For now don't handle closed indices
@@ -681,7 +681,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 });
             } else {
                 try {
-                    requestBuilder.get();
+                    requestBuilder.get().decRef();
                     fail("IndexNotFoundException or IndexClosedException was expected");
                 } catch (IndexNotFoundException | IndexClosedException e) {}
             }
@@ -694,7 +694,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                     assertThat(response.getResponses()[0].getResponse(), notNullValue());
                 });
             } else {
-                requestBuilder.get();
+                requestBuilder.get().decRef();
             }
         }
     }

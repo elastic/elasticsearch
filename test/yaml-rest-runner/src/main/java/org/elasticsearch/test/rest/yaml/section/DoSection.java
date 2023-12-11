@@ -363,8 +363,11 @@ public class DoSection implements ExecutableSection {
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
-            if (executionContext.esVersion().after(Version.V_7_17_1)) {
-                // #84038 and #84089 mean that this assertion fails when running against a small number of 7.17.x released versions
+
+            if (executionContext.esVersion().onOrAfter(Version.V_8_0_1)
+                || (executionContext.esVersion().major == Version.V_7_17_0.major
+                    && executionContext.esVersion().onOrAfter(Version.V_7_17_2))) {
+                // #84038 and #84089 mean that this assertion fails when running against some 8.0.x and 7.17.x released versions
                 checkElasticProductHeader(response.getHeaders("X-elastic-product"));
             }
             checkWarningHeaders(response.getWarningHeaders(), testPath);

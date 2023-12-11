@@ -125,7 +125,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 null,
                 1
             );
-            nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
+            ActionListener.respondAndRelease(
+                nextPhase,
+                new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null)
+            );
         }
 
         @Override
@@ -267,7 +270,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 awaitForLatch();
             }
 
-            nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
+            ActionListener.respondAndRelease(
+                nextPhase,
+                new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null)
+            );
         }
 
         @Override

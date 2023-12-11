@@ -15,8 +15,8 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -1541,7 +1541,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 new CloseIndexRequest("remote:foo").indicesOptions(options),
                 TransportCloseIndexAction.NAME
             ),
-            new Tuple<TransportRequest, String>(new DeleteIndexRequest("remote:foo").indicesOptions(options), DeleteIndexAction.NAME),
+            new Tuple<TransportRequest, String>(
+                new DeleteIndexRequest("remote:foo").indicesOptions(options),
+                TransportDeleteIndexAction.TYPE.name()
+            ),
             new Tuple<TransportRequest, String>(new PutMappingRequest("remote:foo").indicesOptions(options), PutMappingAction.NAME)
         );
         IndexNotFoundException e = expectThrows(
@@ -1555,7 +1558,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesOptions options = IndicesOptions.fromOptions(randomBoolean(), true, true, true);
         Tuple<TransportRequest, String> tuple = randomFrom(
             new Tuple<TransportRequest, String>(new CloseIndexRequest("*:*").indicesOptions(options), TransportCloseIndexAction.NAME),
-            new Tuple<TransportRequest, String>(new DeleteIndexRequest("*:*").indicesOptions(options), DeleteIndexAction.NAME),
+            new Tuple<TransportRequest, String>(
+                new DeleteIndexRequest("*:*").indicesOptions(options),
+                TransportDeleteIndexAction.TYPE.name()
+            ),
             new Tuple<TransportRequest, String>(new PutMappingRequest("*:*").indicesOptions(options), PutMappingAction.NAME)
         );
         final ResolvedIndices resolved = resolveIndices(tuple.v1(), buildAuthorizedIndices(user, tuple.v2()));
@@ -1576,7 +1582,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testResolveAdminAction() {
-        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, DeleteIndexAction.NAME);
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportDeleteIndexAction.TYPE.name());
         {
             RefreshRequest request = new RefreshRequest("*");
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();

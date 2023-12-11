@@ -8,18 +8,25 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.Transports;
 
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -67,6 +74,39 @@ public class HotThreads {
         "process reaper",
         "DestroyJavaVM"
     );
+
+    /**
+     * Capture and log the hot threads on the local node. Useful for capturing stack traces for unexpectedly-slow operations in production.
+     * The resulting log message may be large, and contains significant whitespace, so it is compressed and base64-encoded using {@link
+     * ChunkedLoggingStream}.
+     *
+     * @param logger        The logger to use for the logging
+     * @param level         The log level to use for the logging.
+     * @param prefix        The prefix to emit on each chunk of the logging.
+     * @param referenceDocs A link to the docs describing how to decode the logging.
+     */
+    public static void logLocalHotThreads(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs) {
+        if (logger.isEnabled(level) == false) {
+            return;
+        }
+
+        final String hotThreads;
+        try {
+            hotThreads = new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect();
+        } catch (Exception e) {
+            logger.error(() -> org.elasticsearch.common.Strings.format("failed to detect local hot threads with prefix [%s]", prefix), e);
+            return;
+        }
+
+        try (
+            var stream = ChunkedLoggingStream.create(logger, level, prefix, referenceDocs);
+            var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
+        ) {
+            writer.write(hotThreads);
+        } catch (IOException e) {
+            logger.error(() -> org.elasticsearch.common.Strings.format("failed to write local hot threads with prefix [%s]", prefix), e);
+        }
+    }
 
     public enum ReportType {
 

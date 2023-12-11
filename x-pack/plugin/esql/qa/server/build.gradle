@@ -19,8 +19,7 @@ subprojects {
   }
 
 
-  if (project.name != 'security' && project.name != 'mixed-cluster' ) {
-    // The security project just configures its subprojects
+  if (project.name != 'single-node' && project.name != 'mixed-cluster' ) {
     apply plugin: 'elasticsearch.legacy-java-rest-test'
 
     testClusters.matching { it.name == "javaRestTest" }.configureEach {
@@ -28,7 +27,6 @@ subprojects {
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
     }
-
 
     dependencies {
       configurations.javaRestTestRuntimeClasspath {

@@ -78,6 +78,7 @@ public class Right extends ScalarFunction implements EvaluatorMapper {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return new RightEvaluator.Factory(
+            source,
             context -> new BytesRef(),
             context -> new UnicodeUtil.UTF8CodePoint(),
             toEvaluator.apply(str),

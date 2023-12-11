@@ -18,6 +18,8 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -26,22 +28,35 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
@@ -105,13 +120,12 @@ public class ConnectorSyncJobIndexService {
 
                     clientWithOrigin.index(
                         indexRequest,
-                        ActionListener.wrap(
-                            indexResponse -> listener.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId())),
-                            listener::onFailure
+                        l.delegateFailureAndWrap(
+                            (ll, indexResponse) -> ll.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId()))
                         )
                     );
                 } catch (IOException e) {
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
             }));
         } catch (Exception e) {
@@ -248,6 +262,151 @@ public class ConnectorSyncJobIndexService {
         }
     }
 
+    /**
+     * List the {@link ConnectorSyncJob} in ascending order of their 'created_at'.
+     *
+     * @param from          From index to start the search from.
+     * @param size          The maximum number of {@link Connector}s to return.
+     * @param connectorId   The id of a {@link Connector} to return sync jobs from.
+     * @param syncStatus    The status to filter the sync jobs on.
+     * @param listener      The action listener to invoke on response/failure.
+     */
+    public void listConnectorSyncJobs(
+        int from,
+        int size,
+        String connectorId,
+        ConnectorSyncStatus syncStatus,
+        ActionListener<ConnectorSyncJobIndexService.ConnectorSyncJobsResult> listener
+    ) {
+        try {
+            QueryBuilder query = buildListQuery(connectorId, syncStatus);
+
+            final SearchSourceBuilder searchSource = new SearchSourceBuilder().from(from)
+                .size(size)
+                .query(query)
+                .fetchSource(true)
+                .sort(ConnectorSyncJob.CREATED_AT_FIELD.getPreferredName(), SortOrder.ASC);
+
+            final SearchRequest searchRequest = new SearchRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).source(searchSource);
+
+            clientWithOrigin.search(searchRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    try {
+                        listener.onResponse(mapSearchResponseToConnectorSyncJobsList(searchResponse));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onResponse(new ConnectorSyncJobIndexService.ConnectorSyncJobsResult(Collections.emptyList(), 0L));
+                        return;
+                    }
+                    listener.onFailure(e);
+                }
+            });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static QueryBuilder buildListQuery(String connectorId, ConnectorSyncStatus syncStatus) {
+        boolean usesFilter = Stream.of(connectorId, syncStatus).anyMatch(Objects::nonNull);
+        BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
+
+        if (usesFilter) {
+            if (Objects.nonNull(connectorId)) {
+                TermQueryBuilder connectorIdQuery = new TermQueryBuilder(
+                    ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName() + "." + Connector.ID_FIELD.getPreferredName(),
+                    connectorId
+                );
+                boolFilterQueryBuilder.must().add(connectorIdQuery);
+            }
+
+            if (Objects.nonNull(syncStatus)) {
+                TermQueryBuilder syncStatusQuery = new TermQueryBuilder(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), syncStatus);
+                boolFilterQueryBuilder.must().add(syncStatusQuery);
+            }
+        }
+
+        return usesFilter ? boolFilterQueryBuilder : new MatchAllQueryBuilder();
+    }
+
+    private ConnectorSyncJobsResult mapSearchResponseToConnectorSyncJobsList(SearchResponse searchResponse) {
+        final List<ConnectorSyncJob> connectorSyncJobs = Arrays.stream(searchResponse.getHits().getHits())
+            .map(ConnectorSyncJobIndexService::hitToConnectorSyncJob)
+            .toList();
+
+        return new ConnectorSyncJobIndexService.ConnectorSyncJobsResult(
+            connectorSyncJobs,
+            (int) searchResponse.getHits().getTotalHits().value
+        );
+    }
+
+    private static ConnectorSyncJob hitToConnectorSyncJob(SearchHit searchHit) {
+        // TODO: don't return sensitive data from configuration inside connector in list endpoint
+
+        return ConnectorSyncJob.fromXContentBytes(searchHit.getSourceRef(), XContentType.JSON);
+    }
+
+    public record ConnectorSyncJobsResult(List<ConnectorSyncJob> connectorSyncJobs, long totalResults) {}
+
+    /**
+    * Updates the ingestion stats of the {@link ConnectorSyncJob} in the underlying index.
+    *
+    * @param request                Request containing the updates to the ingestion stats.
+    * @param listener               The action listener to invoke on response/failure.
+    */
+    public void updateConnectorSyncJobIngestionStats(
+        UpdateConnectorSyncJobIngestionStatsAction.Request request,
+        ActionListener<UpdateResponse> listener
+    ) {
+        String syncJobId = request.getConnectorSyncJobId();
+
+        Map<String, Object> fieldsToUpdate = new HashMap<>(
+            Map.of(
+                ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(),
+                request.getDeletedDocumentCount(),
+                ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(),
+                request.getIndexedDocumentCount(),
+                ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName(),
+                request.getIndexedDocumentVolume()
+            )
+        );
+
+        if (Objects.nonNull(request.getTotalDocumentCount())) {
+            fieldsToUpdate.put(ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName(), request.getTotalDocumentCount());
+        }
+        // TODO: what to do, if no total document count is specified? Calculate it via the current count and params of the request? fetch
+        // the size of the target index?
+
+        Instant lastSeen = Objects.nonNull(request.getLastSeen()) ? request.getLastSeen() : Instant.now();
+        fieldsToUpdate.put(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+
+        final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, syncJobId).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        ).doc(fieldsToUpdate);
+
+        try {
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(syncJobId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(syncJobId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+
+    }
+
     private String generateId() {
         /* Workaround: only needed for generating an id upfront, autoGenerateId() has a side effect generating a timestamp,
          * which would raise an error on the response layer later ("autoGeneratedTimestamp should not be set externally").
@@ -274,15 +433,15 @@ public class ConnectorSyncJobIndexService {
                     Map<String, Object> source = response.getSource();
 
                     @SuppressWarnings("unchecked")
-                    final Connector syncJobConnectorInfo = new Connector.Builder().setConnectorId(
-                        (String) source.get(Connector.ID_FIELD.getPreferredName())
-                    )
+                    final Connector syncJobConnectorInfo = new Connector.Builder().setConnectorId(connectorId)
                         .setFiltering((List<ConnectorFiltering>) source.get(Connector.FILTERING_FIELD.getPreferredName()))
                         .setIndexName((String) source.get(Connector.INDEX_NAME_FIELD.getPreferredName()))
                         .setLanguage((String) source.get(Connector.LANGUAGE_FIELD.getPreferredName()))
                         .setPipeline((ConnectorIngestPipeline) source.get(Connector.PIPELINE_FIELD.getPreferredName()))
                         .setServiceType((String) source.get(Connector.SERVICE_TYPE_FIELD.getPreferredName()))
-                        .setConfiguration((Map<String, Object>) source.get(Connector.CONFIGURATION_FIELD.getPreferredName()))
+                        .setConfiguration(
+                            (Map<String, ConnectorConfiguration>) source.get(Connector.CONFIGURATION_FIELD.getPreferredName())
+                        )
                         .build();
 
                     listener.onResponse(syncJobConnectorInfo);
@@ -293,6 +452,43 @@ public class ConnectorSyncJobIndexService {
                     listener.onFailure(e);
                 }
             });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Sets the error for the {@link ConnectorSyncJob} in the underlying index.
+     * This also sets the {@link ConnectorSyncStatus} to 'ERROR'.
+     *
+     * @param connectorSyncJobId     The id of the connector sync job object.
+     * @param error                  The error to set.
+     * @param listener               The action listener to invoke on response/failure.
+     */
+    public void updateConnectorSyncJobError(String connectorSyncJobId, String error, ActionListener<UpdateResponse> listener) {
+        final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        )
+            .doc(
+                Map.of(
+                    ConnectorSyncJob.ERROR_FIELD.getPreferredName(),
+                    error,
+                    ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                    ConnectorSyncStatus.ERROR
+                )
+            );
+
+        try {
+            clientWithOrigin.update(
+                updateRequest,
+                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
+                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        return;
+                    }
+                    l.onResponse(updateResponse);
+                })
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }

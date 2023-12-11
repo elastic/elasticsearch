@@ -380,7 +380,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         createReviewsTransform(transformId, null, null, config);
     }
 
-    private void createReviewsTransform(String transformId, String authHeader, String secondaryAuthHeader, String config)
+    protected void createReviewsTransform(String transformId, String authHeader, String secondaryAuthHeader, String config)
         throws IOException {
         final Request createTransformRequest = createRequestWithSecondaryAuth(
             "PUT",

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionArrayToStatusException;
 
 public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTransportAction<Request, Response> {
 
@@ -134,11 +136,11 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
                         + request.getJobId()
                         + "]. Total failures ["
                         + caughtExceptions.size()
-                        + "], rethrowing first, all Exceptions: ["
+                        + "], rethrowing first. All Exceptions: ["
                         + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
                         + "]";
 
-                    ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
+                    ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
                     listener.onFailure(e);
                 }
             });

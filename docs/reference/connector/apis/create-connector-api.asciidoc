@@ -109,17 +109,11 @@ The API returns the following result:
 }
 ----
 
-
-// TESTSETUP
-
-//////////////////////////
-
+////
 [source,console]
---------------------------------------------------
+----
 DELETE _connector/123
-
 DELETE _connector/my-connector
---------------------------------------------------
-// TEARDOWN
-
-//////////////////////////
+----
+// TEST[continued]
+////

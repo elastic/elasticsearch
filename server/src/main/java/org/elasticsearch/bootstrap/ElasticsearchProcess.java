@@ -6,17 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.get;
+package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.action.ActionType;
+/**
+ * Helper class to determine if the ES process is shutting down
+ */
+public class ElasticsearchProcess {
+    private static volatile boolean stopping;
 
-public class GetAction extends ActionType<GetResponse> {
-
-    public static final GetAction INSTANCE = new GetAction();
-    public static final String NAME = "indices:data/read/get";
-
-    private GetAction() {
-        super(NAME, GetResponse::new);
+    static void markStopping() {
+        stopping = true;
     }
 
+    public static boolean isStopping() {
+        return stopping;
+    }
 }

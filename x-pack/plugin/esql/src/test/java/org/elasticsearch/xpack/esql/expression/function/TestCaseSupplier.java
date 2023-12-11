@@ -1194,8 +1194,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         @Override
         public String toString() {
-            if (type == DataTypes.UNSIGNED_LONG && data != null) {
-                return type.toString() + "(" + NumericUtils.unsignedLongAsBigInteger((Long) data).toString() + ")";
+            if (type == DataTypes.UNSIGNED_LONG && data instanceof Long longData) {
+                return type.toString() + "(" + NumericUtils.unsignedLongAsBigInteger(longData).toString() + ")";
             }
             return type.toString() + "(" + (data == null ? "null" : data.toString()) + ")";
         }

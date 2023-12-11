@@ -365,10 +365,10 @@ public class DoSection implements ExecutableSection {
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
 
-            if (executionContext.clusterHasFeature(RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id())) {
+            //if (executionContext.clusterHasFeature(RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id())) {
                 // #84038 and #84089 mean that this assertion fails when running against a small number of 7.17.x released versions
                 checkElasticProductHeader(response.getHeaders("X-elastic-product"));
-            }
+            //}
             checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch (ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();

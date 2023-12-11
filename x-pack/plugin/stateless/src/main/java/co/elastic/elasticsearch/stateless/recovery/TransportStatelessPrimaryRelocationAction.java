@@ -64,7 +64,7 @@ import java.util.HashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.INSTANCE;
+import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.TYPE;
 
 public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     StatelessPrimaryRelocationAction.Request,
@@ -72,8 +72,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     private static final Logger logger = LogManager.getLogger(TransportStatelessPrimaryRelocationAction.class);
 
-    public static final String START_RELOCATION_ACTION_NAME = INSTANCE.name() + "/start";
-    public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = INSTANCE.name() + "/primary_context_handoff";
+    public static final String START_RELOCATION_ACTION_NAME = TYPE.name() + "/start";
+    public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = TYPE.name() + "/primary_context_handoff";
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -92,7 +92,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         PeerRecoveryTargetService peerRecoveryTargetService,
         StatelessCommitService statelessCommitService
     ) {
-        super(INSTANCE.name(), actionFilters, transportService.getTaskManager());
+        super(TYPE.name(), actionFilters, transportService.getTaskManager());
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;

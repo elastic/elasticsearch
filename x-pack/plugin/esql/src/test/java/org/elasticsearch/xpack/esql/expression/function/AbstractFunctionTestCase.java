@@ -742,6 +742,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return suppliers;
     }
 
+    /**
+     * Validate that we know the types for all the test cases already created
+     * @param suppliers - list of suppliers before adding in the illegal type combinations
+     */
     private static void typesRequired(List<TestCaseSupplier> suppliers) {
         String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
         if (bad.equals("") == false) {

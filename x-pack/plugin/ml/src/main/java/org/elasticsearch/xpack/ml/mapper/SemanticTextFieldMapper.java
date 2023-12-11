@@ -40,13 +40,9 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return (SemanticTextFieldMapper) in;
     }
 
-    private static Builder builder(FieldMapper in) {
-        return ((SemanticTextFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<String> modelId = Parameter.stringParam("model_id", false, m -> builder(m).modelId.get(), null)
+        private final Parameter<String> modelId = Parameter.stringParam("model_id", false, m -> toType(m).fieldType().modelId, null)
             .addValidator(v -> {
                 if (Strings.isEmpty(v)) {
                     throw new IllegalArgumentException("field [model_id] must be specified");

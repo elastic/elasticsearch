@@ -232,13 +232,10 @@ public class FrozenIndexIT extends ESIntegTestCase {
         ).keepAlive(TimeValue.timeValueMinutes(2));
         final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
-            assertNoFailuresAndResponse(
-                prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)),
-                searchResponse -> {
-                    assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
-                    assertHitCount(searchResponse, numDocs);
-                }
-            );
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), searchResponse -> {
+                assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
+                assertHitCount(searchResponse, numDocs);
+            });
             internalCluster().restartNode(assignedNode);
             ensureGreen(indexName);
 

@@ -315,21 +315,15 @@ public class PointInTimeIT extends ESIntegTestCase {
             }
 
             // Allow partial search result
-            assertResponse(
-                prepareSearch().setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pit)),
-                resp -> {
-                    assertFailures(resp);
-                    assertHitCount(resp, index2);
-                }
-            );
+            assertResponse(prepareSearch().setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pit)), resp -> {
+                assertFailures(resp);
+                assertHitCount(resp, index2);
+            });
 
             // Do not allow partial search result
             expectThrows(
                 ElasticsearchException.class,
-                () -> prepareSearch()
-                    .setAllowPartialSearchResults(false)
-                    .setPointInTime(new PointInTimeBuilder(pit))
-                    .get()
+                () -> prepareSearch().setAllowPartialSearchResults(false).setPointInTime(new PointInTimeBuilder(pit)).get()
             );
         } finally {
             closePointInTime(pit);
@@ -427,14 +421,11 @@ public class PointInTimeIT extends ESIntegTestCase {
             });
 
             internalCluster().restartNode(assignedNodeForIndex1);
-            assertResponse(
-                prepareSearch().setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pitId)),
-                resp -> {
-                    assertFailures(resp);
-                    assertThat(resp.pointInTimeId(), equalTo(pitId));
-                    assertHitCount(resp, numDocs2);
-                }
-            );
+            assertResponse(prepareSearch().setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertFailures(resp);
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                assertHitCount(resp, numDocs2);
+            });
         } finally {
             closePointInTime(pitId);
         }

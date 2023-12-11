@@ -61,8 +61,7 @@ public class RandomizingClient extends FilterClient {
 
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        SearchRequestBuilder searchRequestBuilder = new RandomizedSearchRequestBuilder(this)
-            .setIndices(indices)
+        SearchRequestBuilder searchRequestBuilder = new RandomizedSearchRequestBuilder(this).setIndices(indices)
             .setSearchType(defaultSearchType)
             .setPreference(defaultPreference)
             .setBatchedReduceSize(batchedReduceSize);

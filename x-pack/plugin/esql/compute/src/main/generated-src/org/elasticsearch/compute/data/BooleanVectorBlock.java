@@ -88,4 +88,9 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
     }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
 }

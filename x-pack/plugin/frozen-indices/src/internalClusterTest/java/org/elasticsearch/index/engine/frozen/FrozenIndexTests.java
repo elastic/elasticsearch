@@ -68,6 +68,7 @@ import java.util.EnumSet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -125,27 +126,39 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             .setScroll(TimeValue.timeValueMinutes(1))
             .setSize(1)
             .get();
-        do {
-            assertHitCount(searchResponse, 3);
-            assertEquals(1, searchResponse.getHits().getHits().length);
-            SearchService searchService = getInstanceFromNode(SearchService.class);
-            assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
-            for (int i = 0; i < 2; i++) {
-                shard = indexService.getShard(i);
-                engine = IndexShardTestCase.getEngine(shard);
-                // scrolls keep the reader open
-                assertTrue(((FrozenEngine) engine).isReaderOpen());
-            }
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
-        } while (searchResponse.getHits().getHits().length > 0);
+        try {
+            do {
+                assertHitCount(searchResponse, 3);
+                assertEquals(1, searchResponse.getHits().getHits().length);
+                SearchService searchService = getInstanceFromNode(SearchService.class);
+                assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
+                for (int i = 0; i < 2; i++) {
+                    shard = indexService.getShard(i);
+                    engine = IndexShardTestCase.getEngine(shard);
+                    // scrolls keep the reader open
+                    assertTrue(((FrozenEngine) engine).isReaderOpen());
+                }
+                searchResponse.decRef();
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+            } while (searchResponse.getHits().getHits().length > 0);
+        } finally {
+            searchResponse.decRef();
+        }
         client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
         String pitId = openReaders(TimeValue.timeValueMinutes(1), indexName);
         try {
             for (int from = 0; from < 3; from++) {
-                searchResponse = client().prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(1).setFrom(from).get();
-                assertHitCount(searchResponse, 3);
-                assertEquals(1, searchResponse.getHits().getHits().length);
+                assertResponse(
+                    client().prepareSearch()
+                        .setPointInTime(new PointInTimeBuilder(pitId))
+                        .setSize(1)
+                        .setFrom(from),
+                    response -> {
+                        assertHitCount(response, 3);
+                        assertEquals(1, response.getHits().getHits().length);
+                    }
+                );
                 SearchService searchService = getInstanceFromNode(SearchService.class);
                 assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
                 for (int i = 0; i < 2; i++) {
@@ -192,7 +205,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                     client().prepareSearch(indexName)
                         .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
                         .setSearchType(SearchType.QUERY_THEN_FETCH)
-                        .get();
+                        .get()
+                        .decRef();
                     // in total 4 refreshes 1x query & 1x fetch per shard (we have 2)
                     numRefreshes += 3;
                 }

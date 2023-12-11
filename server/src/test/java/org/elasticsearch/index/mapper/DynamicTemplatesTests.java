@@ -2541,4 +2541,30 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
         }
     }
+
+    public void testUnmatchTypeWithPathMatch() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        // unmatch_mapping_type prevents the first "b" in "a.b.b" from matching.
+                        b.field("unmatch_mapping_type", "object");
+                        b.field("path_match", "*.b");
+                        b.startObject("mapping").field("type", "double").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> { b.field("a.b.b", 123.456); }));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        assertEquals("double", mapperService.fieldType("a.b.b").typeName());
+    }
 }

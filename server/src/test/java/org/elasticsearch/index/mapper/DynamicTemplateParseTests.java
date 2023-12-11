@@ -298,6 +298,15 @@ public class DynamicTemplateParseTests extends ESTestCase {
         }
     }
 
+    public void testUnmatchMappingType() {
+        Map<String, Object> templateDef = new HashMap<>();
+        templateDef.put("unmatch_mapping_type", "object");
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.STRING));
+        assertFalse(template.match(null, "a.b", "b", XContentFieldType.OBJECT));
+    }
+
     public void testSerialization() throws Exception {
         // type-based template
         Map<String, Object> templateDef = new HashMap<>();

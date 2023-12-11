@@ -526,12 +526,23 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
                             totalFrames.addAndGet(stacktrace.frameIds.size());
                             stackFrameIds.addAll(stacktrace.frameIds);
-                            executableIds.addAll(stacktrace.fileIds);
+                            forNativeAndKernelFrames(stacktrace, executableId -> executableIds.add(executableId));
                         }
                     }
                 }
             }
             mayFinish();
+        }
+
+        private static void forNativeAndKernelFrames(StackTrace stacktrace, java.util.function.Consumer<String> consumer) {
+            final int NATIVE_FRAME_TYPE = 3;
+            final int KERNEL_FRAME_TYPE = 4;
+            for (int i = 0; i < stacktrace.fileIds.size(); i++) {
+                Integer frameType = stacktrace.typeIds.get(i);
+                if (frameType != null && (frameType == NATIVE_FRAME_TYPE || frameType == KERNEL_FRAME_TYPE)) {
+                    consumer.accept(stacktrace.fileIds.get(i));
+                }
+            }
         }
 
         public void onHostsResponse(SearchResponse searchResponse) {

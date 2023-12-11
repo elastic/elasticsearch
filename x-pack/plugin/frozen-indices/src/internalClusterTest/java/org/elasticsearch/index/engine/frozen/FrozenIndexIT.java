@@ -243,8 +243,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             ensureGreen(indexName);
 
             assertNoFailuresAndResponse(
-                prepareSearch()
-                    .setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
+                prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreference(null)
                     .setPreFilterShardSize(between(1, 10))

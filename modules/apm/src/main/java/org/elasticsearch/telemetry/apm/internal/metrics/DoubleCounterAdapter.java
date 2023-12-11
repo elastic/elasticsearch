@@ -22,16 +22,7 @@ import java.util.Objects;
 public class DoubleCounterAdapter extends AbstractInstrument<DoubleCounter> implements org.elasticsearch.telemetry.metric.DoubleCounter {
 
     public DoubleCounterAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, name, description, unit);
-    }
-
-    protected io.opentelemetry.api.metrics.DoubleCounter buildInstrument(Meter meter) {
-        return Objects.requireNonNull(meter)
-            .counterBuilder(getName())
-            .ofDoubles()
-            .setDescription(getDescription())
-            .setUnit(getUnit())
-            .build();
+        super(meter, new Builder(name, description, unit));
     }
 
     @Override
@@ -49,5 +40,16 @@ public class DoubleCounterAdapter extends AbstractInstrument<DoubleCounter> impl
     public void incrementBy(double inc, Map<String, Object> attributes) {
         assert inc >= 0;
         getInstrument().add(inc, OtelHelper.fromMap(attributes));
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<DoubleCounter> {
+        private Builder(String name, String description, String unit) {
+            super(name, description, unit);
+        }
+
+        @Override
+        public DoubleCounter build(Meter meter) {
+            return Objects.requireNonNull(meter).counterBuilder(name).ofDoubles().setDescription(description).setUnit(unit).build();
+        }
     }
 }

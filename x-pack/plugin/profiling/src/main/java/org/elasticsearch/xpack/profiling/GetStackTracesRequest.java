@@ -89,7 +89,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
         this.customPerCoreWattX86 = customPerCoreWattX86;
-        this.customPerCoreWattARM64 = customPerCoreWattX86;
+        this.customPerCoreWattARM64 = customPerCoreWattARM64;
         this.customCostPerCoreHour = customCostPerCoreHour;
     }
 
@@ -247,13 +247,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     validationException
                 );
             }
-            // we don't do downsampling when a custom index is provided
-            if (sampleSize != null) {
-                validationException = addValidationError(
-                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] must not be set",
-                    validationException
-                );
-            }
         } else {
             if (stackTraceIds != null) {
                 validationException = addValidationError(
@@ -261,8 +254,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     validationException
                 );
             }
-            validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
         }
+        validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
         validationException = requirePositive(REQUESTED_DURATION_FIELD, requestedDuration, validationException);
         validationException = requirePositive(AWS_COST_FACTOR_FIELD, awsCostFactor, validationException);
         validationException = requirePositive(CUSTOM_CO2_PER_KWH, customCO2PerKWH, validationException);

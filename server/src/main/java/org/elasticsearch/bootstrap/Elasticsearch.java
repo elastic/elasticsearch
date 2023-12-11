@@ -460,6 +460,8 @@ class Elasticsearch {
     }
 
     private static void shutdown() {
+        ElasticsearchProcess.markStopping();
+
         if (INSTANCE == null) {
             return; // never got far enough
         }

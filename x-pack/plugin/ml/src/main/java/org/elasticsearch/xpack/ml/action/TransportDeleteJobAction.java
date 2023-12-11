@@ -167,13 +167,13 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             }
         );
 
-        ActionListener<PutJobAction.Response> markAsDeletingListener = ActionListener.wrap(response -> {
+        ActionListener<PutJobAction.Response> markAsDeletingListener = finalListener.delegateFailureAndWrap((delegate, response) -> {
             if (request.isForce()) {
-                forceDeleteJob(parentTaskClient, request, state, finalListener);
+                forceDeleteJob(parentTaskClient, request, state, delegate);
             } else {
-                normalDeleteJob(parentTaskClient, request, state, finalListener);
+                normalDeleteJob(parentTaskClient, request, state, delegate);
             }
-        }, finalListener::onFailure);
+        });
 
         ActionListener<AcknowledgedResponse> datafeedDeleteListener = ActionListener.wrap(response -> {
             auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));

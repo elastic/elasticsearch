@@ -22,11 +22,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -352,16 +354,26 @@ public class ClusterStatsIT extends ESIntegTestCase {
             );
             getRestClient().performRequest(request);
         }
+        {
+            Request request = new Request("GET", "/_search");
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))
+                .addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f)));
+            request.setJsonEntity(Strings.toString(searchSourceBuilder));
+            getRestClient().performRequest(request);
+        }
 
         SearchUsageStats stats = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
-        assertEquals(5, stats.getTotalSearchCount());
+        assertEquals(6, stats.getTotalSearchCount());
         assertEquals(4, stats.getQueryUsage().size());
         assertEquals(1, stats.getQueryUsage().get("match").longValue());
-        assertEquals(2, stats.getQueryUsage().get("term").longValue());
+        assertEquals(3, stats.getQueryUsage().get("term").longValue());
         assertEquals(1, stats.getQueryUsage().get("range").longValue());
         assertEquals(1, stats.getQueryUsage().get("bool").longValue());
-        assertEquals(2, stats.getSectionsUsage().size());
-        assertEquals(4, stats.getSectionsUsage().get("query").longValue());
+        assertEquals(3, stats.getSectionsUsage().size());
+        assertEquals(5, stats.getSectionsUsage().get("query").longValue());
         assertEquals(1, stats.getSectionsUsage().get("aggs").longValue());
+        assertEquals(1, stats.getSectionsUsage().get("rescore").longValue());
+        assertEquals(1, stats.getRescorerUsage().size());
+        assertEquals(1, stats.getRescorerUsage().get("query").longValue());
     }
 }

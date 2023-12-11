@@ -317,37 +317,4 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
         );
     }
-
-    public void testFromResponse_FailsWhenIsMissingFinalClosingBracket() {
-        String responseJson = """
-            {
-              "object": "list",
-              "data": [
-                  {
-                      "object": "embedding",
-                      "index": 0,
-                      "embedding": [
-                          {}
-                      ]
-                  }
-              ],
-              "model": "text-embedding-ada-002-v2",
-              "usage": {
-                  "prompt_tokens": 8,
-                  "total_tokens": 8
-              }
-            """;
-
-        var thrownException = expectThrows(
-            ParsingException.class,
-            () -> OpenAiEmbeddingsResponseEntity.fromResponse(
-                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
-            )
-        );
-
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
-        );
-    }
 }

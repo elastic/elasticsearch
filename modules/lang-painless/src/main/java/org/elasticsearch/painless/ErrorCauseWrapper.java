@@ -23,6 +23,7 @@ class ErrorCauseWrapper extends ElasticsearchException {
 
     private static final List<Class<? extends Error>> wrappedErrors = List.of(
         PainlessError.class,
+        PainlessExplainError.class,
         OutOfMemoryError.class,
         StackOverflowError.class,
         LinkageError.class

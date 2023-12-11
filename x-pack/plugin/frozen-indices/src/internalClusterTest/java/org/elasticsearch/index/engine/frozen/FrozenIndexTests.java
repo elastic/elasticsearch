@@ -150,10 +150,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         try {
             for (int from = 0; from < 3; from++) {
                 assertResponse(
-                    client().prepareSearch()
-                        .setPointInTime(new PointInTimeBuilder(pitId))
-                        .setSize(1)
-                        .setFrom(from),
+                    client().prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(1).setFrom(from),
                     response -> {
                         assertHitCount(response, 3);
                         assertEquals(1, response.getHits().getHits().length);

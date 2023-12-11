@@ -526,7 +526,6 @@ class ClientTransformIndexer extends TransformIndexer {
             listener.onResponse(null);
             return;
         }
-        logger.info("searchRequest: [{}]", originalRequest);
 
         final SearchRequest searchRequest;
         PointInTimeBuilder pit = originalRequest.pointInTimeBuilder();
@@ -536,6 +535,7 @@ class ClientTransformIndexer extends TransformIndexer {
         } else {
             searchRequest = originalRequest;
         }
+        logger.trace("searchRequest: [{}]", searchRequest);
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),

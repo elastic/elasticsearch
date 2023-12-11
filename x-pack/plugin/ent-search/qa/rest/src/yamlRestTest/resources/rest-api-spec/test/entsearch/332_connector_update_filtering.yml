@@ -90,8 +90,6 @@ setup:
                   errors: []
                   state: valid
 
-  - match: { acknowledged: true }
-
   - do:
       connector.get:
         connector_id: test-connector
@@ -194,9 +192,6 @@ setup:
         body:
           filtering:
             - domain: some_domain
-
-  - match:
-      status: 400
 
 ---
 "Update Connector Filtering - Wrong datetime expression":

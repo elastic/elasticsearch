@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,13 +32,13 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class UpdateConnectorErrorAction extends ActionType<AcknowledgedResponse> {
+public class UpdateConnectorErrorAction extends ActionType<ActionResponse.Empty> {
 
     public static final UpdateConnectorErrorAction INSTANCE = new UpdateConnectorErrorAction();
     public static final String NAME = "cluster:admin/xpack/connector/update_error";
 
     public UpdateConnectorErrorAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

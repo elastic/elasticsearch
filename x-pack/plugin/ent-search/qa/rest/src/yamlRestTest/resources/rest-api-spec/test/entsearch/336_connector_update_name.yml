@@ -21,9 +21,6 @@ setup:
         body:
           name: test-name
 
-
-  - match: { acknowledged: true }
-
   - do:
       connector.get:
         connector_id: test-connector
@@ -38,8 +35,6 @@ setup:
         body:
           name: test-name
           description: test-description
-
-  - match: { acknowledged: true }
 
   - do:
       connector.get:

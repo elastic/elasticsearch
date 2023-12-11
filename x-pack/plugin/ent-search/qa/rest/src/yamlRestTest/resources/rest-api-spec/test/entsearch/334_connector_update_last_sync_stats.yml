@@ -21,8 +21,6 @@ setup:
           last_sync_error: "oh no error"
           last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z"
 
-  - match: { acknowledged: true }
-
   - do:
       connector.get:
         connector_id: test-connector

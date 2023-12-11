@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,13 +24,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdateConnectorLastSeenAction extends ActionType<AcknowledgedResponse> {
+public class UpdateConnectorLastSeenAction extends ActionType<ActionResponse.Empty> {
 
     public static final UpdateConnectorLastSeenAction INSTANCE = new UpdateConnectorLastSeenAction();
     public static final String NAME = "cluster:admin/xpack/connector/update_last_seen";
 
     public UpdateConnectorLastSeenAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

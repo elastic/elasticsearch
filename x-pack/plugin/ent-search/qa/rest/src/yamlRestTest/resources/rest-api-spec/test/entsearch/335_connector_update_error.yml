@@ -21,9 +21,6 @@ setup:
         body:
           error: "some error"
 
-
-  - match: { acknowledged: true }
-
   - do:
       connector.get:
         connector_id: test-connector

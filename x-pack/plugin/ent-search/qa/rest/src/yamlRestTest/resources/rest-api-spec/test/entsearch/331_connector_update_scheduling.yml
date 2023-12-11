@@ -30,9 +30,6 @@ setup:
               enabled: false
               interval: 3 0 0 * * ?
 
-
-  - match: { acknowledged: true }
-
   - do:
       connector.get:
         connector_id: test-connector

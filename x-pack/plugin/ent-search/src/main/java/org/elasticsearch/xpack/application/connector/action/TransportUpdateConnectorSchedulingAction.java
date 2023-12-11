@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
 public class TransportUpdateConnectorSchedulingAction extends HandledTransportAction<
     UpdateConnectorSchedulingAction.Request,
-    AcknowledgedResponse> {
+    ActionResponse.Empty> {
 
     protected final ConnectorIndexService connectorIndexService;
 
@@ -43,7 +43,7 @@ public class TransportUpdateConnectorSchedulingAction extends HandledTransportAc
     }
 
     @Override
-    protected void doExecute(Task task, UpdateConnectorSchedulingAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        connectorIndexService.updateConnectorScheduling(request, listener.map(r -> AcknowledgedResponse.TRUE));
+    protected void doExecute(Task task, UpdateConnectorSchedulingAction.Request request, ActionListener<ActionResponse.Empty> listener) {
+        connectorIndexService.updateConnectorScheduling(request, listener.map(r -> ActionResponse.Empty.INSTANCE));
     }
 }

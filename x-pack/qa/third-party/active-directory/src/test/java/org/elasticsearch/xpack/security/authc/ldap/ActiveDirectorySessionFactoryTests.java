@@ -511,14 +511,14 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             .put(getFullSettingKey(REALM_ID, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "tokenGroups")
             .build();
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
-        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        final PlainActionFuture<LdapMetadataResolver.LdapMetadataResult> future = new PlainActionFuture<>();
         LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
             String userName = "hulk";
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 resolver.resolve(ldap.getConnection(), BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, null, future);
-                Map<String, Object> metadataGroupSIDs = future.get();
+                Map<String, Object> metadataGroupSIDs = future.get().getMetaData();
                 assertThat(metadataGroupSIDs.size(), equalTo(1));
                 assertNotNull(metadataGroupSIDs.get("tokenGroups"));
                 List<String> SIDs = ((List<String>) metadataGroupSIDs.get("tokenGroups"));

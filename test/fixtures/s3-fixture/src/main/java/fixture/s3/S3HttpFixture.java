@@ -11,6 +11,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.junit.rules.ExternalResource;
 
@@ -48,12 +49,18 @@ public class S3HttpFixture extends ExternalResource {
         return new S3HttpHandler(bucket, basePath) {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
-                final String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-                if (authorization == null || authorization.contains(accessKey) == false) {
-                    sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Bad access key");
-                    return;
+                try {
+                    final String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+                    if (authorization == null || authorization.contains(accessKey) == false) {
+                        sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Bad access key");
+                        return;
+                    }
+                    super.handle(exchange);
+                } catch (Error e) {
+                    // HttpServer catches Throwable, so we must throw errors on another thread
+                    ExceptionsHelper.maybeDieOnAnotherThread(e);
+                    throw e;
                 }
-                super.handle(exchange);
             }
         };
     }

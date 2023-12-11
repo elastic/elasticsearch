@@ -8,6 +8,8 @@
 
 package org.elasticsearch.synonyms;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -16,9 +18,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -62,6 +64,8 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * Manages synonyms performing operations on the system index
  */
 public class SynonymsManagementAPIService {
+
+    private static final Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
     private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
     private static final int SYNONYMS_INDEX_FORMAT = 2;
     private static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
@@ -234,11 +238,30 @@ public class SynonymsManagementAPIService {
         return new SynonymRule((String) docSourceAsMap.get(SYNONYM_RULE_ID_FIELD), (String) docSourceAsMap.get(SYNONYMS_FIELD));
     }
 
+    private static void logUniqueFailureMessagesWithIndices(List<BulkItemResponse.Failure> bulkFailures) {
+        // check if logger is at least debug
+        if (logger.isDebugEnabled() == false) {
+            return;
+        }
+        Map<String, List<BulkItemResponse.Failure>> uniqueFailureMessages = bulkFailures.stream()
+            .collect(Collectors.groupingBy(BulkItemResponse.Failure::getMessage));
+        // log each unique failure with their associated indices and the first stacktrace
+        uniqueFailureMessages.forEach((failureMessage, failures) -> {
+            logger.debug(
+                "Error updating synonyms: [{}], indices: [{}], stacktrace: [{}]",
+                failureMessage,
+                failures.stream().map(BulkItemResponse.Failure::getIndex).collect(Collectors.joining(",")),
+                ExceptionsHelper.formatStackTrace(failures.get(0).getCause().getStackTrace())
+            );
+        });
+    }
+
     public void putSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<SynonymsReloadResult> listener) {
         deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
             boolean created = bulkDeleteResponse.getDeleted() == 0;
             final List<BulkItemResponse.Failure> bulkDeleteFailures = bulkDeleteResponse.getBulkFailures();
             if (bulkDeleteFailures.isEmpty() == false) {
+                logUniqueFailureMessagesWithIndices(bulkDeleteFailures);
                 listener.onFailure(
                     new ElasticsearchException(
                         "Error updating synonyms: "
@@ -264,6 +287,12 @@ public class SynonymsManagementAPIService {
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .execute(deleteByQueryResponseListener.delegateFailure((bulkInsertResponseListener, bulkInsertResponse) -> {
                     if (bulkInsertResponse.hasFailures()) {
+                        logUniqueFailureMessagesWithIndices(
+                            Arrays.stream(bulkInsertResponse.getItems())
+                                .filter(BulkItemResponse::isFailed)
+                                .map(BulkItemResponse::getFailure)
+                                .collect(Collectors.toList())
+                        );
                         bulkInsertResponseListener.onFailure(
                             new ElasticsearchException("Error updating synonyms: " + bulkInsertResponse.buildFailureMessage())
                         );
@@ -439,7 +468,7 @@ public class SynonymsManagementAPIService {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
         ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
         client.execute(
-            ReloadAnalyzerAction.INSTANCE,
+            TransportReloadAnalyzersAction.TYPE,
             reloadAnalyzersRequest,
             listener.safeMap(reloadResponse -> new SynonymsReloadResult(synonymsOperationResult, reloadResponse))
         );

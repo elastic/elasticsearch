@@ -62,6 +62,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleIndexExecutor;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -158,6 +159,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final ThreadPool threadPool;
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     final ResultDeduplicator<String, Void> clusterStateChangesDeduplicator;
+    private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -204,7 +206,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         ThreadPool threadPool,
         LongSupplier nowSupplier,
         DataStreamLifecycleErrorStore errorStore,
-        AllocationService allocationService
+        AllocationService allocationService,
+        DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher
     ) {
         this.settings = settings;
         this.client = client;
@@ -232,6 +235,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             Priority.URGENT, // urgent priority as this deletes indices
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
         );
+        this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
     }
 
     /**
@@ -296,6 +300,25 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     event.getTriggeredTime()
                 );
                 run(clusterService.state());
+                dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        assert acknowledgedResponse.isAcknowledged() : "updating the health info is always acknowledged";
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(
+                            String.format(
+                                Locale.ROOT,
+                                "unable to update the health cache with DSL errors related information "
+                                    + "due to [%s]. Will retry on the next DSL run",
+                                e.getMessage()
+                            ),
+                            e
+                        );
+                    }
+                });
             }
         }
     }

@@ -210,7 +210,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             Writeable,
             RepositoryOperation {
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public Entry(String repoName, List<SnapshotId> snapshots, long startTime, long repositoryStateId, State state) {
             this(repoName, snapshots, startTime, repositoryStateId, state, UUIDs.randomBase64UUID());
         }
@@ -219,7 +219,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             assert snapshots.size() == new HashSet<>(snapshots).size() : "Duplicate snapshot ids in " + snapshots;
         }
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public static Entry readFrom(StreamInput in) throws IOException {
             return new Entry(
                 in.readString(),
@@ -231,13 +231,13 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             );
         }
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public Entry started() {
             assert state == State.WAITING;
             return new Entry(repository(), snapshots, startTime, repositoryStateId, State.STARTED, uuid);
         }
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public Entry withAddedSnapshots(Collection<SnapshotId> newSnapshots) {
             assert state == State.WAITING;
             final Collection<SnapshotId> updatedSnapshots = new HashSet<>(snapshots);
@@ -247,12 +247,12 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             return new Entry(repository(), List.copyOf(updatedSnapshots), startTime, repositoryStateId, State.WAITING, uuid);
         }
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public Entry withSnapshots(Collection<SnapshotId> snapshots) {
             return new Entry(repository(), List.copyOf(snapshots), startTime, repositoryStateId, state, uuid);
         }
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public Entry withRepoGen(long repoGen) {
             return new Entry(repository(), snapshots, startTime, repoGen, state, uuid);
         }

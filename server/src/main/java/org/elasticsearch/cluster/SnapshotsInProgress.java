@@ -506,7 +506,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this(nodeId, assertNotSuccess(state), generation, null);
         }
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, @Nullable ShardGeneration generation, String reason) {
             this(nodeId, assertNotSuccess(state), generation, reason, null);
         }
@@ -516,7 +516,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return shardState;
         }
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public static ShardSnapshotStatus success(String nodeId, ShardSnapshotResult shardSnapshotResult) {
             return new ShardSnapshotStatus(nodeId, ShardState.SUCCESS, shardSnapshotResult.getGeneration(), null, shardSnapshotResult);
         }
@@ -548,7 +548,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return true;
         }
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public static ShardSnapshotStatus readFrom(StreamInput in) throws IOException {
             final String nodeId = DiscoveryNode.deduplicateNodeIdentifier(in.readOptionalString());
             final ShardState state = ShardState.fromValue(in.readByte());
@@ -561,7 +561,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return new ShardSnapshotStatus(nodeId, state, generation, reason, shardSnapshotResult);
         }
 
-        @SuppressForbidden(reason = "using private constructor")
+        @SuppressForbidden(reason = "using a private constructor within the same file")
         public ShardSnapshotStatus withUpdatedGeneration(ShardGeneration newGeneration) {
             assert state == ShardState.SUCCESS : "can't move generation in state " + state;
             return new ShardSnapshotStatus(

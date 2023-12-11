@@ -296,10 +296,100 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.rejections.total",
-                "Total number of indexing rejections due to breaching `indexing_pressure.memory.limit` threshold",
+                "es.node.stats.indices.indexing.coordinating_operations.memory.size.total",
+                "Total number of memory bytes consumed by coordinating operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalCoordinatingBytes())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.coordinating_operations.count.total",
+                "Total number of coordinating operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalCoordinatingOps())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.coordinating_operations.memory.size.current",
+                "Current number of memory bytes consumed by coordinating operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentCoordinatingBytes())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.coordinating_operations.count.current",
+                "Current number of coordinating operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentCoordinatingOps())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.coordinating_operations.rejections.total",
+                "Total number of coordinating operations rejections",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCoordinatingRejections())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.primary_operations.memory.size.total",
+                "Total number of memory bytes consumed by primary operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalPrimaryBytes())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.primary_operations.count.total",
+                "Total number of primary operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalPrimaryOps())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.primary_operations.memory.size.current",
+                "Current number of memory bytes consumed by primary operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentPrimaryBytes())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.primary_operations.count.current",
+                "Current number of primary operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentPrimaryOps())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.primary_operations.rejections.total",
+                "Total number of primary operations rejections",
                 "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getPrimaryRejections())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.memory.limit.current",
+                "Current memory limit for primary and coordinating operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getMemoryLimit())
             )
         );
 

@@ -574,7 +574,6 @@ dissectEmptyRightPaddingModifier
 ROW message="[1998-08-10T17:15:42]          [WARN]"
 | DISSECT message "[%{ts}]%{->}[%{level}]"
 // end::dissectEmptyRightPaddingModifier[]
-| KEEP message, ts, level
 ;
 
 // tag::dissectEmptyRightPaddingModifier-result[]

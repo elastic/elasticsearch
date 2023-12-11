@@ -264,12 +264,22 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
     static {
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> Instant.parse(p.text()),
+            (p, c) -> parseNullableInstant(p),
             CANCELATION_REQUESTED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> Instant.parse(p.text()), CANCELED_AT_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> Instant.parse(p.text()), COMPLETED_AT_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> parseNullableInstant(p),
+            CANCELED_AT_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> parseNullableInstant(p),
+            COMPLETED_AT_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
         PARSER.declareField(
             constructorArg(),
             (p, c) -> ConnectorSyncJob.syncJobConnectorFromXContent(p),
@@ -288,9 +298,14 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             JOB_TYPE_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), LAST_SEEN_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), (p, c) -> parseNullableInstant(p), LAST_SEEN_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
         PARSER.declareField(constructorArg(), (p, c) -> p.map(), METADATA_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> Instant.parse(p.text()), STARTED_AT_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> parseNullableInstant(p),
+            STARTED_AT_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
         PARSER.declareField(
             constructorArg(),
             (p, c) -> ConnectorSyncStatus.fromString(p.text()),
@@ -304,7 +319,11 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             TRIGGER_METHOD_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareString(optionalConstructorArg(), WORKER_HOSTNAME_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), WORKER_HOSTNAME_FIELD);
+    }
+
+    private static Instant parseNullableInstant(XContentParser p) throws IOException {
+        return p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text());
     }
 
     @SuppressWarnings("unchecked")

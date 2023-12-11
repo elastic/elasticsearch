@@ -566,7 +566,7 @@ minimum similarity for a vector to be considered a match. The `knn` search flow 
 
 NOTE: `similarity` is the true <<dense-vector-similarity, similarity>> before it has been transformed into `_score` and boost applied.
 
-For each configured <<dense-vector-similarity, similarity>>, here is the corresponding inverted `_score` function.
+For each configured <<dense-vector-similarity, similarity>>, here is the corresponding inverted `_score` function. This is so if you are wanting to filter from a `_score` perspective, you can do this minor transformation to correctly reject irrelevant results.
 --
  - `l2_norm`: `sqrt((1 / _score) - 1)`
  - `cosine`: `(2 * _score) - 1`

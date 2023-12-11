@@ -2112,8 +2112,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         public Builder fieldsForModels(Map<String, Set<String>> fieldsForModels) {
             if (fieldsForModels != null) {
                 this.fieldsForModels = fieldsForModels;
-            } else {
-                this.fieldsForModels.clear();
+            } else if (!this.fieldsForModels.isEmpty()) {
+                this.fieldsForModels = Map.of();
             }
 
             return this;

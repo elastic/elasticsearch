@@ -115,7 +115,7 @@ public class IndexMetadataTests extends ESTestCase {
             .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
-            .fieldsForModels(fieldsForModels)
+            .fieldsForModels(randomBoolean() ? fieldsForModels : null)
             .build();
         assertEquals(system, metadata.isSystem());
 

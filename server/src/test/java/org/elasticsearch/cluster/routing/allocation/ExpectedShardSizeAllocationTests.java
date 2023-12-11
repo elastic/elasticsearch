@@ -155,6 +155,44 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         );
     }
 
+    public void testAllocateToCorrectNodeUsingShardSizeFromForecast() {
+
+        long shardSize = ByteSizeValue.ofGb(1).getBytes();
+
+        var indexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .shardSizeInBytesForecast(shardSize)
+            .build();
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).add(newNode("node-3")))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .build();
+        var dataNodeIds = clusterState.nodes().getDataNodes().keySet();
+
+        long diskSize = ByteSizeValue.ofGb(5).getBytes();
+        long headRoom = diskSize / 10;
+        var expectedNodeId = randomFrom(dataNodeIds);
+        var clusterInfo = createClusterInfo(
+            createDiskUsage(
+                dataNodeIds,
+                nodeId -> createDiskUsage(nodeId, diskSize, headRoom + shardSize + (Objects.equals(nodeId, expectedNodeId) ? +1 : -1))
+            ),
+            Map.of()
+        );
+
+        AllocationService service = createAllocationService(Settings.EMPTY, () -> clusterInfo);
+        clusterState = service.reroute(clusterState, "reroute", ActionListener.noop());
+
+        assertThatShard(
+            clusterState.routingTable().index(indexMetadata.getIndex()).shard(0).primaryShard(),
+            INITIALIZING,
+            expectedNodeId,
+            shardSize
+        );
+    }
+
     private static void assertThatShard(ShardRouting shard, ShardRoutingState state, String nodeId, long expectedShardSize) {
         assertThat(shard.state(), equalTo(state));
         assertThat(shard.currentNodeId(), equalTo(nodeId));

@@ -51,7 +51,10 @@ public class ExpectedShardSizeEstimator {
         } else if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else {
-            return clusterInfo.getShardSize(shard, defaultValue);
+            return Math.max(
+                indexMetadata.getForecastedShardSizeInBytes().orElse(defaultValue),
+                clusterInfo.getShardSize(shard, defaultValue)
+            );
         }
     }
 

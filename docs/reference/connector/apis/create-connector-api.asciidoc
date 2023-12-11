@@ -6,15 +6,25 @@
 
 Creates a connector.
 
+
 [source,console]
 --------------------------------------------------
-PUT _connector/123
+PUT _connector/my-connector
 {
   "index_name": "search-google-drive",
   "name": "My Connector",
   "service_type": "google_drive"
 }
 --------------------------------------------------
+
+////
+[source,console]
+----
+DELETE _connector/my-connector
+----
+// TEST[continued]
+////
+
 
 
 [[create-connector-api-request]]
@@ -103,6 +113,7 @@ PUT _connector/my-connector
 }
 ----
 
+
 The API returns the following result:
 
 [source,console-result]
@@ -111,11 +122,9 @@ The API returns the following result:
   "result": "created"
 }
 ----
-
 ////
 [source,console]
 ----
-DELETE _connector/123
 DELETE _connector/my-connector
 ----
 // TEST[continued]

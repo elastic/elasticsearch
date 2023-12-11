@@ -112,6 +112,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final DataStreamLifecycle lifecycle;
     private final boolean failureStore;
     private final List<Index> failureIndices;
+    private final boolean rolloverNeeded;
 
     public DataStream(
         String name,
@@ -140,7 +141,41 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode,
             lifecycle,
             failureStore,
-            failureIndices
+            failureIndices,
+            false
+        );
+    }
+
+    public DataStream(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean hidden,
+        boolean replicated,
+        boolean system,
+        boolean allowCustomRouting,
+        IndexMode indexMode,
+        DataStreamLifecycle lifecycle,
+        boolean failureStore,
+        List<Index> failureIndices,
+        boolean rolloverNeeded
+    ) {
+        this(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            System::currentTimeMillis,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            rolloverNeeded
         );
     }
 
@@ -158,7 +193,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         IndexMode indexMode,
         DataStreamLifecycle lifecycle,
         boolean failureStore,
-        List<Index> failureIndices
+        List<Index> failureIndices,
+        boolean rolloverNeeded
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -176,6 +212,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.failureStore = failureStore;
         this.failureIndices = failureIndices;
         assert assertConsistent(this.indices);
+        this.rolloverNeeded = rolloverNeeded;
     }
 
     // mainly available for testing
@@ -234,6 +271,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Override
     public Index getWriteIndex() {
         return indices.get(indices.size() - 1);
+    }
+
+    public boolean isRolloverNeeded() {
+        return rolloverNeeded;
     }
 
     /**
@@ -616,7 +657,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode,
             lifecycle,
             failureStore,
-            failureIndices
+            failureIndices,
+            rolloverNeeded
         );
     }
 
@@ -867,7 +909,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
             in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of()
+            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of(),
+            in.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED) ? in.readBoolean() : false
         );
     }
 
@@ -908,6 +951,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeBoolean(failureStore);
             out.writeCollection(failureIndices);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
+            out.writeBoolean(rolloverNeeded);
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -923,6 +969,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
     public static final ParseField FAILURE_INDICES_FIELD = new ParseField("failure_indices");
+    public static final ParseField ROLLOVER_NEEDED_FIELD = new ParseField("rollover_needed");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
@@ -938,8 +985,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[7] != null && (boolean) args[7],
             args[8] != null ? IndexMode.fromString((String) args[8]) : null,
             (DataStreamLifecycle) args[9],
-            DataStream.isFailureStoreEnabled() && args[10] != null && (boolean) args[10],
-            DataStream.isFailureStoreEnabled() && args[11] != null ? (List<Index>) args[11] : List.of()
+            DataStream.isFailureStoreEnabled() && args[11] != null && (boolean) args[11],
+            DataStream.isFailureStoreEnabled() && args[12] != null ? (List<Index>) args[12] : List.of(),
+            (boolean) args[10]
         )
     );
 
@@ -962,6 +1010,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_NEEDED_FIELD);
         if (DataStream.isFailureStoreEnabled()) {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
             PARSER.declareObjectArray(
@@ -1014,6 +1063,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration);
         }
+        builder.field(ROLLOVER_NEEDED_FIELD.getPreferredName(), rolloverNeeded);
         builder.endObject();
         return builder;
     }
@@ -1034,7 +1084,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && indexMode == that.indexMode
             && Objects.equals(lifecycle, that.lifecycle)
             && failureStore == that.failureStore
-            && failureIndices.equals(that.failureIndices);
+            && failureIndices.equals(that.failureIndices)
+            && rolloverNeeded == that.rolloverNeeded;
     }
 
     @Override
@@ -1051,7 +1102,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode,
             lifecycle,
             failureStore,
-            failureIndices
+            failureIndices,
+            rolloverNeeded
         );
     }
 

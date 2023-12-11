@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -67,6 +68,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     private final Client client;
     private final MasterServiceTaskQueue<RolloverTask> rolloverTaskQueue;
+    private final MetadataDataStreamsService metadataDataStreamsService;
 
     @Inject
     public TransportRolloverAction(
@@ -77,7 +79,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataRolloverService rolloverService,
         Client client,
-        AllocationService allocationService
+        AllocationService allocationService,
+        MetadataDataStreamsService metadataDataStreamsService
     ) {
         super(
             RolloverAction.NAME,
@@ -96,6 +99,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             Priority.NORMAL,
             new RolloverExecutor(clusterService, allocationService, rolloverService, threadPool)
         );
+        this.metadataDataStreamsService = metadataDataStreamsService;
     }
 
     @Override
@@ -139,17 +143,23 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             && rolloverRequest.getConditions().hasConditions() == false
             && metadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
         if (rolloverRequest.isLazy() && lazyRolloverApplicable) {
-            final RolloverResponse trialRolloverResponse = new RolloverResponse(
-                trialSourceIndexName,
-                trialRolloverIndexName,
-                Map.of(),
-                false,
-                false,
-                true,
-                false,
-                true
+            metadataDataStreamsService.setRolloverNeeded(
+                rolloverRequest.getRolloverTarget(),
+                rolloverRequest.ackTimeout(),
+                rolloverRequest.masterNodeTimeout(),
+                listener.map(
+                    response -> new RolloverResponse(
+                        trialSourceIndexName,
+                        trialRolloverIndexName,
+                        Map.of(),
+                        false,
+                        false,
+                        response.isAcknowledged(),
+                        false,
+                        response.isAcknowledged()
+                    )
+                )
             );
-            listener.onResponse(trialRolloverResponse);
             return;
         }
 

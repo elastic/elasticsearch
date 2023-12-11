@@ -41,12 +41,13 @@ public class MetadataDataStreamsService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final MasterServiceTaskQueue<UpdateLifecycleTask> taskQueue;
+    private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
+    private final MasterServiceTaskQueue<SetRolloverNeededTask> setRolloverNeededtaskQueue;
 
     public MetadataDataStreamsService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        ClusterStateTaskExecutor<UpdateLifecycleTask> executor = new SimpleBatchedAckListenerTaskExecutor<>() {
+        ClusterStateTaskExecutor<UpdateLifecycleTask> updateLifecycleExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(
@@ -61,7 +62,22 @@ public class MetadataDataStreamsService {
         };
         // We chose priority high because changing the lifecycle is changing the retention of a backing index, so processing it quickly
         // can either free space when the retention is shortened, or prevent an index to be deleted when the retention is extended.
-        this.taskQueue = clusterService.createTaskQueue("modify-lifecycle", Priority.HIGH, executor);
+        this.updateLifecycleTaskQueue = clusterService.createTaskQueue("modify-lifecycle", Priority.HIGH, updateLifecycleExecutor);
+        ClusterStateTaskExecutor<SetRolloverNeededTask> rolloverNeededExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                SetRolloverNeededTask setRolloverNeededTask,
+                ClusterState clusterState
+            ) {
+                return new Tuple<>(setRolloverNeeded(clusterState, setRolloverNeededTask.getDataStreamName()), setRolloverNeededTask);
+            }
+        };
+        this.setRolloverNeededtaskQueue = clusterService.createTaskQueue(
+            "data-stream-rollover-needed",
+            Priority.NORMAL,
+            rolloverNeededExecutor
+        );
     }
 
     public void modifyDataStream(final ModifyDataStreamsAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
@@ -93,7 +109,11 @@ public class MetadataDataStreamsService {
         TimeValue masterTimeout,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        taskQueue.submitTask("set-lifecycle", new UpdateLifecycleTask(dataStreamNames, lifecycle, ackTimeout, listener), masterTimeout);
+        updateLifecycleTaskQueue.submitTask(
+            "set-lifecycle",
+            new UpdateLifecycleTask(dataStreamNames, lifecycle, ackTimeout, listener),
+            masterTimeout
+        );
     }
 
     /**
@@ -105,12 +125,32 @@ public class MetadataDataStreamsService {
         TimeValue masterTimeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        taskQueue.submitTask("delete-lifecycle", new UpdateLifecycleTask(dataStreamNames, null, ackTimeout, listener), masterTimeout);
+        updateLifecycleTaskQueue.submitTask(
+            "delete-lifecycle",
+            new UpdateLifecycleTask(dataStreamNames, null, ackTimeout, listener),
+            masterTimeout
+        );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
+    }
+
+    /**
+     * Submits the task to signal that the next time this data stream receives a document, it needs to be rolled over.
+     */
+    public void setRolloverNeeded(
+        String dataStreamName,
+        TimeValue ackTimeout,
+        TimeValue masterTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        setRolloverNeededtaskQueue.submitTask(
+            "set-rollover-needed",
+            new SetRolloverNeededTask(dataStreamName, ackTimeout, listener),
+            masterTimeout
+        );
     }
 
     /**
@@ -172,6 +212,34 @@ public class MetadataDataStreamsService {
                 )
             );
         }
+        return ClusterState.builder(currentState).metadata(builder.build()).build();
+    }
+
+    /**
+     * Creates an updated cluster state in which the requested data stream has the flag that it needs a rollover set to true.
+     * Visible for testing.
+     */
+    static ClusterState setRolloverNeeded(ClusterState currentState, String dataStreamName) {
+        Metadata metadata = currentState.metadata();
+        Metadata.Builder builder = Metadata.builder(metadata);
+        var dataStream = validateDataStream(metadata, dataStreamName);
+        builder.put(
+            new DataStream(
+                dataStream.getName(),
+                dataStream.getIndices(),
+                dataStream.getGeneration(),
+                dataStream.getMetadata(),
+                dataStream.isHidden(),
+                dataStream.isReplicated(),
+                dataStream.isSystem(),
+                dataStream.isAllowCustomRouting(),
+                dataStream.getIndexMode(),
+                dataStream.getLifecycle(),
+                dataStream.isFailureStore(),
+                dataStream.getFailureIndices(),
+                true
+            )
+        );
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
 
@@ -268,6 +336,23 @@ public class MetadataDataStreamsService {
 
         public DataStreamLifecycle getDataLifecycle() {
             return lifecycle;
+        }
+    }
+
+    /**
+     * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
+     */
+    static class SetRolloverNeededTask extends AckedBatchedClusterStateUpdateTask {
+
+        private final String dataStreamName;
+
+        SetRolloverNeededTask(String dataStreamName, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
+            super(ackTimeout, listener);
+            this.dataStreamName = dataStreamName;
+        }
+
+        public String getDataStreamName() {
+            return dataStreamName;
         }
     }
 }

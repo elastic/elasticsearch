@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -309,6 +310,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         final ActionFilters mockActionFilters = mock(ActionFilters.class);
         final MetadataIndexAliasesService mdIndexAliasesService = mock(MetadataIndexAliasesService.class);
+        final MetadataDataStreamsService mockMetadataDataStreamService = mock(MetadataDataStreamsService.class);
 
         final Client mockClient = mock(Client.class);
         final AllocationService mockAllocationService = mock(AllocationService.class);
@@ -362,7 +364,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
-            mockAllocationService
+            mockAllocationService,
+            mockMetadataDataStreamService
         );
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count

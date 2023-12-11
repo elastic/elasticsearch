@@ -28,6 +28,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -155,7 +157,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private final long slowSchedulerWarnThresholdNanos;
 
-    private Map<String, HashMap<String, LongGauge>> gauges;
+    private Map<String, ArrayList<Instrument>> instruments;
 
     @SuppressWarnings("rawtypes")
     public Collection<ExecutorBuilder> builders() {
@@ -193,7 +195,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
-        final Map<String, HashMap<String, LongGauge>> gauges = new HashMap<>();
+        final Map<String, ArrayList<Instrument>> instruments = new HashMap<String, ArrayList<Instrument>>();
 
         builders.put(
             Names.GENERIC,
@@ -310,8 +312,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         executors.put(Names.SAME, new ExecutorHolder(EsExecutors.DIRECT_EXECUTOR_SERVICE, new Info(Names.SAME, ThreadPoolType.DIRECT)));
         this.executors = Map.copyOf(executors);
-        this.executors.forEach((k, v) -> gauges.put(k, setupMetrics(meterRegistry, k, v)));
-        this.gauges = gauges;
+        this.executors.forEach((k, v) -> instruments.put(k, setupMetrics(meterRegistry, k, v)));
+        this.instruments = instruments;
         final List<Info> infos = executors.values()
             .stream()
             .filter(holder -> holder.info.getName().equals("same") == false)
@@ -328,22 +330,21 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         this.cachedTimeThread.start();
     }
 
-    private static HashMap<String, LongGauge> setupMetrics(MeterRegistry meterRegistry, String name, ExecutorHolder holder) {
-        Map<String, Object> at = null;
-        HashMap<String, LongGauge> gauges = new HashMap<>();
+    private static ArrayList<Instrument> setupMetrics(MeterRegistry meterRegistry, String name, ExecutorHolder holder) {
+        Map<String, Object> at = Map.of();
+        ArrayList<Instrument> instruments = new ArrayList<>();
         if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
-            String prefix = "es.tp." + name + ".t."; // temporarily shortening due to max 68 chars limit
-            gauges.put(
-                "threads",
+            String prefix = "es.thread_pool." + name + ".threads.";
+            logger.info("Starting tp metrics {}", name);
+            instruments.add(
                 meterRegistry.registerLongGauge(
-                    prefix + "threads",
+                    prefix + "count",
                     "number of threads for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getPoolSize(), at)
                 )
             );
-            gauges.put(
-                "queue",
+            instruments.add(
                 meterRegistry.registerLongGauge(
                     prefix + "queue",
                     "number queue size for " + name,
@@ -351,8 +352,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     () -> new LongWithAttributes(threadPoolExecutor.getQueue().size(), at)
                 )
             );
-            gauges.put(
-                "active",
+            instruments.add(
                 meterRegistry.registerLongGauge(
                     prefix + "active",
                     "number of active threads for " + name,
@@ -360,8 +360,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     () -> new LongWithAttributes(threadPoolExecutor.getActiveCount(), at)
                 )
             );
-            gauges.put(
-                "largest",
+            instruments.add(
                 meterRegistry.registerLongGauge(
                     prefix + "largest",
                     "largest pool size for " + name,
@@ -369,9 +368,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     () -> new LongWithAttributes(threadPoolExecutor.getLargestPoolSize(), at)
                 )
             );
-            gauges.put(
-                "completed",
-                meterRegistry.registerLongGauge(
+            instruments.add(
+                meterRegistry.registerLongAsyncCounter(
                     prefix + "completed",
                     "number of completed threads for " + name,
                     "count",
@@ -383,7 +381,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 handler.registerCounter(meterRegistry, prefix, name);
             }
         }
-        return gauges;
+        return instruments;
     }
 
     // for subclassing by tests that don't actually use any of the machinery that the regular constructor sets up
@@ -603,21 +601,33 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         cachedTimeThread.interrupt();
     }
 
+    private void closeMetrics(ExecutorHolder executor) {
+        if (this.instruments.containsKey(executor.info.getName())) {
+            this.instruments.get(executor.info.getName()).forEach((instrument) -> {
+                if (instrument instanceof LongAsyncCounter longasynccounter) {
+                    try {
+                        longasynccounter.close();
+                    } catch (Exception e) {
+                        logger.warn(format("Failed to close LongAsyncCounter for %s. %s", executor.info.getName(), e.getMessage()));
+                    }
+                } else if (instrument instanceof LongGauge longgauge) {
+                    try {
+                        longgauge.close();
+                    } catch (Exception e) {
+                        logger.warn(format("Failed to close LongGauge for %s. %s", executor.info.getName(), e.getMessage()));
+                    }
+                }
+            });
+        }
+        this.instruments.remove(executor.info.getName());
+    }
+
     public void shutdown() {
         stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                if (this.gauges.containsKey(executor.info.getName())) {
-                    this.gauges.get(executor.info.getName()).forEach((k, v) -> {
-                        try {
-                            v.close();
-                        } catch (Exception e) {
-                            logger.warn(format("Failed to close LongGauge for %s. %s", executor.info.getName(), e.getMessage()));
-                        }
-                    });
-                }
-                this.gauges.remove(executor.info.getName());
+                closeMetrics(executor);
                 executor.executor().shutdown();
             }
         }
@@ -628,16 +638,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                if (this.gauges.containsKey(executor.info.getName())) {
-                    this.gauges.get(executor.info.getName()).forEach((k, v) -> {
-                        try {
-                            v.close();
-                        } catch (Exception e) {
-                            logger.warn(format("Failed to close LongGauge for %s. %s", executor.info.getName(), e.getMessage()));
-                        }
-                    });
-                }
-                this.gauges.remove(executor.info.getName());
+                closeMetrics(executor);
                 executor.executor().shutdownNow();
             }
         }
@@ -647,16 +648,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         boolean result = scheduler.awaitTermination(timeout, unit);
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                if (this.gauges.containsKey(executor.info.getName())) {
-                    this.gauges.get(executor.info.getName()).forEach((k, v) -> {
-                        try {
-                            v.close();
-                        } catch (Exception e) {
-                            logger.warn(format("Failed to close LongGauge for %s. %s", executor.info.getName(), e.getMessage()));
-                        }
-                    });
-                }
-                this.gauges.remove(executor.info.getName());
+                closeMetrics(executor);
                 result &= executor.executor().awaitTermination(timeout, unit);
             }
         }

@@ -451,7 +451,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream()
             .map(p -> p.getFieldFilter())
             .filter(p -> p.equals(NOOP_FIELD_FILTER) == false)
-            .toList();        if (items.size() > 1) {
+            .toList();
+        if (items.size() > 1) {
             throw new UnsupportedOperationException("Only the security MapperPlugin should override this");
         } else if (items.size() == 1) {
             return items.get(0);

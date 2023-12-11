@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -890,7 +890,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     .source(mapping.source().string(), XContentType.JSON)
                     .timeout(TimeValue.MAX_VALUE)
                     .masterNodeTimeout(TimeValue.MAX_VALUE),
-                new ThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
+                new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
             );
         }, this, clusterStateVersion);
     }

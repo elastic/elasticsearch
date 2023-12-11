@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -313,7 +313,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
         );
         List<String> enrichFields = List.of("zipcode");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "range", enrichFields, null);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "range", enrichFields);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -2071,7 +2071,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             RefreshAction.INSTANCE,
             IndicesSegmentsAction.INSTANCE,
             UpdateSettingsAction.INSTANCE,
-            ClusterHealthAction.INSTANCE
+            TransportClusterHealthAction.TYPE
         );
         logger.info("Selected [{}] to perform cancel", randomActionType.name());
         Client client = new FilterClient(client()) {

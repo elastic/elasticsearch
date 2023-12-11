@@ -129,6 +129,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
         SocketAccess.doPrivilegedIOException(() -> {
             if (blobSize <= getLargeBlobThresholdInBytes()) {
@@ -148,6 +149,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         boolean atomic,
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
         final String absoluteBlobKey = buildKey(blobName);
         try (
             AmazonS3Reference clientReference = blobStore.clientReference();
@@ -273,6 +275,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
     }
 

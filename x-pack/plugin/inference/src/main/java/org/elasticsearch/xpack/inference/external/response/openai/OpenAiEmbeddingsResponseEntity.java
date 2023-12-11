@@ -19,9 +19,11 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 public class OpenAiEmbeddingsResponseEntity {
+    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in OpenAI embeddings response";
 
     /**
      * Parses the OpenAI json response.
@@ -70,14 +72,12 @@ public class OpenAiEmbeddingsResponseEntity {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            if (jsonParser.currentToken() == null) {
-                jsonParser.nextToken();
-            }
+            moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
-            positionParserAtTokenAfterField(jsonParser, "data");
+            positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
 
             List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
                 jsonParser,
@@ -88,28 +88,10 @@ public class OpenAiEmbeddingsResponseEntity {
         }
     }
 
-    /**
-     * Iterates over the tokens until it finds a field name token with the text matching the field requested.
-     *
-     * @throws IllegalStateException if the field cannot be found
-     */
-    private static void positionParserAtTokenAfterField(XContentParser parser, String field) throws IOException {
-        XContentParser.Token token;
-
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME && parser.currentName().equals(field)) {
-                parser.nextToken();
-                return;
-            }
-        }
-
-        throw new IllegalStateException(format("Failed to find required field [%s] in OpenAI embeddings response", field));
-    }
-
     private static TextEmbeddingResults.Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
-        positionParserAtTokenAfterField(parser, "embedding");
+        positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
 
         List<Float> embeddingValues = XContentParserUtils.parseList(parser, OpenAiEmbeddingsResponseEntity::parseEmbeddingList);
 

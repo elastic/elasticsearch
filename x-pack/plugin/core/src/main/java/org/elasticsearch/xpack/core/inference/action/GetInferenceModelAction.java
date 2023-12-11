@@ -38,14 +38,9 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         private final String modelId;
         private final TaskType taskType;
 
-        public Request(String modelId, String taskType) {
-            this.modelId = modelId;
-            this.taskType = TaskType.fromStringOrStatusException(taskType);
-        }
-
         public Request(String modelId, TaskType taskType) {
-            this.modelId = modelId;
-            this.taskType = taskType;
+            this.modelId = Objects.requireNonNull(modelId);
+            this.taskType = Objects.requireNonNull(taskType);
         }
 
         public Request(StreamInput in) throws IOException {

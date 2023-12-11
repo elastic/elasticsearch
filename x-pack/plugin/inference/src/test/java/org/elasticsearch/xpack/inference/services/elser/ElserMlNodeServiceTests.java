@@ -127,7 +127,12 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
                     );
                 } else {
-                    var parsed = service.parsePersistedConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Collections.emptyMap());
+                    var parsed = service.parsePersistedConfigWithSecrets(
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
 
@@ -158,7 +163,12 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
                     );
                 } else {
-                    var parsed = service.parsePersistedConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Collections.emptyMap());
+                    var parsed = service.parsePersistedConfigWithSecrets(
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
 
@@ -190,7 +200,12 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser] service")
                     );
                 } else {
-                    var parsed = service.parsePersistedConfig("foo", TaskType.SPARSE_EMBEDDING, settings, Collections.emptyMap());
+                    var parsed = service.parsePersistedConfigWithSecrets(
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
         }

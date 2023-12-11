@@ -16,11 +16,9 @@ import org.elasticsearch.xpack.application.EnterpriseSearch;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction.Request.CONNECTOR_SYNC_JOB_ID_FIELD;
+import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants.CONNECTOR_SYNC_JOB_ID_PARAM;
 
 public class RestDeleteConnectorSyncJobAction extends BaseRestHandler {
-
-    private static final String CONNECTOR_SYNC_JOB_ID_PARAM = CONNECTOR_SYNC_JOB_ID_FIELD.getPreferredName();
 
     @Override
     public String getName() {

@@ -225,7 +225,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void addInput(Page page) {
+                protected void doAddInput(Page page) {
                     try {
                         assertFalse("already finished", finished);
                         IntBlock block = page.getBlock(0);

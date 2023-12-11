@@ -57,7 +57,13 @@ public class GetStackTracesRequestTests extends ESTestCase {
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
                 GetStackTracesRequest deserialized = new GetStackTracesRequest(in);
                 assertEquals(sampleSize, deserialized.getSampleSize());
+                assertEquals(requestedDuration, deserialized.getRequestedDuration());
                 assertEquals(awsCostFactor, deserialized.getAwsCostFactor());
+                assertEquals(customCO2PerKWH, deserialized.getCustomCO2PerKWH());
+                assertEquals(datacenterPUE, deserialized.getCustomDatacenterPUE());
+                assertEquals(perCoreWattX86, deserialized.getCustomPerCoreWattX86());
+                assertEquals(perCoreWattARM64, deserialized.getCustomPerCoreWattARM64());
+                assertEquals(customCostPerCoreHour, deserialized.getCustomCostPerCoreHour());
                 assertEquals(query, deserialized.getQuery());
             }
         }
@@ -162,6 +168,23 @@ public class GetStackTracesRequestTests extends ESTestCase {
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
         assertTrue(validationErrors.get(0).contains("[sample_size] must be greater than 0,"));
+    }
+
+    public void testValidateSampleSizeIsValidWithCustomIndices() {
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            10,
+            1.0d,
+            1.0d,
+            null,
+            randomAlphaOfLength(7),
+            randomAlphaOfLength(3),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        assertNull("Expecting no validation errors", request.validate());
     }
 
     public void testValidateStacktraceWithoutIndices() {

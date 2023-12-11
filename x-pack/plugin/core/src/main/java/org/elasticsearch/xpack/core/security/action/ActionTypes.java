@@ -14,7 +14,9 @@ import org.elasticsearch.action.ActionType;
  * A collection of actions types for the Security plugin that need to be available in xpack.core.security and thus cannot be stored
  * directly with their transport action implementation.
  */
-public class ActionTypes {
+public final class ActionTypes {
+    private ActionTypes() {};
+
     public static final ActionType<ActionResponse.Empty> RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION = ActionType.localOnly(
         "cluster:admin/xpack/security/remote_cluster_credentials/reload"
     );

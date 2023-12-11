@@ -24,6 +24,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * This class is used to create a {@link ServerProcess}.
+ * Each ServerProcessBuilder instance manages a collection of process attributes. The {@link ServerProcessBuilder#start()} method creates
+ * a new {@link ServerProcess} instance with those attributes.
+ *
+ * Each process builder manages these process attributes:
+ * - a temporary directory
+ * - process info to pass through to the new Java subprocess
+ * - the command line arguments to run Elasticsearch
+ * - a list of JVM options to be passed to the Elasticsearch Java process
+ * - a {@link Terminal} to read input and write output from/to the cli console
+ */
 public class ServerProcessBuilder {
     private Path tempDir;
     private ServerArgs serverArgs;
@@ -36,26 +48,41 @@ public class ServerProcessBuilder {
         Process start(ProcessBuilder pb) throws IOException;
     }
 
+    /**
+     * Specifies the temporary directory to be used by the server process
+     */
     public ServerProcessBuilder withTempDir(Path tempDir) {
         this.tempDir = tempDir;
         return this;
     }
 
+    /**
+     * Specifies the process info to pass through to the new Java subprocess
+     */
     public ServerProcessBuilder withProcessInfo(ProcessInfo processInfo) {
         this.processInfo = processInfo;
         return this;
     }
 
+    /**
+     * Specifies the command line arguments to run Elasticsearch
+     */
     public ServerProcessBuilder withServerArgs(ServerArgs serverArgs) {
         this.serverArgs = serverArgs;
         return this;
     }
 
+    /**
+     * Specifies the JVM options to be passed to the Elasticsearch Java process
+     */
     public ServerProcessBuilder withJvmOptions(List<String> jvmOptions) {
         this.jvmOptions = jvmOptions;
         return this;
     }
 
+    /**
+     * Specifies the {@link Terminal} to use for reading input and writing output from/to the cli console
+     */
     public ServerProcessBuilder withTerminal(Terminal terminal) {
         this.terminal = terminal;
         return this;

@@ -560,20 +560,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
-    private static final class ReducedRequestInfo {
-        // todo: can stream mapping be parallel on multi threads? If so, this needs to be volatile
-        private boolean isRequireAlias;
-        private boolean isRequireDataStream;
-
-        private ReducedRequestInfo(boolean isRequireAlias, boolean isRequireDataStream) {
-            this.isRequireAlias = isRequireAlias;
-            this.isRequireDataStream = isRequireDataStream;
-        }
-
+    private record ReducedRequestInfo(boolean isRequireAlias, boolean isRequireDataStream) {
         private ReducedRequestInfo merge(ReducedRequestInfo other) {
-            this.isRequireAlias |= other.isRequireAlias;
-            this.isRequireDataStream |= other.isRequireDataStream;
-            return this;
+            return new ReducedRequestInfo(
+                this.isRequireAlias || other.isRequireAlias,
+                this.isRequireDataStream || other.isRequireDataStream
+            );
         }
     }
 

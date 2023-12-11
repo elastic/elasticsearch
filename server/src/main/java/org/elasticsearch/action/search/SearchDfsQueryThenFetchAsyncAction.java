@@ -18,6 +18,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
 import java.util.List;
@@ -81,10 +82,20 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     ) {
         getSearchTransport().sendExecuteDfs(
             getConnection(shard.getClusterAlias(), shard.getNodeId()),
-            buildShardSearchRequest(shardIt, listener.requestIndex),
+            rewriteShardSearchRequest(buildShardSearchRequest(shardIt, listener.requestIndex)),
             getTask(),
             listener
         );
+    }
+
+    private static ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest shardSearchRequest) {
+        if (shardSearchRequest.source() != null && shardSearchRequest.source().getRetrieverBuilder() != null) {
+            shardSearchRequest.source(
+                shardSearchRequest.source().getRetrieverBuilder().buildDfsSearchSourceBuilder(shardSearchRequest.source())
+            );
+        }
+
+        return shardSearchRequest;
     }
 
     @Override

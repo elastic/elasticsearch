@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -257,6 +258,22 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
     }
 
     @Override
+    public QueryBuilder buildDfsQuery() {
+        return null;
+    }
+
+    @Override
+    public void doBuildDfsSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+        KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(field, queryVector, queryVectorBuilder, k, numCands, similarity);
+
+        if (preFilterQueryBuilder != null) {
+            knnSearchBuilder.addFilterQuery(preFilterQueryBuilder);
+        }
+
+        searchSourceBuilder.knnSearch().add(knnSearchBuilder);
+    }
+
+    /*@Override
     public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         // TODO: add support for multiple knn retrievers per search request
         if (searchSourceBuilder.knnSearch().size() == 0) {
@@ -270,6 +287,5 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
         } else {
             throw new IllegalStateException("[knn] cannot be declared as a retriever value and as a global value");
         }
-    }
-
+    }*/
 }

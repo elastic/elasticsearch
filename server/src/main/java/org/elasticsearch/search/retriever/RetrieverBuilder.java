@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -252,7 +253,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
         return (RB) this;
     }
 
-    public final void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    /*public final void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         doExtractToSearchSourceBuilder(searchSourceBuilder);
 
         if (preFilterQueryBuilder != null) {
@@ -264,5 +265,18 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
         }
     }
 
-    public abstract void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder);
+    public abstract void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder);*/
+
+    public abstract QueryBuilder buildDfsQuery();
+
+    public final SearchSourceBuilder buildDfsSearchSourceBuilder(SearchSourceBuilder original) {
+        SearchSourceBuilder copy = original.shallowCopy();
+        copy.query(buildDfsQuery());
+        copy.knnSearch(new ArrayList<>());
+        copy.clearRescorers();
+        doBuildDfsSearchSourceBuilder(copy);
+        return copy;
+    }
+
+    public abstract void doBuildDfsSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder);
 }

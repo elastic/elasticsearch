@@ -83,6 +83,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
     public static final ParseField FROM_FIELD = new ParseField("from"); // base
+
     public static final ParseField SIZE_FIELD = new ParseField("size"); // base
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout"); // global
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after"); // retriever specific
@@ -136,6 +137,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static HighlightBuilder highlight() {
         return new HighlightBuilder();
     }
+
+    private RetrieverBuilder<?> retrieverBuilder;
 
     private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 
@@ -208,6 +211,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Read from a stream.
      */
     public SearchSourceBuilder(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RETRIEVERS_ADDED)) {
+            retrieverBuilder = in.readOptionalNamedWriteable(RetrieverBuilder.class);
+        }
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
@@ -279,6 +285,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RETRIEVERS_ADDED)) {
+            out.writeOptionalNamedWriteable(retrieverBuilder);
+        }
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
@@ -357,6 +366,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
         }
+    }
+
+    /**
+     * Sets the retriever builder.
+     */
+    public SearchSourceBuilder setRetrieverBuilder(RetrieverBuilder<?> retrieverBuilder) {
+        this.retrieverBuilder = retrieverBuilder;
+        return this;
+    }
+
+    /**
+     * Gets the retriever builder.
+     */
+    public RetrieverBuilder<?> getRetrieverBuilder() {
+        return this.retrieverBuilder;
     }
 
     /**
@@ -439,7 +463,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * An optional kNN search definition.
      */
     public List<KnnSearchBuilder> knnSearch() {
-        return Collections.unmodifiableList(knnSearch);
+        return knnSearch;
     }
 
     public SearchSourceBuilder rankBuilder(RankBuilder rankBuilder) {
@@ -1262,7 +1286,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             );
         }
 
-        RetrieverBuilder<?> retrieverBuilder = null;
         SearchUsage searchUsage = new SearchUsage();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1593,7 +1616,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (retrieverBuilder != null) {
-            retrieverBuilder.extractToSearchSourceBuilder(this);
+            // retrieverBuilder.extractToSearchSourceBuilder(this);
         }
         searchUsageConsumer.accept(searchUsage);
         return this;

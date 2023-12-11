@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
@@ -110,6 +112,28 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     }
 
     @Override
+    public QueryBuilder buildDfsQuery() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+
+        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            QueryBuilder queryBuilder = retrieverBuilder.buildDfsQuery();
+
+            if (queryBuilder != null) {
+                boolQueryBuilder.should(queryBuilder);
+            }
+        }
+
+        return boolQueryBuilder.should().isEmpty() ? null : boolQueryBuilder;
+    }
+
+    @Override
+    public void doBuildDfsSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            retrieverBuilder.doBuildDfsSearchSourceBuilder(searchSourceBuilder);
+        }
+    }
+
+    /*@Override
     public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
             retrieverBuilder.doExtractToSearchSourceBuilder(searchSourceBuilder);
@@ -120,5 +144,5 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
         } else {
             throw new IllegalStateException("[rank] cannot be declared as a retriever value and as a global value");
         }
-    }
+    }*/
 }

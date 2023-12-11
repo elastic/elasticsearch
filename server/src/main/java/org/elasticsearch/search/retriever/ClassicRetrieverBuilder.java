@@ -17,10 +17,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -29,7 +27,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -43,7 +40,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     public static final ParseField SORT_FIELD = new ParseField("sort");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
-    public static final ParseField RESCORE_FIELD = new ParseField("rescore");
     public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
 
     public static final ObjectParser<ClassicRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
@@ -82,19 +78,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
             c.trackSectionUsage(NAME + ":" + POST_FILTER_FIELD.getPreferredName());
             return postFilterQueryBuilder;
         }, POST_FILTER_FIELD);
-        PARSER.declareObject(ClassicRetrieverBuilder::rescorerBuilders, (p, c) -> {
-            @SuppressWarnings("rawtypes")
-            List<RescorerBuilder> rescorerBuilders = new ArrayList<>();
-            if (p.currentToken() == XContentParser.Token.START_ARRAY) {
-                while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    rescorerBuilders.add(RescorerBuilder.parseFromXContent(p, c::trackRescorerUsage));
-                }
-            } else {
-                rescorerBuilders.add(RescorerBuilder.parseFromXContent(p, c::trackRescorerUsage));
-            }
-            c.trackSectionUsage(NAME + ":" + RESCORE_FIELD.getPreferredName());
-            return rescorerBuilders;
-        }, RESCORE_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
@@ -110,7 +93,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     private Float minScore;
     private QueryBuilder postFilterQueryBuilder;
     @SuppressWarnings("rawtypes")
-    private List<RescorerBuilder> rescorerBuilders;
     private CollapseBuilder collapseBuilder;
 
     public ClassicRetrieverBuilder() {
@@ -125,7 +107,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         sortBuilders = original.sortBuilders;
         minScore = original.minScore;
         postFilterQueryBuilder = original.postFilterQueryBuilder;
-        rescorerBuilders = original.rescorerBuilders;
         collapseBuilder = original.collapseBuilder;
     }
 
@@ -140,9 +121,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         }
         minScore = in.readOptionalFloat();
         postFilterQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.readBoolean()) {
-            rescorerBuilders = in.readNamedWriteableCollectionAsList(RescorerBuilder.class);
-        }
         collapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
     }
 
@@ -159,12 +137,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         }
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postFilterQueryBuilder);
-        if (rescorerBuilders == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeNamedWriteableCollection(rescorerBuilders);
-        }
         out.writeOptionalWriteable(collapseBuilder);
     }
 
@@ -210,35 +182,22 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
             builder.field(POST_FILTER_FIELD.getPreferredName(), postFilterQueryBuilder);
         }
 
-        if (rescorerBuilders != null) {
-            builder.startArray(RESCORE_FIELD.getPreferredName());
-
-            for (RescorerBuilder<?> rescorerBuilder : rescorerBuilders) {
-                rescorerBuilder.toXContent(builder, params);
-            }
-
-            builder.endArray();
-        }
-
         if (collapseBuilder != null) {
             builder.field(COLLAPSE_FIELD.getPreferredName(), collapseBuilder);
         }
     }
 
     @Override
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public ClassicRetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         ClassicRetrieverBuilder crb = super.rewrite(ctx);
 
         QueryBuilder queryBuilder = this.queryBuilder == null ? null : this.queryBuilder.rewrite(ctx);
         List<SortBuilder<?>> sortBuilders = this.sortBuilders == null ? null : Rewriteable.rewrite(this.sortBuilders, ctx);
         QueryBuilder postFilterQueryBuilder = this.postFilterQueryBuilder == null ? null : this.postFilterQueryBuilder.rewrite(ctx);
-        List<RescorerBuilder> rescorerBuilders = this.rescorerBuilders == null ? null : Rewriteable.rewrite(this.rescorerBuilders, ctx);
 
         if (queryBuilder != this.queryBuilder
             || sortBuilders != this.sortBuilders
-            || postFilterQueryBuilder != this.postFilterQueryBuilder
-            || rescorerBuilders != this.rescorerBuilders) {
+            || postFilterQueryBuilder != this.postFilterQueryBuilder) {
 
             if (crb == this) {
                 crb = shallowCopyInstance();
@@ -247,7 +206,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
             crb.queryBuilder = queryBuilder;
             crb.sortBuilders = sortBuilders;
             crb.postFilterQueryBuilder = postFilterQueryBuilder;
-            crb.rescorerBuilders = rescorerBuilders;
         }
 
         return crb;
@@ -270,7 +228,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
             && Objects.equals(sortBuilders, that.sortBuilders)
             && Objects.equals(minScore, that.minScore)
             && Objects.equals(postFilterQueryBuilder, that.postFilterQueryBuilder)
-            && Objects.equals(rescorerBuilders, that.rescorerBuilders)
             && Objects.equals(collapseBuilder, that.collapseBuilder);
     }
 
@@ -284,7 +241,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
             sortBuilders,
             minScore,
             postFilterQueryBuilder,
-            rescorerBuilders,
             collapseBuilder
         );
     }
@@ -343,17 +299,6 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         return this;
     }
 
-    @SuppressWarnings("rawtypes")
-    public List<RescorerBuilder> rescorerBuilders() {
-        return rescorerBuilders;
-    }
-
-    @SuppressWarnings("rawtypes")
-    public ClassicRetrieverBuilder rescorerBuilders(List<RescorerBuilder> rescorerBuilders) {
-        this.rescorerBuilders = rescorerBuilders;
-        return this;
-    }
-
     public CollapseBuilder collapseBuilder() {
         return collapseBuilder;
     }
@@ -363,7 +308,17 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         return this;
     }
 
-    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    @Override
+    public QueryBuilder buildDfsQuery() {
+        return queryBuilder;
+    }
+
+    @Override
+    public void doBuildDfsSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+        // do nothing
+    }
+
+    /*public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         if (queryBuilder != null) {
             searchSourceBuilder.subSearches().add(new SubSearchSourceBuilder(queryBuilder));
         }
@@ -421,5 +376,5 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         } else {
             throw new IllegalStateException("[collapse] cannot be declared as a retriever value and as a global value");
         }
-    }
+    }*/
 }

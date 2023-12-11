@@ -771,9 +771,9 @@ public class ActionModule extends AbstractModule {
         actions.register(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class);
 
         // retention leases
-        actions.register(RetentionLeaseActions.TransportAddAction.TYPE, RetentionLeaseActions.TransportAddAction.class);
-        actions.register(RetentionLeaseActions.TransportRenewAction.TYPE, RetentionLeaseActions.TransportRenewAction.class);
-        actions.register(RetentionLeaseActions.TransportRemoveAction.TYPE, RetentionLeaseActions.TransportRemoveAction.class);
+        actions.register(RetentionLeaseActions.ADD, RetentionLeaseActions.TransportAddAction.class);
+        actions.register(RetentionLeaseActions.RENEW, RetentionLeaseActions.TransportRenewAction.class);
+        actions.register(RetentionLeaseActions.REMOVE, RetentionLeaseActions.TransportRemoveAction.class);
 
         // Dangling indices
         actions.register(ListDanglingIndicesAction.INSTANCE, TransportListDanglingIndicesAction.class);

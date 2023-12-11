@@ -45,6 +45,9 @@ import java.util.Objects;
 public class RetentionLeaseActions {
 
     public static final long RETAIN_ALL = -1;
+    public static final ActionType<ActionResponse.Empty> ADD = ActionType.emptyResponse("indices:admin/seq_no/add_retention_lease");
+    public static final ActionType<ActionResponse.Empty> RENEW = ActionType.emptyResponse("indices:admin/seq_no/renew_retention_lease");
+    public static final ActionType<ActionResponse.Empty> REMOVE = ActionType.emptyResponse("indices:admin/seq_no/remove_retention_lease");
 
     abstract static class TransportRetentionLeaseAction<T extends Request<T>> extends TransportSingleShardAction<T, ActionResponse.Empty> {
 
@@ -111,8 +114,6 @@ public class RetentionLeaseActions {
 
     public static class TransportAddAction extends TransportRetentionLeaseAction<AddRequest> {
 
-        public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("indices:admin/seq_no/add_retention_lease");
-
         @Inject
         public TransportAddAction(
             final ThreadPool threadPool,
@@ -123,7 +124,7 @@ public class RetentionLeaseActions {
             final IndicesService indicesService
         ) {
             super(
-                TYPE.name(),
+                ADD.name(),
                 threadPool,
                 clusterService,
                 transportService,
@@ -151,8 +152,6 @@ public class RetentionLeaseActions {
 
     public static class TransportRenewAction extends TransportRetentionLeaseAction<RenewRequest> {
 
-        public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("indices:admin/seq_no/renew_retention_lease");
-
         @Inject
         public TransportRenewAction(
             final ThreadPool threadPool,
@@ -163,7 +162,7 @@ public class RetentionLeaseActions {
             final IndicesService indicesService
         ) {
             super(
-                TYPE.name(),
+                RENEW.name(),
                 threadPool,
                 clusterService,
                 transportService,
@@ -188,8 +187,6 @@ public class RetentionLeaseActions {
 
     public static class TransportRemoveAction extends TransportRetentionLeaseAction<RemoveRequest> {
 
-        public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("indices:admin/seq_no/remove_retention_lease");
-
         @Inject
         public TransportRemoveAction(
             final ThreadPool threadPool,
@@ -200,7 +197,7 @@ public class RetentionLeaseActions {
             final IndicesService indicesService
         ) {
             super(
-                TYPE.name(),
+                REMOVE.name(),
                 threadPool,
                 clusterService,
                 transportService,

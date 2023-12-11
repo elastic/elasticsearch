@@ -1671,6 +1671,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
+            builder.fieldsForModels(fieldsForModels.apply(part.fieldsForModels));
             return builder.build(true);
         }
     }
@@ -1738,6 +1739,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            builder.fieldsForModels(
+                in.readImmutableMap(StreamInput::readString, i -> i.readCollectionAsImmutableSet(StreamInput::readString))
+            );
+        }
         return builder.build(true);
     }
 
@@ -1783,6 +1789,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalWriteable(stats);
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            out.writeMap(fieldsForModels, StreamOutput::writeStringCollection);
         }
     }
 
@@ -2101,8 +2110,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public Builder fieldsForModels(Map<String, Set<String>> fieldsForModels) {
-            // TODO: How to handle null value? Clear this.fieldsForModels?
-            this.fieldsForModels = fieldsForModels;
+            if (fieldsForModels != null) {
+                this.fieldsForModels = fieldsForModels;
+            } else {
+                this.fieldsForModels.clear();
+            }
+
             return this;
         }
 

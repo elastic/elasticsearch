@@ -40,6 +40,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -82,6 +83,15 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
+        Map<String, Set<String>> fieldsForModels = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(0, 5); i++) {
+            Set<String> fields = new HashSet<>();
+            for (int j = 0; j < randomIntBetween(1, 4); j++) {
+                fields.add(randomAlphaOfLengthBetween(4, 10));
+            }
+            fieldsForModels.put(randomAlphaOfLengthBetween(4, 10), fields);
+        }
+
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
             .creationDate(randomLong())
@@ -105,6 +115,7 @@ public class IndexMetadataTests extends ESTestCase {
             .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
+            .fieldsForModels(fieldsForModels)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -136,6 +147,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getStats(), fromXContentMeta.getStats());
         assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
         assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
+        assertEquals(metadata.getFieldsForModels(), fromXContentMeta.getFieldsForModels());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -157,8 +169,9 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
             assertEquals(metadata.getStats(), deserialized.getStats());
-            assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
-            assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
+            assertEquals(metadata.getForecastedWriteLoad(), deserialized.getForecastedWriteLoad());
+            assertEquals(metadata.getForecastedShardSizeInBytes(), deserialized.getForecastedShardSizeInBytes());
+            assertEquals(metadata.getFieldsForModels(), deserialized.getFieldsForModels());
         }
     }
 

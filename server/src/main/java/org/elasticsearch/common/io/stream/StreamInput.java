@@ -794,7 +794,7 @@ public abstract class StreamInput extends InputStream {
             case 28 -> readDuration();
             case 29 -> readPeriod();
             case 30 -> readNamedWriteable(GenericNamedWriteable.class);
-            case 31 -> readSpatialPoint();
+            case 31 -> readPoint();
             default -> throw new IOException("Can't read unknown type [" + type + "]");
         };
     }
@@ -867,7 +867,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a {@link SpatialPoint} from this stream input
      */
-    public SpatialPoint readSpatialPoint() throws IOException {
+    public SpatialPoint readPoint() throws IOException {
         return new SpatialPoint(readDouble(), readDouble());
     }
 

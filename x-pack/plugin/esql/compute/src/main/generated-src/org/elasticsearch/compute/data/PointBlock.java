@@ -63,8 +63,7 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
                     final int valueCount = in.readVInt();
                     builder.beginPositionEntry();
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        SpatialPoint element = new SpatialPoint(in.readDouble(), in.readDouble());
-                        builder.appendPoint(element);
+                        builder.appendPoint(in.readPoint());
                     }
                     builder.endPositionEntry();
                 }
@@ -90,9 +89,7 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
                     final int valueCount = getValueCount(pos);
                     out.writeVInt(valueCount);
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        SpatialPoint element = getPoint(getFirstValueIndex(pos) + valueIndex);
-                        out.writeDouble(element.getX());
-                        out.writeDouble(element.getY());
+                        out.writePoint(getPoint(getFirstValueIndex(pos) + valueIndex));
                     }
                 }
             }

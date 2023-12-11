@@ -121,21 +121,11 @@ $endif$
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-$if(Point)$
-            $type$ element = new $type$(in.readDouble(), in.readDouble());
-            return blockFactory.newConstant$Type$Vector(element, positions);
-$else$
             return blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
-$endif$
         } else {
             try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
                 for (int i = 0; i < positions; i++) {
-$if(Point)$
-                    $type$ element = new $type$(in.readDouble(), in.readDouble());
-                    builder.append$Type$(element);
-$else$
                     builder.append$Type$(in.read$Type$());
-$endif$
                 }
                 return builder.build();
             }
@@ -150,10 +140,6 @@ $endif$
         if (isConstant() && positions > 0) {
 $if(BytesRef)$
             out.write$Type$(get$Type$(0, new BytesRef()));
-$elseif(Point)$
-            $type$ value = get$Type$(0);
-            out.writeDouble(value.getX());
-            out.writeDouble(value.getY());
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
@@ -161,10 +147,6 @@ $endif$
             for (int i = 0; i < positions; i++) {
 $if(BytesRef)$
                 out.write$Type$(get$Type$(i, new BytesRef()));
-$elseif(Point)$
-                $type$ value = get$Type$(i);
-                out.writeDouble(value.getX());
-                out.writeDouble(value.getY());
 $else$
                 out.write$Type$(get$Type$(i));
 $endif$

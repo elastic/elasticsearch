@@ -80,12 +80,7 @@ $endif$
                     final int valueCount = in.readVInt();
                     builder.beginPositionEntry();
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-    $if(Point)$
-                        $type$ element = new $type$(in.readDouble(), in.readDouble());
-                        builder.append$Type$(element);
-    $else$
                         builder.append$Type$(in.read$Type$());
-    $endif$
                     }
                     builder.endPositionEntry();
                 }
@@ -113,10 +108,6 @@ $endif$
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
     $if(BytesRef)$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-    $elseif(Point)$
-                        $type$ element = get$Type$(getFirstValueIndex(pos) + valueIndex);
-                        out.writeDouble(element.getX());
-                        out.writeDouble(element.getY());
     $else$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
     $endif$

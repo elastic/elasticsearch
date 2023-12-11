@@ -788,7 +788,7 @@ public abstract class StreamOutput extends OutputStream {
             // TODO: assert on minSupportedVersion or feature or transportversion
             // TODO: Consider merging this into GeoPoint above (ie. upgrade GeoPoint to handle SpatialPoint coordinate order)
             o.writeByte((byte) 31);
-            o.writeSpatialPoint((SpatialPoint) v);
+            o.writePoint((SpatialPoint) v);
         })
     );
 
@@ -1023,7 +1023,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes the given {@link SpatialPoint} to the stream
      */
-    public void writeSpatialPoint(SpatialPoint spatialPoint) throws IOException {
+    public void writePoint(SpatialPoint spatialPoint) throws IOException {
         writeDouble(spatialPoint.getX());
         writeDouble(spatialPoint.getY());
     }

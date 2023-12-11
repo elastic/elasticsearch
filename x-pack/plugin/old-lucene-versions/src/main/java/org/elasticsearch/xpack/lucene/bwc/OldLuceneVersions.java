@@ -170,8 +170,8 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             throw new UncheckedIOException(
                 Strings.format(
                     """
-                        Elasticsearch version [{}] has limited support for indices created with version [{}] but this index could not be \
-                        read. It may be using an unsupported feature, or it may be damaged or corrupt. See {} for further information.""",
+                        Elasticsearch version [%s] has limited support for indices created with version [%s] but this index could not be \
+                        read. It may be using an unsupported feature, or it may be damaged or corrupt. See %s for further information.""",
                     Build.current().version(),
                     IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexShard.indexSettings().getSettings()),
                     ReferenceDocs.ARCHIVE_INDICES

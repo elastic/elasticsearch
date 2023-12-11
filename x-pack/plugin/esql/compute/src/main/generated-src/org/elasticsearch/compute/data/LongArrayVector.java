@@ -55,7 +55,7 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
 
     @Override
     public LongVector filter(int... positions) {
-        try (LongVector.Builder builder = blockFactory.newLongVectorBuilder(positions.length)) {
+        try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendLong(values[pos]);
             }

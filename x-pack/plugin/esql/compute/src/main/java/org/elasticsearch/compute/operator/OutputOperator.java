@@ -62,7 +62,7 @@ public class OutputOperator extends SinkOperator {
     }
 
     @Override
-    public void addInput(Page page) {
+    protected void doAddInput(Page page) {
         pageConsumer.accept(mapper.apply(page));
     }
 

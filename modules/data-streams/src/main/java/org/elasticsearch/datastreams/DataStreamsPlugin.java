@@ -47,6 +47,8 @@ import org.elasticsearch.datastreams.lifecycle.action.TransportExplainDataStream
 import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
@@ -59,8 +61,10 @@ import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -75,7 +79,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
-public class DataStreamsPlugin extends Plugin implements ActionPlugin {
+public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin {
 
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
@@ -110,7 +114,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
     private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
 
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
-
+    private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
+    private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
 
     public DataStreamsPlugin(Settings settings) {
@@ -160,6 +165,15 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
         components.add(this.updateTimeSeriesRangeService.get());
         errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(services.threadPool()::absoluteTimeInMillis));
+        dataStreamLifecycleErrorsPublisher.set(
+            new DataStreamLifecycleHealthInfoPublisher(
+                settings,
+                services.client(),
+                services.clusterService(),
+                errorStoreInitialisationService.get(),
+                services.featureService()
+            )
+        );
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,
@@ -169,12 +183,16 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
                 services.threadPool(),
                 services.threadPool()::absoluteTimeInMillis,
                 errorStoreInitialisationService.get(),
-                services.allocationService()
+                services.allocationService(),
+                dataStreamLifecycleErrorsPublisher.get()
             )
         );
         dataLifecycleInitialisationService.get().init();
+        dataStreamLifecycleHealthIndicatorService.set(new DataStreamLifecycleHealthIndicatorService());
+
         components.add(errorStoreInitialisationService.get());
         components.add(dataLifecycleInitialisationService.get());
+        components.add(dataStreamLifecycleErrorsPublisher.get());
         return components;
     }
 
@@ -238,5 +256,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close the data stream lifecycle service", e);
         }
+    }
+
+    @Override
+    public Collection<HealthIndicatorService> getHealthIndicatorServices() {
+        return List.of(dataStreamLifecycleHealthIndicatorService.get());
     }
 }

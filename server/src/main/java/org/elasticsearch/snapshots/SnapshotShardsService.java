@@ -575,7 +575,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         sendSnapshotShardUpdate(
             snapshot,
             shardId,
-            new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.FAILED, failure, generation)
+            new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.FAILED, generation, failure)
         );
     }
 

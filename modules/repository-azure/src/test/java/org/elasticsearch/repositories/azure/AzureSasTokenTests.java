@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -24,6 +23,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.SAS_TOKEN_SETTING;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -77,7 +77,7 @@ public class AzureSasTokenTests extends AbstractAzureServerTestCase {
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, LocationMode.PRIMARY_ONLY, clientName, secureSettings);
-        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "sas_test")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "sas_test")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
     }

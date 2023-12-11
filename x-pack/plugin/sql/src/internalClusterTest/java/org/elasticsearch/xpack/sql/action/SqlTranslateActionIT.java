@@ -31,9 +31,8 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
 
         boolean columnOrder = randomBoolean();
         String columns = columnOrder ? "data, count, date" : "date, data, count";
-        SqlTranslateResponse response = new SqlTranslateRequestBuilder(client(), SqlTranslateAction.INSTANCE).query(
-            "SELECT " + columns + " FROM test ORDER BY count"
-        ).get();
+        SqlTranslateResponse response = new SqlTranslateRequestBuilder(client()).query("SELECT " + columns + " FROM test ORDER BY count")
+            .get();
         SearchSourceBuilder source = response.source();
         List<FieldAndFormat> actualFields = source.fetchFields();
         List<FieldAndFormat> expectedFields = new ArrayList<>(3);

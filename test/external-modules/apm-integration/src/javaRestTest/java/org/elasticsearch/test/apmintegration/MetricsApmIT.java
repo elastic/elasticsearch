@@ -56,12 +56,15 @@ public class MetricsApmIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103286")
     @SuppressWarnings("unchecked")
     public void testApmIntegration() throws Exception {
         Map<String, Predicate<Map<String, Object>>> sampleAssertions = new HashMap<>(
             Map.ofEntries(
                 assertion(TestMeterUsages.VERY_LONG_NAME, m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
                 assertion("testLongCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("testAsyncDoubleCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("testAsyncLongCounter", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion("testDoubleGauge", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
                 assertion("testLongGauge", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion(

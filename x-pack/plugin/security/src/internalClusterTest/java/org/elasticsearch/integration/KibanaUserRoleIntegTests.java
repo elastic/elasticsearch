@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
@@ -102,25 +102,34 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String field = "foo";
         indexRandom(true, prepareIndex(index).setSource(field, "bar"));
 
-        SearchResponse response = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).get();
-        final long hits = response.getHits().getTotalHits().value;
-        assertThat(hits, greaterThan(0L));
-        response = client().filterWithHeader(
-            singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
-        ).prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertEquals(response.getHits().getTotalHits().value, hits);
-
-        assertResponse(
-            client().prepareMultiSearch().add(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())),
-            multiSearchResponse -> {
-                final long multiHits = multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value;
-                assertThat(hits, greaterThan(0L));
-                multiSearchResponse = client().filterWithHeader(
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), response -> {
+            final long hits = response.getHits().getTotalHits().value;
+            assertThat(hits, greaterThan(0L));
+            assertResponse(
+                client().filterWithHeader(
                     singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
-                ).prepareMultiSearch().add(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())).get();
-                assertEquals(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, multiHits);
+                ).prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()),
+                response2 -> assertEquals(response2.getHits().getTotalHits().value, hits)
+            );
+            final long multiHits;
+            MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
+                .add(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()))
+                .get();
+            try {
+                multiHits = multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value;
+                assertThat(hits, greaterThan(0L));
+            } finally {
+                multiSearchResponse.decRef();
             }
-        );
+            multiSearchResponse = client().filterWithHeader(
+                singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
+            ).prepareMultiSearch().add(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())).get();
+            try {
+                assertEquals(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, multiHits);
+            } finally {
+                multiSearchResponse.decRef();
+            }
+        });
     }
 
     public void testGetIndex() throws Exception {

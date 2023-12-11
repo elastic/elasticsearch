@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -101,12 +102,14 @@ public class IndexingPressure {
                 false
             );
         }
+        logger.trace(() -> Strings.format("adding [%d] coordinating operations and [%d] bytes", operations, bytes));
         currentCoordinatingBytes.getAndAdd(bytes);
         currentCoordinatingOps.getAndAdd(operations);
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
         totalCoordinatingBytes.getAndAdd(bytes);
         totalCoordinatingOps.getAndAdd(operations);
         return wrapReleasable(() -> {
+            logger.trace(() -> Strings.format("removing [%d] coordinating operations and [%d] bytes", operations, bytes));
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.currentCoordinatingBytes.getAndAdd(-bytes);
             this.currentCoordinatingOps.getAndAdd(-operations);
@@ -153,12 +156,14 @@ public class IndexingPressure {
                 false
             );
         }
+        logger.trace(() -> Strings.format("adding [%d] primary operations and [%d] bytes", operations, bytes));
         currentPrimaryBytes.getAndAdd(bytes);
         currentPrimaryOps.getAndAdd(operations);
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
         totalPrimaryBytes.getAndAdd(bytes);
         totalPrimaryOps.getAndAdd(operations);
         return wrapReleasable(() -> {
+            logger.trace(() -> Strings.format("removing [%d] primary operations and [%d] bytes", operations, bytes));
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.currentPrimaryBytes.getAndAdd(-bytes);
             this.currentPrimaryOps.getAndAdd(-operations);

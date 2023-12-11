@@ -68,6 +68,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -504,11 +505,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         // do nothing
                     }
                 }
-                final var profileResults = search.get().getProfileResults();
-                assertThat(profileResults, not(anEmptyMap()));
-                for (final var searchShardProfileKey : profileResults.keySet()) {
-                    assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
-                }
+                assertResponse(search, resp -> {
+                    final var profileResults = resp.getProfileResults();
+                    assertThat(profileResults, not(anEmptyMap()));
+                    for (final var searchShardProfileKey : profileResults.keySet()) {
+                        assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
+                    }
+                });
             }
             // Search with PIT
             for (int i = 0; i < 10; i++) {
@@ -524,14 +527,13 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
                 String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
                 try {
-                    final var profileResults = prepareSearch().setPointInTime(new PointInTimeBuilder(pitId))
-                        .setProfile(true)
-                        .get()
-                        .getProfileResults();
-                    assertThat(profileResults, not(anEmptyMap()));
-                    for (final var profileKey : profileResults.keySet()) {
-                        assertThat(profileKey, in(searchShardProfileKeys));
-                    }
+                    assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setProfile(true), response -> {
+                        var profileResults = response.getProfileResults();
+                        assertThat(profileResults, not(anEmptyMap()));
+                        for (final var profileKey : profileResults.keySet()) {
+                            assertThat(profileKey, in(searchShardProfileKeys));
+                        }
+                    });
                 } finally {
                     client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId));
                 }

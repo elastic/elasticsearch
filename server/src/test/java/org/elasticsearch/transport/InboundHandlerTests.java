@@ -137,7 +137,7 @@ public class InboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
 
-        long requestId = responseHandlers.add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
+        long requestId = responseHandlers.add(new TransportResponseHandler<TestResponse>() {
             @Override
             public Executor executor(ThreadPool threadPool) {
                 return TransportResponseHandler.TRANSPORT_WORKER;
@@ -157,7 +157,7 @@ public class InboundHandlerTests extends ESTestCase {
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
             }
-        }, null, action));
+        }, null, action).requestId();
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
             action,
             TestRequest::new,

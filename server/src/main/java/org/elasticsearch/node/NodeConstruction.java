@@ -747,47 +747,6 @@ class NodeConstruction {
             threadPool
         );
 
-        record PluginServiceInstances(
-            Client client,
-            ClusterService clusterService,
-            RerouteService rerouteService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            TelemetryProvider telemetryProvider,
-            AllocationService allocationService,
-            IndicesService indicesService,
-            FeatureService featureService,
-            SystemIndices systemIndices
-        ) implements Plugin.PluginServices {}
-        PluginServiceInstances pluginServices = new PluginServiceInstances(
-            client,
-            clusterService,
-            rerouteService,
-            threadPool,
-            createResourceWatcherService(settings, threadPool),
-            scriptService,
-            xContentRegistry,
-            environment,
-            nodeEnvironment,
-            namedWriteableRegistry,
-            clusterModule.getIndexNameExpressionResolver(),
-            repositoriesServiceReference::get,
-            telemetryProvider,
-            clusterModule.getAllocationService(),
-            indicesService,
-            featureService,
-            systemIndices
-        );
-
-        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
-
         var terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
             .stream()
             .map(TerminationHandlerProvider::handler);
@@ -908,6 +867,47 @@ class NodeConstruction {
             transportService,
             indicesService
         );
+
+        record PluginServiceInstances(
+            Client client,
+            ClusterService clusterService,
+            RerouteService rerouteService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            TelemetryProvider telemetryProvider,
+            AllocationService allocationService,
+            IndicesService indicesService,
+            FeatureService featureService,
+            SystemIndices systemIndices
+        ) implements Plugin.PluginServices {}
+        PluginServiceInstances pluginServices = new PluginServiceInstances(
+            client,
+            clusterService,
+            rerouteService,
+            threadPool,
+            createResourceWatcherService(settings, threadPool),
+            scriptService,
+            xContentRegistry,
+            environment,
+            nodeEnvironment,
+            namedWriteableRegistry,
+            clusterModule.getIndexNameExpressionResolver(),
+            repositoriesServiceReference::get,
+            telemetryProvider,
+            clusterModule.getAllocationService(),
+            indicesService,
+            featureService,
+            systemIndices
+        );
+
+        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
 
         actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoryService));
         actionModule.getReservedClusterStateService().installStateHandler(new ReservedPipelineAction());

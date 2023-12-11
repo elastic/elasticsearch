@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -76,9 +76,9 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
 
     @Override
     protected void doExecute(Task task, UpdateFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
-        ActionListener<FilterWithSeqNo> filterListener = ActionListener.wrap(filterWithVersion -> {
-            updateFilter(filterWithVersion, request, listener);
-        }, listener::onFailure);
+        ActionListener<FilterWithSeqNo> filterListener = listener.delegateFailureAndWrap(
+            (l, filterWithVersion) -> updateFilter(filterWithVersion, request, l)
+        );
 
         getFilterWithVersion(request.getFilterId(), filterListener);
     }
@@ -135,14 +135,14 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
         }
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, new ActionListener<>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 jobManager.notifyFilterChanged(
                     filter,
                     request.getAddItems(),
                     request.getRemoveItems(),
-                    ActionListener.wrap(response -> listener.onResponse(new PutFilterAction.Response(filter)), listener::onFailure)
+                    listener.delegateFailureAndWrap((l, response) -> l.onResponse(new PutFilterAction.Response(filter)))
                 );
             }
 
@@ -164,7 +164,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
 
     private void getFilterWithVersion(String filterId, ActionListener<FilterWithSeqNo> listener) {
         GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), MlFilter.documentId(filterId));
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, listener.delegateFailure((l, getDocResponse) -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, listener.delegateFailure((l, getDocResponse) -> {
             try {
                 if (getDocResponse.isExists()) {
                     BytesReference docSource = getDocResponse.getSourceAsBytesRef();

@@ -21,9 +21,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.get.MultiGetAction;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportClearScrollAction;
@@ -118,10 +118,10 @@ public class RBACEngine implements AuthorizationEngine {
         GetUserPrivilegesAction.NAME,
         GetApiKeyAction.NAME
     );
-    private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
-    private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
-    private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
-    private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
+    private static final String INDEX_SUB_REQUEST_PRIMARY = TransportIndexAction.NAME + "[p]";
+    private static final String INDEX_SUB_REQUEST_REPLICA = TransportIndexAction.NAME + "[r]";
+    private static final String DELETE_SUB_REQUEST_PRIMARY = TransportDeleteAction.NAME + "[p]";
+    private static final String DELETE_SUB_REQUEST_REPLICA = TransportDeleteAction.NAME + "[r]";
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
     private final Settings settings;
@@ -253,13 +253,13 @@ public class RBACEngine implements AuthorizationEngine {
         switch (action) {
             case BulkAction.NAME:
             case SimulateBulkAction.NAME:
-            case IndexAction.NAME:
-            case DeleteAction.NAME:
+            case TransportIndexAction.NAME:
+            case TransportDeleteAction.NAME:
             case INDEX_SUB_REQUEST_PRIMARY:
             case INDEX_SUB_REQUEST_REPLICA:
             case DELETE_SUB_REQUEST_PRIMARY:
             case DELETE_SUB_REQUEST_REPLICA:
-            case MultiGetAction.NAME:
+            case TransportMultiGetAction.NAME:
             case MultiTermVectorsAction.NAME:
             case TransportMultiSearchAction.NAME:
             case "indices:data/read/mpercolate":

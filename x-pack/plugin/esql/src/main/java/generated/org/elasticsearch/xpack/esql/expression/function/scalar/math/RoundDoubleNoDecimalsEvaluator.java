@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -13,18 +14,23 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
  * This class is generated. Do not edit it.
  */
 public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator val;
 
   private final DriverContext driverContext;
 
-  public RoundDoubleNoDecimalsEvaluator(EvalOperator.ExpressionEvaluator val,
+  public RoundDoubleNoDecimalsEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.val = val;
     this.driverContext = driverContext;
   }
@@ -43,7 +49,14 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (valBlock.getValueCount(p) != 1) {
+          if (valBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -73,15 +86,18 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final EvalOperator.ExpressionEvaluator.Factory val;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory val) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
       this.val = val;
     }
 
     @Override
     public RoundDoubleNoDecimalsEvaluator get(DriverContext context) {
-      return new RoundDoubleNoDecimalsEvaluator(val.get(context), context);
+      return new RoundDoubleNoDecimalsEvaluator(source, val.get(context), context);
     }
 
     @Override

@@ -478,7 +478,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
          *                 received so far
          */
         @Override
-        public void onCcsReduce(SearchResponse response) {
+        public void onCcsMinimizeRoundtripsReduce(SearchResponse response) {
             // this is only used for MRT=true, so not passing to the MRT=false delegate
             searchResponse.get().updatePartialResponse(response);
         }

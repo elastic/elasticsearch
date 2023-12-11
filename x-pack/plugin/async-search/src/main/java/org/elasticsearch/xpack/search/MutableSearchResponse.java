@@ -248,8 +248,8 @@ class MutableSearchResponse {
         if (finalResponse != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
-                false,
-                false,
+                frozen == false,
+                frozen == false,
                 startTime,
                 expirationTime,
                 startTime + finalResponse.getTook().millis(),

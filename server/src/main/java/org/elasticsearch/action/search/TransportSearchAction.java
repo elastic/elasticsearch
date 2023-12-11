@@ -785,7 +785,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (progressListener != SearchProgressListener.NOOP) {
                     // do an incremental merge of all SearchResponses received so far for async-search with CCS MRT=true
                     // (sync search uses SearchProgressListener.NOOP, so this path will not execute)
-                    progressListener.notifyCcsReduce(searchResponseMerger.getMergedResponse(clusters));
+                    progressListener.notifyCcsMinimizeRoundtripsReduce(searchResponseMerger.getMergedResponse(clusters));
                 }
             }
 

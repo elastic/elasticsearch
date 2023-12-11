@@ -98,7 +98,7 @@ public abstract class SearchProgressListener {
      * @param response SearchResponse holding the cumulative search responses of all
      *                 clusters that have reported back so far.
      */
-    protected void onCcsReduce(SearchResponse response) {}
+    protected void onCcsMinimizeRoundtripsReduce(SearchResponse response) {}
 
     /**
      * Executed when a shard returns a fetch result.
@@ -155,9 +155,9 @@ public abstract class SearchProgressListener {
         }
     }
 
-    final void notifyCcsReduce(SearchResponse response) {
+    final void notifyCcsMinimizeRoundtripsReduce(SearchResponse response) {
         try {
-            onCcsReduce(response);
+            onCcsMinimizeRoundtripsReduce(response);
         } catch (Exception e) {
             logger.warn("Failed to execute progress listener on CCS reduce", e);
         }

@@ -186,7 +186,13 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
         assertEquals(decision.getExplanation(), Decision.Type.THROTTLE, decision.type());
         assertEquals(
-            "waiting for snapshotting of shard [" + shardId + "] to complete on this node [" + nodeId + "]",
+            "waiting for snapshot ["
+                + SnapshotsInProgress.get(routingAllocation.getClusterState()).asStream().findFirst().orElseThrow().snapshot().toString()
+                + "] of shard ["
+                + shardId
+                + "] to complete on node ["
+                + nodeId
+                + "]",
             decision.getExplanation()
         );
     }

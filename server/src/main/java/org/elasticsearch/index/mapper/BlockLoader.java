@@ -136,7 +136,7 @@ public interface BlockLoader {
     class ConstantNullsReader implements AllReader {
         @Override
         public Block read(BlockFactory factory, Docs docs) throws IOException {
-            return factory.constantNulls(docs.count());
+            return factory.constantNulls();
         }
 
         @Override
@@ -170,7 +170,7 @@ public interface BlockLoader {
                 return new ColumnAtATimeReader() {
                     @Override
                     public Block read(BlockFactory factory, Docs docs) {
-                        return factory.constantBytes(value, docs.count());
+                        return factory.constantBytes(value);
                     }
 
                     @Override
@@ -389,13 +389,13 @@ public interface BlockLoader {
         /**
          * Build a block that contains only {@code null}.
          */
-        Block constantNulls(int size);
+        Block constantNulls();
 
         /**
          * Build a block that contains {@code value} repeated
          * {@code size} times.
          */
-        Block constantBytes(BytesRef value, int size);
+        Block constantBytes(BytesRef value);
 
         /**
          * Build a reader for reading keyword ordinals.

@@ -1,0 +1,129 @@
+setup:
+  - skip:
+      version: " - 8.11.99"
+      reason: Introduced in 8.12.0
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
+
+---
+'Create connector sync job':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set:  { id: id }
+
+  - match: { id: $id }
+
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { connector.id: test-connector}
+  - match: { job_type: full }
+  - match: { trigger_method: on_demand }
+  - match: { status: pending }
+  - match: { total_document_count: 0 }
+  - match: { indexed_document_count: 0 }
+  - match: { indexed_document_volume: 0 }
+  - match: { deleted_document_count: 0 }
+  - match: { id: $id }
+  - exists: created_at
+  - exists: last_seen
+
+
+---
+'Create connector sync job with missing job type - expect job type full as default':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          trigger_method: on_demand
+
+  - set:  { id: id }
+
+  - match: { id: $id }
+
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { connector.id: test-connector }
+  - match: { job_type: full }
+  - match: { trigger_method: on_demand }
+  - match: { status: pending }
+  - match: { total_document_count: 0 }
+  - match: { indexed_document_count: 0 }
+  - match: { indexed_document_volume: 0 }
+  - match: { deleted_document_count: 0 }
+  - match: { id: $id }
+  - exists: created_at
+  - exists: last_seen
+
+---
+'Create connector sync job with missing trigger method - expect trigger method on_demand as default':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+
+  - set:  { id: id }
+
+  - match: { id: $id }
+
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { connector.id: test-connector }
+  - match: { job_type: full }
+  - match: { trigger_method: on_demand }
+  - match: { status: pending }
+  - match: { total_document_count: 0 }
+  - match: { indexed_document_count: 0 }
+  - match: { indexed_document_volume: 0 }
+  - match: { deleted_document_count: 0 }
+  - match: { id: $id }
+  - exists: created_at
+  - exists: last_seen
+
+---
+'Create connector sync job with non-existing connector id':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: non-existing-id
+          job_type: full
+          trigger_method: on_demand
+      catch: missing
+
+---
+'Create connector sync job with invalid job type':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: invalid_job_type
+          trigger_method: on_demand
+      catch: bad_request
+
+---
+'Create connector sync job with invalid trigger method':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: invalid_trigger_method
+      catch: bad_request

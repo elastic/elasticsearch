@@ -85,7 +85,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
                     long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
                     long offsetBeforeRead = offsetAfterRead - reference.length();
-                    listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
+                    ActionListener.respondAndRelease(listener, new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
                 }
             } catch (IOException e) {
                 listener.onFailure(e);

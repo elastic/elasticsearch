@@ -281,8 +281,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final SharedBytes sharedBytes;
     private final long cacheSize;
     private final int regionSize;
-    private final ByteSizeValue rangeSize;
-    private final ByteSizeValue recoveryRangeSize;
+    private final int rangeSize;
+    private final int recoveryRangeSize;
 
     private final int numRegions;
     private final ConcurrentLinkedQueue<SharedBytes.IO> freeRegions = new ConcurrentLinkedQueue<>();
@@ -355,8 +355,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             freeRegions.add(sharedBytes.getFileChannel(i));
         }
 
-        this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
-        this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
+        this.rangeSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_RANGE_SIZE_SETTING.get(settings).getBytes());
+        this.recoveryRangeSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings).getBytes());
 
         this.blobCacheMetrics = blobCacheMetrics;
     }
@@ -368,11 +368,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     public int getRangeSize() {
-        return BlobCacheUtils.toIntBytes(rangeSize.getBytes());
+        return rangeSize;
     }
 
     public int getRecoveryRangeSize() {
-        return BlobCacheUtils.toIntBytes(recoveryRangeSize.getBytes());
+        return recoveryRangeSize;
     }
 
     private int getRegion(long position) {
@@ -681,7 +681,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToRead,
-                    ActionListener.runBefore(listener, resource::close).delegateFailureAndWrap((l, success) -> {
+                    ActionListener.runAfter(listener, resource::close).delegateFailureAndWrap((l, success) -> {
                         var ioRef = io;
                         assert regionOwners.get(ioRef) == this;
                         final int start = Math.toIntExact(rangeToRead.start());
@@ -708,25 +708,31 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private void fillGaps(Executor executor, RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
+            final var cacheFileRegion = CacheFileRegion.this;
             for (SparseFileTracker.Gap gap : gaps) {
                 executor.execute(new AbstractRunnable() {
 
                     @Override
                     protected void doRun() throws Exception {
-                        assert CacheFileRegion.this.hasReferences();
                         ensureOpen();
-                        final int start = Math.toIntExact(gap.start());
-                        var ioRef = io;
-                        assert regionOwners.get(ioRef) == CacheFileRegion.this;
-                        writer.fillCacheRange(
-                            ioRef,
-                            start,
-                            start,
-                            Math.toIntExact(gap.end() - start),
-                            progress -> gap.onProgress(start + progress)
-                        );
-                        writeCount.increment();
-
+                        if (cacheFileRegion.tryIncRef() == false) {
+                            throw new AlreadyClosedException("File chunk [" + cacheFileRegion.regionKey + "] has been released");
+                        }
+                        try {
+                            final int start = Math.toIntExact(gap.start());
+                            var ioRef = io;
+                            assert regionOwners.get(ioRef) == cacheFileRegion;
+                            writer.fillCacheRange(
+                                ioRef,
+                                start,
+                                start,
+                                Math.toIntExact(gap.end() - start),
+                                progress -> gap.onProgress(start + progress)
+                            );
+                            writeCount.increment();
+                        } finally {
+                            cacheFileRegion.decRef();
+                        }
                         gap.onCompletion();
                     }
 
@@ -911,6 +917,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return (channel, channelPos, relativePos, len, progressUpdater) -> {
                     assert assertValidRegionAndLength(fileRegion, channelPos, len);
                     adjustedWriter.fillCacheRange(channel, channelPos, relativePos, len, progressUpdater);
+                    assert regionOwners.get(fileRegion.io) == fileRegion
+                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
                 };
             }
             return adjustedWriter;
@@ -926,7 +934,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             if (Assertions.ENABLED) {
                 return (channel, channelPos, relativePos, len) -> {
                     assert assertValidRegionAndLength(fileRegion, channelPos, len);
-                    return adjustedReader.onRangeAvailable(channel, channelPos, relativePos, len);
+                    final int bytesRead = adjustedReader.onRangeAvailable(channel, channelPos, relativePos, len);
+                    assert regionOwners.get(fileRegion.io) == fileRegion
+                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                    return bytesRead;
                 };
             }
             return adjustedReader;

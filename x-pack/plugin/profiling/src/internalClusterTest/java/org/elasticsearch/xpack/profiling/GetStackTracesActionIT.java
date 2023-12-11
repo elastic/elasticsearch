@@ -14,14 +14,14 @@ import java.util.List;
 
 public class GetStackTracesActionIT extends ProfilingTestCase {
     public void testGetStackTracesUnfiltered() throws Exception {
-        GetStackTracesRequest request = new GetStackTracesRequest(10, 1.0d, 1.0d, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(1000, 600.0d, 1.0d, null, null, null, null, null, null, null, null);
         request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(40, response.getTotalSamples());
-        assertEquals(473, response.getTotalFrames());
+        assertEquals(46, response.getTotalSamples());
+        assertEquals(1821, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
-        assertEquals(4L, response.getStackTraceEvents().get("L7kj7UvlKbT-vN73el4faQ").count);
+        assertEquals(3L, response.getStackTraceEvents().get("L7kj7UvlKbT-vN73el4faQ").count);
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests
@@ -30,8 +30,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.fileIds.size());
         assertEquals(18, stackTrace.frameIds.size());
         assertEquals(18, stackTrace.typeIds.size());
-        assertEquals(0.007903d, stackTrace.annualCO2Tons, 0.000001d);
-        assertEquals(74.46d, stackTrace.annualCostsUSD, 0.01d);
+        assertEquals(0.0000098789d, stackTrace.annualCO2Tons, 0.0000000001d);
+        assertEquals(0.093075d, stackTrace.annualCostsUSD, 0.000001d);
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("8NlMClggx8jaziUTJXlmWAAAAAAAAIYI");
@@ -53,10 +53,12 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             "transaction.profiler_stack_trace_ids",
             null,
             null,
+            null,
+            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(43, response.getTotalFrames());
+        assertEquals(49, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
         assertEquals(3L, response.getStackTraceEvents().get("Ce77w10WeIDow3kd1jowlA").count);
@@ -88,6 +90,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             "apm-test-*",
             "transaction.profiler_stack_trace_ids",
+            null,
+            null,
             null,
             null,
             null

@@ -324,7 +324,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS,
                 Loggers.LOG_LEVEL_SETTING,
-                ApiKeyService.DELETE_RETENTION_PERIOD
+                ApiKeyService.DELETE_RETENTION_PERIOD,
+                ApiKeyService.DELETE_INTERVAL
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

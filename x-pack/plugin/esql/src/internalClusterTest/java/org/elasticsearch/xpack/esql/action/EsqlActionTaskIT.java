@@ -99,7 +99,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             \\_AggregationOperator[mode = FINAL, aggs = sum of longs]
             \\_ProjectOperator[projection = [0]]
             \\_LimitOperator[limit = 500]
-            \\_OutputOperator[columns = sum(pause_me)]""";
+            \\_OutputOperator[columns = [sum(pause_me)]]""";
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
@@ -266,9 +266,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                 .put("status_interval", "0ms")
                 .build()
         );
-        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query("from test | stats sum(pause_me)")
-            .pragmas(pragmas)
-            .execute();
+        return new EsqlQueryRequestBuilder(client()).query("from test | stats sum(pause_me)").pragmas(pragmas).execute();
     }
 
     private void cancelTask(TaskId taskId) {

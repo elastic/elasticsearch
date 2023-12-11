@@ -59,12 +59,13 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     }
 
     public void testSupportsConcurrentExecution() {
+        int cardinality = randomIntBetween(-1, 100);
         AB builder = createTestAggregatorBuilder();
-        boolean supportsConcurrency = builder.supportsParallelCollection();
+        boolean supportsConcurrency = builder.supportsParallelCollection(field -> cardinality);
         AggregationBuilder bucketBuilder = new HistogramAggregationBuilder("test");
-        assertTrue(bucketBuilder.supportsParallelCollection());
+        assertTrue(bucketBuilder.supportsParallelCollection(field -> cardinality));
         bucketBuilder.subAggregation(builder);
-        assertThat(bucketBuilder.supportsParallelCollection(), equalTo(supportsConcurrency));
+        assertThat(bucketBuilder.supportsParallelCollection(field -> cardinality), equalTo(supportsConcurrency));
     }
 
     /**

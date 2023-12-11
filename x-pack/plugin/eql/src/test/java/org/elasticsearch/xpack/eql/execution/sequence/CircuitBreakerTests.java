@@ -37,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -114,8 +115,7 @@ public class CircuitBreakerTests extends ESTestCase {
             );
             SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
             SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-            SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
-            l.onResponse(s);
+            ActionListener.respondAndRelease(l, new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY));
         }
 
         @Override
@@ -209,6 +209,7 @@ public class CircuitBreakerTests extends ESTestCase {
         final int searchRequestsExpectedCount = 2;
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 breakerSettings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -246,6 +247,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 settings,
                 breakerSettings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -448,7 +450,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
             }
 
-            listener.onResponse((Response) response);
+            ActionListener.respondAndRelease(listener, (Response) response);
         }
     }
 
@@ -476,18 +478,20 @@ public class CircuitBreakerTests extends ESTestCase {
                 );
                 SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
                 SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-                SearchResponse response = new SearchResponse(
-                    internal,
-                    null,
-                    2,
-                    0,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY,
-                    searchRequest.pointInTimeBuilder().getEncodedId()
+                ActionListener.respondAndRelease(
+                    listener,
+                    (Response) new SearchResponse(
+                        internal,
+                        null,
+                        2,
+                        0,
+                        0,
+                        0,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY,
+                        searchRequest.pointInTimeBuilder().getEncodedId()
+                    )
                 );
-                listener.onResponse((Response) response);
             } else {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
                 ShardSearchFailure[] failures = new ShardSearchFailure[] {
@@ -501,28 +505,29 @@ public class CircuitBreakerTests extends ESTestCase {
                     listener.onFailure(new SearchPhaseExecutionException("search", "all shards failed", failures));
                 } else {
                     // or a partial shard failure
-                    SearchResponse response = new SearchResponse(
-                        new InternalSearchResponse(
-                            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                            null,
-                            new Suggest(Collections.emptyList()),
-                            new SearchProfileResults(Collections.emptyMap()),
-                            false,
-                            false,
-                            1
-                        ),
-                        null,
-                        2,
-                        1,
-                        0,
-                        0,
-                        failures,
-                        SearchResponse.Clusters.EMPTY,
-                        searchRequest.pointInTimeBuilder().getEncodedId()
-                    );
-
                     // this should still be caught and the exception handled properly and circuit breaker cleared
-                    listener.onResponse((Response) response);
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            new InternalSearchResponse(
+                                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+                                null,
+                                new Suggest(Collections.emptyList()),
+                                new SearchProfileResults(Collections.emptyMap()),
+                                false,
+                                false,
+                                1
+                            ),
+                            null,
+                            2,
+                            1,
+                            0,
+                            0,
+                            failures,
+                            SearchResponse.Clusters.EMPTY,
+                            searchRequest.pointInTimeBuilder().getEncodedId()
+                        )
+                    );
                 }
             }
         }

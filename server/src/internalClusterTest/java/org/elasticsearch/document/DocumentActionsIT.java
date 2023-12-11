@@ -101,7 +101,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
             getResult = client().prepareGet("test", "1").setStoredFields("name").get();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat(getResult.isExists(), equalTo(true));
-            assertThat(getResult.getSourceAsBytes(), nullValue());
+            assertThat(getResult.getSourceAsBytesRef(), nullValue());
             assertThat(getResult.getField("name").getValues().get(0).toString(), equalTo("test"));
         }
 

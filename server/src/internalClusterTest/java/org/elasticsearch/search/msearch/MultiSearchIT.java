@@ -11,7 +11,7 @@ package org.elasticsearch.search.msearch;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.DummyQueryBuilder;
@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,27 +43,26 @@ public class MultiSearchIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field", "xxx").get();
         prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
-        MultiSearchResponse response = client().prepareMultiSearch()
-            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
-            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
-            .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
-            .get();
-        try {
-            for (MultiSearchResponse.Item item : response) {
-                assertNoFailures(item.getResponse());
+        assertResponse(
+            client().prepareMultiSearch()
+                .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
+                .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
+                .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())),
+            response -> {
+                for (Item item : response) {
+                    assertNoFailures(item.getResponse());
+                }
+                assertThat(response.getResponses().length, equalTo(3));
+                assertHitCount(response.getResponses()[0].getResponse(), 1L);
+                assertHitCount(response.getResponses()[1].getResponse(), 1L);
+                assertHitCount(response.getResponses()[2].getResponse(), 2L);
+                assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
+                assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
             }
-            assertThat(response.getResponses().length, equalTo(3));
-            assertHitCount(response.getResponses()[0].getResponse(), 1L);
-            assertHitCount(response.getResponses()[1].getResponse(), 1L);
-            assertHitCount(response.getResponses()[2].getResponse(), 2L);
-            assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
-            assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
-        } finally {
-            response.decRef();
-        }
+        );
     }
 
-    public void testSimpleMultiSearchMoreRequests() {
+    public void testSimpleMultiSearchMoreRequests() throws Exception {
         createIndex("test");
         int numDocs = randomIntBetween(0, 16);
         for (int i = 0; i < numDocs; i++) {
@@ -78,17 +78,13 @@ public class MultiSearchIT extends ESIntegTestCase {
         for (int i = 0; i < numSearchRequests; i++) {
             request.add(prepareSearch("test"));
         }
-
-        MultiSearchResponse response = client().multiSearch(request).actionGet();
-        try {
+        assertResponse(client().multiSearch(request), response -> {
             assertThat(response.getResponses().length, equalTo(numSearchRequests));
-            for (MultiSearchResponse.Item item : response) {
+            for (Item item : response) {
                 assertNoFailures(item.getResponse());
                 assertHitCount(item.getResponse(), numDocs);
             }
-        } finally {
-            response.decRef();
-        }
+        });
     }
 
     /**
@@ -102,26 +98,25 @@ public class MultiSearchIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field", "xxx").get();
         prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
-        MultiSearchResponse response = client().prepareMultiSearch()
-            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
-            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
-            .add(prepareSearch("test").setQuery(new DummyQueryBuilder() {
-                @Override
-                public TransportVersion getMinimalSupportedVersion() {
-                    return transportVersion;
-                }
-            }))
-            .get();
-        try {
-            assertThat(response.getResponses().length, equalTo(3));
-            assertHitCount(response.getResponses()[0].getResponse(), 1L);
-            assertHitCount(response.getResponses()[1].getResponse(), 1L);
-            assertTrue(response.getResponses()[2].isFailure());
-            assertTrue(
-                response.getResponses()[2].getFailure().getMessage().contains("the 'search.check_ccs_compatibility' setting is enabled")
-            );
-        } finally {
-            response.decRef();
-        }
+        assertResponse(
+            client().prepareMultiSearch()
+                .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
+                .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
+                .add(prepareSearch("test").setQuery(new DummyQueryBuilder() {
+                    @Override
+                    public TransportVersion getMinimalSupportedVersion() {
+                        return transportVersion;
+                    }
+                })),
+            response -> {
+                assertThat(response.getResponses().length, equalTo(3));
+                assertHitCount(response.getResponses()[0].getResponse(), 1L);
+                assertHitCount(response.getResponses()[1].getResponse(), 1L);
+                assertTrue(response.getResponses()[2].isFailure());
+                assertTrue(
+                    response.getResponses()[2].getFailure().getMessage().contains("the 'search.check_ccs_compatibility' setting is enabled")
+                );
+            }
+        );
     }
 }

@@ -21,12 +21,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -42,6 +44,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
@@ -525,11 +529,11 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         List<String> logs = new ArrayList<>();
         List<Long> metrics = new ArrayList<>();
 
-        HealthService testHealthService = this.getMockedHealthService();
-        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+        BiConsumer<LongGaugeMetric, Long> metricWriter = (metric, value) -> metrics.add(value);
+        Consumer<ESLogMessage> logWriter = msg -> logs.add(msg.asString());
 
-        testHealthPeriodicLogger.metricWriter = (metric, value) -> metrics.add(value);
-        testHealthPeriodicLogger.logWriter = msg -> logs.add(msg.asString());
+        HealthService testHealthService = this.getMockedHealthService();
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true, metricWriter, logWriter);
 
         // switch to Metrics only mode
         this.clusterSettings.applySettings(
@@ -590,10 +594,38 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         HealthService testHealthService,
         boolean enabled
     ) {
+        return createAndInitHealthPeriodicLogger(clusterService, testHealthService, enabled, null, null);
+    }
+
+    private HealthPeriodicLogger createAndInitHealthPeriodicLogger(
+        ClusterService clusterService,
+        HealthService testHealthService,
+        boolean enabled,
+        BiConsumer<LongGaugeMetric, Long> metricWriter,
+        Consumer<ESLogMessage> logWriter
+    ) {
         var provider = getMockedTelemetryProvider();
         var registry = getMockedMeterRegistry();
         doReturn(registry).when(provider).getMeterRegistry();
-        testHealthPeriodicLogger = HealthPeriodicLogger.create(Settings.EMPTY, clusterService, this.client, testHealthService, provider);
+        if (metricWriter != null || logWriter != null) {
+            testHealthPeriodicLogger = HealthPeriodicLogger.create(
+                Settings.EMPTY,
+                clusterService,
+                this.client,
+                testHealthService,
+                provider,
+                metricWriter,
+                logWriter
+            );
+        } else {
+            testHealthPeriodicLogger = HealthPeriodicLogger.create(
+                Settings.EMPTY,
+                clusterService,
+                this.client,
+                testHealthService,
+                provider
+            );
+        }
         if (enabled) {
             clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
         }

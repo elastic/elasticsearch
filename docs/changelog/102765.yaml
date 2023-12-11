@@ -1,5 +1,5 @@
 pr: 102765
-summary: "WIP: Add APM metrics to `HealthPeriodicLogger`"
+summary: "Add APM metrics to `HealthPeriodicLogger`"
 area: Health
 type: enhancement
 issues: []

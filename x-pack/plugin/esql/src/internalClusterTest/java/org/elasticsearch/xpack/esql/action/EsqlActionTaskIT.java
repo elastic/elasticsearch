@@ -49,6 +49,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -161,6 +162,8 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                     if (o.operator().startsWith("LuceneSourceOperator[maxPageSize=" + PAGE_SIZE)) {
                         LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
                         assertThat(oStatus.processedSlices(), lessThanOrEqualTo(oStatus.totalSlices()));
+                        assertThat(oStatus.processedQueries(), equalTo(Set.of("*:*")));
+                        assertThat(oStatus.processedShards(), equalTo(Set.of("test:0")));
                         assertThat(oStatus.sliceIndex(), lessThanOrEqualTo(oStatus.totalSlices()));
                         assertThat(oStatus.sliceMin(), greaterThanOrEqualTo(0));
                         assertThat(oStatus.sliceMax(), greaterThanOrEqualTo(oStatus.sliceMin()));

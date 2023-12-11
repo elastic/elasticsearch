@@ -303,11 +303,11 @@ public abstract class LuceneOperator extends SourceOperator {
             return processedSlices;
         }
 
-        Set<String> processedQueries() {
+        public Set<String> processedQueries() {
             return processedQueries;
         }
 
-        Set<String> processedShards() {
+        public Set<String> processedShards() {
             return processedShards;
         }
 

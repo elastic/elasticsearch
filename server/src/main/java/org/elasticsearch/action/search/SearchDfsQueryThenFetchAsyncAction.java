@@ -102,7 +102,9 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     protected SearchPhase getNextPhase(final SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
         final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
         final AggregatedDfs aggregatedDfs = SearchPhaseController.aggregateDfs(dfsSearchResults);
-        final List<DfsKnnResults> mergedKnnResults = SearchPhaseController.mergeKnnResults(getRequest(), dfsSearchResults);
+        final List<DfsKnnResults> mergedKnnResults = getRequest().source() == null || getRequest().source().getRetrieverBuilder() == null
+            ? SearchPhaseController.mergeKnnResults(getRequest(), dfsSearchResults)
+            : getRequest().source().getRetrieverBuilder().processDfsSearchResults(dfsSearchResults);
         queryPhaseResultConsumer.incRef();
         return new DfsQueryPhase(
             dfsSearchResults,

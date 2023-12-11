@@ -18,6 +18,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.dfs.DfsKnnResults;
+import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -315,6 +317,16 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
 
     @Override
     public void doBuildDfsSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+        // do nothing
+    }
+
+    @Override
+    public boolean hasDfsKnnResults() {
+        return false;
+    }
+
+    @Override
+    public void doProcessDfsSearchResults(List<DfsSearchResult> dfsSearchResults, List<DfsKnnResults> dfsKnnResults) {
         // do nothing
     }
 

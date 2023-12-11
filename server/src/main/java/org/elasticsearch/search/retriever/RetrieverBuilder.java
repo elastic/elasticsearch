@@ -18,6 +18,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.dfs.DfsKnnResults;
+import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -279,4 +282,14 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     }
 
     public abstract void doBuildDfsSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder);
+
+    public abstract boolean hasDfsKnnResults();
+
+    public final List<DfsKnnResults> processDfsSearchResults(List<DfsSearchResult> dfsSearchResults) {
+        List<DfsKnnResults> dfsKnnResults = new ArrayList<>();
+        doProcessDfsSearchResults(dfsSearchResults, dfsKnnResults);
+        return dfsKnnResults.isEmpty() ? null : dfsKnnResults;
+    }
+
+    public abstract void doProcessDfsSearchResults(List<DfsSearchResult> dfsSearchResults, List<DfsKnnResults> dfsKnnResults);
 }

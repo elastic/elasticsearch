@@ -8,6 +8,9 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -16,6 +19,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.dfs.DfsKnnResults;
+import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -24,11 +29,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.search.SearchPhaseController.setShardIndex;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -271,6 +278,37 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
         }
 
         searchSourceBuilder.knnSearch().add(knnSearchBuilder);
+    }
+
+    @Override
+    public boolean hasDfsKnnResults() {
+        return true;
+    }
+
+    @Override
+    public void doProcessDfsSearchResults(List<DfsSearchResult> dfsSearchResults, List<DfsKnnResults> dfsKnnResults) {
+        int index = dfsKnnResults.size();
+        List<TopDocs> topDocsList = new ArrayList<>();
+        String nestedPath = null;
+
+        for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
+            if (dfsSearchResult.knnResults() != null) {
+                DfsKnnResults knnResults = dfsSearchResult.knnResults().get(index);
+                ScoreDoc[] scoreDocs = knnResults.scoreDocs();
+                TotalHits totalHits = new TotalHits(scoreDocs.length, TotalHits.Relation.EQUAL_TO);
+                TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
+                setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
+                topDocsList.add(shardTopDocs);
+                if (nestedPath == null) {
+                    nestedPath = knnResults.getNestedPath();
+                } else {
+                    assert nestedPath.equals(knnResults.getNestedPath());
+                }
+            }
+        }
+
+        TopDocs mergedTopDocs = TopDocs.merge(k, topDocsList.toArray(new TopDocs[0]));
+        dfsKnnResults.add(new DfsKnnResults(nestedPath, mergedTopDocs.scoreDocs));
     }
 
     /*@Override

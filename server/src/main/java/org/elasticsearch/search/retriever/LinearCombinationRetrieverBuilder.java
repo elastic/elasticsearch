@@ -16,6 +16,8 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.dfs.DfsKnnResults;
+import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -127,6 +129,24 @@ public final class LinearCombinationRetrieverBuilder extends RetrieverBuilder<Li
     public void doBuildDfsSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
             retrieverBuilder.doBuildDfsSearchSourceBuilder(searchSourceBuilder);
+        }
+    }
+
+    @Override
+    public boolean hasDfsKnnResults() {
+        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            if (retrieverBuilder.hasDfsKnnResults()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public void doProcessDfsSearchResults(List<DfsSearchResult> dfsSearchResults, List<DfsKnnResults> dfsKnnResults) {
+        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            retrieverBuilder.doProcessDfsSearchResults(dfsSearchResults, dfsKnnResults);
         }
     }
 

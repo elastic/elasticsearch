@@ -16,6 +16,8 @@ import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -453,6 +455,44 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(3, response.getHits().getHits().length);
             assertEquals(4096, response.getHits().getAt(0).field("vector").getValues().size());
         });
+    }
+
+    public void testKnnVectorsWith4096DimsAndRetriever() throws IOException {
+        int numShards = 1 + randomInt(3);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", 4096)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("index", indexSettings, builder);
+
+        for (int doc = 0; doc < 10; doc++) {
+            prepareIndex("index").setSource("vector", randomVector(4096)).get();
+        }
+
+        indicesAdmin().prepareRefresh("index").get();
+
+        float[] queryVector = randomVector(4096);
+        assertResponse(
+            client().prepareSearch("index")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setSource(new SearchSourceBuilder().setRetrieverBuilder(new KnnRetrieverBuilder("vector", queryVector, null, 3, 50, null)))
+                .addFetchField("*")
+                .setSize(10),
+            response -> {
+                assertHitCount(response, 3);
+                assertEquals(3, response.getHits().getHits().length);
+                assertEquals(4096, response.getHits().getAt(0).field("vector").getValues().size());
+            }
+        );
     }
 
     private float[] randomVector() {

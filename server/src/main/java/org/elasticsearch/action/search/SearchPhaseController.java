@@ -309,7 +309,7 @@ public final class SearchPhaseController {
         }
     }
 
-    static void setShardIndex(TopDocs topDocs, int shardIndex) {
+    public static void setShardIndex(TopDocs topDocs, int shardIndex) {
         assert topDocs.scoreDocs.length == 0 || topDocs.scoreDocs[0].shardIndex == -1 : "shardIndex is already set";
         for (ScoreDoc doc : topDocs.scoreDocs) {
             doc.shardIndex = shardIndex;

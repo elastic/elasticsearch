@@ -687,4 +687,53 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     public boolean isForceSyntheticSource() {
         return forceSyntheticSource;
     }
+
+    @Override
+    public String toString() {
+        return "ShardSearchRequest{"
+            + "clusterAlias='"
+            + clusterAlias
+            + '\''
+            + ", shardId="
+            + shardId
+            + ", shardRequestIndex="
+            + shardRequestIndex
+            + ", numberOfShards="
+            + numberOfShards
+            + ", waitForCheckpoint="
+            + waitForCheckpoint
+            + ", waitForCheckpointsTimeout="
+            + waitForCheckpointsTimeout
+            + ", searchType="
+            + searchType
+            + ", scroll="
+            + scroll
+            + ", indexBoost="
+            + indexBoost
+            + ", requestCache="
+            + requestCache
+            + ", nowInMillis="
+            + nowInMillis
+            + ", allowPartialSearchResults="
+            + allowPartialSearchResults
+            + ", originalIndices="
+            + originalIndices
+            + ", canReturnNullResponseIfMatchNoDocs="
+            + canReturnNullResponseIfMatchNoDocs
+            + ", bottomSortValues="
+            + bottomSortValues
+            + ", aliasFilter="
+            + aliasFilter
+            + ", source="
+            + source
+            + ", readerId="
+            + readerId
+            + ", keepAlive="
+            + keepAlive
+            + ", channelVersion="
+            + channelVersion
+            + ", forceSyntheticSource="
+            + forceSyntheticSource
+            + '}';
+    }
 }

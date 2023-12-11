@@ -1954,7 +1954,7 @@ public class Security extends Plugin
             new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
             future
         );
-        assert future.isDone() : "expecting non-blocking call to return immediately";
+        assert future.isDone() : "expecting local-only action call to return immediately on invocation";
         future.actionGet(0, TimeUnit.NANOSECONDS);
     }
 

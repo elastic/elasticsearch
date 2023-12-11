@@ -40,6 +40,40 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return (SemanticTextFieldMapper) in;
     }
 
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
+
+    private final String modelId;
+
+    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, String modelId, CopyTo copyTo) {
+        super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
+        this.modelId = modelId;
+    }
+
+    public String getModelId() {
+        return modelId;
+    }
+
+    @Override
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
+    }
+
+    @Override
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        // Just parses text - no indexing is performed
+        context.parser().textOrNull();
+    }
+
+    @Override
+    protected String contentType() {
+        return CONTENT_TYPE;
+    }
+
+    @Override
+    public SemanticTextFieldType fieldType() {
+        return (SemanticTextFieldType) super.fieldType();
+    }
+
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<String> modelId = Parameter.stringParam("model_id", false, m -> toType(m).fieldType().modelId, null)
@@ -71,13 +105,10 @@ public class SemanticTextFieldMapper extends FieldMapper {
                 name(),
                 new SemanticTextFieldType(name(), modelId.getValue(), meta.getValue()),
                 modelId.getValue(),
-                copyTo,
-                this
+                copyTo
             );
         }
     }
-
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {
 
@@ -112,40 +143,5 @@ public class SemanticTextFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
-    }
-
-    private final String modelId;
-
-    private final Builder builder;
-
-    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, String modelId, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
-        this.builder = builder;
-        this.modelId = modelId;
-    }
-
-    public String getModelId() {
-        return modelId;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
-    }
-
-    @Override
-    protected void parseCreateField(DocumentParserContext context) throws IOException {
-        // Just parses text - no indexing is performed
-        context.parser().textOrNull();
-    }
-
-    @Override
-    protected String contentType() {
-        return CONTENT_TYPE;
-    }
-
-    @Override
-    public SemanticTextFieldType fieldType() {
-        return (SemanticTextFieldType) super.fieldType();
     }
 }

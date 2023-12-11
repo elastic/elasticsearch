@@ -371,7 +371,7 @@ public class DoSection implements ExecutableSection {
             // and feature check for v8. This way the version check can be removed once we move to v9
             @UpdateForV9
             var fixedInV7 = executionContext.esVersion().major == Version.V_7_17_0.major
-                && executionContext.esVersion().onOrAfter(Version.V_7_17_1);
+                && executionContext.esVersion().onOrAfter(Version.V_7_17_2);
             var fixedProductionHeader = fixedInV7
                 || executionContext.clusterHasFeature(RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id());
             if (fixedProductionHeader) {

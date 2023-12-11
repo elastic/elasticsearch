@@ -420,7 +420,7 @@ FROM employees
 ;
 
 //tag::docsAutoBucketNumeric-result[]
-   COUNT(*):integer    |    bs:double
+   COUNT(*):long    |    bs:double
 9              |25000.0        
 9              |30000.0        
 18             |35000.0        

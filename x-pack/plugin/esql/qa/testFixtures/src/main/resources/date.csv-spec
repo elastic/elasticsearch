@@ -763,7 +763,7 @@ FROM employees
 ;
 
 //tag::docsAutoBucketMonthlyHistogram-result[]
-  hires_per_month:integer    |    month:date
+  hires_per_month:long    |    month:date
 2              |1985-02-01T00:00:00.000Z
 1              |1985-05-01T00:00:00.000Z
 1              |1985-07-01T00:00:00.000Z
@@ -784,7 +784,7 @@ FROM employees
 ;
 
 //tag::docsAutoBucketWeeklyHistogram-result[]
-  hires_per_week:integer    |    week:date
+  hires_per_week:long    |    week:date
 2              |1985-02-18T00:00:00.000Z
 1              |1985-05-13T00:00:00.000Z
 1              |1985-07-08T00:00:00.000Z
@@ -803,7 +803,7 @@ FROM sample_data
 //end::docsAutoBucketLast24hr[]
 ;
 
-   COUNT(*):integer    |    bucket:date
+   COUNT(*):long    |    bucket:date
 ;
 
 docsGettingStartedAutoBucket

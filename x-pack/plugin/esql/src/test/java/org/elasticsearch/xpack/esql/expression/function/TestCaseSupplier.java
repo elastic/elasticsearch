@@ -299,7 +299,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     private static List<TypedDataSupplier> getSuppliersForNumericType(DataType type, Number min, Number max) {
         if (type == DataTypes.INTEGER) {
-            return intCases(min.intValue(), max.intValue());
+            return intCases(NumericUtils.saturatingIntValue(min), NumericUtils.saturatingIntValue(max));
         }
         if (type == DataTypes.LONG) {
             return longCases(min.longValue(), max.longValue());

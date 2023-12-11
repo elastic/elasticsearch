@@ -554,7 +554,7 @@ public abstract class BatchEncoder implements Accountable {
             doubleHandle.set(dst.bytes(), before, v.getX());
             doubleHandle.set(dst.bytes(), before + Double.BYTES, v.getY());
             dst.setLength(after);
-            return Double.BYTES;
+            return Double.BYTES * 2;
         }
     }
 

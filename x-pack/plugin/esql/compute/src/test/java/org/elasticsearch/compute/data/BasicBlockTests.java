@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -871,6 +872,7 @@ public class BasicBlockTests extends ESTestCase {
     ) {
         List<List<Object>> values = new ArrayList<>();
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
+            Supplier<SpatialPoint> pointSupplier = randomBoolean() ? ESTestCase::randomGeoPoint : ESTestCase::randomCartesianPoint;
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
                 if (valueCount == 0 || nullAllowed && randomBoolean()) {
@@ -912,7 +914,7 @@ public class BasicBlockTests extends ESTestCase {
                             ((BooleanBlock.Builder) builder).appendBoolean(b);
                         }
                         case POINT -> {
-                            SpatialPoint pt = randomBoolean() ? randomGeoPoint() : randomCartesianPoint();
+                            SpatialPoint pt = new SpatialPoint(pointSupplier.get());
                             valuesAtPosition.add(pt);
                             ((PointBlock.Builder) builder).appendPoint(pt);
                         }

@@ -1,0 +1,5 @@
+pr: 103203
+summary: Fix NPE & empty result handling in `CountOnlyQueryPhaseResultConsumer`
+area: Search
+type: bug
+issues: []

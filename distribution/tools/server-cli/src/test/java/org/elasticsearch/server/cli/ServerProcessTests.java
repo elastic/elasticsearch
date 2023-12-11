@@ -325,9 +325,13 @@ public class ServerProcessTests extends ESTestCase {
         var serverArgs = createServerArgs(false, false);
         var jvmOptionsFile = serverArgs.configDir().resolve("jvm.options");
         var esConfigFile = serverArgs.configDir().resolve("elasticsearch.yml");
-        serverArgs.configDir().toFile().mkdirs();
-        jvmOptionsFile.toFile().createNewFile();
-        esConfigFile.toFile().createNewFile();
+        try {
+            Files.createDirectories(serverArgs.configDir());
+            Files.createFile(jvmOptionsFile);
+            Files.createFile(esConfigFile);
+        } catch (IOException ex) {
+            // File or directory already exists
+        }
 
         envVars.put("ES_JAVA_OPTS", "-Dmyoption=foo");
 
@@ -346,9 +350,13 @@ public class ServerProcessTests extends ESTestCase {
         var processInfo = createProcessInfo();
         var jvmOptionsFile = serverArgs.configDir().resolve("jvm.options");
         var esConfigFile = serverArgs.configDir().resolve("elasticsearch.yml");
-        serverArgs.configDir().toFile().mkdirs();
-        jvmOptionsFile.toFile().createNewFile();
-        esConfigFile.toFile().createNewFile();
+        try {
+            Files.createDirectories(serverArgs.configDir());
+            Files.createFile(jvmOptionsFile);
+            Files.createFile(esConfigFile);
+        } catch (IOException ex) {
+            // File or directory already exists
+        }
 
         var jvmOptions = JvmOptionsParser.determineJvmOptions(serverArgs, processInfo, Path.of(".'"));
 
@@ -384,9 +392,7 @@ public class ServerProcessTests extends ESTestCase {
         String modulePath = esHomeDir.resolve("lib").toString();
         Path javaBin = Paths.get("javahome").resolve("bin");
         AtomicReference<String> expectedJava = new AtomicReference<>(javaBin.resolve("java").toString());
-        processValidator = pb -> {
-            assertThat(pb.command(), hasItems(expectedJava.get(), "--module-path", modulePath, "-m", mainClass));
-        };
+        processValidator = pb -> { assertThat(pb.command(), hasItems(expectedJava.get(), "--module-path", modulePath, "-m", mainClass)); };
         runForeground();
 
         sysprops.put("os.name", "Windows 10");

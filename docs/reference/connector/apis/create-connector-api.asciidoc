@@ -71,7 +71,10 @@ Creates a connector document in the internal index and initializes its configura
 ==== {api-response-body-title}
 
 `id`::
-  (string) An ID associated with the connector document. Returned when using a POST request.
+  (string) The ID associated with the connector document. Returned when using a POST request.
+
+`result`::
+  (string) The result of the indexing operation, `created` or `updated`. Returned when using a PUT request.
 
 [[create-connector-api-response-codes]]
 ==== {api-response-codes-title}

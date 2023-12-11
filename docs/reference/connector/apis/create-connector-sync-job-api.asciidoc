@@ -6,7 +6,18 @@
 
 Creates a connector sync job.
 
-
+////
+[source, console]
+----
+PUT _connector/connector-id
+{
+  "index_name": "search-google-drive",
+  "name": "My Connector",
+  "service_type": "google_drive"
+}
+----
+// TESTSETUP
+////
 [source, console]
 --------------------------------------------------
 POST _connector/_sync_job
@@ -16,6 +27,7 @@ POST _connector/_sync_job
   "trigger_method": "on_demand"
 }
 --------------------------------------------------
+
 
 [[create-connector-sync-job-api-request]]
 ==== {api-request-title}

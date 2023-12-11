@@ -268,7 +268,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(sourceIndexName);
         getMappingsRequest.setParentTask(parentTask);
-        client.admin().indices().getMappings(getMappingsRequest, ActionListener.wrap(getMappingsResponse -> {
+        client.admin().indices().getMappings(getMappingsRequest, listener.delegateFailureAndWrap((delegate, getMappingsResponse) -> {
             final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
                 .entrySet()
                 .stream()
@@ -307,7 +307,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             }
 
             if (validationException.validationErrors().isEmpty() == false) {
-                listener.onFailure(validationException);
+                delegate.onFailure(validationException);
                 return;
             }
 
@@ -315,7 +315,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             try {
                 mapping = createDownsampleIndexMapping(helper, request.getDownsampleConfig(), mapperService, sourceIndexMappings);
             } catch (IOException e) {
-                listener.onFailure(e);
+                delegate.onFailure(e);
                 return;
             }
             // 3. Create downsample index
@@ -329,7 +329,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     if (createIndexResp.isAcknowledged()) {
                         performShardDownsampling(
                             request,
-                            listener,
+                            delegate,
                             sourceIndexMetadata,
                             downsampleIndexName,
                             parentTask,
@@ -337,13 +337,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             labelFields
                         );
                     } else {
-                        listener.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
+                        delegate.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
                     }
                 }, e -> {
                     if (e instanceof ResourceAlreadyExistsException) {
                         performShardDownsampling(
                             request,
-                            listener,
+                            delegate,
                             sourceIndexMetadata,
                             downsampleIndexName,
                             parentTask,
@@ -351,11 +351,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             labelFields
                         );
                     } else {
-                        listener.onFailure(e);
+                        delegate.onFailure(e);
                     }
                 })
             );
-        }, listener::onFailure));
+        }));
     }
 
     // 3. downsample index created or already exist (in case of retry). Run downsample indexer persistent task on each shard.

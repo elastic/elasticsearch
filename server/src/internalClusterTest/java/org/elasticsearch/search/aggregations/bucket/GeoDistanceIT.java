@@ -65,7 +65,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
         source.endArray();
         source = source.endObject();
-        return client().prepareIndex(idx).setSource(source);
+        return prepareIndex(idx).setSource(source);
     }
 
     @Override
@@ -120,8 +120,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx")
-                    .setId("" + i)
+                prepareIndex("empty_bucket_idx").setId("" + i)
                     .setSource(jsonBuilder().startObject().field("value", i * 2).field("location", "52.0945, 5.116").endObject())
             );
         }

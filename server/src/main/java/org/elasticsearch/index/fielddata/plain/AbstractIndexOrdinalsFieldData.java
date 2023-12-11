@@ -29,6 +29,7 @@ import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(AbstractIndexOrdinalsFieldData.class);
@@ -83,6 +84,8 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
+            } else if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e.getCause();
             } else {
                 throw new ElasticsearchException(e);
             }
@@ -129,6 +132,8 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
+            } else if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e.getCause();
             } else {
                 throw new ElasticsearchException(e);
             }

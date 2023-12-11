@@ -8,6 +8,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -119,6 +120,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             .numberOfTestRuns(20)
             .supportsUnknownFields(supportsUnknownFields())
             .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(RefCounted::decRef)
             .test();
     }
 
@@ -138,6 +140,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             // exceptions are not of the same type whenever parsed back
             .assertToXContentEquivalence(false)
             .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(RefCounted::decRef)
             .test();
     }
 

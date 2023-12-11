@@ -116,8 +116,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             indexRequests.add(
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
+                prepareIndex("test").setId(Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject())
             );
         }

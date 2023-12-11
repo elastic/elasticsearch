@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
@@ -43,7 +43,7 @@ public final class SystemPrivilege extends Privilege {
         "indices:data/read/*", // needed for SystemIndexMigrator
         "indices:admin/refresh", // needed for SystemIndexMigrator
         "indices:admin/aliases", // needed for SystemIndexMigrator
-        SearchShardsAction.NAME // added so this API can be called with the system user by other APIs
+        TransportSearchShardsAction.TYPE.name() // added so this API can be called with the system user by other APIs
     );
 
     private static final Predicate<String> PREDICATE = (action) -> {

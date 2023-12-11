@@ -33,7 +33,6 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
                     ActionListener<Response> listener
                 ) {
                     assertEquals(parentTaskId[0], request.getParentTask());
-                    super.doExecute(action, request, listener);
                 }
             };
 

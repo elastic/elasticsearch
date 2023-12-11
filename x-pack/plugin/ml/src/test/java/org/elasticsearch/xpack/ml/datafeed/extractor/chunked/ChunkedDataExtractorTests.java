@@ -100,7 +100,6 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         jobId = "test-job";
         timeField = "time";
         indices = Arrays.asList("index-1", "index-2");
-        query = QueryBuilders.matchAllQuery();
         scrollSize = 1000;
         chunkSpan = null;
         dataExtractorFactory = mock(DataExtractorFactory.class);
@@ -605,7 +604,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             jobId,
             timeField,
             indices,
-            query,
+            QueryBuilders.matchAllQuery(),
             scrollSize,
             start,
             end,
@@ -650,6 +649,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         @Override
         public void cancel() {
+            // do nothing
+        }
+
+        @Override
+        public void destroy() {
             // do nothing
         }
 

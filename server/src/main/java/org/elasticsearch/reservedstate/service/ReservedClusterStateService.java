@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -83,12 +84,16 @@ public class ReservedClusterStateService {
      * @param clusterService for fetching and saving the modified state
      * @param handlerList a list of reserved state handlers, which we use to transform the state
      */
-    public ReservedClusterStateService(ClusterService clusterService, List<ReservedClusterStateHandler<?>> handlerList) {
+    public ReservedClusterStateService(
+        ClusterService clusterService,
+        RerouteService rerouteService,
+        List<ReservedClusterStateHandler<?>> handlerList
+    ) {
         this.clusterService = clusterService;
         this.updateTaskQueue = clusterService.createTaskQueue(
             "reserved state update",
             Priority.URGENT,
-            new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService())
+            new ReservedStateUpdateTaskExecutor(rerouteService)
         );
         this.errorTaskQueue = clusterService.createTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor());
         this.handlers = handlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));

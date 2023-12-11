@@ -37,6 +37,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -132,7 +133,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         for (int i = numberOfDocs; i > 0; i--) {
             XContentBuilder builder = XContentFactory.smileBuilder();
             builder.startObject().field("text", randomRealisticUnicodeOfCodepointLengthBetween(5, 50)).field("num", i).endObject();
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource(builder));
+            indexRequestBuilders.add(prepareIndex(indexName).setSource(builder));
         }
         indexRandom(true, true, true, indexRequestBuilders);
 
@@ -207,11 +208,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
         refreshSystemIndex();
 
-        final long numberOfCachedBlobs = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-            .get()
-            .getHits()
-            .getTotalHits().value;
+        final long numberOfCachedBlobs = SearchResponseUtils.getTotalHitsValue(
+            systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+        );
 
         IndexingStats indexingStats = systemClient().admin()
             .indices()

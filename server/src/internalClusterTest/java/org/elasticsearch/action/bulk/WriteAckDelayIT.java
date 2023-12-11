@@ -35,7 +35,7 @@ public class WriteAckDelayIT extends ESIntegTestCase {
         logger.info("indexing [{}] docs", numOfDocs);
         List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
         for (int j = 0; j < numOfDocs; j++) {
-            builders.add(client().prepareIndex("test").setSource("field", "value_" + j));
+            builders.add(prepareIndex("test").setSource("field", "value_" + j));
         }
         indexRandom(true, builders);
         logger.info("verifying indexed content");

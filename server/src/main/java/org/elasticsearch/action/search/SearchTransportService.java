@@ -280,7 +280,7 @@ public class SearchTransportService {
         final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());
         transportService.sendChildRequest(
             connection,
-            MultiSearchAction.NAME,
+            TransportMultiSearchAction.TYPE.name(),
             request,
             task,
             new ConnectionCountingHandler<>(listener, MultiSearchResponse::new, clientConnections, connection.getNode().getId())

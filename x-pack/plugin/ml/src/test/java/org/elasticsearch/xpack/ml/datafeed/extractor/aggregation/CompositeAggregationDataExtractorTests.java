@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -122,9 +121,9 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             .subAggregation(AggregationBuilders.avg("responsetime").field("responsetime"));
         runtimeMappings = Collections.emptyMap();
         timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
-        aggregatedSearchRequestBuilder = (searchSourceBuilder) -> new SearchRequestBuilder(testClient, SearchAction.INSTANCE).setSource(
-            searchSourceBuilder
-        ).setAllowPartialSearchResults(false).setIndices(indices.toArray(String[]::new));
+        aggregatedSearchRequestBuilder = (searchSourceBuilder) -> new SearchRequestBuilder(testClient).setSource(searchSourceBuilder)
+            .setAllowPartialSearchResults(false)
+            .setIndices(indices.toArray(String[]::new));
     }
 
     public void testExtraction() throws IOException {

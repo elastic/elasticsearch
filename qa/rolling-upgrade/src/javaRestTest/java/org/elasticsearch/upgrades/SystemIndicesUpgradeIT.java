@@ -14,11 +14,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils.JsonMapView;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -89,7 +89,7 @@ public class SystemIndicesUpgradeIT extends ParameterizedRollingUpgradeTestCase 
 
             // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
             // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+            if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_ENFORCED) == false) {
                 // Create an alias to make sure it gets upgraded properly
                 Request putAliasRequest = new Request("POST", "/_aliases");
                 putAliasRequest.setJsonEntity("""

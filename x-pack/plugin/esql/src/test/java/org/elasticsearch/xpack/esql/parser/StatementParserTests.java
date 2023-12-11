@@ -636,6 +636,7 @@ public class StatementParserTests extends ESTestCase {
             "from a | dissect foo \"%{bar}\" append_separator=3",
             "Invalid value for dissect append_separator: expected a string, but was [3]"
         );
+        expectError("from a | dissect foo \"%{}\"", "Invalid pattern for dissect: [%{}]");
     }
 
     public void testGrokPattern() {

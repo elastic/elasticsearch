@@ -1,0 +1,5 @@
+pr: 102570
+summary: Added `beat.stats.libbeat.pipeline.queue.max_events`
+area: Monitoring
+type: enhancement
+issues: []

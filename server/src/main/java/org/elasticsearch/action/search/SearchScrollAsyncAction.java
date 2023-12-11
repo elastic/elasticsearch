@@ -247,7 +247,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
             }
-            listener.onResponse(
+            ActionListener.respondAndRelease(
+                listener,
                 new SearchResponse(
                     internalResponse,
                     scrollId,

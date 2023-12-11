@@ -71,11 +71,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         logger.info("d1: {}", d1Builder);
         logger.info("d2: {}", d2Builder);
-        indexRandom(
-            true,
-            client().prepareIndex("index").setId("d1").setSource(d1Builder),
-            client().prepareIndex("index").setId("d2").setSource(d2Builder)
-        );
+        indexRandom(true, prepareIndex("index").setId("d1").setSource(d1Builder), prepareIndex("index").setId("d2").setSource(d2Builder));
         GeoPoint[] q = new GeoPoint[2];
         if (randomBoolean()) {
             q[0] = new GeoPoint(2, 1);
@@ -167,11 +163,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         logger.info("d1: {}", d1Builder);
         logger.info("d2: {}", d2Builder);
-        indexRandom(
-            true,
-            client().prepareIndex("index").setId("d1").setSource(d1Builder),
-            client().prepareIndex("index").setId("d2").setSource(d2Builder)
-        );
+        indexRandom(true, prepareIndex("index").setId("d1").setSource(d1Builder), prepareIndex("index").setId("d2").setSource(d2Builder));
         GeoPoint q = new GeoPoint(0, 0);
 
         assertResponse(
@@ -242,11 +234,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         GeoPoint[] d2Points = { new GeoPoint(4.5, 1), new GeoPoint(4.75, 2), new GeoPoint(5, 3), new GeoPoint(5.25, 4) };
         createShuffeldJSONArray(d2Builder, d2Points);
 
-        indexRandom(
-            true,
-            client().prepareIndex("index").setId("d1").setSource(d1Builder),
-            client().prepareIndex("index").setId("d2").setSource(d2Builder)
-        );
+        indexRandom(true, prepareIndex("index").setId("d1").setSource(d1Builder), prepareIndex("index").setId("d2").setSource(d2Builder));
 
         List<GeoPoint> qPoints = Arrays.asList(new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4));
         Collections.shuffle(qPoints, random());
@@ -295,11 +283,9 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index").setMapping(LOCATION_FIELD, "type=geo_point"));
         indexRandom(
             true,
-            client().prepareIndex("index")
-                .setId("d1")
+            prepareIndex("index").setId("d1")
                 .setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 1).endObject().endObject()),
-            client().prepareIndex("index")
-                .setId("d2")
+            prepareIndex("index").setId("d2")
                 .setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 2).endObject().endObject())
         );
 
@@ -371,8 +357,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test1").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
-            client().prepareIndex("test2").setSource()
+            prepareIndex("test1").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
+            prepareIndex("test2").setSource()
         );
 
         assertSortValues(

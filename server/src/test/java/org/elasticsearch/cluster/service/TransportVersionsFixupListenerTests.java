@@ -83,7 +83,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
                 .stream()
                 .map(
                     e -> new NodeInfo(
-                        null,
+                        "",
                         e.getValue(),
                         null,
                         null,

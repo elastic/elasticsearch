@@ -170,16 +170,20 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             .add(client.prepareSearch("test"))
             .add(client.prepareSearch("test1"))
             .get();
-        MultiSearchResponse.Item[] items = msearchResponse.getResponses();
-        assertThat(items.length, is(2));
-        assertThat(items[0].isFailure(), is(false));
-        searchResponse = items[0].getResponse();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
-        assertThat(items[1].isFailure(), is(false));
-        searchResponse = items[1].getResponse();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
+        try {
+            MultiSearchResponse.Item[] items = msearchResponse.getResponses();
+            assertThat(items.length, is(2));
+            assertThat(items[0].isFailure(), is(false));
+            searchResponse = items[0].getResponse();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 1);
+            assertThat(items[1].isFailure(), is(false));
+            searchResponse = items[1].getResponse();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 1);
+        } finally {
+            msearchResponse.decRef();
+        }
     }
 
     public void testMonitorRestrictedWildcards() throws Exception {
@@ -303,7 +307,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field1", "public")))
         );
 
-        client().prepareIndex("index1").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("index1").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
 
         final Client userAClient = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD))

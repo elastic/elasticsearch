@@ -555,8 +555,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
-        for (int i = 0; i < ranges.length; i++) {
-            Range range = ranges[i];
+        for (Range range : ranges) {
             org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket = rangeFactory.createBucket(
                 range.key,
                 range.originalFrom,

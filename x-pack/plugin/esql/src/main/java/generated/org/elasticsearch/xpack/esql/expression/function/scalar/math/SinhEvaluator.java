@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -36,21 +37,27 @@ public final class SinhEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      DoubleBlock valBlock = (DoubleBlock) valRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock valBlock = (DoubleBlock) val.eval(page)) {
       DoubleVector valVector = valBlock.asVector();
       if (valVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+        return eval(page.getPositionCount(), valBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valVector));
+      return eval(page.getPositionCount(), valVector);
     }
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (valBlock.getValueCount(p) != 1) {
+          if (valBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

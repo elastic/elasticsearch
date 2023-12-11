@@ -183,7 +183,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
     public void testAggregationSize() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = multiTsWriter();
 
-        List<Consumer<InternalTimeSeries>> verifiers = new ArrayList<Consumer<InternalTimeSeries>>();
+        List<Consumer<InternalTimeSeries>> verifiers = new ArrayList<>();
 
         verifiers.add(ts -> assertThat(ts.getBucketByKey("{dim1=aaa, dim2=xxx}").docCount, equalTo(2L)));
         verifiers.add(ts -> assertThat(ts.getBucketByKey("{dim1=aaa, dim2=yyy}").docCount, equalTo(2L)));

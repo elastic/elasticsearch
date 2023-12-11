@@ -80,6 +80,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                         },
                         "routing_path": ["metricset"],
                         "mode": "time_series",
+                        "look_ahead_time": "1m",
                         "lifecycle.name": "%s"
                     }
                 },
@@ -301,7 +302,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100271")
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
@@ -337,7 +337,10 @@ public class DownsampleActionIT extends ESRestTestCase {
         rolloverMaxOneDocCondition(client(), dataStream);
 
         String rollupIndex = waitAndGetRollupIndexName(client(), backingIndexName, fixedInterval);
-        assertNotNull("Cannot retrieve rollup index name", rollupIndex);
+        if (rollupIndex == null) {
+            logger.warn("explain:" + explainIndex(client(), backingIndexName));
+        }
+        assertNotNull(String.format(Locale.ROOT, "Cannot retrieve rollup index [%s]", rollupIndex), rollupIndex);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
         assertBusy(() -> {
@@ -611,7 +614,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             } catch (IOException e) {
                 return false;
             }
-        }, 60, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS); // High timeout in case we're unlucky and end_time has been increased.
         logger.info("--> original index name is [{}], rollup index name is [{}]", originalIndexName, rollupIndexName[0]);
         return rollupIndexName[0];
     }

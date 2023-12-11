@@ -83,7 +83,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test1").setSettings(indexSettings(shardsIdx1, 0)));
         int docsTest1 = scaledRandomIntBetween(3 * shardsIdx1, 5 * shardsIdx1);
         for (int i = 0; i < docsTest1; i++) {
-            client().prepareIndex("test1").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("test1").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -91,7 +91,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2").setSettings(indexSettings(shardsIdx2, 0)));
         int docsTest2 = scaledRandomIntBetween(3 * shardsIdx2, 5 * shardsIdx2);
         for (int i = 0; i < docsTest2; i++) {
-            client().prepareIndex("test2").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("test2").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -181,11 +181,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         final int docs = scaledRandomIntBetween(20, 50);
         for (int s = 0; s < numAssignedShards(index); s++) {
             for (int i = 0; i < docs; i++) {
-                client().prepareIndex(index)
-                    .setId(Integer.toString(s * docs + i))
-                    .setSource("field", "value")
-                    .setRouting(Integer.toString(s))
-                    .get();
+                prepareIndex(index).setId(Integer.toString(s * docs + i)).setSource("field", "value").setRouting(Integer.toString(s)).get();
             }
         }
         indicesAdmin().prepareRefresh(index).get();

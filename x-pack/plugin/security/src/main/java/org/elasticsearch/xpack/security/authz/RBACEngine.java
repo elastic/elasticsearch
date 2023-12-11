@@ -21,15 +21,15 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.get.MultiGetAction;
-import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.ClearScrollAction;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
-import org.elasticsearch.action.search.MultiSearchAction;
-import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
@@ -118,10 +118,10 @@ public class RBACEngine implements AuthorizationEngine {
         GetUserPrivilegesAction.NAME,
         GetApiKeyAction.NAME
     );
-    private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
-    private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
-    private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
-    private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
+    private static final String INDEX_SUB_REQUEST_PRIMARY = TransportIndexAction.NAME + "[p]";
+    private static final String INDEX_SUB_REQUEST_REPLICA = TransportIndexAction.NAME + "[r]";
+    private static final String DELETE_SUB_REQUEST_PRIMARY = TransportDeleteAction.NAME + "[p]";
+    private static final String DELETE_SUB_REQUEST_REPLICA = TransportDeleteAction.NAME + "[r]";
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
     private final Settings settings;
@@ -253,15 +253,15 @@ public class RBACEngine implements AuthorizationEngine {
         switch (action) {
             case BulkAction.NAME:
             case SimulateBulkAction.NAME:
-            case IndexAction.NAME:
-            case DeleteAction.NAME:
+            case TransportIndexAction.NAME:
+            case TransportDeleteAction.NAME:
             case INDEX_SUB_REQUEST_PRIMARY:
             case INDEX_SUB_REQUEST_REPLICA:
             case DELETE_SUB_REQUEST_PRIMARY:
             case DELETE_SUB_REQUEST_REPLICA:
-            case MultiGetAction.NAME:
+            case TransportMultiGetAction.NAME:
             case MultiTermVectorsAction.NAME:
-            case MultiSearchAction.NAME:
+            case TransportMultiSearchAction.NAME:
             case "indices:data/read/mpercolate":
             case "indices:data/read/msearch/template":
             case "indices:data/read/search/template":
@@ -326,7 +326,7 @@ public class RBACEngine implements AuthorizationEngine {
                 // if the action is a search scroll action, we first authorize that the user can execute the action for some
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
-                if (SearchScrollAction.NAME.equals(action)) {
+                if (TransportSearchScrollAction.TYPE.name().equals(action)) {
                     ActionRunnable.supply(listener.delegateFailureAndWrap((l, parsedScrollId) -> {
                         if (parsedScrollId.hasLocalIndices()) {
                             l.onResponse(
@@ -358,7 +358,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so no additional checks are needed here.
                     listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
-            } else if (action.equals(ClosePointInTimeAction.NAME)) {
+            } else if (action.equals(TransportClosePointInTimeAction.TYPE.name())) {
                 listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else {
                 assert false
@@ -948,12 +948,12 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean isScrollRelatedAction(String action) {
-        return action.equals(SearchScrollAction.NAME)
+        return action.equals(TransportSearchScrollAction.TYPE.name())
             || action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME)
             || action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME)
             || action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME)
             || action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME)
-            || action.equals(ClearScrollAction.NAME)
+            || action.equals(TransportClearScrollAction.NAME)
             || action.equals("indices:data/read/sql/close_cursor")
             || action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }

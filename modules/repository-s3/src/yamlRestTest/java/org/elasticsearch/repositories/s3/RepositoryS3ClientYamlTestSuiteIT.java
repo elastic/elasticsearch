@@ -15,6 +15,7 @@ import fixture.s3.S3HttpFixtureWithSessionToken;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -24,6 +25,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture();

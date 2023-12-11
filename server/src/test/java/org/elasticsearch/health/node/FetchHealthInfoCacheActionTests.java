@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.health.node.HealthInfoTests.randomDslHealthInfo;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,7 +102,7 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
         HealthInfoCache healthInfoCache = getTestHealthInfoCache();
         final FetchHealthInfoCacheAction.Response expectedResponse = new FetchHealthInfoCacheAction.Response(
-            new HealthInfo(healthInfoCache.getHealthInfo().diskInfoByNode())
+            new HealthInfo(healthInfoCache.getHealthInfo().diskInfoByNode(), healthInfoCache.getHealthInfo().dslHealthInfo())
         );
         ActionTestUtils.execute(
             new FetchHealthInfoCacheAction.TransportAction(
@@ -126,7 +127,8 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
             String nodeId = allNode.getId();
             healthInfoCache.updateNodeHealth(
                 nodeId,
-                new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
+                new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values())),
+                randomDslHealthInfo()
             );
         }
         return healthInfoCache;
@@ -134,7 +136,7 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
 
     public void testResponseSerialization() {
         FetchHealthInfoCacheAction.Response response = new FetchHealthInfoCacheAction.Response(
-            new HealthInfo(getTestHealthInfoCache().getHealthInfo().diskInfoByNode())
+            new HealthInfo(getTestHealthInfoCache().getHealthInfo().diskInfoByNode(), DataStreamLifecycleHealthInfo.NO_DSL_ERRORS)
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,
@@ -150,6 +152,11 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
             randomAlphaOfLength(10),
             new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
         );
-        return new FetchHealthInfoCacheAction.Response(new HealthInfo(diskHealthInfoMapCopy));
+        return new FetchHealthInfoCacheAction.Response(
+            new HealthInfo(
+                diskHealthInfoMapCopy,
+                randomValueOtherThan(originalResponse.getHealthInfo().dslHealthInfo(), HealthInfoTests::randomDslHealthInfo)
+            )
+        );
     }
 }

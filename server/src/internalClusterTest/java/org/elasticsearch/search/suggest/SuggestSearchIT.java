@@ -295,9 +295,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test").setSource("name", "I like iced tea"),
-            client().prepareIndex("test").setSource("name", "I like tea."),
-            client().prepareIndex("test").setSource("name", "I like ice cream.")
+            prepareIndex("test").setSource("name", "I like iced tea"),
+            prepareIndex("test").setSource("name", "I like tea."),
+            prepareIndex("test").setSource("name", "I like ice cream.")
         );
         refresh();
 
@@ -781,9 +781,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
         ensureGreen();
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("field1", "foobar1").setRouting("1"),
-            client().prepareIndex("test").setId("2").setSource("field1", "foobar2").setRouting("2"),
-            client().prepareIndex("test").setId("3").setSource("field1", "foobar3").setRouting("3")
+            prepareIndex("test").setId("1").setSource("field1", "foobar1").setRouting("1"),
+            prepareIndex("test").setId("2").setSource("field1", "foobar2").setRouting("2"),
+            prepareIndex("test").setId("3").setSource("field1", "foobar3").setRouting("3")
         );
 
         Suggest suggest = searchSuggest(
@@ -1118,7 +1118,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (String title : titles) {
-            builders.add(client().prepareIndex("test").setSource("title", title));
+            builders.add(prepareIndex("test").setSource("title", title));
         }
 
         indexRandom(true, builders);
@@ -1156,9 +1156,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test").setSource("text", "apple"));
-        builders.add(client().prepareIndex("test").setSource("text", "mango"));
-        builders.add(client().prepareIndex("test").setSource("text", "papaya"));
+        builders.add(prepareIndex("test").setSource("text", "apple"));
+        builders.add(prepareIndex("test").setSource("text", "mango"));
+        builders.add(prepareIndex("test").setSource("text", "papaya"));
         indexRandom(true, false, builders);
 
         TermSuggestionBuilder termSuggest = termSuggestion("alias").text("appple");
@@ -1181,10 +1181,10 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).build()).setMapping(mapping));
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test").setSource("text", "apple"));
-        builders.add(client().prepareIndex("test").setSource("text", "apple"));
-        builders.add(client().prepareIndex("test").setSource("text", "apple"));
-        builders.add(client().prepareIndex("test").setSource("text", "appfle"));
+        builders.add(prepareIndex("test").setSource("text", "apple"));
+        builders.add(prepareIndex("test").setSource("text", "apple"));
+        builders.add(prepareIndex("test").setSource("text", "apple"));
+        builders.add(prepareIndex("test").setSource("text", "appfle"));
         indexRandom(true, false, builders);
 
         PhraseSuggestionBuilder phraseSuggest = phraseSuggestion("text").text("appple")
@@ -1294,7 +1294,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (String title : titles) {
-            builders.add(client().prepareIndex("test").setSource("title", title));
+            builders.add(prepareIndex("test").setSource("title", title));
         }
         indexRandom(true, builders);
 

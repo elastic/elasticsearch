@@ -44,9 +44,9 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testBasicAllQuery() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test").setId("1").setSource("f1", "foo bar baz"));
-        reqs.add(client().prepareIndex("test").setId("2").setSource("f2", "Bar"));
-        reqs.add(client().prepareIndex("test").setId("3").setSource("f3", "foo bar baz"));
+        reqs.add(prepareIndex("test").setId("1").setSource("f1", "foo bar baz"));
+        reqs.add(prepareIndex("test").setId("2").setSource("f2", "Bar"));
+        reqs.add(prepareIndex("test").setId("3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(queryStringQuery("foo")), response -> {
@@ -65,8 +65,8 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testWithDate() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02"));
-        reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01"));
+        reqs.add(prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02"));
+        reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(queryStringQuery("foo bar")), response -> {
@@ -89,12 +89,8 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testWithLotsOfTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(
-            client().prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02", "f_float", "1.7", "f_ip", "127.0.0.1")
-        );
-        reqs.add(
-            client().prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01", "f_float", "1.8", "f_ip", "127.0.0.2")
-        );
+        reqs.add(prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02", "f_float", "1.7", "f_ip", "127.0.0.1"));
+        reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01", "f_float", "1.8", "f_ip", "127.0.0.2"));
         indexRandom(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(queryStringQuery("foo bar")), response -> {
@@ -118,7 +114,7 @@ public class QueryStringIT extends ESIntegTestCase {
     public void testDocWithAllTypes() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-example-document.json");
-        reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
+        reqs.add(prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(queryStringQuery("foo")), response -> assertHits(response.getHits(), "1"));
@@ -142,9 +138,9 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testKeywordWithWhitespace() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test").setId("1").setSource("f2", "Foo Bar"));
-        reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar"));
-        reqs.add(client().prepareIndex("test").setId("3").setSource("f1", "foo bar"));
+        reqs.add(prepareIndex("test").setId("1").setSource("f2", "Foo Bar"));
+        reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar"));
+        reqs.add(prepareIndex("test").setId("3").setSource("f1", "foo bar"));
         indexRandom(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(queryStringQuery("foo")), response -> {
@@ -169,7 +165,7 @@ public class QueryStringIT extends ESIntegTestCase {
         ensureGreen("test_1");
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test_1").setId("1").setSource("f1", "foo", "f2", "eggplant"));
+        reqs.add(prepareIndex("test_1").setId("1").setSource("f1", "foo", "f2", "eggplant"));
         indexRandom(true, false, reqs);
 
         assertHitCount(prepareSearch("test_1").setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.AND)), 0L);
@@ -182,8 +178,8 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testPhraseQueryOnFieldWithNoPositions() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test").setId("1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
-        reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
+        reqs.add(prepareIndex("test").setId("1").setSource("f1", "foo bar", "f4", "eggplant parmesan"));
+        reqs.add(prepareIndex("test").setId("2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
         indexRandom(true, false, reqs);
 
         assertHitCount(prepareSearch("test").setQuery(queryStringQuery("\"eggplant parmesan\"").lenient(true)), 0L);
@@ -215,9 +211,9 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testFieldAlias() throws Exception {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
-        indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
-        indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
+        indexRequests.add(prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
 
         assertNoFailuresAndResponse(prepareSearch("test").setQuery(queryStringQuery("value").field("f3_alias")), response -> {
@@ -228,9 +224,9 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testFieldAliasWithEmbeddedFieldNames() throws Exception {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
-        indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
-        indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
+        indexRequests.add(prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
 
         assertNoFailuresAndResponse(prepareSearch("test").setQuery(queryStringQuery("f3_alias:value AND f2:three")), response -> {
@@ -241,9 +237,9 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testFieldAliasWithWildcardField() throws Exception {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
-        indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
-        indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
+        indexRequests.add(prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
+        indexRequests.add(prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
 
         assertNoFailuresAndResponse(prepareSearch("test").setQuery(queryStringQuery("value").field("f3_*")), response -> {
@@ -254,7 +250,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
     public void testFieldAliasOnDisallowedFieldType() throws Exception {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
+        indexRequests.add(prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
         indexRandom(true, false, indexRequests);
 
         // The wildcard field matches aliases for both a text and geo_point field.

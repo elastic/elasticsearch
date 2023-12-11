@@ -55,8 +55,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         LocalDate date = LocalDate.of(2015, 9, 1);
 
         for (int i = 0; i < 30; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(i))
+            prepareIndex("test").setId(Integer.toString(i))
                 .setSource("field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i)))
                 .get();
         }
@@ -120,7 +119,8 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
             .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
             .setSize(0)
             .setPreference("fixed")
-            .get();
+            .get()
+            .decRef();
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after second query: {}", stats);
@@ -149,7 +149,8 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
             .setQuery(QueryBuilders.rangeQuery("date_field").from("2016/01/01"))
             .setSize(100)
             .setPreference("fixed")
-            .get();
+            .get()
+            .decRef();
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after third query: {}", stats);

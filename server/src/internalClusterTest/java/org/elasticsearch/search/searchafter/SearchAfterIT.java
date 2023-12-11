@@ -12,15 +12,15 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
@@ -50,6 +50,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -63,7 +65,7 @@ public class SearchAfterIT extends ESIntegTestCase {
     public void testsShouldFail() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=long", "field2", "type=keyword").get());
         ensureGreen();
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
+        indexRandom(true, prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
@@ -154,18 +156,21 @@ public class SearchAfterIT extends ESIntegTestCase {
         ensureGreen();
         indexRandom(
             true,
-            client().prepareIndex("test").setId("0").setSource("field1", 0),
-            client().prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto")
+            prepareIndex("test").setId("0").setSource("field1", 0),
+            prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto")
         );
-        SearchResponse searchResponse = prepareSearch("test").addSort("field1", SortOrder.ASC)
-            .addSort("field2", SortOrder.ASC)
-            .setQuery(matchAllQuery())
-            .searchAfter(new Object[] { 0, null })
-            .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(2L));
-        assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
-        assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
-        assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));
+        assertResponse(
+            prepareSearch("test").addSort("field1", SortOrder.ASC)
+                .addSort("field2", SortOrder.ASC)
+                .setQuery(matchAllQuery())
+                .searchAfter(new Object[] { 0, null }),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(2L));
+                assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
+                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
+                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));
+            }
+        );
     }
 
     public void testWithSimpleTypes() throws Exception {
@@ -229,31 +234,36 @@ public class SearchAfterIT extends ESIntegTestCase {
             .add(new IndexRequest("test").id("5").source("start_date", "2017-01-20", "end_date", "2025-05-28"))
             .get();
 
-        SearchResponse resp = prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
-            .addSort(SortBuilders.fieldSort("end_date").setFormat("yyyy-MM-dd"))
-            .setSize(2)
-            .get();
-        assertNoFailures(resp);
-        assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("22/01/2015", "2022-07-23"));
-        assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("21/02/2016", "2024-03-24"));
+        assertNoFailuresAndResponse(
+            prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+                .addSort(SortBuilders.fieldSort("end_date").setFormat("yyyy-MM-dd"))
+                .setSize(2),
+            resp -> {
+                assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("22/01/2015", "2022-07-23"));
+                assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("21/02/2016", "2024-03-24"));
+            }
+        );
 
-        resp = prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
-            .addSort(SortBuilders.fieldSort("end_date").setFormat("yyyy-MM-dd"))
-            .searchAfter(new String[] { "21/02/2016", "2024-03-24" })
-            .setSize(2)
-            .get();
-        assertNoFailures(resp);
-        assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("20/01/2017", "2025-05-28"));
-        assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("23/04/2018", "2021-02-22"));
-
-        resp = prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
-            .addSort(SortBuilders.fieldSort("end_date")) // it's okay because end_date has the format "yyyy-MM-dd"
-            .searchAfter(new String[] { "21/02/2016", "2024-03-24" })
-            .setSize(2)
-            .get();
-        assertNoFailures(resp);
-        assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("20/01/2017", 1748390400000L));
-        assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("23/04/2018", 1613952000000L));
+        assertNoFailuresAndResponse(
+            prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+                .addSort(SortBuilders.fieldSort("end_date").setFormat("yyyy-MM-dd"))
+                .searchAfter(new String[] { "21/02/2016", "2024-03-24" })
+                .setSize(2),
+            resp -> {
+                assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("20/01/2017", "2025-05-28"));
+                assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("23/04/2018", "2021-02-22"));
+            }
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+                .addSort(SortBuilders.fieldSort("end_date")) // it's okay because end_date has the format "yyyy-MM-dd"
+                .searchAfter(new String[] { "21/02/2016", "2024-03-24" })
+                .setSize(2),
+            resp -> {
+                assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("20/01/2017", 1748390400000L));
+                assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("23/04/2018", 1613952000000L));
+            }
+        );
 
         SearchRequestBuilder searchRequest = prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
             .addSort(SortBuilders.fieldSort("end_date").setFormat("epoch_millis"))
@@ -314,7 +324,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     builder.field("field" + Integer.toString(j), documents.get(i).get(j));
                 }
                 builder.endObject();
-                requests.add(client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
+                requests.add(prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
             }
             indexRandom(true, requests);
         }
@@ -332,11 +342,15 @@ public class SearchAfterIT extends ESIntegTestCase {
                 req.searchAfter(sortValues);
             }
             SearchResponse searchResponse = req.get();
-            for (SearchHit hit : searchResponse.getHits()) {
-                List<Object> toCompare = convertSortValues(documents.get(offset++));
-                assertThat(LST_COMPARATOR.compare(toCompare, Arrays.asList(hit.getSortValues())), equalTo(0));
+            try {
+                for (SearchHit hit : searchResponse.getHits()) {
+                    List<Object> toCompare = convertSortValues(documents.get(offset++));
+                    assertThat(LST_COMPARATOR.compare(toCompare, Arrays.asList(hit.getSortValues())), equalTo(0));
+                }
+                sortValues = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1].getSortValues();
+            } finally {
+                searchResponse.decRef();
             }
-            sortValues = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1].getSortValues();
         }
     }
 
@@ -445,18 +459,20 @@ public class SearchAfterIT extends ESIntegTestCase {
                         assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
                         foundHits++;
                     }
+                    resp.decRef();
                     resp = client().prepareSearchScroll(resp.getScrollId()).setScroll(TimeValue.timeValueMinutes(5)).get();
                 } while (resp.getHits().getHits().length > 0);
                 assertThat(foundHits, equalTo(timestamps.size()));
             } finally {
                 client().prepareClearScroll().addScrollId(resp.getScrollId()).get();
+                resp.decRef();
             }
         }
         // search_after with sort with point in time
         String pitID;
         {
             OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
-            pitID = client().execute(OpenPointInTimeAction.INSTANCE, openPITRequest).actionGet().getPointInTimeId();
+            pitID = client().execute(TransportOpenPointInTimeAction.TYPE, openPITRequest).actionGet().getPointInTimeId();
             SearchRequest searchRequest = new SearchRequest("test").source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
                     .sort("timestamp")
@@ -479,18 +495,20 @@ public class SearchAfterIT extends ESIntegTestCase {
                     assertNotNull(after);
                     assertThat("Sorted by timestamp and pit tier breaker", after, arrayWithSize(2));
                     searchRequest.source().searchAfter(after);
+                    resp.decRef();
                     resp = client().search(searchRequest).actionGet();
                 } while (resp.getHits().getHits().length > 0);
                 assertThat(foundHits, equalTo(timestamps.size()));
             } finally {
-                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitID)).actionGet();
+                client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitID)).actionGet();
+                resp.decRef();
             }
         }
 
         // search_after without sort with point in time
         {
             OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
-            pitID = client().execute(OpenPointInTimeAction.INSTANCE, openPITRequest).actionGet().getPointInTimeId();
+            pitID = client().execute(TransportOpenPointInTimeAction.TYPE, openPITRequest).actionGet().getPointInTimeId();
             SearchRequest searchRequest = new SearchRequest("test").source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
                     .sort(SortBuilders.pitTiebreaker())
@@ -512,12 +530,14 @@ public class SearchAfterIT extends ESIntegTestCase {
                     assertNotNull(after);
                     assertThat("sorted by pit tie breaker", after, arrayWithSize(1));
                     searchRequest.source().searchAfter(after);
+                    resp.decRef();
                     resp = client().search(searchRequest).actionGet();
                 } while (resp.getHits().getHits().length > 0);
                 Collections.sort(foundSeqNos);
                 assertThat(foundSeqNos, equalTo(timestamps));
             } finally {
-                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitID)).actionGet();
+                client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitID)).actionGet();
+                resp.decRef();
             }
         }
     }

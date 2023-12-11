@@ -7,7 +7,6 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -25,7 +24,6 @@ import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testDataStreams() throws IOException {
-        assumeTrue("no data streams in versions before " + Version.V_7_9_0, isOriginalClusterVersionAtLeast(Version.V_7_9_0));
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String requestBody = """
                 {
@@ -110,7 +108,6 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testDataStreamValidationDoesNotBreakUpgrade() throws Exception {
-        assumeTrue("Bug started to occur from version: " + Version.V_7_10_2, isOriginalClusterVersionAtLeast(Version.V_7_10_2));
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String requestBody = """
                 {

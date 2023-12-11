@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -330,20 +331,19 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             (p, c) -> ConnectorFiltering.fromXContent(p),
             Connector.FILTERING_FIELD
         );
-        SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.INDEX_NAME_FIELD);
-        SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.LANGUAGE_FIELD);
-        SYNC_JOB_CONNECTOR_PARSER.declareField(
+        SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.INDEX_NAME_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.LANGUAGE_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareObjectOrNull(
             optionalConstructorArg(),
             (p, c) -> ConnectorIngestPipeline.fromXContent(p),
-            Connector.PIPELINE_FIELD,
-            ObjectParser.ValueType.OBJECT
+            null,
+            Connector.PIPELINE_FIELD
         );
-        SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
-        SYNC_JOB_CONNECTOR_PARSER.declareField(
+        SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareObject(
             optionalConstructorArg(),
-            (parser, context) -> parser.map(),
-            Connector.CONFIGURATION_FIELD,
-            ObjectParser.ValueType.OBJECT
+            (p, c) -> p.map(HashMap::new, ConnectorConfiguration::fromXContent),
+            Connector.CONFIGURATION_FIELD
         );
     }
 
@@ -357,6 +357,14 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     public static ConnectorSyncJob fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    public static Connector syncJobConnectorFromXContentBytes(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return ConnectorSyncJob.syncJobConnectorFromXContent(parser);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse a connector document.", e);
+        }
     }
 
     public static Connector syncJobConnectorFromXContent(XContentParser parser) throws IOException {
@@ -451,7 +459,9 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
             builder.startObject(CONNECTOR_FIELD.getPreferredName());
             {
-                builder.field(Connector.ID_FIELD.getPreferredName(), connector.getConnectorId());
+                if (connector.getConnectorId() != null) {
+                    builder.field(Connector.ID_FIELD.getPreferredName(), connector.getConnectorId());
+                }
                 if (connector.getFiltering() != null) {
                     builder.field(Connector.FILTERING_FIELD.getPreferredName(), connector.getFiltering());
                 }

@@ -743,7 +743,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
-            out.writeOptionalBoolean(requireDataStream);
+            out.writeBoolean(requireDataStream);
         }
     }
 

@@ -17,11 +17,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.batching.BatchingComponents;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
+import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,21 +43,25 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * A helper class for constructing a {@link HttpRequestSender}.
  */
 public class HttpRequestSenderFactory {
-    private final ThreadPool threadPool;
     private final HttpClientManager httpClientManager;
     private final ClusterService clusterService;
-    private final Settings settings;
+    private final ServiceComponents serviceComponents;
+    private final RetryingHttpSender retryingHttpSender;
 
     public HttpRequestSenderFactory(
-        ThreadPool threadPool,
+        ServiceComponents serviceComponents,
         HttpClientManager httpClientManager,
-        ClusterService clusterService,
-        Settings settings
+        ClusterService clusterService
     ) {
-        this.threadPool = Objects.requireNonNull(threadPool);
+        this.serviceComponents = Objects.requireNonNull(serviceComponents);
         this.httpClientManager = Objects.requireNonNull(httpClientManager);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.settings = Objects.requireNonNull(settings);
+        this.retryingHttpSender = new RetryingHttpSender(
+            this.httpClientManager.getHttpClient(),
+            serviceComponents.throttlerManager(),
+            new RetrySettings(serviceComponents.settings()),
+            serviceComponents.threadPool()
+        );
     }
 
     public <K> HttpRequestSender<K> createSender(
@@ -61,11 +70,11 @@ public class HttpRequestSenderFactory {
     ) {
         return new HttpRequestSender<>(
             serviceName,
-            threadPool,
+            serviceComponents.threadPool(),
             httpClientManager,
             clusterService,
-            settings,
-            factoryCreator.apply(new BatchingComponents(httpClientManager.getHttpClient(), threadPool))
+            serviceComponents.settings(),
+            factoryCreator.apply(new BatchingComponents(retryingHttpSender, serviceComponents.threadPool()))
         );
     }
 
@@ -73,7 +82,7 @@ public class HttpRequestSenderFactory {
      * A class for providing a more friendly interface for sending an {@link HttpUriRequest}. This leverages the queuing logic for sending
      * a request.
      */
-    public static final class HttpRequestSender<K> implements Sender {
+    public static final class HttpRequestSender<K> implements Sender<K> {
         private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
         private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
@@ -174,6 +183,17 @@ public class HttpRequestSenderFactory {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
             service.send(request, maxRequestTimeout, listener);
+        }
+
+        /**
+         * Send a request at some point in the future. The timeout used is retrieved from the settings.
+         * @param input the list of string input to send in the request
+         * @param listener a listener to handle the response
+         */
+        public void send2(TransactionHandler<K> transactionHandler, List<String> input, ActionListener<InferenceServiceResults> listener) {
+            assert started.get() : "call start() before sending a request";
+            waitForStartToComplete();
+            service.send2(transactionHandler, input, maxRequestTimeout, listener);
         }
 
         public static List<Setting<?>> getSettings() {

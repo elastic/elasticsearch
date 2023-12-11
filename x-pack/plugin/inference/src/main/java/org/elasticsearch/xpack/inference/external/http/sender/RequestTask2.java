@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandler;
 
 import java.util.List;
@@ -27,26 +27,26 @@ class RequestTask2<K> implements Task<K> {
     private final AtomicBoolean finished = new AtomicBoolean();
     private final TransactionHandler<K> handler;
     private final List<String> input;
-    private final ActionListener<HttpResult> listener;
+    private final ActionListener<InferenceServiceResults> listener;
 
     RequestTask2(
         TransactionHandler<K> handler,
         List<String> input,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
-        ActionListener<HttpResult> listener
+        ActionListener<InferenceServiceResults> listener
     ) {
         this.handler = Objects.requireNonNull(handler);
         this.input = Objects.requireNonNull(input);
         this.listener = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
     }
 
-    private ActionListener<HttpResult> getListener(
-        ActionListener<HttpResult> origListener,
+    private ActionListener<InferenceServiceResults> getListener(
+        ActionListener<InferenceServiceResults> origListener,
         @Nullable TimeValue timeout,
         ThreadPool threadPool
     ) {
-        ActionListener<HttpResult> notificationListener = ActionListener.wrap(result -> {
+        ActionListener<InferenceServiceResults> notificationListener = ActionListener.wrap(result -> {
             finished.set(true);
             origListener.onResponse(result);
         }, e -> {
@@ -69,7 +69,7 @@ class RequestTask2<K> implements Task<K> {
 
     // TODO if this times out technically the retrying sender could still be retrying. We should devise a way
     // to cancel the retryer task
-    private void onTimeout(ActionListener<HttpResult> listener) {
+    private void onTimeout(ActionListener<InferenceServiceResults> listener) {
         finished.set(true);
         listener.onFailure(new ElasticsearchTimeoutException("Request timed out waiting to be sent"));
     }
@@ -90,7 +90,7 @@ class RequestTask2<K> implements Task<K> {
     }
 
     @Override
-    public ActionListener<HttpResult> listener() {
+    public ActionListener<InferenceServiceResults> listener() {
         return listener;
     }
 

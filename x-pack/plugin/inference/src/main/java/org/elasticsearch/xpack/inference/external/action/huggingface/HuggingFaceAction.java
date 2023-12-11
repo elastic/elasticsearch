@@ -14,8 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
-import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceInferenceRequest;
@@ -35,11 +33,11 @@ public class HuggingFaceAction implements ExecutableAction {
 
     private final HuggingFaceAccount account;
     private final String errorMessage;
-    private final RetryingHttpSender sender;
+    private final Sender<HuggingFaceAction> sender;
     private final ResponseHandler responseHandler;
 
     public HuggingFaceAction(
-        Sender sender,
+        Sender<HuggingFaceAction> sender,
         HuggingFaceModel model,
         ServiceComponents serviceComponents,
         ResponseHandler responseHandler,
@@ -51,13 +49,7 @@ public class HuggingFaceAction implements ExecutableAction {
 
         this.responseHandler = Objects.requireNonNull(responseHandler);
 
-        this.sender = new RetryingHttpSender(
-            Objects.requireNonNull(sender),
-            serviceComponents.throttlerManager(),
-            logger,
-            new RetrySettings(serviceComponents.settings()),
-            serviceComponents.threadPool()
-        );
+        this.sender = Objects.requireNonNull(sender);
         this.account = new HuggingFaceAccount(model.getUri(), model.getApiKey());
         this.errorMessage = format("Failed to send Hugging Face %s request to [%s]", requestType, model.getUri().toString());
     }
@@ -68,7 +60,8 @@ public class HuggingFaceAction implements ExecutableAction {
             HuggingFaceInferenceRequest request = new HuggingFaceInferenceRequest(account, new HuggingFaceInferenceRequestEntity(input));
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
-            sender.send(request.createRequest(), responseHandler, wrappedListener);
+            // sender.send(request.createRequest(), responseHandler, wrappedListener);
+            sender.send2();
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

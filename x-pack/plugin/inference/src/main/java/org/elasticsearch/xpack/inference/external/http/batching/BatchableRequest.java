@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.inference.InferenceServiceResults;
 
 import java.util.List;
 
@@ -17,5 +17,5 @@ public interface BatchableRequest<K> {
 
     List<String> input();
 
-    ActionListener<HttpResult> listener();
+    ActionListener<InferenceServiceResults> listener();
 }

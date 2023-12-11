@@ -22,6 +22,8 @@ public interface InferenceServiceResults extends NamedWriteable, ToXContentFragm
      */
     List<? extends InferenceResults> transformToLegacyFormat();
 
+    InferenceServiceResults subList(int start, int end);
+
     /**
      * Convert the result to a map to aid with test assertions
      */

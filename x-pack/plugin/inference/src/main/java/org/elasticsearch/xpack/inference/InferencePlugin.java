@@ -115,12 +115,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
         httpManager.set(HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager));
 
-        var httpRequestSenderFactory = new HttpRequestSenderFactory(
-            services.threadPool(),
-            httpManager.get(),
-            services.clusterService(),
-            settings
-        );
+        var httpRequestSenderFactory = new HttpRequestSenderFactory(serviceComponents.get(), httpManager.get(), services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
         ModelRegistry modelRegistry = new ModelRegistry(services.client());

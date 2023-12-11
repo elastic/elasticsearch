@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.inference.InferenceServiceResults;
 
 import java.util.List;
 
@@ -22,7 +22,7 @@ public interface RequestCreator<GroupingKey> {
         List<String> input,
         BatchingComponents components,
         HttpClientContext context,
-        ActionListener<HttpResult> listener
+        ActionListener<InferenceServiceResults> listener
     );
 
     GroupingKey key();

@@ -8,9 +8,18 @@
 package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.batching.ResponseHandler2;
 
 public interface Retrier {
-    void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener);
+    void send(
+        Logger logger,
+        HttpRequestBase request,
+        HttpClientContext context,
+        ResponseHandler2 responseHandler,
+        ActionListener<InferenceServiceResults> listener
+    );
 }

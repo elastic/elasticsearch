@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 
 import java.util.Objects;
 
-public record BatchingComponents(HttpClient httpClient, ThreadPool threadPool) {
+public record BatchingComponents(RetryingHttpSender retryingHttpSender, ThreadPool threadPool) {
     public BatchingComponents {
-        Objects.requireNonNull(httpClient);
+        Objects.requireNonNull(retryingHttpSender);
         Objects.requireNonNull(threadPool);
     }
 }

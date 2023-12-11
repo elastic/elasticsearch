@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -263,7 +264,12 @@ class HttpRequestExecutorService<K> implements ExecutorService {
     }
 
     // TODO: change the listener type to be correct
-    public void send2(TransactionHandler<K> handler, List<String> input, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+    public void send2(
+        TransactionHandler<K> handler,
+        List<String> input,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         RequestTask2<K> task = new RequestTask2<>(handler, input, timeout, threadPool, listener);
 
         if (isShutdown()) {

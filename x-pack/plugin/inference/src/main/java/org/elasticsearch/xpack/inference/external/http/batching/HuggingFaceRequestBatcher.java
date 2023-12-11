@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 
 import java.util.Collection;
@@ -66,7 +66,7 @@ public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAcco
 
     }
 
-    private record InternalRequest(List<String> input, int start, int end, ActionListener<HttpResult> listener) {
+    private record InternalRequest(List<String> input, int start, int end, ActionListener<InferenceServiceResults> listener) {
 
     }
 
@@ -86,7 +86,7 @@ public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAcco
             var l = entry.requests.stream().map(InternalRequest::input).flatMap(Collection::stream).toList();
 
             // TODO make a new ActionListener class that takes multiple listeners
-            ActionListener<HttpResult> otherListener = ActionListener.wrap(result -> {
+            ActionListener<InferenceServiceResults> otherListener = ActionListener.wrap(result -> {
 
                 // TODO: loop through the entry.requests and use List.subList to to extract the results for each listener and call
                 // onResponse

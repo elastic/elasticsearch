@@ -181,12 +181,13 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         protected void append(BlockLoader.Builder builder, Object v) {
             if (v instanceof SpatialPoint point) {
-                ((BlockLoader.PointBuilder) builder).appendPoint((SpatialPoint) v);
+                ((BlockLoader.PointBuilder) builder).appendPoint(point);
             } else if (v instanceof String wkt) {
                 try {
                     // TODO: figure out why this is not already happening in the GeoPointFieldMapper
                     Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
                     if (geometry instanceof Point point) {
+                        // TODO: perhaps we should not create points for later GC here, and pass in primitives only?
                         ((BlockLoader.PointBuilder) builder).appendPoint(new SpatialPoint(point.getX(), point.getY()));
                     } else {
                         throw new IllegalArgumentException("Cannot convert geometry into point:: " + geometry.type());
@@ -201,7 +202,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public String toString() {
-            return "BlockSourceReader.Bytes";
+            return "BlockSourceReader.Points";
         }
     }
 

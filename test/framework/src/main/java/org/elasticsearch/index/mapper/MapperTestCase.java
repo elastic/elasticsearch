@@ -1248,10 +1248,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     *  Should teh doc-values reader be used instead of reading from source.
+     *  Should the doc-values reader be used instead of reading from source.
      *  For most ESQL types the preference is to read from doc-values if they exist, so that is the default behaviour here.
-     *  However, for spatial types, the doc-values involve precision loss, and therefor they prefer to read from source.
-     *  And for text fields, doc values are not easily convertable to original values either.
+     *  However, for spatial types, the doc-values involve precision loss, and therefor it is preferable to read from source.
+     *  And for text fields, doc values are not easily convertable to original values either, so special cases exist.
      */
     protected boolean shouldUseColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
         return ft.hasDocValues();

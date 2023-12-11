@@ -11,10 +11,8 @@ package org.elasticsearch.search.functionscore;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,7 +27,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,6 +37,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -81,18 +79,18 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().get();
         DecayFunctionBuilder<?> gfb = new CustomDistanceScoreBuilder("num1", "2013-05-28", "+1d");
 
-        ActionFuture<SearchResponse> response = client().search(
-            new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value"), gfb)))
+        assertNoFailuresAndResponse(
+            client().search(
+                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
+                    .source(searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value"), gfb)))
+            ),
+            response -> {
+                SearchHits sh = response.getHits();
+                assertThat(sh.getHits().length, equalTo(2));
+                assertThat(sh.getAt(0).getId(), equalTo("1"));
+                assertThat(sh.getAt(1).getId(), equalTo("2"));
+            }
         );
-
-        SearchResponse sr = response.actionGet();
-        ElasticsearchAssertions.assertNoFailures(sr);
-        SearchHits sh = sr.getHits();
-
-        assertThat(sh.getHits().length, equalTo(2));
-        assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat(sh.getAt(1).getId(), equalTo("2"));
 
     }
 

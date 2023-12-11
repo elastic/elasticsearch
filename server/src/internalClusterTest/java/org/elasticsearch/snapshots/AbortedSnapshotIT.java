@@ -78,7 +78,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             final var shardStatuses = snapshotShardsService.currentSnapshotShards(snapshot);
             assertEquals(1, shardStatuses.size());
-            final var shardStatus = shardStatuses.get(new ShardId(index, 0)).asCopy();
+            final var shardStatus = shardStatuses.get(new ShardId(index, 0));
             logger.info("--> {}", shardStatus);
 
             if (i == 0) {

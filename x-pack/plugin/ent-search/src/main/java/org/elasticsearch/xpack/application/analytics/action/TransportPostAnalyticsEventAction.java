@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.AnalyticsEventIngestService;
@@ -32,7 +33,13 @@ public class TransportPostAnalyticsEventAction extends HandledTransportAction<
         ActionFilters actionFilters,
         AnalyticsEventIngestService eventEmitterService
     ) {
-        super(PostAnalyticsEventAction.NAME, transportService, actionFilters, PostAnalyticsEventAction.Request::new);
+        super(
+            PostAnalyticsEventAction.NAME,
+            transportService,
+            actionFilters,
+            PostAnalyticsEventAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.eventEmitterService = eventEmitterService;
     }
 

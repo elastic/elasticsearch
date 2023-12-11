@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -129,7 +130,7 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, MasterHistoryService masterHistoryService) {
-            super(MasterHistoryAction.NAME, transportService, actionFilters, MasterHistoryAction.Request::new);
+            super(MasterHistoryAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.masterHistoryService = masterHistoryService;
         }
 

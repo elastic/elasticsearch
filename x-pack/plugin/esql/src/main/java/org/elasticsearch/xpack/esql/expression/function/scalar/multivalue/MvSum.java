@@ -12,7 +12,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -39,12 +39,12 @@ public class MvSum extends AbstractMultivalueFunction {
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> dvrCtx -> new MvSumDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvSumIntEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx);
+        return switch (PlannerUtils.toElementType(field().dataType())) {
+            case DOUBLE -> new MvSumDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvSumIntEvaluator.Factory(source(), fieldEval);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? dvrCtx -> new MvSumUnsignedLongEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx)
-                : dvrCtx -> new MvSumLongEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx);
+                ? new MvSumUnsignedLongEvaluator.Factory(source(), fieldEval)
+                : new MvSumLongEvaluator.Factory(source(), fieldEval);
             case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
 
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());

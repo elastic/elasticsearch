@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
@@ -349,11 +349,8 @@ public class OptimizerTests extends ESTestCase {
         final IsNull isNullOpt = (IsNull) foldNull.rule(isNull);
         assertEquals(isNull, isNullOpt);
 
-        QlIllegalArgumentException sqlIAE = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> isNullOpt.asPipe().asProcessor().process(null)
-        );
-        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
+        Exception e = expectThrows(InvalidArgumentException.class, () -> isNullOpt.asPipe().asProcessor().process(null));
+        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", e.getMessage());
 
         isNull = new IsNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
         assertTrue((Boolean) ((IsNull) foldNull.rule(isNull)).asPipe().asProcessor().process(null));
@@ -377,11 +374,8 @@ public class OptimizerTests extends ESTestCase {
         final IsNotNull isNotNullOpt = (IsNotNull) foldNull.rule(isNotNull);
         assertEquals(isNotNull, isNotNullOpt);
 
-        QlIllegalArgumentException sqlIAE = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> isNotNullOpt.asPipe().asProcessor().process(null)
-        );
-        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
+        Exception e = expectThrows(InvalidArgumentException.class, () -> isNotNullOpt.asPipe().asProcessor().process(null));
+        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", e.getMessage());
 
         isNotNull = new IsNotNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
         assertFalse((Boolean) ((IsNotNull) foldNull.rule(isNotNull)).asPipe().asProcessor().process(null));

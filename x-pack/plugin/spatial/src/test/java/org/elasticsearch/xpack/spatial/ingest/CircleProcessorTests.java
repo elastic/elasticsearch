@@ -207,6 +207,7 @@ public class CircleProcessorTests extends ESTestCase {
             Orientation.RIGHT,
             null,
             null,
+            null,
             Collections.emptyMap()
         );
 

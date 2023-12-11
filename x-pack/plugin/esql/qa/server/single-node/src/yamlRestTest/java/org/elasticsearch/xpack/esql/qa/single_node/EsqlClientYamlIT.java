@@ -11,6 +11,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
 
@@ -21,5 +24,11 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
+    }
+
+    @Before
+    @After
+    public void assertRequestBreakerEmpty() throws Exception {
+        EsqlSpecTestCase.assertRequestBreakerEmpty();
     }
 }

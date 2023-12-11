@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
@@ -93,7 +94,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         IngestService ingestService,
         TransformExtensionHolder transformExtensionHolder
     ) {
-        super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new);
+        super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
@@ -209,7 +210,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         SyncConfig syncConfig,
         ActionListener<Response> listener
     ) {
-        Client parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
+        Client parentTaskClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
 
@@ -278,7 +279,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     builder.endObject();
                     var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                     pipelineRequest.setId(pipeline);
-                    parentTaskAssigningClient.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
+                    parentTaskClient.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
                 }
             }
         }, listener::onFailure);
@@ -286,7 +287,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
             function.preview(
-                parentTaskAssigningClient,
+                parentTaskClient,
                 timeout,
                 filteredHeaders,
                 source,
@@ -296,6 +297,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
         }, listener::onFailure);
 
-        function.deduceMappings(parentTaskAssigningClient, filteredHeaders, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskClient, filteredHeaders, source, deduceMappingsListener);
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 
@@ -23,27 +24,27 @@ public class SequenceIntBlockSourceOperator extends AbstractBlockSourceOperator 
 
     private final int[] values;
 
-    public SequenceIntBlockSourceOperator(IntStream values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceIntBlockSourceOperator(BlockFactory blockFactory, IntStream values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceIntBlockSourceOperator(IntStream values, int maxPagePositions) {
-        super(maxPagePositions);
+    public SequenceIntBlockSourceOperator(BlockFactory blockFactory, IntStream values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.toArray();
     }
 
-    public SequenceIntBlockSourceOperator(List<Integer> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceIntBlockSourceOperator(BlockFactory blockFactory, List<Integer> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceIntBlockSourceOperator(List<Integer> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public SequenceIntBlockSourceOperator(BlockFactory blockFactory, List<Integer> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.stream().mapToInt(Integer::intValue).toArray();
     }
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        IntVector.Builder builder = IntVector.newVectorBuilder(length);
+        IntVector.Builder builder = blockFactory.newIntVectorBuilder(length);
         for (int i = 0; i < length; i++) {
             builder.appendInt(values[positionOffset + i]);
         }

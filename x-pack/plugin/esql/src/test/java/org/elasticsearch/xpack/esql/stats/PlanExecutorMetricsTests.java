@@ -27,11 +27,13 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -55,8 +57,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     public void testFailedMetric() {
         Client client = mock(Client.class);
         IndexResolver idxResolver = new IndexResolver(client, randomAlphaOfLength(10), EsqlDataTypeRegistry.INSTANCE, Set::of);
-        var planExecutor = new PlanExecutor(idxResolver, new EnrichPolicyResolver(null, idxResolver, threadPool));
+        var planExecutor = new PlanExecutor(idxResolver);
         String[] indices = new String[] { "test" };
+        EnrichPolicyResolver enrichResolver = mock(EnrichPolicyResolver.class);
+        when(enrichResolver.allPolicyNames()).thenReturn(Set.of());
 
         // simulate a valid field_caps response so we can parse and correctly analyze de query
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
@@ -72,7 +76,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         var request = new EsqlQueryRequest();
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
-        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, new ActionListener<PhysicalPlan>() {
+        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, new ActionListener<>() {
             @Override
             public void onResponse(PhysicalPlan physicalPlan) {
                 fail("this shouldn't happen");
@@ -91,7 +95,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
         // fix the failing query: foo field does exist
         request.query("from test | stats m = max(foo)");
-        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, new ActionListener<PhysicalPlan>() {
+        planExecutor.esql(request, randomAlphaOfLength(10), EsqlTestUtils.TEST_CFG, enrichResolver, new ActionListener<>() {
             @Override
             public void onResponse(PhysicalPlan physicalPlan) {}
 
@@ -114,5 +118,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(barField.getName(), singletonMap(barField.getName(), barField));
         return fields;
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

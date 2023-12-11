@@ -65,7 +65,7 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
             TestTaskPlugin.NodesRequest req = new TestTaskPlugin.NodesRequest("foo");
             req.setShouldStoreResult(true);
             req.setShouldBlock(false);
-            task = nodeClient().executeLocally(TestTaskPlugin.TestTaskAction.INSTANCE, req, future);
+            task = nodeClient().executeLocally(TestTaskPlugin.TEST_TASK_ACTION, req, future);
 
             logger.info("verify that the task has started and is still running");
             assertBusy(() -> {

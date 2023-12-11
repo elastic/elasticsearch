@@ -16,9 +16,11 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
@@ -68,7 +70,7 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats length(first_name), count(1) by first_name")
         );
         assertEquals(
-            "1:19: aggregate function's parameters must be an attribute or literal; found [emp_no / 2] of type [Div]",
+            "1:19: aggregate function's field must be an attribute or literal; found [emp_no / 2] of type [Div]",
             error("from test | stats x = avg(emp_no / 2) by emp_no")
         );
         assertEquals(
@@ -76,12 +78,20 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
-            "1:19: aggregate function's parameters must be an attribute or literal; found [length(first_name)] of type [Length]",
+            "1:19: aggregate function's field must be an attribute or literal; found [length(first_name)] of type [Length]",
             error("from test | stats count(length(first_name)) by first_name")
         );
         assertEquals(
             "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",
             error("from test | stats x = emp_no + avg(emp_no) by emp_no")
+        );
+        assertEquals(
+            "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
+            error("from test | stats x = percentile(languages, languages) by emp_no")
+        );
+        assertEquals(
+            "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
+            error("from test | stats x = count_distinct(languages, languages) by emp_no")
         );
     }
 
@@ -284,9 +294,24 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testFilterNonBoolField() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+    }
+
+    public void testFilterDateConstant() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [DATE_PERIOD]", error("from test | where 1 year"));
+    }
+
+    public void testNestedAggField() {
+        assertEquals("1:27: Unknown column [avg]", error("from test | stats c = avg(avg)"));
+    }
+
+    public void testUnfinishedAggFunction() {
+        assertEquals("1:23: invalid stats declaration; [avg] is not an aggregate function", error("from test | stats c = avg"));
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
-
     }
 
     private String error(String query, Object... params) {
@@ -315,5 +340,10 @@ public class VerifierTests extends ESTestCase {
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

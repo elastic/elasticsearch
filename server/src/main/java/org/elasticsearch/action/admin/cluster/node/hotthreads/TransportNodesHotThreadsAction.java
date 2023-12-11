@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -24,6 +25,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.StringWriter;
 import java.util.List;
 
 public class TransportNodesHotThreadsAction extends TransportNodesAction<
@@ -31,6 +33,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     NodesHotThreadsResponse,
     TransportNodesHotThreadsAction.NodeRequest,
     NodeHotThreads> {
+
+    public static final ActionType<NodesHotThreadsResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/hot_threads");
 
     @Inject
     public TransportNodesHotThreadsAction(
@@ -40,12 +44,10 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            NodesHotThreadsAction.NAME,
-            threadPool,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            NodesHotThreadsRequest::new,
             NodeRequest::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
@@ -78,8 +80,9 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
             .interval(request.request.interval)
             .threadElementsSnapshotCount(request.request.snapshots)
             .ignoreIdleThreads(request.request.ignoreIdleThreads);
-        try {
-            return new NodeHotThreads(clusterService.localNode(), hotThreads.detect());
+        try (var writer = new StringWriter()) {
+            hotThreads.detect(writer);
+            return new NodeHotThreads(clusterService.localNode(), writer.toString());
         } catch (Exception e) {
             throw new ElasticsearchException("failed to detect hot threads", e);
         }
@@ -87,6 +90,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
 
     public static class NodeRequest extends TransportRequest {
 
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         NodesHotThreadsRequest request;
 
         public NodeRequest(StreamInput in) throws IOException {

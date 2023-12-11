@@ -10,8 +10,8 @@ package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -151,7 +151,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
                 + "with errors: [[repo] set as read-only by [file_settings]]",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutRepositoryAction.INSTANCE, sampleRestRequest("repo")).actionGet()
+                () -> client().execute(TransportPutRepositoryAction.TYPE, sampleRestRequest("repo")).actionGet()
             ).getMessage()
         );
     }
@@ -211,7 +211,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
         );
 
         // This should succeed, nothing was reserved
-        client().execute(PutRepositoryAction.INSTANCE, sampleRestRequest("err-repo")).get();
+        client().execute(TransportPutRepositoryAction.TYPE, sampleRestRequest("err-repo")).get();
     }
 
     public void testErrorSaved() throws Exception {

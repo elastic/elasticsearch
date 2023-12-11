@@ -40,6 +40,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -51,6 +52,10 @@ public class CsvTestsDataLoader {
     private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
     private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs", "mapping-ul_logs.json", "ul_logs.csv");
+    private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data", "mapping-sample_data.json", "sample_data.csv");
+    private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
+    private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
+    private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(
         EMPLOYEES.indexName,
@@ -62,12 +67,21 @@ public class CsvTestsDataLoader {
         LANGUAGES.indexName,
         LANGUAGES,
         UL_LOGS.indexName,
-        UL_LOGS
+        UL_LOGS,
+        SAMPLE_DATA.indexName,
+        SAMPLE_DATA,
+        CLIENT_IPS.indexName,
+        CLIENT_IPS,
+        AIRPORTS.indexName,
+        AIRPORTS,
+        AIRPORTS_WEB.indexName,
+        AIRPORTS_WEB
     );
 
-    private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enricy-policy-languages.json");
+    private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
+    private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
 
-    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH);
+    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH);
 
     /**
      * <p>
@@ -135,6 +149,7 @@ public class CsvTestsDataLoader {
         for (var dataSet : CSV_DATASET_MAP.values()) {
             load(client, dataSet.indexName, "/" + dataSet.mappingFileName, "/" + dataSet.dataFileName, logger);
         }
+        forceMerge(client, CSV_DATASET_MAP.keySet(), logger);
         for (var policy : ENRICH_POLICIES) {
             loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
         }
@@ -216,9 +231,9 @@ public class CsvTestsDataLoader {
                                 );
                             } else {
                                 name = entries[i].substring(0, split).trim();
-                                if (name.indexOf(".") < 0) {
+                                if (name.contains(".") == false) {
                                     typeName = entries[i].substring(split + 1).trim();
-                                    if (typeName.length() == 0) {
+                                    if (typeName.isEmpty()) {
                                         throw new IllegalArgumentException(
                                             "A type is always expected in the schema definition; found " + entries[i]
                                         );
@@ -300,7 +315,7 @@ public class CsvTestsDataLoader {
         }
 
         request.setJsonEntity(builder.toString());
-        request.addParameter("refresh", "wait_for");
+        request.addParameter("refresh", "false"); // will be _forcemerge'd next
         Response response = client.performRequest(request);
         if (response.getStatusLine().getStatusCode() == 200) {
             HttpEntity entity = response.getEntity();
@@ -309,20 +324,25 @@ public class CsvTestsDataLoader {
                 Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
                 Object errors = result.get("errors");
                 if (Boolean.FALSE.equals(errors)) {
-                    logger.info("Data loading OK");
-                    request = new Request("POST", "/" + indexName + "/_forcemerge?max_num_segments=1");
-                    response = client.performRequest(request);
-                    if (response.getStatusLine().getStatusCode() != 200) {
-                        logger.warn("Force-merge to 1 segment failed: " + response.getStatusLine());
-                    } else {
-                        logger.info("Forced-merge to 1 segment");
-                    }
+                    logger.info("Data loading of [{}] OK", indexName);
                 } else {
-                    logger.error("Data loading FAILED");
+                    throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
                 }
             }
         } else {
-            logger.error("Error loading data: " + response.getStatusLine());
+            throw new IOException("Data loading of [" + indexName + "] failed with status: " + response.getStatusLine());
+        }
+    }
+
+    private static void forceMerge(RestClient client, Set<String> indices, Logger logger) throws IOException {
+        String pattern = String.join(",", indices);
+
+        Request request = new Request("POST", "/" + pattern + "/_forcemerge?max_num_segments=1");
+        Response response = client.performRequest(request);
+        if (response.getStatusLine().getStatusCode() != 200) {
+            logger.warn("Force-merging [{}] to 1 segment failed: {}", pattern, response.getStatusLine());
+        } else {
+            logger.info("[{}] forced-merged to 1 segment", pattern);
         }
     }
 

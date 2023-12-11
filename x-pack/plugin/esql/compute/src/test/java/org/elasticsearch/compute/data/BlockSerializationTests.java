@@ -8,8 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
@@ -40,42 +48,45 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     private void assertConstantBlockImpl(Block origBlock) throws IOException {
         assertThat(origBlock.asVector().isConstant(), is(true));
-        Block deserBlock = serializeDeserializeBlock(origBlock);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
-        assertThat(deserBlock.asVector().isConstant(), is(true));
+        try (Block deserBlock = serializeDeserializeBlock(origBlock)) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
+            assertThat(deserBlock.asVector().isConstant(), is(true));
+        }
     }
 
-    public void testEmptyIntBlock() {
+    public void testEmptyIntBlock() throws IOException {
         assertEmptyBlock(IntBlock.newBlockBuilder(0).build());
         assertEmptyBlock(IntBlock.newBlockBuilder(0).appendNull().build().filter());
         assertEmptyBlock(IntVector.newVectorBuilder(0).build().asBlock());
         assertEmptyBlock(IntVector.newVectorBuilder(0).appendInt(randomInt()).build().filter().asBlock());
     }
 
-    public void testEmptyLongBlock() {
+    public void testEmptyLongBlock() throws IOException {
         assertEmptyBlock(LongBlock.newBlockBuilder(0).build());
         assertEmptyBlock(LongBlock.newBlockBuilder(0).appendNull().build().filter());
         assertEmptyBlock(LongVector.newVectorBuilder(0).build().asBlock());
         assertEmptyBlock(LongVector.newVectorBuilder(0).appendLong(randomLong()).build().filter().asBlock());
     }
 
-    public void testEmptyDoubleBlock() {
+    public void testEmptyDoubleBlock() throws IOException {
         assertEmptyBlock(DoubleBlock.newBlockBuilder(0).build());
         assertEmptyBlock(DoubleBlock.newBlockBuilder(0).appendNull().build().filter());
         assertEmptyBlock(DoubleVector.newVectorBuilder(0).build().asBlock());
         assertEmptyBlock(DoubleVector.newVectorBuilder(0).appendDouble(randomDouble()).build().filter().asBlock());
     }
 
-    public void testEmptyBytesRefBlock() {
+    public void testEmptyBytesRefBlock() throws IOException {
         assertEmptyBlock(BytesRefBlock.newBlockBuilder(0).build());
         assertEmptyBlock(BytesRefBlock.newBlockBuilder(0).appendNull().build().filter());
         assertEmptyBlock(BytesRefVector.newVectorBuilder(0).build().asBlock());
         assertEmptyBlock(BytesRefVector.newVectorBuilder(0).appendBytesRef(randomBytesRef()).build().filter().asBlock());
     }
 
-    private void assertEmptyBlock(Block origBlock) {
+    private void assertEmptyBlock(Block origBlock) throws IOException {
         assertThat(origBlock.getPositionCount(), is(0));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, block -> serializeDeserializeBlock(block));
+        try (Block deserBlock = serializeDeserializeBlock(origBlock)) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
+        }
     }
 
     public void testFilterIntBlock() throws IOException {
@@ -125,40 +136,71 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     private void assertFilterBlock(Block origBlock) throws IOException {
         assertThat(origBlock.getPositionCount(), is(1));
-        Block deserBlock = serializeDeserializeBlock(origBlock);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
-        assertThat(deserBlock.getPositionCount(), is(1));
+        try (Block deserBlock = serializeDeserializeBlock(origBlock)) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
+            assertThat(deserBlock.getPositionCount(), is(1));
+        }
     }
 
     public void testConstantNullBlock() throws IOException {
         Block origBlock = new ConstantNullBlock(randomIntBetween(1, 8192));
-        Block deserBlock = serializeDeserializeBlock(origBlock);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
+        try (Block deserBlock = serializeDeserializeBlock(origBlock)) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
+        }
     }
 
     // TODO: more types, grouping, etc...
-    public void testAggregatorStateBlock() throws IOException {
+    public void testSimulateAggs() {
+        DriverContext driverCtx = driverContext();
         Page page = new Page(new LongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
         var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         var params = new Object[] {};
-        var function = SumLongAggregatorFunction.create(List.of(0));
+        var function = SumLongAggregatorFunction.create(driverCtx, List.of(0));
         function.addRawInput(page);
         Block[] blocks = new Block[function.intermediateBlockCount()];
-        function.evaluateIntermediate(blocks, 0);
+        try {
+            function.evaluateIntermediate(blocks, 0, driverCtx);
 
-        Block[] deserBlocks = Arrays.stream(blocks).map(this::uncheckedSerializeDeserializeBlock).toArray(Block[]::new);
-        IntStream.range(0, blocks.length).forEach(i -> EqualsHashCodeTestUtils.checkEqualsAndHashCode(blocks[i], unused -> deserBlocks[i]));
+            Block[] deserBlocks = Arrays.stream(blocks).map(this::uncheckedSerializeDeserializeBlock).toArray(Block[]::new);
+            try {
+                IntStream.range(0, blocks.length)
+                    .forEach(i -> EqualsHashCodeTestUtils.checkEqualsAndHashCode(blocks[i], unused -> deserBlocks[i]));
 
-        var inputChannels = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size()).boxed().toList();
-        var finalAggregator = SumLongAggregatorFunction.create(inputChannels);
-        finalAggregator.addIntermediateInput(new Page(deserBlocks));
-        Block[] finalBlocks = new Block[1];
-        finalAggregator.evaluateFinal(finalBlocks, 0);
-        var finalBlock = (LongBlock) finalBlocks[0];
-        assertThat(finalBlock.getLong(0), is(55L));
+                var inputChannels = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size()).boxed().toList();
+                var finalAggregator = SumLongAggregatorFunction.create(driverCtx, inputChannels);
+                finalAggregator.addIntermediateInput(new Page(deserBlocks));
+                Block[] finalBlocks = new Block[1];
+                finalAggregator.evaluateFinal(finalBlocks, 0, driverCtx);
+                try (var finalBlock = (LongBlock) finalBlocks[0]) {
+                    assertThat(finalBlock.getLong(0), is(55L));
+                }
+            } finally {
+                Releasables.close(deserBlocks);
+            }
+        } finally {
+            Releasables.close(blocks);
+        }
     }
 
     static BytesRef randomBytesRef() {
         return new BytesRef(randomAlphaOfLengthBetween(0, 10));
+    }
+
+    /**
+     * A {@link BigArrays} that won't throw {@link CircuitBreakingException}.
+     * <p>
+     *     Rather than using the {@link NoneCircuitBreakerService} we use a
+     *     very large limit so tests can call {@link CircuitBreaker#getUsed()}.
+     * </p>
+     */
+    protected final BigArrays nonBreakingBigArrays() {
+        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Integer.MAX_VALUE)).withCircuitBreaking();
+    }
+
+    /**
+     * A {@link DriverContext} with a nonBreakingBigArrays.
+     */
+    protected DriverContext driverContext() { // TODO make this final and return a breaking block factory
+        return new DriverContext(nonBreakingBigArrays(), BlockFactory.getNonBreakingInstance());
     }
 }

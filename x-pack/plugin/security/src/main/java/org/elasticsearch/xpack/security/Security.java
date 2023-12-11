@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -53,15 +52,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -81,7 +79,6 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -90,7 +87,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -149,7 +145,6 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
-import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
@@ -165,14 +160,12 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
@@ -624,33 +617,19 @@ public class Security extends Plugin
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         try {
             return createComponents(
-                client,
-                threadPool,
-                clusterService,
-                resourceWatcherService,
-                scriptService,
-                xContentRegistry,
-                environment,
-                nodeEnvironment.nodeMetadata(),
-                expressionResolver
+                services.client(),
+                services.threadPool(),
+                services.clusterService(),
+                services.featureService(),
+                services.resourceWatcherService(),
+                services.scriptService(),
+                services.xContentRegistry(),
+                services.environment(),
+                services.nodeEnvironment().nodeMetadata(),
+                services.indexNameExpressionResolver()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -662,6 +641,7 @@ public class Security extends Plugin
         Client client,
         ThreadPool threadPool,
         ClusterService clusterService,
+        FeatureService featureService,
         ResourceWatcherService resourceWatcherService,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
@@ -888,8 +868,8 @@ public class Security extends Plugin
             client,
             systemIndices.getProfileIndexManager(),
             clusterService,
-            realms::getDomainConfig,
-            threadPool
+            featureService,
+            realms::getDomainConfig
         );
         components.add(profileService);
 
@@ -1218,6 +1198,7 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
+        settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));
@@ -1317,9 +1298,9 @@ public class Security extends Plugin
             new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
             new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
             new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
-            new ActionHandler<>(ChangePasswordAction.INSTANCE, TransportChangePasswordAction.class),
+            new ActionHandler<>(TransportChangePasswordAction.TYPE, TransportChangePasswordAction.class),
             new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
-            new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
+            new ActionHandler<>(TransportSetEnabledAction.TYPE, TransportSetEnabledAction.class),
             new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
             new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
             new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
@@ -1333,7 +1314,7 @@ public class Security extends Plugin
             new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
             new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
             new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
-            new ActionHandler<>(SamlCompleteLogoutAction.INSTANCE, TransportSamlCompleteLogoutAction.class),
+            new ActionHandler<>(TransportSamlCompleteLogoutAction.TYPE, TransportSamlCompleteLogoutAction.class),
             new ActionHandler<>(SamlSpMetadataAction.INSTANCE, TransportSamlSpMetadataAction.class),
             new ActionHandler<>(OpenIdConnectPrepareAuthenticationAction.INSTANCE, TransportOpenIdConnectPrepareAuthenticationAction.class),
             new ActionHandler<>(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
@@ -1824,7 +1805,6 @@ public class Security extends Plugin
             threadContext,
             secondayAuthc.get(),
             auditTrailService.get(),
-            workflowService.get(),
             handler,
             operatorPrivilegesService.get()
         );

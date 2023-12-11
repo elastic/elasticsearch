@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 @Aggregator({ @IntermediateState(name = "fbit", type = "BOOLEAN"), @IntermediateState(name = "tbit", type = "BOOLEAN") })
@@ -41,9 +42,9 @@ public class CountDistinctBooleanAggregator {
         if (tbit) current.bits |= BIT_TRUE;
     }
 
-    public static Block evaluateFinal(SingleState state) {
+    public static Block evaluateFinal(SingleState state, DriverContext driverContext) {
         long result = ((state.bits & BIT_TRUE) >> 1) + (state.bits & BIT_FALSE);
-        return LongBlock.newConstantBlockWith(result, 1);
+        return LongBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
     }
 
     public static GroupingState initGrouping(BigArrays bigArrays) {
@@ -63,8 +64,8 @@ public class CountDistinctBooleanAggregator {
         if (tbit) current.bits.set(groupId * 2 + 1);
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount());
+    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
+        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             long count = (state.bits.get(2 * group) ? 1 : 0) + (state.bits.get(2 * group + 1) ? 1 : 0);
@@ -85,10 +86,10 @@ public class CountDistinctBooleanAggregator {
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset) {
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             assert blocks.length >= offset + 2;
-            blocks[offset + 0] = BooleanBlock.newConstantBlockWith((bits & BIT_FALSE) != 0, 1);
-            blocks[offset + 1] = BooleanBlock.newConstantBlockWith((bits & BIT_TRUE) != 0, 1);
+            blocks[offset + 0] = driverContext.blockFactory().newConstantBooleanBlockWith((bits & BIT_FALSE) != 0, 1);
+            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith((bits & BIT_TRUE) != 0, 1);
         }
 
         @Override
@@ -131,17 +132,20 @@ public class CountDistinctBooleanAggregator {
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 2;
-            var fbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
-            var tbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int group = selected.getInt(i);
-                fbitBuilder.appendBoolean(bits.get(2 * group + 0));
-                tbitBuilder.appendBoolean(bits.get(2 * group + 1));
+            try (
+                var fbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+                var tbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+            ) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int group = selected.getInt(i);
+                    fbitBuilder.appendBoolean(bits.get(2 * group + 0));
+                    tbitBuilder.appendBoolean(bits.get(2 * group + 1));
+                }
+                blocks[offset + 0] = fbitBuilder.build();
+                blocks[offset + 1] = tbitBuilder.build();
             }
-            blocks[offset + 0] = fbitBuilder.build();
-            blocks[offset + 1] = tbitBuilder.build();
         }
 
         @Override

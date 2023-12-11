@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -35,7 +36,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
         SecurityContext securityContext,
         AnonymousUser anonymousUser
     ) {
-        super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new);
+        super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = securityContext;
         this.anonymousUser = anonymousUser;
     }

@@ -276,12 +276,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * phrase term before the candidates are scored.
      */
     public PhraseSuggestionBuilder addCandidateGenerator(CandidateGenerator generator) {
-        List<CandidateGenerator> list = this.generators.get(generator.getType());
-        if (list == null) {
-            list = new ArrayList<>();
-            this.generators.put(generator.getType(), list);
-        }
-        list.add(generator);
+        this.generators.computeIfAbsent(generator.getType(), k -> new ArrayList<>()).add(generator);
         return this;
     }
 
@@ -513,7 +508,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
             } else if (token == Token.START_ARRAY) {
                 if (DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // for now we only have a single type of generators
-                    while ((token = parser.nextToken()) == Token.START_OBJECT) {
+                    while (parser.nextToken() == Token.START_OBJECT) {
                         tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
                     }
                 } else {

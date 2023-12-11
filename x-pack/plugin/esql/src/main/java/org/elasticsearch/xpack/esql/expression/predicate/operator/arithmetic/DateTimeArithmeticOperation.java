@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
+import java.util.Collection;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -30,12 +30,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
-        ExpressionEvaluator apply(
-            Source source,
-            ExpressionEvaluator expressionEvaluator,
-            TemporalAmount temporalAmount,
-            DriverContext driverContext
-        );
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);
     }
 
     private final DatetimeArithmeticEvaluator datetimes;
@@ -106,10 +101,13 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         DataType rightDataType = right().dataType();
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
-            Period l = (Period) left().fold();
-            Period r = (Period) right().fold();
+            var l = left().fold();
+            var r = right().fold();
+            if (l instanceof Collection<?> || r instanceof Collection<?>) {
+                return null;
+            }
             try {
-                return fold(l, r);
+                return fold((Period) l, (Period) r);
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.
@@ -145,12 +143,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 temporalAmountArgument = left();
             }
 
-            return dvrCtx -> datetimes.apply(
-                source(),
-                toEvaluator.apply(datetimeArgument).get(dvrCtx),
-                (TemporalAmount) temporalAmountArgument.fold(),
-                dvrCtx
-            );
+            return datetimes.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
         } else {
             return super.toEvaluator(toEvaluator);
         }

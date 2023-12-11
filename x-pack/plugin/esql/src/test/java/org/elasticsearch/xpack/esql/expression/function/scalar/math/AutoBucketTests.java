@@ -46,7 +46,36 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
                 args,
                 "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                 DataTypes.DATETIME,
-                resultsMatcher(args)
+                dateResultsMatcher(args)
+            );
+        }), new TestCaseSupplier("Autobucket Single long", () -> {
+            List<TestCaseSupplier.TypedData> args = List.of(new TestCaseSupplier.TypedData(100L, DataTypes.LONG, "arg"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                "MulDoublesEvaluator[lhs=FloorDoubleEvaluator["
+                    + "val=DivDoublesEvaluator[lhs=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
+                    + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
+                DataTypes.DOUBLE,
+                numericResultsMatcher(args, 100.0)
+            );
+        }), new TestCaseSupplier("Autobucket Single int", () -> {
+            List<TestCaseSupplier.TypedData> args = List.of(new TestCaseSupplier.TypedData(100, DataTypes.INTEGER, "arg"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                "MulDoublesEvaluator[lhs=FloorDoubleEvaluator["
+                    + "val=DivDoublesEvaluator[lhs=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
+                    + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
+                DataTypes.DOUBLE,
+                numericResultsMatcher(args, 100.0)
+            );
+        }), new TestCaseSupplier("Autobucket Single double", () -> {
+            List<TestCaseSupplier.TypedData> args = List.of(new TestCaseSupplier.TypedData(100.0, DataTypes.DOUBLE, "arg"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesEvaluator[lhs=Attribute[channel=0], "
+                    + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
+                DataTypes.DOUBLE,
+                numericResultsMatcher(args, 100.0)
             );
         })));
     }
@@ -72,9 +101,13 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
         return argTypes.get(0);
     }
 
-    private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
+    private static Matcher<Object> dateResultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         long millis = ((Number) typedData.get(0).data()).longValue();
         return equalTo(Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis));
+    }
+
+    private static Matcher<Object> numericResultsMatcher(List<TestCaseSupplier.TypedData> typedData, Object value) {
+        return equalTo(value);
     }
 
     @Override

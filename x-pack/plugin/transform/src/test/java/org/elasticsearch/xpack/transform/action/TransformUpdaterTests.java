@@ -26,6 +26,8 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -73,6 +75,7 @@ public class TransformUpdaterTests extends ESTestCase {
     private static final String JOHN = "john";
     private final SecurityContext johnSecurityContext = newSecurityContextFor(JOHN);
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+    private TestThreadPool threadPool;
     private Client client;
     private ClusterService clusterService = mock(ClusterService.class);
     private TransformAuditor auditor = new MockTransformAuditor(clusterService);
@@ -81,8 +84,8 @@ public class TransformUpdaterTests extends ESTestCase {
 
     private static class MyMockClient extends NoOpClient {
 
-        MyMockClient(String testName) {
-            super(testName);
+        MyMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")
@@ -116,17 +119,18 @@ public class TransformUpdaterTests extends ESTestCase {
 
     @Before
     public void setupClient() {
-        if (client != null) {
-            client.close();
+        if (threadPool != null) {
+            threadPool.close();
         }
-        client = new MyMockClient(getTestName());
+        threadPool = createThreadPool();
+        client = new MyMockClient(threadPool);
         clusterService = mock(ClusterService.class);
         auditor = new MockTransformAuditor(clusterService);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
+        threadPool.close();
     }
 
     public void testTransformUpdateNoAction() throws InterruptedException {

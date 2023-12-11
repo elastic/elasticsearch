@@ -337,6 +337,10 @@ public abstract class IndexRouting {
                     case VALUE_NULL:
                         source.nextToken();
                         break;
+                    case VALUE_NUMBER: // allow parsing numbers assuming routing fields are always keyword fields
+                        hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
+                        source.nextToken();
+                        break;
                     default:
                         throw new ParsingException(
                             source.getTokenLocation(),

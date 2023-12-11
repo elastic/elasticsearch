@@ -41,14 +41,11 @@ public class ClusterStateRequestTests extends ESTestCase {
                 TransportVersions.MINIMUM_COMPATIBLE,
                 TransportVersion.current()
             );
-            // TODO: change version to V_6_6_0 after backporting:
-            if (testVersion.onOrAfter(TransportVersions.V_7_0_0)) {
-                if (randomBoolean()) {
-                    clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
-                }
-                if (randomBoolean()) {
-                    clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
-                }
+            if (randomBoolean()) {
+                clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
+            }
+            if (randomBoolean()) {
+                clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
             }
 
             BytesStreamOutput output = new BytesStreamOutput();

@@ -18,7 +18,7 @@ addLongOverflow
 row max = 9223372036854775807 | eval sum = max + 1 | keep sum;
 
 warning:Line 1:44: evaluation of [max + 1] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:44: java.lang.ArithmeticException: long overflow
 
 sum:long
 null
@@ -28,7 +28,7 @@ subLongUnderflow
 row l = -9223372036854775807 | eval sub = l - 2 | keep sub;
 
 warning:Line 1:43: evaluation of [l - 2] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:43: java.lang.ArithmeticException: long overflow
 
 sub:long
 null
@@ -38,7 +38,7 @@ mulLongOverflow
 row max = 9223372036854775807 | eval mul = max * 2 | keep mul;
 
 warning:Line 1:44: evaluation of [max * 2] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:44: java.lang.ArithmeticException: long overflow
 
 mul:long
 null
@@ -48,7 +48,7 @@ divLongByZero
 row max = 9223372036854775807 | eval div = max / 0 | keep div;
 
 warning:Line 1:44: evaluation of [max / 0] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: / by zero
+warning:Line 1:44: java.lang.ArithmeticException: / by zero
 
 div:long
 null
@@ -59,7 +59,7 @@ row max = 9223372036854775807 | eval mod = max % 0 | keep mod;
 
 // ascii(%) == %25
 warning:Line 1:44: evaluation of [max %25 0] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: / by zero
+warning:Line 1:44: java.lang.ArithmeticException: / by zero
 
 mod:long
 null
@@ -140,7 +140,7 @@ negateIntOverflow
 // Negating Integer.MIN_VALUE overflows.
 row x=-2147483648 | eval a = -x;
 warning:Line 1:30: evaluation of [-x] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: integer overflow
+warning:Line 1:30: java.lang.ArithmeticException: integer overflow
 
 x:integer   | a:integer
 -2147483648 | null
@@ -150,7 +150,7 @@ negateLongOverflow
 // Negating Long.MIN_VALUE overflows.
 row x=-9223372036854775808 | eval a = -x;
 warning:Line 1:39: evaluation of [-x] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:39: java.lang.ArithmeticException: long overflow
 
 x:long               | a:long
 -9223372036854775808 | null
@@ -200,10 +200,10 @@ height:double | s:double
 1.53          | 0.34
 ;
 
-powSalarySquared
+powSalarySquared#[skip:-8.11.99,reason:return type changed in 8.12]
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
-salary:integer | s:long
+salary:integer | s:double
 74999          | 10001
 74970          | 10900
 74572          | 193184
@@ -268,7 +268,7 @@ d: double | s:double
 log10ofNegative
 row d = -1.0 | eval s = log10(d);
 warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: Log of non-positive number
+warning:Line 1:25: java.lang.ArithmeticException: Log of non-positive number
 
 d:double | s:double
 -1.0     | null
@@ -277,7 +277,7 @@ d:double | s:double
 log10ofZero
 row d = 0.0 | eval s = log10(d);
 warning:Line 1:24: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: Log of non-positive number
+warning:Line 1:24: java.lang.ArithmeticException: Log of non-positive number
 
 d:double | s:double
 0.0     | null
@@ -286,7 +286,7 @@ d:double | s:double
 log10ofNegativeZero
 row d = -0.0 | eval s = log10(d);
 warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: Log of non-positive number
+warning:Line 1:25: java.lang.ArithmeticException: Log of non-positive number
 
 d:double | s:double
 -0.0     | null
@@ -328,14 +328,14 @@ base:integer | exponent:double | s:double
 // end::powID-sqrt-result[]
 ;
 
-powSqrtNeg
+powSqrtNeg#[skip:-8.11.99,reason:return type changed in 8.12]
 // tag::powNeg-sqrt[]
 ROW base = -4, exponent = 0.5
 | EVAL s = POW(base, exponent)
 // end::powNeg-sqrt[]
 ;
 warning:Line 2:12: evaluation of [POW(base, exponent)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: invalid result: pow(-4.0, 0.5)
+warning:Line 2:12: java.lang.ArithmeticException: invalid result when computing pow
 
 // tag::powNeg-sqrt-result[]
 base:integer | exponent:double | s:double
@@ -356,23 +356,19 @@ base:double | exponent:integer | result:double
 // end::powDI-result[]
 ;
 
-powIntInt
-// tag::powII[]
+powIntInt#[skip:-8.11.99,reason:return type changed in 8.12]
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
-// end::powII[]
 ;
 
-// tag::powII-result[]
-base:integer | exponent:integer | s:integer
-2            | 2                | 4
-// end::powII-result[]
+base:integer | exponent:integer | s:double
+2            | 2                | 4.0
 ;
 
-powIntIntPlusInt
+powIntIntPlusInt#[skip:-8.11.99,reason:return type changed in 8.12]
 row s = 1 + pow(2, 2);
 
-s:integer
+s:double
 5
 ;
 
@@ -383,24 +379,24 @@ s:double
 5
 ;
 
-powIntUL
+powIntUL#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = pow(1, 9223372036854775808);
 
-x:long
+x:double
 1
 ;
 
-powLongUL
+powLongUL#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
-x:long
+x:double
 1
 ;
 
-powUnsignedLongUL
+powUnsignedLongUL#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
-x:long
+x:double
 1
 ;
 
@@ -411,36 +407,28 @@ x:double
 1.0
 ;
 
-powIntULOverrun
+powIntULOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = pow(2, 9223372036854775808);
 warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:9: java.lang.ArithmeticException: invalid result when computing pow
 
-x:long
+x:double
 null
 ;
 
-powULInt
+powULInt#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = pow(to_unsigned_long(9223372036854775807), 1);
 
-x:long
+x:double
 9223372036854775807
 ;
 
-powULIntOverrun
-// tag::powULOverrun[]
+powULIntOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
 ROW x = POW(9223372036854775808, 2)
-// end::powULOverrun[]
 ;
-// tag::powULOverrun-warning[]
-warning:Line 1:9: evaluation of [POW(9223372036854775808, 2)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
-// end::powULOverrun-warning[]
 
-// tag::powULOverrun-result[]
-x:long
-null
-// end::powULOverrun-result[]
+x:double
+8.507059173023462E37
 ;
 
 powULInt_2d
@@ -455,20 +443,18 @@ x:double
 // end::pow2d-result[]
 ;
 
-powULLong
+powULLong#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
-x:long
+x:double
 10000000000
 ;
 
-powULLongOverrun
+powULLongOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
-warning:Line 1:33: evaluation of [pow(to_unsigned_long(10), x)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
 
-x:long
-null
+x:double
+1.0E100
 ;
 
 powULDouble
@@ -699,7 +685,7 @@ ROW ints = [0, 1, 2147483647]
 | KEEP mvsum;
 
 warning:Line 2:16: evaluation of [mv_sum(ints)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: integer overflow
+warning:Line 2:16: java.lang.ArithmeticException: integer overflow
 
 mvsum:integer
 null
@@ -711,7 +697,7 @@ ROW longs = [0, 1, 9223372036854775807]
 | KEEP mvsum;
 
 warning:Line 2:16: evaluation of [mv_sum(longs)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 2:16: java.lang.ArithmeticException: long overflow
 
 mvsum:long
 null
@@ -723,7 +709,7 @@ ROW ulongs = [0, 1, 18446744073709551615]
 | KEEP mvsum;
 
 warning:Line 2:16: evaluation of [mv_sum(ulongs)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 2:16: java.lang.ArithmeticException: unsigned_long overflow
 
 mvsum:unsigned_long
 null
@@ -777,7 +763,7 @@ ulAdditionOverflow
 row x = 18446744073709551615, y = to_ul(1) | eval x = x + y | keep x;
 
 warning:Line 1:55: evaluation of [x + y] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 1:55: java.lang.ArithmeticException: unsigned_long overflow
 
 x:ul
 null
@@ -808,7 +794,7 @@ ulSubtractionUnderflow
 row x = to_ul(0), y = to_ul(1) | eval x = x - y | keep x;
 
 warning:Line 1:43: evaluation of [x - y] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 1:43: java.lang.ArithmeticException: unsigned_long overflow
 
 x:ul
 null
@@ -825,7 +811,7 @@ ulMultiplicationOverflow
 row x = 9223372036854775808, two = to_ul(2) | eval times2 = x * two | keep times2;
 
 warning:Line 1:61: evaluation of [x * two] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 1:61: java.lang.ArithmeticException: unsigned_long overflow
 
 times2:ul
 null
@@ -835,7 +821,7 @@ ulMultiplicationOverflow2
 row x = 9223372036854775808, y = 9223372036854775809 | eval x = x * y | keep x;
 
 warning:Line 1:65: evaluation of [x * y] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 1:65: java.lang.ArithmeticException: unsigned_long overflow
 
 x:ul
 null
@@ -852,7 +838,7 @@ ulDivisionByZero
 row halfplus = 9223372036854775808, zero = to_ul(0) | eval div = halfplus / zero | keep div;
 
 warning:Line 1:66: evaluation of [halfplus / zero] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: / by zero
+warning:Line 1:66: java.lang.ArithmeticException: / by zero
 
 div:ul
 null
@@ -870,7 +856,7 @@ row halfplus = 9223372036854775808, zero = to_ul(0) | eval mod = halfplus % zero
 
 // ascii(%) == %25
 warning:Line 1:66: evaluation of [halfplus %25 zero] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: / by zero
+warning:Line 1:66: java.lang.ArithmeticException: / by zero
 
 mod:ul
 null
@@ -1021,7 +1007,7 @@ l:ul                  | s:double
 sqrtOfNegative
 row d = -1.0 | eval s = sqrt(d);
 warning:Line 1:25: evaluation of [sqrt(d)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: Square root of negative
+warning:Line 1:25: java.lang.ArithmeticException: Square root of negative
 
 d:double | s:double
 -1.0     | null

@@ -153,8 +153,12 @@ public class Iterators {
         }
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public static <T, U> Iterator<U> map(Iterator<? extends T> input, Function<T, ? extends U> fn) {
         if (input.hasNext()) {
+            if (input instanceof MapIterator mapIterator) {
+                return new MapIterator<>(mapIterator.input, mapIterator.fn.andThen(fn));
+            }
             return new MapIterator<>(input, fn);
         } else {
             return Collections.emptyIterator();

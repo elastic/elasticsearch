@@ -77,7 +77,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private <Property> Property unsafeGetProperty(Map<?, ?> map, String key) {
+    private static <Property> Property unsafeGetProperty(Map<?, ?> map, String key) {
         return (Property) map.get(key);
     }
 

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-to_boolean]]
 === `TO_BOOLEAN`
 Converts an input value to a boolean value.

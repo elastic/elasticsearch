@@ -1,5 +1,0 @@
-pr: 99797
-summary: Wait for cluster to recover before resolving index template
-area: CRUD
-type: bug
-issues: []

@@ -30,11 +30,6 @@ import java.util.Map;
 public abstract class ParentChildTestCase extends ESIntegTestCase {
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(InternalSettingsPlugin.class, ParentJoinPlugin.class);
     }
@@ -105,7 +100,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
         String name = type;
         type = "doc";
 
-        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index).setId(id);
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId(id);
         Map<String, Object> joinField = new HashMap<>();
         if (parentId != null) {
             joinField.put("name", name);

@@ -1,5 +1,0 @@
-pr: 99695
-summary: "ESQL: Better management of not stored TEXT fiels with synthetic source"
-area: ES|QL
-type: bug
-issues: []

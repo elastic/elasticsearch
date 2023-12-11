@@ -40,6 +40,7 @@ public class GeometryDocValueReader {
     private final Extent extent;
     private int treeOffset;
     private int docValueOffset;
+    private BytesRef bytesRef;
 
     public GeometryDocValueReader() {
         this.extent = new Extent();
@@ -50,6 +51,7 @@ public class GeometryDocValueReader {
      * reset the geometry.
      */
     public void reset(BytesRef bytesRef) throws IOException {
+        this.bytesRef = bytesRef; // Needed only for supporting Writable, maintaining original offset, not adjusted on from input
         this.input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         docValueOffset = bytesRef.offset;
         treeOffset = 0;
@@ -109,4 +111,7 @@ public class GeometryDocValueReader {
         }
     }
 
+    public BytesRef getBytesRef() {
+        return bytesRef;
+    }
 }

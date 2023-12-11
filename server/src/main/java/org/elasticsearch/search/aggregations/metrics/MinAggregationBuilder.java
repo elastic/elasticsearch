@@ -106,11 +106,6 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.Single
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }

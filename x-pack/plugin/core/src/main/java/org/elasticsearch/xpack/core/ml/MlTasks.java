@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
@@ -194,6 +195,17 @@ public final class MlTasks {
         return jobState;
     }
 
+    public static Instant getLastJobTaskStateChangeTime(String jobId, @Nullable PersistentTasksCustomMetadata tasks) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getJobTask(jobId, tasks);
+        if (task != null) {
+            JobTaskState jobTaskState = (JobTaskState) task.getState();
+            if (jobTaskState != null) {
+                return jobTaskState.getLastStateChangeTime();
+            }
+        }
+        return null;
+    }
+
     public static SnapshotUpgradeState getSnapshotUpgradeState(
         String jobId,
         String snapshotId,
@@ -258,6 +270,17 @@ public final class MlTasks {
             }
         }
         return state;
+    }
+
+    public static Instant getLastDataFrameAnalyticsTaskStateChangeTime(String analyticsId, @Nullable PersistentTasksCustomMetadata tasks) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getDataFrameAnalyticsTask(analyticsId, tasks);
+        if (task != null) {
+            DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) task.getState();
+            if (taskState != null) {
+                return taskState.getLastStateChangeTime();
+            }
+        }
+        return null;
     }
 
     /**

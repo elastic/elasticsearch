@@ -14,6 +14,7 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 public class FloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -52,6 +53,15 @@ public class FloatFieldMapperTests extends NumberFieldMapperTests {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(Number::floatValue, ignoreMalformed);
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> {
+            // The test converts the float into a string so we do do
+            Number n = (Number) v;
+            return Double.parseDouble(Float.toString(n.floatValue()));
+        };
     }
 
     @Override

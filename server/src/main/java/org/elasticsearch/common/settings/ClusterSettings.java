@@ -80,6 +80,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -425,6 +426,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ScriptService.CONTEXTS_ALLOWED_SETTING,
         IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
         IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
+        IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_EXPIRE,
         IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
         IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
         HunspellService.HUNSPELL_LAZY_LOAD,
@@ -577,6 +579,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING,
         IngestSettings.GROK_WATCHDOG_INTERVAL,
         IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME,
-        TDigestExecutionHint.SETTING
+        TDigestExecutionHint.SETTING,
+        MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING,
+        MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 }

@@ -80,6 +80,8 @@ public class PlanNameRegistry {
     record Entry(
         /** The superclass of a writeable category will be read by a reader. */
         Class<?> categoryClass,
+        /** The concrete class. */
+        Class<?> concreteClass,
         /** A name for the writeable which is unique to the categoryClass. */
         String name,
         /** A writer for non-NamedWriteable class */
@@ -102,7 +104,7 @@ public class PlanNameRegistry {
             PlanWriter<S> writer,
             PlanReader<S> reader
         ) {
-            return new Entry(categoryClass, PlanNamedTypes.name(concreteClass), writer, reader);
+            return new Entry(categoryClass, concreteClass, PlanNamedTypes.name(concreteClass), writer, reader);
         }
 
         static <T, C extends T, S extends T> Entry of(
@@ -111,7 +113,7 @@ public class PlanNameRegistry {
             PlanWriter<S> writer,
             PlanNamedReader<S> reader
         ) {
-            return new Entry(categoryClass, PlanNamedTypes.name(concreteClass), writer, reader);
+            return new Entry(categoryClass, concreteClass, PlanNamedTypes.name(concreteClass), writer, reader);
         }
     }
 

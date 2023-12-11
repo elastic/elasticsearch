@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "quart", type = "BYTES_REF") })
 @GroupingAggregator
@@ -35,8 +36,8 @@ class PercentileDoubleAggregator {
         state.add(inValue);
     }
 
-    public static Block evaluateFinal(QuantileStates.SingleState state) {
-        return state.evaluatePercentile();
+    public static Block evaluateFinal(QuantileStates.SingleState state, DriverContext driverContext) {
+        return state.evaluatePercentile(driverContext);
     }
 
     public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays, double percentile) {
@@ -60,7 +61,7 @@ class PercentileDoubleAggregator {
         current.add(currentGroupId, state.getOrNull(statePosition));
     }
 
-    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected) {
-        return state.evaluatePercentile(selected);
+    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected, DriverContext driverContext) {
+        return state.evaluatePercentile(selected, driverContext);
     }
 }

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-to_double]]
 === `TO_DOUBLE`
 Converts an input value to a double value.

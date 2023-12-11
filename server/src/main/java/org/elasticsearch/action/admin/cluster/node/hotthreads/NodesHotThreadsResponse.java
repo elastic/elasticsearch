@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.collect.Iterators;
@@ -25,10 +26,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
-
-    public NodesHotThreadsResponse(StreamInput in) throws IOException {
-        super(in);
-    }
 
     public NodesHotThreadsResponse(ClusterName clusterName, List<NodeHotThreads> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
@@ -52,7 +49,7 @@ public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeHotThreads> nodes) throws IOException {
-        out.writeCollection(nodes);
+        TransportAction.localOnly();
     }
 
     private static class LinesIterator implements Iterator<String> {

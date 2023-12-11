@@ -20,9 +20,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,10 +36,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class PermissionsIT extends ESRestTestCase {
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "false")
+        .user("test_admin", "x-pack-test-password", "superuser", false)
+        .build();
+
     @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test_slm", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override

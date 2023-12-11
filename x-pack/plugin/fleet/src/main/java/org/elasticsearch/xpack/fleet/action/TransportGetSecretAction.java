@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -25,17 +26,17 @@ public class TransportGetSecretAction extends HandledTransportAction<GetSecretRe
 
     @Inject
     public TransportGetSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(GetSecretAction.NAME, transportService, actionFilters, GetSecretRequest::new);
+        super(GetSecretAction.NAME, transportService, actionFilters, GetSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, FLEET_ORIGIN);
     }
 
     protected void doExecute(Task task, GetSecretRequest request, ActionListener<GetSecretResponse> listener) {
-        client.prepareGet(FLEET_SECRETS_INDEX_NAME, request.id()).execute(ActionListener.wrap(getResponse -> {
+        client.prepareGet(FLEET_SECRETS_INDEX_NAME, request.id()).execute(listener.delegateFailureAndWrap((delegate, getResponse) -> {
             if (getResponse.isSourceEmpty()) {
-                listener.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
+                delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
                 return;
             }
-            listener.onResponse(new GetSecretResponse(getResponse.getId(), getResponse.getSource().get("value").toString()));
-        }, listener::onFailure));
+            delegate.onResponse(new GetSecretResponse(getResponse.getId(), getResponse.getSource().get("value").toString()));
+        }));
     }
 }

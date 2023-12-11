@@ -76,7 +76,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         return (GeoPointFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         final Parameter<Explicit<Boolean>> ignoreMalformed;
         final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
@@ -94,7 +94,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         private final Parameter<Boolean> dimension; // can only support time_series_dimension: false
         private final IndexMode indexMode;  // either STANDARD or TIME_SERIES
 
-        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             ScriptCompiler scriptCompiler,
@@ -208,6 +207,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 stored.get(),
                 hasDocValues.get(),
                 geoParser,
+                nullValue.get(),
                 scriptValues(),
                 meta.get(),
                 metric.get(),
@@ -364,6 +364,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             List.of(new SimpleVectorTileFormatter())
         );
 
+        private final GeoPoint nullValue;
         private final FieldValues<GeoPoint> scriptValues;
         private final IndexMode indexMode;
 
@@ -373,12 +374,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             boolean stored,
             boolean hasDocValues,
             Parser<GeoPoint> parser,
+            GeoPoint nullValue,
             FieldValues<GeoPoint> scriptValues,
             Map<String, String> meta,
             TimeSeriesParams.MetricType metricType,
             IndexMode indexMode
         ) {
             super(name, indexed, stored, hasDocValues, parser, meta);
+            this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.metricType = metricType;
             this.indexMode = indexMode;
@@ -386,7 +389,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         // only used in test
         public GeoPointFieldType(String name, TimeSeriesParams.MetricType metricType, IndexMode indexMode) {
-            this(name, true, false, true, null, null, Collections.emptyMap(), metricType, indexMode);
+            this(name, true, false, true, null, null, null, Collections.emptyMap(), metricType, indexMode);
         }
 
         // only used in test
@@ -443,7 +446,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             return query;
         }
 
-        private boolean isPointGeometry(LatLonGeometry[] geometries) {
+        private static boolean isPointGeometry(LatLonGeometry[] geometries) {
             return geometries.length == 1 && geometries[0] instanceof org.apache.lucene.geo.Point;
         }
 
@@ -477,6 +480,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
+            // TODO: Currently we use longs in the compute engine and render to WKT in ESQL
+            return new BlockSourceReader.LongsBlockLoader(
+                valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
+            );
         }
 
         @Override

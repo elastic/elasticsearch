@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -64,6 +63,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -519,7 +519,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) mappings.get("_meta");
         assertThat(meta.keySet(), hasItem("version"));
-        assertThat(meta.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(meta.get("version"), equalTo(MlIndexAndAlias.BWC_MAPPINGS_VERSION));
+        assertThat(meta.get("managed_index_mappings_version"), equalTo(AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
@@ -791,8 +792,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 .build()
         );
         // Add a snapshot WITHOUT a min version.
-        client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"))
-            .setId(ModelSnapshot.documentId("other_job", "11"))
+        prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job")).setId(ModelSnapshot.documentId("other_job", "11"))
             .setSource("""
                 {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
@@ -1039,7 +1039,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        BulkResponse response = bulkRequest.execute().actionGet();
+        BulkResponse response = bulkRequest.get();
         if (response.hasFailures()) {
             throw new IllegalStateException(Strings.toString(response));
         }
@@ -1064,7 +1064,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        bulkRequest.execute().actionGet();
+        bulkRequest.get();
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
@@ -1114,6 +1114,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        bulkRequest.execute().actionGet();
+        bulkRequest.get();
     }
 }

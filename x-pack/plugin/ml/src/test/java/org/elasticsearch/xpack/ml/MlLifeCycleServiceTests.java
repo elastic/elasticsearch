@@ -147,7 +147,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             new OpenJobAction.JobParams("job-1"),
             new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
         );
-        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing"));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing", Instant.now()));
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
@@ -156,7 +156,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         );
         tasksBuilder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
-            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 2, "testing")
+            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 2, "testing", Instant.now())
         );
         tasksBuilder.addTask(
             MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),

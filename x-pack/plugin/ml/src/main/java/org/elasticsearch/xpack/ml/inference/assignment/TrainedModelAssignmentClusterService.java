@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -34,6 +35,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -44,6 +46,8 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
@@ -73,11 +77,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private static final TransportVersion RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
     public static final TransportVersion DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION = TransportVersions.V_8_4_0;
 
+    private static final TransportVersion NEW_ALLOCATION_MEMORY_VERSION = TransportVersions.V_8_500_064;
+
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final NodeLoadDetector nodeLoadDetector;
     private final SystemAuditor systemAuditor;
     private final NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private final Client client;
     private volatile int maxMemoryPercentage;
     private volatile boolean useAuto;
     private volatile int maxOpenJobs;
@@ -91,7 +98,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ThreadPool threadPool,
         NodeLoadDetector nodeLoadDetector,
         SystemAuditor systemAuditor,
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper
+        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper,
+        Client client
     ) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -99,18 +107,19 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.systemAuditor = Objects.requireNonNull(systemAuditor);
         this.nodeAvailabilityZoneMapper = Objects.requireNonNull(nodeAvailabilityZoneMapper);
         this.maxMemoryPercentage = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
-        this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.useAuto = MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
         this.allocatedProcessorsScale = MachineLearning.ALLOCATED_PROCESSORS_SCALE.get(settings);
+        this.client = client;
         // Only nodes that can possibly be master nodes really need this service running
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(this);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMemoryPercentage);
             clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
+                .addSettingsUpdateConsumer(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMLNodeSize);
@@ -150,19 +159,23 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        if (eventStateHasGlobalBlockStateNotRecoveredBlock(event)) {
             return;
         }
         if (event.localNodeMaster() == false) {
             return;
         }
 
-        if (event.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
+        if (eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(event)) {
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
             // But we should remove routing to removed or shutting down nodes.
             removeRoutingToRemovedOrShuttingDownNodes(event);
             return;
+        }
+
+        if (event.nodesAdded()) {
+            logMlNodeHeterogeneity();
         }
 
         Optional<String> rebalanceReason = detectReasonToRebalanceModels(event);
@@ -185,6 +198,46 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 )
             );
         }
+    }
+
+    boolean eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(ClusterChangedEvent event) {
+        return event.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
+    }
+
+    boolean eventStateHasGlobalBlockStateNotRecoveredBlock(ClusterChangedEvent event) {
+        return event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+    }
+
+    void logMlNodeHeterogeneity() {
+        ActionListener<Set<String>> architecturesListener = getArchitecturesSetActionListener();
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            architecturesListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
+    }
+
+    static ActionListener<Set<String>> getArchitecturesSetActionListener() {
+        ActionListener<Set<String>> architecturesListener = new ActionListener<Set<String>>() {
+            @Override
+            public void onResponse(Set<String> architectures) {
+                if (architectures.size() > 1) {
+                    logger.warn(
+                        format(
+                            "Heterogeneous platform architectures were detected among ML nodes. "
+                                + "This will prevent the deployment of some trained models. Distinct platform architectures detected: %s",
+                            architectures
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failed to detect heterogeneity among ML nodes with exception: ", e);
+            }
+        };
+        return architecturesListener;
     }
 
     private void removeRoutingToRemovedOrShuttingDownNodes(ClusterChangedEvent event) {
@@ -486,51 +539,93 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         String reason,
         ActionListener<TrainedModelAssignmentMetadata> listener
     ) {
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            logger.debug(() -> format("Rebalancing model allocations because [%s]", reason));
-            TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
-            try {
-                rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
+        ActionListener<Set<String>> architecturesListener = ActionListener.wrap((mlNodesArchitectures) -> {
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                logger.debug(() -> format("Rebalancing model allocations because [%s]", reason));
 
-            submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
-
-                private volatile boolean isUpdated;
-                private volatile boolean isChanged;
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-
-                    if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
-                        isUpdated = true;
-                        ClusterState updatedState = update(currentState, rebalancedMetadata);
-                        isChanged = updatedState != currentState;
-                        return updatedState;
-                    }
-                    rebalanceAssignments(currentState, modelToAdd, reason, listener);
-                    return currentState;
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+                TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
+                try {
+                    rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);
+                } catch (Exception e) {
                     listener.onFailure(e);
+                    return;
                 }
 
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    if (isUpdated) {
-                        if (isChanged) {
-                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                                .execute(() -> systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason)));
+                submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
+
+                    private volatile boolean isUpdated;
+                    private volatile boolean isChanged;
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+
+                        currentState = stopPlatformSpecificModelsInHeterogeneousClusters(
+                            currentState,
+                            mlNodesArchitectures,
+                            modelToAdd,
+                            clusterState
+                        );
+
+                        if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
+                            isUpdated = true;
+                            ClusterState updatedState = update(currentState, rebalancedMetadata);
+                            isChanged = updatedState != currentState;
+                            return updatedState;
                         }
-                        listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
+
+                        rebalanceAssignments(currentState, modelToAdd, reason, listener);
+                        return currentState;
                     }
-                }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        if (isUpdated) {
+                            if (isChanged) {
+                                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                                    .execute(
+                                        () -> systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason))
+                                    );
+                            }
+                            listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
+                        }
+                    }
+                });
             });
-        });
+        }, listener::onFailure);
+
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            architecturesListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
+    }
+
+    ClusterState stopPlatformSpecificModelsInHeterogeneousClusters(
+        ClusterState updatedState,
+        Set<String> mlNodesArchitectures,
+        Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd,
+        ClusterState clusterState
+    ) {
+        if (mlNodesArchitectures.size() > 1 && modelToAdd.isPresent()) {
+            String reasonToStop = format(
+                "ML nodes in this cluster have multiple platform architectures, "
+                    + "but can only have one for this model ([%s]); "
+                    + "detected architectures: %s",
+                modelToAdd.get().getModelId(),
+                mlNodesArchitectures
+            );
+            updatedState = callSetToStopping(reasonToStop, modelToAdd.get().getDeploymentId(), clusterState);
+        }
+        return updatedState;
+    }
+
+    ClusterState callSetToStopping(String reasonToStop, String deploymentId, ClusterState clusterState) {
+        return setToStopping(clusterState, deploymentId, reasonToStop);
     }
 
     private boolean areClusterStatesCompatibleForRebalance(ClusterState source, ClusterState target) {
@@ -552,15 +647,22 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
 
+        boolean useNewMemoryFields = TrainedModelAssignment.useNewMemoryFields(TransportVersionUtils.getMinTransportVersion(currentState));
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
             currentMetadata,
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
             modelToAdd,
-            allocatedProcessorsScale
+            allocatedProcessorsScale,
+            useNewMemoryFields
         );
 
         Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+        /*
+         * To signal that we should gracefully stop the deployments routed to a particular node we set the routing state to stopping.
+         * The TrainedModelAssignmentNodeService will see that the route is in stopping for a shutting down node and gracefully shut down
+         * the native process after draining the queues.
+         */
         TrainedModelAssignmentMetadata.Builder rebalanced = setShuttingDownNodeRoutesToStopping(
             currentMetadata,
             shuttingDownNodeIds,

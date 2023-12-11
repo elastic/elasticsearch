@@ -341,8 +341,6 @@ public final class IndicesPermission {
         @Nullable
         private final IndexAbstraction indexAbstraction;
 
-        public Collection<String> concreteIndices;
-
         private IndexResource(String name, @Nullable IndexAbstraction abstraction) {
             assert name != null : "Resource name cannot be null";
             assert abstraction == null || abstraction.getName().equals(name)
@@ -615,7 +613,7 @@ public final class IndicesPermission {
         return true;
     }
 
-    private void logDeprecatedBwcPrivilegeUsage(
+    private static void logDeprecatedBwcPrivilegeUsage(
         String action,
         IndexResource resource,
         Group group,

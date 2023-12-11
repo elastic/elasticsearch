@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of BooleanBlocks.
+ * Builder for {@link BooleanVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class BooleanVectorBuilder extends AbstractVectorBuilder implements BooleanVector.Builder {
@@ -49,17 +49,17 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
 
     @Override
     public BooleanVector build() {
+        finish();
         BooleanVector vector;
         if (valueCount == 1) {
-            vector = new ConstantBooleanVector(values[0], 1, blockFactory);
+            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, estimatedBytes).asVector();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
-            vector = new BooleanArrayVector(values, valueCount, blockFactory);
+            vector = blockFactory.newBooleanArrayVector(values, valueCount, estimatedBytes);
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        built();
         return vector;
     }
 }

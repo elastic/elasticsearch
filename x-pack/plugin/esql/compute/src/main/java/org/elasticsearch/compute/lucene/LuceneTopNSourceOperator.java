@@ -16,12 +16,14 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopFieldCollector;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -38,25 +40,6 @@ import java.util.stream.Collectors;
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
-    /**
-     * Collected docs. {@code null} until we're {@link #emit(boolean)}.
-     */
-    private ScoreDoc[] scoreDocs;
-    /**
-     * The offset in {@link #scoreDocs} of the next page.
-     */
-    private int offset = 0;
-
-    private PerShardCollector perShardCollector;
-    private final List<SortBuilder<?>> sorts;
-    private final int limit;
-
-    public LuceneTopNSourceOperator(int maxPageSize, List<SortBuilder<?>> sorts, int limit, LuceneSliceQueue sliceQueue) {
-        super(maxPageSize, sliceQueue);
-        this.sorts = sorts;
-        this.limit = limit;
-    }
-
     public static final class Factory implements LuceneOperator.Factory {
         private final int taskConcurrency;
         private final int maxPageSize;
@@ -85,7 +68,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneTopNSourceOperator(maxPageSize, sorts, limit, sliceQueue);
+            return new LuceneTopNSourceOperator(driverContext.blockFactory(), maxPageSize, sorts, limit, sliceQueue);
         }
 
         @Override
@@ -114,6 +97,31 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 + notPrettySorts
                 + "]]";
         }
+    }
+
+    /**
+     * Collected docs. {@code null} until we're {@link #emit(boolean)}.
+     */
+    private ScoreDoc[] scoreDocs;
+    /**
+     * The offset in {@link #scoreDocs} of the next page.
+     */
+    private int offset = 0;
+
+    private PerShardCollector perShardCollector;
+    private final List<SortBuilder<?>> sorts;
+    private final int limit;
+
+    public LuceneTopNSourceOperator(
+        BlockFactory blockFactory,
+        int maxPageSize,
+        List<SortBuilder<?>> sorts,
+        int limit,
+        LuceneSliceQueue sliceQueue
+    ) {
+        super(blockFactory, maxPageSize, sliceQueue);
+        this.sorts = sorts;
+        this.limit = limit;
     }
 
     @Override
@@ -187,29 +195,35 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return null;
         }
         int size = Math.min(maxPageSize, scoreDocs.length - offset);
-        IntVector.Builder currentSegmentBuilder = IntVector.newVectorBuilder(size);
-        IntVector.Builder currentDocsBuilder = IntVector.newVectorBuilder(size);
+        IntBlock shard = null;
+        IntVector segments = null;
+        IntVector docs = null;
+        Page page = null;
+        try (
+            IntVector.Builder currentSegmentBuilder = IntVector.newVectorBuilder(size, blockFactory);
+            IntVector.Builder currentDocsBuilder = IntVector.newVectorBuilder(size, blockFactory)
+        ) {
+            int start = offset;
+            offset += size;
+            List<LeafReaderContext> leafContexts = perShardCollector.searchContext.searcher().getLeafContexts();
+            for (int i = start; i < offset; i++) {
+                int doc = scoreDocs[i].doc;
+                int segment = ReaderUtil.subIndex(doc, leafContexts);
+                currentSegmentBuilder.appendInt(segment);
+                currentDocsBuilder.appendInt(doc - leafContexts.get(segment).docBase); // the offset inside the segment
+            }
 
-        int start = offset;
-        offset += size;
-        List<LeafReaderContext> leafContexts = perShardCollector.searchContext.searcher().getLeafContexts();
-        for (int i = start; i < offset; i++) {
-            int doc = scoreDocs[i].doc;
-            int segment = ReaderUtil.subIndex(doc, leafContexts);
-            currentSegmentBuilder.appendInt(segment);
-            currentDocsBuilder.appendInt(doc - leafContexts.get(segment).docBase); // the offset inside the segment
+            shard = IntBlock.newConstantBlockWith(perShardCollector.shardIndex, size, blockFactory);
+            segments = currentSegmentBuilder.build();
+            docs = currentDocsBuilder.build();
+            page = new Page(size, new DocVector(shard.asVector(), segments, docs, null).asBlock());
+        } finally {
+            if (page == null) {
+                Releasables.closeExpectNoException(shard, segments, docs);
+            }
         }
-
         pagesEmitted++;
-        return new Page(
-            size,
-            new DocVector(
-                IntBlock.newConstantBlockWith(perShardCollector.shardIndex, size).asVector(),
-                currentSegmentBuilder.build(),
-                currentDocsBuilder.build(),
-                null
-            ).asBlock()
-        );
+        return page;
     }
 
     @Override

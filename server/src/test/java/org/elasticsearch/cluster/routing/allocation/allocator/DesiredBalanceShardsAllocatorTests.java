@@ -47,6 +47,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 
@@ -68,6 +69,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
@@ -156,8 +158,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             createShardsAllocator(),
             threadPool,
             clusterService,
-            reconcileAction
+            reconcileAction,
+            TelemetryProvider.NOOP
         );
+        assertValidStats(desiredBalanceShardsAllocator.getStats());
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator(allocateUnassigned));
         allocationServiceRef.set(allocationService);
 
@@ -200,8 +204,18 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     }
                 }
             }
+            assertValidStats(desiredBalanceShardsAllocator.getStats());
         } finally {
             clusterService.close();
+        }
+    }
+
+    private void assertValidStats(DesiredBalanceStats stats) {
+        assertThat(stats.lastConvergedIndex(), greaterThanOrEqualTo(0L));
+        try {
+            assertEquals(stats, copyWriteable(stats, writableRegistry(), DesiredBalanceStats::readFrom));
+        } catch (Exception e) {
+            fail(e);
         }
     }
 
@@ -265,7 +279,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             createShardsAllocator(),
             threadPool,
             clusterService,
-            reconcileAction
+            reconcileAction,
+            TelemetryProvider.NOOP
         );
         var allocationService = new AllocationService(
             new AllocationDeciders(List.of()),
@@ -357,7 +372,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
                 }
             },
-            reconcileAction
+            reconcileAction,
+            TelemetryProvider.NOOP
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -459,7 +475,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
                 }
             },
-            reconcileAction
+            reconcileAction,
+            TelemetryProvider.NOOP
         );
 
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
@@ -549,7 +566,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
-            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState
+            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
+            TelemetryProvider.NOOP
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -601,7 +619,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
-            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState
+            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
+            TelemetryProvider.NOOP
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());

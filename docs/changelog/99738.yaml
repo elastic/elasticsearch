@@ -1,6 +1,0 @@
-pr: 99738
-summary: Ignore "index not found" error when `delete_dest_index` flag is set but the
-  dest index doesn't exist
-area: Transform
-type: bug
-issues: []

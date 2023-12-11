@@ -13,8 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class IndexShardRecoveryException extends ElasticsearchException {
-    @SuppressWarnings("this-escape")
+public final class IndexShardRecoveryException extends ElasticsearchException {
     public IndexShardRecoveryException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);
         setShard(shardId);

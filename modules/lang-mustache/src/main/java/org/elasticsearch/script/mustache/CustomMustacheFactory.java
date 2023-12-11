@@ -39,7 +39,7 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CustomMustacheFactory extends DefaultMustacheFactory {
+public final class CustomMustacheFactory extends DefaultMustacheFactory {
     static final String V7_JSON_MEDIA_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
     static final String JSON_MEDIA_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
     static final String JSON_MEDIA_TYPE = "application/json";
@@ -47,6 +47,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     static final String X_WWW_FORM_URLENCODED_MEDIA_TYPE = "application/x-www-form-urlencoded";
 
     private static final String DEFAULT_MEDIA_TYPE = JSON_MEDIA_TYPE;
+    private static final boolean DEFAULT_DETECT_MISSING_PARAMS = false;
 
     private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
         V7_JSON_MEDIA_TYPE_WITH_CHARSET,
@@ -63,15 +64,30 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     private final Encoder encoder;
 
-    @SuppressWarnings("this-escape")
+    /**
+     * Initializes a CustomMustacheFactory object with a specified mediaType.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
     public CustomMustacheFactory(String mediaType) {
-        super();
-        setObjectHandler(new CustomReflectionObjectHandler());
-        this.encoder = createEncoder(mediaType);
+        this(mediaType, DEFAULT_DETECT_MISSING_PARAMS);
     }
 
+    /**
+     * Default constructor for the factory.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
     public CustomMustacheFactory() {
-        this(DEFAULT_MEDIA_TYPE);
+        this(DEFAULT_MEDIA_TYPE, DEFAULT_DETECT_MISSING_PARAMS);
+    }
+
+    private CustomMustacheFactory(String mediaType, boolean detectMissingParams) {
+        super();
+        setObjectHandler(new CustomReflectionObjectHandler(detectMissingParams));
+        this.encoder = createEncoder(mediaType);
     }
 
     @Override
@@ -94,6 +110,10 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     @Override
     public MustacheVisitor createMustacheVisitor() {
         return new CustomMustacheVisitor(this);
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     class CustomMustacheVisitor extends DefaultMustacheVisitor {
@@ -359,6 +379,36 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         @Override
         public void encode(String s, Writer writer) throws IOException {
             writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Build a new {@link CustomMustacheFactory} object.
+     */
+    public static class Builder {
+        private String mediaType = DEFAULT_MEDIA_TYPE;
+        private boolean detectMissingParams = DEFAULT_DETECT_MISSING_PARAMS;
+
+        private Builder() {}
+
+        public Builder mediaType(String mediaType) {
+            this.mediaType = mediaType;
+            return this;
+        }
+
+        /**
+         * Sets the behavior for handling missing parameters during template execution.
+         *
+         * @param detectMissingParams If true, an exception is thrown when executing the template with missing parameters.
+         *                            If false, the template gracefully handles missing parameters without throwing an exception.
+         */
+        public Builder detectMissingParams(boolean detectMissingParams) {
+            this.detectMissingParams = detectMissingParams;
+            return this;
+        }
+
+        public CustomMustacheFactory build() {
+            return new CustomMustacheFactory(mediaType, detectMissingParams);
         }
     }
 }

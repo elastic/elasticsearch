@@ -52,11 +52,12 @@ abstract class AbstractVectorBlock extends AbstractBlock {
 
     @Override
     public final MvOrdering mvOrdering() {
-        return MvOrdering.UNORDERED;
+        return MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
     }
 
     @Override
     public final Block expand() {
+        incRef();
         return this;
     }
 }

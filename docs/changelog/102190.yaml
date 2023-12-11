@@ -1,0 +1,5 @@
+pr: 102190
+summary: Track pages in ESQL enrich request/response
+area: ES|QL
+type: enhancement
+issues: []

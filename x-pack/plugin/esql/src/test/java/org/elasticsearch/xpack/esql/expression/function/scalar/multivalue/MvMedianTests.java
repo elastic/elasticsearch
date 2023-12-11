@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -62,17 +61,18 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         unsignedLongs(cases, "mv_median", "MvMedian", (size, values) -> {
             int middle = size / 2;
             if (size % 2 == 1) {
-                return equalTo(NumericUtils.asLongUnsigned(values.sorted().skip(middle).findFirst().get()));
+                return equalTo(values.sorted().skip(middle).findFirst().get());
             }
             var s = values.sorted().skip(middle - 1).limit(2).iterator();
             BigInteger a = s.next();
             BigInteger b = s.next();
-            return equalTo(NumericUtils.asLongUnsigned(a.add(b.subtract(a).divide(BigInteger.valueOf(2)))));
+            return equalTo(a.add(b.subtract(a).divide(BigInteger.valueOf(2))));
         });
 
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<1, 2>)",
+                List.of(DataTypes.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataTypes.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
@@ -84,6 +84,7 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<-1, -2>)",
+                List.of(DataTypes.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataTypes.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
@@ -92,7 +93,7 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
     }
 
     @Override

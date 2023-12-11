@@ -69,13 +69,6 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         out.writeString(path);
     }
 
-    /**
-     * Get the path to use for this nested aggregation.
-     */
-    public String path() {
-        return path;
-    }
-
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.ONE;

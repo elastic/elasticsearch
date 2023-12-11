@@ -10,37 +10,25 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
@@ -154,48 +142,39 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         final List<Object> components = new ArrayList<>();
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(
             settings,
-            clusterService,
-            threadPool,
-            client,
-            xContentRegistry
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry()
         );
         ilmTemplateRegistry.initialize();
-        ilmHistoryStore.set(new ILMHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService, threadPool));
+        ilmHistoryStore.set(
+            new ILMHistoryStore(
+                new OriginSettingClient(services.client(), INDEX_LIFECYCLE_ORIGIN),
+                services.clusterService(),
+                services.threadPool()
+            )
+        );
         /*
          * Here we use threadPool::absoluteTimeInMillis rather than System::currentTimeInMillis because snapshot start time is set using
          * ThreadPool.absoluteTimeInMillis(). ThreadPool.absoluteTimeInMillis() returns a cached time that can be several hundred
          * milliseconds behind System.currentTimeMillis(). The result is that a snapshot taken after a policy is created can have a start
          * time that is before the policy's (or action's) start time if System::currentTimeInMillis is used here.
          */
-        LongSupplier nowSupplier = threadPool::absoluteTimeInMillis;
+        LongSupplier nowSupplier = services.threadPool()::absoluteTimeInMillis;
         indexLifecycleInitialisationService.set(
             new IndexLifecycleService(
                 settings,
-                client,
-                clusterService,
-                threadPool,
+                services.client(),
+                services.clusterService(),
+                services.threadPool(),
                 getClock(),
                 nowSupplier,
-                xContentRegistry,
+                services.xContentRegistry(),
                 ilmHistoryStore.get(),
                 getLicenseState()
             )
@@ -204,15 +183,17 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
 
         ilmHealthIndicatorService.set(
             new IlmHealthIndicatorService(
-                clusterService,
+                services.clusterService(),
                 new IlmHealthIndicatorService.StagnatingIndicesFinder(
-                    clusterService,
+                    services.clusterService(),
                     IlmHealthIndicatorService.RULES_BY_ACTION_CONFIG.values(),
                     System::currentTimeMillis
                 )
             )
         );
-        reservedLifecycleAction.set(new ReservedLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));
+        reservedLifecycleAction.set(
+            new ReservedLifecycleAction(services.xContentRegistry(), services.client(), XPackPlugin.getSharedLicenseState())
+        );
 
         return components;
     }

@@ -146,18 +146,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         minDocCount = in.readVLong();
         interval = in.readDouble();
         offset = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
-            hardBounds = in.readOptionalWriteable(DoubleBounds::new);
-        } else {
-            double minBound = in.readDouble();
-            double maxBound = in.readDouble();
-            if (minBound == Double.POSITIVE_INFINITY && maxBound == Double.NEGATIVE_INFINITY) {
-                extendedBounds = null;
-            } else {
-                extendedBounds = new DoubleBounds(minBound, maxBound);
-            }
-        }
+        extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
+        hardBounds = in.readOptionalWriteable(DoubleBounds::new);
     }
 
     @Override
@@ -167,18 +157,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         out.writeVLong(minDocCount);
         out.writeDouble(interval);
         out.writeDouble(offset);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeOptionalWriteable(extendedBounds);
-            out.writeOptionalWriteable(hardBounds);
-        } else {
-            if (extendedBounds != null) {
-                out.writeDouble(extendedBounds.getMin());
-                out.writeDouble(extendedBounds.getMax());
-            } else {
-                out.writeDouble(Double.POSITIVE_INFINITY);
-                out.writeDouble(Double.NEGATIVE_INFINITY);
-            }
-        }
+        out.writeOptionalWriteable(extendedBounds);
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /** Get the current interval that is set on this builder. */
@@ -214,10 +194,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     /** Get the current maximum bound that is set on this builder. */
     public double maxBound() {
         return DoubleBounds.getEffectiveMax(extendedBounds);
-    }
-
-    protected DoubleBounds extendedBounds() {
-        return extendedBounds;
     }
 
     /**
@@ -362,11 +338,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

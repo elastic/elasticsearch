@@ -96,7 +96,7 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
     private ObjectPath buildSpatialStatsResponse(SpatialUsage... nodeUsages) throws IOException {
         SpatialStatsAction.Request request = new SpatialStatsAction.Request();
         List<SpatialStatsAction.NodeResponse> nodeResponses = Arrays.stream(nodeUsages)
-            .map(usage -> toAction(usage).nodeOperation(new SpatialStatsAction.NodeRequest(request), null))
+            .map(usage -> toAction(usage).nodeOperation(new SpatialStatsAction.NodeRequest(), null))
             .collect(Collectors.toList());
         SpatialStatsAction.Response response = new SpatialStatsAction.Response(new ClusterName("cluster_name"), nodeResponses, emptyList());
         try (XContentBuilder builder = jsonBuilder()) {

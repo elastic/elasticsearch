@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
@@ -23,8 +24,9 @@ import static org.hamcrest.Matchers.closeTo;
 
 public class SumDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongDoubleTupleBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
         );
     }

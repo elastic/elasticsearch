@@ -13,7 +13,8 @@ package org.elasticsearch.compute.data;
 abstract class AbstractVector implements Vector {
 
     private final int positionCount;
-    protected final BlockFactory blockFactory;
+    private BlockFactory blockFactory;
+    protected boolean released;
 
     protected AbstractVector(int positionCount, BlockFactory blockFactory) {
         this.positionCount = positionCount;
@@ -35,8 +36,21 @@ abstract class AbstractVector implements Vector {
     }
 
     @Override
+    public void allowPassingToDifferentDriver() {
+        blockFactory = blockFactory.parent();
+    }
+
+    @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 
+    @Override
+    public final boolean isReleased() {
+        return released;
+    }
 }

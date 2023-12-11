@@ -124,7 +124,7 @@ final class RemoteClusterConnection implements Closeable {
                 if (REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())) {
                     transportService.sendRequest(
                         connection,
-                        RemoteClusterNodesAction.NAME,
+                        RemoteClusterNodesAction.TYPE.name(),
                         RemoteClusterNodesAction.Request.ALL_NODES,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(contextPreservingActionListener.map(response -> {

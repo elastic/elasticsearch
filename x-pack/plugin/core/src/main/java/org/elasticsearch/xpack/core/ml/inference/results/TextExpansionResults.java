@@ -119,4 +119,11 @@ public class TextExpansionResults extends NlpInferenceResults {
     void addMapFields(Map<String, Object> map) {
         map.put(resultsField, weightedTokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight)));
     }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        var map = super.asMap(outputField);
+        map.put(outputField, weightedTokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight)));
+        return map;
+    }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -17,7 +18,7 @@ import java.io.IOException;
  * Block that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayBlock, IntVectorBlock {
+public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock {
 
     /**
      * Retrieves the int value stored at the given value index.
@@ -36,33 +37,38 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
     @Override
     IntBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::of);
-
     @Override
     default String getWriteableName() {
         return "IntBlock";
     }
 
-    static IntBlock of(StreamInput in) throws IOException {
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::readFrom);
+
+    private static IntBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return IntVector.of(in).asBlock();
+            return IntVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendInt(in.readInt());
+        try (IntBlock.Builder builder = in.blockFactory().newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendInt(in.readInt());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
@@ -107,6 +113,9 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
      * equals method works properly across different implementations of the IntBlock interface.
      */
     static boolean equals(IntBlock block1, IntBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -157,31 +166,52 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
         return result;
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
+     * @deprecated use {@link BlockFactory#newIntBlockBuilder}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static Builder newBlockBuilder(int estimatedSize) {
         return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Returns a builder.
+     * @deprecated use {@link BlockFactory#newIntBlockBuilder}
+     */
+    @Deprecated
     static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newIntBlockBuilder(estimatedSize);
     }
 
-    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
+     * @deprecated use {@link BlockFactory#newConstantIntBlockWith}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static IntBlock newConstantBlockWith(int value, int positions) {
         return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Returns a constant block.
+     * @deprecated use {@link BlockFactory#newConstantIntBlockWith}
+     */
+    @Deprecated
     static IntBlock newConstantBlockWith(int value, int positions, BlockFactory blockFactory) {
         return blockFactory.newConstantIntBlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits IntBlockBuilder {
-
+    /**
+     * Builder for {@link IntBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.IntBuilder permits IntBlockBuilder {
         /**
          * Appends a int to the current entry.
          */
+        @Override
         Builder appendInt(int value);
 
         /**
@@ -205,12 +235,11 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

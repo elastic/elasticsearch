@@ -90,6 +90,7 @@ public class MonitoringBulkRequest extends ActionRequest {
             null,
             null,
             null,
+            null,
             true,
             xContentType,
             (indexRequest, type) -> {

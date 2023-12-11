@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.dangling.find;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,10 +24,6 @@ import java.util.List;
  */
 public class FindDanglingIndexResponse extends BaseNodesResponse<NodeFindDanglingIndexResponse> {
 
-    public FindDanglingIndexResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public FindDanglingIndexResponse(
         ClusterName clusterName,
         List<NodeFindDanglingIndexResponse> nodes,
@@ -37,11 +34,11 @@ public class FindDanglingIndexResponse extends BaseNodesResponse<NodeFindDanglin
 
     @Override
     protected List<NodeFindDanglingIndexResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(NodeFindDanglingIndexResponse::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeFindDanglingIndexResponse> nodes) throws IOException {
-        out.writeCollection(nodes);
+        TransportAction.localOnly();
     }
 }

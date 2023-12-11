@@ -1,0 +1,27 @@
+[discrete]
+[[esql-agg-count]]
+=== `COUNT`
+Counts field values.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=count]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=count-result]
+|===
+
+Can take any field type as input and the result is always a `long` not matter
+the input type.
+
+To count the number of rows, use `COUNT(*)`:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=countAll]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=countAll-result]
+|===

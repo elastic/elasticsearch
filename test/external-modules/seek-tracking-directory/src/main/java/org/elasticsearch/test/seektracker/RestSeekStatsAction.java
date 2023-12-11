@@ -36,6 +36,6 @@ public class RestSeekStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String[] indices = request.paramAsStringArray("index", Strings.EMPTY_ARRAY);
         SeekStatsRequest seekStatsRequest = new SeekStatsRequest(indices);
-        return channel -> client.execute(SeekStatsAction.INSTANCE, seekStatsRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(SeekTrackerPlugin.SEEK_STATS_ACTION, seekStatsRequest, new RestToXContentListener<>(channel));
     }
 }

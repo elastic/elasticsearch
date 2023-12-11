@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -18,8 +19,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
@@ -60,6 +63,7 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -73,12 +77,16 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
+    static final List<Attribute> NO_FIELDS = List.of(
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, false)
+    );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
@@ -102,11 +110,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
-        return verify(execute(plan));
+        BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
+        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
-    public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
+    public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
+        Collection<Failure> failures = verifier.verify(plan, partialMetrics);
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
@@ -140,7 +149,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = context.indexResolution().get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes);
+            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes);
         }
 
     }
@@ -219,7 +228,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 )
                 : plan.policyName();
 
-            var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
+            var matchField = policy != null && (plan.matchField() == null || plan.matchField() instanceof EmptyAttribute)
                 ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
                 : plan.matchField();
 
@@ -254,8 +263,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<NamedExpression> enrichFields,
             EnrichPolicy policy
         ) {
-            Map<String, Attribute> fieldMap = mapping.stream().collect(Collectors.toMap(NamedExpression::name, Function.identity()));
-            fieldMap.remove(policy.getMatchField());
+            Set<String> policyEnrichFieldSet = new HashSet<>(policy.getEnrichFields());
+            Map<String, Attribute> fieldMap = mapping.stream()
+                .filter(e -> policyEnrichFieldSet.contains(e.name()))
+                .collect(Collectors.toMap(NamedExpression::name, Function.identity()));
             List<NamedExpression> result = new ArrayList<>();
             if (enrichFields == null || enrichFields.isEmpty()) {
                 // use the policy to infer the enrich fields
@@ -323,7 +334,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveEnrich(p, childrenOutput);
             }
 
+            if (plan instanceof MvExpand p) {
+                return resolveMvExpand(p, childrenOutput);
+            }
+
             return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+        }
+
+        private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
+            if (p.target() instanceof UnresolvedAttribute ua) {
+                Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
+                if (resolved == ua) {
+                    return p;
+                }
+                return new MvExpand(
+                    p.source(),
+                    p.child(),
+                    resolved,
+                    new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), null, resolved.nullable(), null, false)
+                );
+            }
+            return p;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -500,11 +531,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 if (resolved.resolved() && resolved.dataType() != KEYWORD) {
                     resolved = ua.withUnresolvedMessage(
-                        "Unsupported type ["
-                            + resolved.dataType()
-                            + "]  for enrich matching field ["
-                            + ua.name()
-                            + "]; only KEYWORD allowed"
+                        "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; only KEYWORD allowed"
                     );
                 }
                 return new Enrich(enrich.source(), enrich.child(), enrich.policyName(), resolved, enrich.policy(), enrich.enrichFields());
@@ -614,9 +641,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
-            var limit = limits.isEmpty() == false
-                ? context.configuration().resultTruncationMaxSize() // user provided a limit: cap result entries to the max
-                : context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+            int limit;
+            if (limits.isEmpty()) {
+                HeaderWarning.addWarning(
+                    "No limit defined, adding default limit of [{}]",
+                    context.configuration().resultTruncationDefaultSize()
+                );
+                limit = context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+            } else {
+                limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
+            }
             return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
         }
     }
@@ -671,5 +705,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             return result;
         }
+    }
+
+    private BitSet gatherPreAnalysisMetrics(LogicalPlan plan, BitSet b) {
+        // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
+        if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
+            b.set(LIMIT.ordinal());
+        }
+        plan.forEachDown(p -> FeatureMetric.set(p, b));
+        return b;
     }
 }

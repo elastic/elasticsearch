@@ -61,6 +61,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -150,7 +151,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 hosts,
                 os
             );
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, ESRestTestCase::clusterHasFeature, os);
             restTestExecutionContext = createRestTestExecutionContext(testCandidate, clientYamlTestClient);
             adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -188,10 +189,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         final RestClient restClient,
         final List<HttpHost> hosts,
         final Version esVersion,
-        final Version masterVersion,
+        final Predicate<String> clusterFeaturesPredicate,
         final String os
     ) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, os, this::getClientBuilderWithSniffedHosts);
+        return new ClientYamlTestClient(
+            restSpec,
+            restClient,
+            hosts,
+            esVersion,
+            clusterFeaturesPredicate,
+            os,
+            this::getClientBuilderWithSniffedHosts
+        );
     }
 
     @AfterClass
@@ -484,27 +493,19 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         );
 
         final Settings globalTemplateSettings = getGlobalTemplateSettings(testCandidate.getTestSection().getSkipSection().getFeatures());
-        if (globalTemplateSettings.isEmpty() == false) {
-            boolean useComponentTemplate = ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES) == false;
+        if (globalTemplateSettings.isEmpty() == false && ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
 
             final XContentBuilder template = jsonBuilder();
             template.startObject();
             {
                 template.array("index_patterns", "*");
-                if (useComponentTemplate) {
-                    template.field("priority", 4); // relatively low priority, but hopefully uncommon enough not to conflict
-                    template.startObject("template");
-                }
                 template.startObject("settings");
                 globalTemplateSettings.toXContent(template, ToXContent.EMPTY_PARAMS);
                 template.endObject();
-                if (useComponentTemplate) {
-                    template.endObject();
-                }
             }
             template.endObject();
 
-            final Request request = new Request("PUT", useComponentTemplate ? "/_index_template/global" : "/_template/global");
+            final Request request = new Request("PUT", "/_template/global");
             request.setJsonEntity(Strings.toString(template));
             // Because not all case have transitioned to a composable template, it's possible that
             // this can overlap an installed composable template since this is a global (*)
@@ -512,9 +513,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             // to be permissive in this case. This can be removed once all tests use composable
             // templates instead of legacy templates
             RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-            if (useComponentTemplate == false) {
-                builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
-            }
+            builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
             request.setOptions(builder.build());
             adminClient().performRequest(request);
         }

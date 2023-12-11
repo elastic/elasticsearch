@@ -127,7 +127,8 @@ public class EsqlBaseLexer extends Lexer {
   }
 
 
-  @SuppressWarnings("this-escape") public EsqlBaseLexer(CharStream input) {
+  @SuppressWarnings("this-escape")
+  public EsqlBaseLexer(CharStream input) {
     super(input);
     _interp = new LexerATNSimulator(this,_ATN,_decisionToDFA,_sharedContextCache);
   }

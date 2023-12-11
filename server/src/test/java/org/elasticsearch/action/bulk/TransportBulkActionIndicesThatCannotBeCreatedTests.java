@@ -8,19 +8,18 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -33,7 +32,6 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -100,10 +98,6 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         when(clusterService.state()).thenReturn(state);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
-        DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        when(state.getNodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
-
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(clusterService.localNode()).thenReturn(localNode);
         when(localNode.isIngestNode()).thenReturn(randomBoolean());
@@ -156,14 +150,6 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                 }
             }
         };
-        action.doExecute(null, bulkRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(BulkResponse bulkItemResponses) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+        action.doExecute(null, bulkRequest, ActionTestUtils.assertNoFailureListener(bulkItemResponse -> {}));
     }
 }

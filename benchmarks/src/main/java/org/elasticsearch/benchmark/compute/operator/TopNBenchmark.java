@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -102,11 +104,13 @@ public class TopNBenchmark {
             default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
         };
         CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
             List.of(),
             ClusterSettings.createBuiltInClusterSettings()
         );
         return new TopNOperator(
+            BlockFactory.getNonBreakingInstance(),
             breakerService.getBreaker(CircuitBreaker.REQUEST),
             topCount,
             elementTypes,

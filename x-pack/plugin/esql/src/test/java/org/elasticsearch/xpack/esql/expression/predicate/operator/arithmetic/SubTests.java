@@ -32,6 +32,8 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SubTests extends AbstractDateTimeArithmeticTestCase {
     public SubTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -140,6 +142,21 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
                 EsqlDataTypes.TIME_DURATION,
                 equalTo(lhs.minus(rhs))
             );
+        }), new TestCaseSupplier("MV", () -> {
+            // Ensure we don't have an overflow
+            int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataTypes.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+                ),
+                "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.INTEGER,
+                is(nullValue())
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
         })));
     }
 

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -162,18 +162,16 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNode.createLocal(
-                            nodeSettingsBuilder.build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                            "node1"
-                        )
+                        DiscoveryNodeUtils.builder("node1")
+                            .applySettings(nodeSettingsBuilder.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(
-                            nodeSettingsBuilder.build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            "node2"
-                        )
+                        DiscoveryNodeUtils.builder("node2")
+                            .applySettings(nodeSettingsBuilder.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
             )
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
@@ -532,10 +530,16 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNode.createLocal(node1Settings.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node1")
+                        DiscoveryNodeUtils.builder("node1")
+                            .applySettings(node1Settings.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(node2Settings.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2")
+                        DiscoveryNodeUtils.builder("node2")
+                            .applySettings(node2Settings.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
             )
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())

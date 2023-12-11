@@ -139,6 +139,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         public IntBlock build() {
             return builder.build();
         }
+
+        @Override
+        public void close() {
+            builder.close();
+        }
     }
 
     private static class TestLongBlockBuilder extends TestBlockBuilder {
@@ -194,6 +199,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public LongBlock build() {
             return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
         }
     }
 
@@ -251,6 +261,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         public DoubleBlock build() {
             return builder.build();
         }
+
+        @Override
+        public void close() {
+            builder.close();
+        }
     }
 
     private static class TestBytesRefBlockBuilder extends TestBlockBuilder {
@@ -306,6 +321,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public BytesRefBlock build() {
             return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
         }
     }
 
@@ -365,6 +385,11 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public BooleanBlock build() {
             return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
         }
     }
 }

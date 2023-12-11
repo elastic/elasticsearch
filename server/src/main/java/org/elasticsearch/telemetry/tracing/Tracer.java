@@ -178,13 +178,6 @@ public interface Tracer {
     Releasable withScope(SpanId spanId);
 
     /**
-     * @see Tracer#withScope(SpanId)
-     */
-    default Releasable withScope(Task task) {
-        return withScope(SpanId.forTask(task));
-    }
-
-    /**
      * A Tracer implementation that does nothing. This is used when no tracer is configured,
      * in order to avoid null checks everywhere.
      */
@@ -236,11 +229,6 @@ public interface Tracer {
 
         @Override
         public Releasable withScope(SpanId spanId) {
-            return () -> {};
-        }
-
-        @Override
-        public Releasable withScope(Task task) {
             return () -> {};
         }
     };

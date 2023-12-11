@@ -77,9 +77,6 @@ public class TDigestState {
         return switch (executionHint) {
             case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
             case DEFAULT -> create(compression);
-            default -> throw new IllegalArgumentException(
-                "Unexpected TDigestExecutionHint in TDigestState initialization: " + executionHint
-            );
         };
     }
 
@@ -99,7 +96,6 @@ public class TDigestState {
             case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
             case SORTING -> TDigest.createSortingDigest();
             case MERGING -> TDigest.createMergingDigest(compression);
-            default -> throw new IllegalArgumentException("Unexpected TDigestState type: " + type);
         };
         this.type = type;
         this.compression = compression;

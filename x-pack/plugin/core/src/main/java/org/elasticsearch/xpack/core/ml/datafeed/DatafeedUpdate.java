@@ -255,7 +255,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return builder;
     }
 
-    private void addOptionalField(XContentBuilder builder, ParseField field, Object value) throws IOException {
+    private static void addOptionalField(XContentBuilder builder, ParseField field, Object value) throws IOException {
         if (value != null) {
             builder.field(field.getPreferredName(), value);
         }

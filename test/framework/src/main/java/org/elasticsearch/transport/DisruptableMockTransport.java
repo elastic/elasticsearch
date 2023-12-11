@@ -38,7 +38,7 @@ import static org.elasticsearch.test.ESTestCase.copyWriteable;
 
 public abstract class DisruptableMockTransport extends MockTransport {
     private final DiscoveryNode localNode;
-    private final Logger logger = LogManager.getLogger(DisruptableMockTransport.class);
+    private static final Logger logger = LogManager.getLogger(DisruptableMockTransport.class);
     private final DeterministicTaskQueue deterministicTaskQueue;
     private final List<Runnable> blackholedRequests = new ArrayList<>();
     private final Set<String> blockedActions = new HashSet<>();
@@ -150,7 +150,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false
             : "non-local message from " + getLocalNode() + " to itself";
 
-        request.incRef();
+        request.mustIncRef();
 
         destinationTransport.execute(new RebootSensitiveRunnable() {
             @Override

@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
@@ -257,10 +256,9 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         // We can safely re-try this if it fails, which makes it less likely that the index request will fail
         authenticateUser(client, user, 3);
 
-        IndexResponse indexResponse = client.prepareIndex(index)
+        DocWriteResponse indexResponse = client.prepareIndex(index)
             .setSource(jsonBuilder().startObject().field("name", "value").endObject())
-            .execute()
-            .actionGet();
+            .get();
 
         assertEquals(
             "user " + user + " should have write access to index " + index,
@@ -282,7 +280,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         authenticateUser(client, user, 3);
 
         try {
-            client.prepareIndex(index).setSource(jsonBuilder().startObject().field("name", "value").endObject()).execute().actionGet();
+            client.prepareIndex(index).setSource(jsonBuilder().startObject().field("name", "value").endObject()).get();
             fail("Write access to index " + index + " should not be allowed for user " + user);
         } catch (ElasticsearchSecurityException e) {
             // expected

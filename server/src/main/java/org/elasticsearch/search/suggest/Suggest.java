@@ -44,7 +44,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * Top level suggest result, containing the result for each suggestion.
  */
-public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
+public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
 
     public static final String NAME = "suggest";
 
@@ -61,7 +61,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
-    @SuppressWarnings("this-escape")
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
         // we sort suggestions by their names to ensure iteration over suggestions are consistent
         // this is needed as we need to fill in suggestion docs in SearchPhaseController#sortDocs
@@ -207,7 +206,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     @SuppressWarnings("rawtypes")
     public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
-        public static final int TYPE = 0;
         protected final String name;
         protected final int size;
         protected final List<T> entries = new ArrayList<>(5);
@@ -634,10 +632,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                  */
                 public boolean collateMatch() {
                     return (collateMatch != null) ? collateMatch : true;
-                }
-
-                protected void setScore(float score) {
-                    this.score = score;
                 }
 
                 @Override

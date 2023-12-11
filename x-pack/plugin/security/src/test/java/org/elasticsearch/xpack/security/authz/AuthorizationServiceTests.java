@@ -13,16 +13,16 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
@@ -48,28 +48,28 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.MappingUpdatePerformer;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.ParsedScrollId;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -79,7 +79,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -746,11 +746,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        authorize(authentication, SearchAction.NAME, request);
+        authorize(authentication, TransportSearchAction.TYPE.name(), request);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(SearchAction.NAME),
+            eq(TransportSearchAction.TYPE.name()),
             eq(request),
             authzInfoRoles(Role.EMPTY.names())
         );
@@ -768,7 +768,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             when(parsedScrollId.hasLocalIndices()).thenReturn(hasLocalIndices);
             if (hasLocalIndices) {
                 assertThrowsAuthorizationException(
-                    () -> authorize(authentication, SearchScrollAction.NAME, searchScrollRequest),
+                    () -> authorize(authentication, TransportSearchScrollAction.TYPE.name(), searchScrollRequest),
                     "indices:data/read/scroll",
                     "test user"
                 );
@@ -780,11 +780,11 @@ public class AuthorizationServiceTests extends ESTestCase {
                     authzInfoRoles(Role.EMPTY.names())
                 );
             } else {
-                authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
+                authorize(authentication, TransportSearchScrollAction.TYPE.name(), searchScrollRequest);
                 verify(auditTrail).accessGranted(
                     eq(requestId),
                     eq(authentication),
-                    eq(SearchScrollAction.NAME),
+                    eq(TransportSearchScrollAction.TYPE.name()),
                     eq(searchScrollRequest),
                     authzInfoRoles(Role.EMPTY.names())
                 );
@@ -804,11 +804,15 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        assertThrowsAuthorizationException(() -> authorize(authentication, SearchAction.NAME, request), SearchAction.NAME, "test user");
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+            TransportSearchAction.TYPE.name(),
+            "test user"
+        );
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),
-            eq(SearchAction.NAME),
+            eq(TransportSearchAction.TYPE.name()),
             eq(request),
             authzInfoRoles(Role.EMPTY.names())
         );
@@ -825,11 +829,15 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        assertThrowsAuthorizationException(() -> authorize(authentication, SearchAction.NAME, request), SearchAction.NAME, "test user");
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+            TransportSearchAction.TYPE.name(),
+            "test user"
+        );
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),
-            eq(SearchAction.NAME),
+            eq(TransportSearchAction.TYPE.name()),
             eq(request),
             authzInfoRoles(Role.EMPTY.names())
         );
@@ -863,14 +871,14 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
-            () -> authorize(authentication, DeleteIndexAction.NAME, request),
-            DeleteIndexAction.NAME,
+            () -> authorize(authentication, TransportDeleteIndexAction.TYPE.name(), request),
+            TransportDeleteIndexAction.TYPE.name(),
             "test user"
         );
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),
-            eq(DeleteIndexAction.NAME),
+            eq(TransportDeleteIndexAction.TYPE.name()),
             eq(request),
             authzInfoRoles(Role.EMPTY.names())
         );
@@ -898,7 +906,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
             if (hasLocalIndices) {
                 assertThrowsAuthorizationException(
-                    () -> authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest),
+                    () -> authorize(authentication, TransportOpenPointInTimeAction.TYPE.name(), openPointInTimeRequest),
                     "indices:data/read/open_point_in_time",
                     "test user"
                 );
@@ -910,7 +918,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                     authzInfoRoles(Role.EMPTY.names())
                 );
             } else {
-                authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest);
+                authorize(authentication, TransportOpenPointInTimeAction.TYPE.name(), openPointInTimeRequest);
                 verify(auditTrail).accessGranted(
                     eq(requestId),
                     eq(authentication),
@@ -928,7 +936,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        authorize(authentication, ClosePointInTimeAction.NAME, closePointInTimeRequest);
+        authorize(authentication, TransportClosePointInTimeAction.TYPE.name(), closePointInTimeRequest);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
@@ -941,7 +949,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testUnknownRoleCausesDenial() {
         Tuple<String, TransportRequest> tuple = randomFrom(
-            asList(new Tuple<>(SearchAction.NAME, new SearchRequest()), new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()))
+            asList(
+                new Tuple<>(TransportSearchAction.TYPE.name(), new SearchRequest()),
+                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())
+            )
         );
         String action = tuple.v1();
         TransportRequest request = tuple.v2();
@@ -973,7 +984,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testServiceAccountDenial() {
         Tuple<String, TransportRequest> tuple = randomFrom(
-            asList(new Tuple<>(SearchAction.NAME, new SearchRequest()), new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()))
+            asList(
+                new Tuple<>(TransportSearchAction.TYPE.name(), new SearchRequest()),
+                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())
+            )
         );
         String action = tuple.v1();
         TransportRequest request = tuple.v2();
@@ -1037,7 +1051,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testThatRoleWithNoIndicesIsDenied() {
         Tuple<String, TransportRequest> tuple = randomFrom(
-            new Tuple<>(SearchAction.NAME, new SearchRequest()),
+            new Tuple<>(TransportSearchAction.TYPE.name(), new SearchRequest()),
             new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())
         );
         String action = tuple.v1();
@@ -1104,14 +1118,14 @@ public class AuthorizationServiceTests extends ESTestCase {
             );
 
             assertThrowsAuthorizationException(
-                () -> authorize(authentication, SearchAction.NAME, searchRequest),
-                SearchAction.NAME,
+                () -> authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest),
+                TransportSearchAction.TYPE.name(),
                 "test user"
             );
             verify(auditTrail).accessDenied(
                 eq(requestId),
                 eq(authentication),
-                eq(SearchAction.NAME),
+                eq(TransportSearchAction.TYPE.name()),
                 eq(searchRequest),
                 authzInfoRoles(new String[] { role.getName() })
             );
@@ -1135,12 +1149,17 @@ public class AuthorizationServiceTests extends ESTestCase {
                 assertFalse(indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
             });
             final CountDownLatch latch = new CountDownLatch(1);
-            authorizationService.authorize(authentication, SearchAction.NAME, searchRequest, new LatchedActionListener<>(listener, latch));
+            authorizationService.authorize(
+                authentication,
+                TransportSearchAction.TYPE.name(),
+                searchRequest,
+                new LatchedActionListener<>(listener, latch)
+            );
             latch.await();
             verify(auditTrail).accessGranted(
                 eq(requestId),
                 eq(authentication),
-                eq(SearchAction.NAME),
+                eq(TransportSearchAction.TYPE.name()),
                 eq(searchRequest),
                 authzInfoRoles(new String[] { role.getName() })
             );
@@ -1176,11 +1195,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             null
         );
         this.setFakeOriginatingAction = false;
-        authorize(authentication, SearchAction.NAME, searchRequest, true, () -> {
+        authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest, true, () -> {
             verify(rolesStore).getRoles(Mockito.same(authentication), Mockito.any());
             IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             // Successful search action authorization should set a parent authorization header.
-            assertThat(securityContext.getParentAuthorization().action(), equalTo(SearchAction.NAME));
+            assertThat(securityContext.getParentAuthorization().action(), equalTo(TransportSearchAction.TYPE.name()));
             // Within the action handler, execute a child action (the query phase of search)
             authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, false, () -> {
                 // This child action triggers a second interaction with the role store (which is cached)
@@ -1196,7 +1215,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(SearchAction.NAME),
+            eq(TransportSearchAction.TYPE.name()),
             eq(searchRequest),
             authzInfoRoles(new String[] { role.getName() })
         );
@@ -1223,11 +1242,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        authorize(authentication, ClearScrollAction.NAME, clearScrollRequest);
+        authorize(authentication, TransportClearScrollAction.NAME, clearScrollRequest);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(ClearScrollAction.NAME),
+            eq(TransportClearScrollAction.NAME),
             eq(clearScrollRequest),
             authzInfoRoles(new String[] { role.getName() })
         );
@@ -1236,11 +1255,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(parsedScrollId.hasLocalIndices()).thenReturn(true);
         final SearchScrollRequest searchScrollRequest = mock(SearchScrollRequest.class);
         when(searchScrollRequest.parseScrollId()).thenReturn(parsedScrollId);
-        authorize(authentication, SearchScrollAction.NAME, searchScrollRequest);
+        authorize(authentication, TransportSearchScrollAction.TYPE.name(), searchScrollRequest);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(SearchScrollAction.NAME),
+            eq(TransportSearchScrollAction.TYPE.name()),
             eq(searchScrollRequest),
             authzInfoRoles(new String[] { role.getName() })
         );
@@ -1336,7 +1355,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         assertThrowsAuthorizationException(
             () -> authorize(authentication, CreateIndexAction.NAME, request),
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "test user"
         );
         verify(auditTrail).accessGranted(
@@ -1349,7 +1368,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),
-            eq(IndicesAliasesAction.NAME),
+            eq(TransportIndicesAliasesAction.NAME),
             eq(request),
             authzInfoRoles(new String[] { role.getName() })
         );
@@ -1415,14 +1434,14 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException securityException = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> authorize(authentication, SearchAction.NAME, request)
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request)
         );
         assertThat(
             securityException,
             throwableWithMessage(
                 containsString(
                     "["
-                        + SearchAction.NAME
+                        + TransportSearchAction.TYPE.name()
                         + "] is unauthorized"
                         + " for user ["
                         + user.principal()
@@ -1520,11 +1539,13 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException securityException = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> authorize(authentication, ClusterHealthAction.NAME, request)
+            () -> authorize(authentication, TransportClusterHealthAction.NAME, request)
         );
         assertThat(
             securityException,
-            throwableWithMessage(containsString("[" + ClusterHealthAction.NAME + "] is unauthorized for user [" + user.principal() + "]"))
+            throwableWithMessage(
+                containsString("[" + TransportClusterHealthAction.NAME + "] is unauthorized for user [" + user.principal() + "]")
+            )
         );
         assertThat(
             securityException,
@@ -1958,22 +1979,35 @@ public class AuthorizationServiceTests extends ESTestCase {
             new Tuple<>(BulkAction.NAME + "[s]", new DeleteRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id"))
         );
         requests.add(
-            new Tuple<>(UpdateAction.NAME, new UpdateRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id"))
+            new Tuple<>(
+                TransportUpdateAction.NAME,
+                new UpdateRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")
+            )
         );
         requests.add(
             new Tuple<>(BulkAction.NAME + "[s]", new IndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
         );
-        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))));
+        requests.add(
+            new Tuple<>(
+                TransportSearchAction.TYPE.name(),
+                new SearchRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
+            )
+        );
         requests.add(
             new Tuple<>(
                 TermVectorsAction.NAME,
                 new TermVectorsRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")
             )
         );
-        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")));
         requests.add(
             new Tuple<>(
-                IndicesAliasesAction.NAME,
+                TransportGetAction.TYPE.name(),
+                new GetRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")
+            )
+        );
+        requests.add(
+            new Tuple<>(
+                TransportIndicesAliasesAction.NAME,
                 new IndicesAliasesRequest().addAliasAction(AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_MAIN_INDEX_7))
             )
         );
@@ -2028,29 +2062,29 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         // we should allow waiting for the health of the index or any index if the user has this permission
         ClusterHealthRequest request = new ClusterHealthRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7));
-        authorize(authentication, ClusterHealthAction.NAME, request);
+        authorize(authentication, TransportClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(ClusterHealthAction.NAME),
+            eq(TransportClusterHealthAction.NAME),
             eq(request),
             authzInfoRoles(new String[] { role.getName() })
         );
 
         // multiple indices
         request = new ClusterHealthRequest(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7, "foo", "bar");
-        authorize(authentication, ClusterHealthAction.NAME, request);
+        authorize(authentication, TransportClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
-            eq(ClusterHealthAction.NAME),
+            eq(TransportClusterHealthAction.NAME),
             eq(request),
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
 
         final SearchRequest searchRequest = new SearchRequest("_all");
-        authorize(authentication, SearchAction.NAME, searchRequest);
+        authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest);
         assertEquals(2, searchRequest.indices().length);
         assertEquals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(searchRequest.indices()));
     }
@@ -2144,20 +2178,33 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
-        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))));
+        requests.add(
+            new Tuple<>(
+                TransportSearchAction.TYPE.name(),
+                new SearchRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
+            )
+        );
         requests.add(
             new Tuple<>(
                 TermVectorsAction.NAME,
                 new TermVectorsRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")
             )
         );
-        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")));
         requests.add(
-            new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
+            new Tuple<>(
+                TransportGetAction.TYPE.name(),
+                new GetRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")
+            )
         );
         requests.add(
             new Tuple<>(
-                ClusterHealthAction.NAME,
+                TransportClusterHealthAction.NAME,
+                new ClusterHealthRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
+            )
+        );
+        requests.add(
+            new Tuple<>(
+                TransportClusterHealthAction.NAME,
                 new ClusterHealthRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "foo", "bar")
             )
         );
@@ -2222,7 +2269,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         requests.add(
             new Tuple<>(
-                IndicesAliasesAction.NAME,
+                TransportIndicesAliasesAction.NAME,
                 new IndicesAliasesRequest().addAliasAction(AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_MAIN_INDEX_7))
             )
         );
@@ -2230,7 +2277,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             new Tuple<>(PutMappingAction.NAME, new PutMappingRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
         );
         requests.add(
-            new Tuple<>(DeleteIndexAction.NAME, new DeleteIndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
+            new Tuple<>(
+                TransportDeleteIndexAction.TYPE.name(),
+                new DeleteIndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
+            )
         );
         for (final Tuple<String, TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();
@@ -2274,7 +2324,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
-        String action = SearchAction.NAME;
+        String action = TransportSearchAction.TYPE.name();
         SearchRequest request = new SearchRequest("_all");
         authorize(authentication, action, request);
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(superuser.roles()));
@@ -2355,12 +2405,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String action;
         switch (randomIntBetween(0, 4)) {
             case 0 -> {
-                action = MultiGetAction.NAME + "[shard]";
+                action = TransportMultiGetAction.NAME + "[shard]";
                 request = mockRequest;
             }
             case 1 -> {
                 // reindex, msearch, search template, and multi search template delegate to search
-                action = SearchAction.NAME;
+                action = TransportSearchAction.TYPE.name();
                 request = mockRequest;
             }
             case 2 -> {
@@ -2596,10 +2646,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         // there's only one "access granted" record for all the bulk items
         verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication), eq(switch (opType) {
-            case INDEX -> IndexAction.NAME + ":op_type/index";
-            case CREATE -> IndexAction.NAME + ":op_type/create";
-            case UPDATE -> UpdateAction.NAME;
-            case DELETE -> DeleteAction.NAME;
+            case INDEX -> TransportIndexAction.NAME + ":op_type/index";
+            case CREATE -> TransportIndexAction.NAME + ":op_type/create";
+            case UPDATE -> TransportUpdateAction.NAME;
+            case DELETE -> TransportDeleteAction.NAME;
         }),
             argThat(
                 indicesArrays -> indicesArrays.length == allIndexNames.size() && allIndexNames.containsAll(Arrays.asList(indicesArrays))
@@ -2636,10 +2686,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(AuditLevel.ACCESS_DENIED),
             eq(badAuthentication),
             eq(switch (opType) {
-                case INDEX -> IndexAction.NAME + ":op_type/index";
-                case CREATE -> IndexAction.NAME + ":op_type/create";
-                case UPDATE -> UpdateAction.NAME;
-                case DELETE -> DeleteAction.NAME;
+                case INDEX -> TransportIndexAction.NAME + ":op_type/index";
+                case CREATE -> TransportIndexAction.NAME + ":op_type/create";
+                case UPDATE -> TransportUpdateAction.NAME;
+                case DELETE -> TransportDeleteAction.NAME;
             }),
             argThat(
                 indicesArrays -> indicesArrays.length == allIndexNames.size() && allIndexNames.containsAll(Arrays.asList(indicesArrays))
@@ -2664,26 +2714,26 @@ public class AuthorizationServiceTests extends ESTestCase {
         final BulkItemRequest[] items = randomArray(1, 8, BulkItemRequest[]::new, () -> {
             switch (randomFrom(DocWriteRequest.OpType.values())) {
                 case INDEX -> {
-                    actionTypes.add(IndexAction.NAME + ":op_type/index");
+                    actionTypes.add(TransportIndexAction.NAME + ":op_type/index");
                     return new BulkItemRequest(
                         idCounter.get(),
                         new IndexRequest(indexName).id("id" + idCounter.incrementAndGet()).opType(DocWriteRequest.OpType.INDEX)
                     );
                 }
                 case CREATE -> {
-                    actionTypes.add(IndexAction.NAME + ":op_type/create");
+                    actionTypes.add(TransportIndexAction.NAME + ":op_type/create");
                     return new BulkItemRequest(
                         idCounter.get(),
                         new IndexRequest(indexName).id("id" + idCounter.incrementAndGet()).opType(DocWriteRequest.OpType.CREATE)
                     );
                 }
                 case DELETE -> {
-                    actionTypes.add(DeleteAction.NAME);
+                    actionTypes.add(TransportDeleteAction.NAME);
                     deleteItems.add(idCounter.get());
                     return new BulkItemRequest(idCounter.get(), new DeleteRequest(indexName, "id" + idCounter.incrementAndGet()));
                 }
                 case UPDATE -> {
-                    actionTypes.add(UpdateAction.NAME);
+                    actionTypes.add(TransportUpdateAction.NAME);
                     return new BulkItemRequest(idCounter.get(), new UpdateRequest(indexName, "id" + idCounter.incrementAndGet()));
                 }
                 default -> throw new IllegalStateException("Unexpected value");
@@ -2760,7 +2810,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         // there's a single granted audit entry for each action type, less the delete action (which is denied)
         actionTypes.forEach(actionType -> {
-            if (actionType.equals(DeleteAction.NAME) == false) {
+            if (actionType.equals(TransportDeleteAction.NAME) == false) {
                 verify(auditTrail).explicitIndexAccessEvent(
                     eq(indexRequestId),
                     eq(AuditLevel.ACCESS_GRANTED),
@@ -2779,7 +2829,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 eq(indexRequestId),
                 eq(AuditLevel.ACCESS_DENIED),
                 eq(indexAuthentication),
-                eq(DeleteAction.NAME),
+                eq(TransportDeleteAction.NAME),
                 eq(new String[] { indexName }),
                 eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()),
@@ -2828,7 +2878,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(requestId),
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
-            eq(DeleteAction.NAME),
+            eq(TransportDeleteAction.NAME),
             argThat(indicesArrays -> {
                 Arrays.sort(indicesArrays);
                 return Arrays.equals(indicesArrays, new String[] { "alias-2", "concrete-index" });
@@ -2841,7 +2891,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(requestId),
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
-            eq(IndexAction.NAME + ":op_type/index"),
+            eq(TransportIndexAction.NAME + ":op_type/index"),
             argThat(indicesArrays -> {
                 Arrays.sort(indicesArrays);
                 return Arrays.equals(indicesArrays, new String[] { "alias-1", "concrete-index" });
@@ -2854,7 +2904,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(requestId),
             eq(AuditLevel.ACCESS_DENIED),
             eq(authentication),
-            eq(DeleteAction.NAME),
+            eq(TransportDeleteAction.NAME),
             eq(new String[] { "alias-1" }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
@@ -2864,7 +2914,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(requestId),
             eq(AuditLevel.ACCESS_DENIED),
             eq(authentication),
-            eq(IndexAction.NAME + ":op_type/index"),
+            eq(TransportIndexAction.NAME + ":op_type/index"),
             eq(new String[] { "alias-2" }),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
@@ -2915,7 +2965,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(requestId),
             eq(AuditLevel.ACCESS_DENIED),
             eq(authentication),
-            eq(DeleteAction.NAME),
+            eq(TransportDeleteAction.NAME),
             argThat(indices -> indices.length == 2 && indices[0].startsWith("datemath-") && indices[1].startsWith("datemath-")),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
@@ -2926,7 +2976,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(requestId),
             eq(AuditLevel.ACCESS_GRANTED),
             eq(authentication),
-            eq(IndexAction.NAME + ":op_type/index"),
+            eq(TransportIndexAction.NAME + ":op_type/index"),
             argThat(indices -> indices.length == 2 && indices[0].startsWith("datemath-") && indices[1].startsWith("datemath-")),
             eq(BulkItemRequest.class.getSimpleName()),
             eq(request.remoteAddress()),
@@ -2954,8 +3004,8 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
         return switch (randomIntBetween(0, 7)) {
-            case 0 -> Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
-            case 1 -> Tuple.tuple(MultiSearchAction.NAME, new MultiSearchRequest().add(new SearchRequest()));
+            case 0 -> Tuple.tuple(TransportMultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
+            case 1 -> Tuple.tuple(TransportMultiSearchAction.TYPE.name(), new MultiSearchRequest().add(new SearchRequest()));
             case 2 -> Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
             case 3 -> Tuple.tuple(BulkAction.NAME, new BulkRequest().add(new DeleteRequest("index", "id")));
             case 4 -> Tuple.tuple("indices:data/read/mpercolate", new MockCompositeIndicesRequest());
@@ -3461,7 +3511,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testRoleRestrictionAccessDenial() {
         Tuple<String, TransportRequest> tuple = randomFrom(
-            asList(new Tuple<>(SearchAction.NAME, new SearchRequest()), new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()))
+            asList(
+                new Tuple<>(TransportSearchAction.TYPE.name(), new SearchRequest()),
+                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())
+            )
         );
         String action = tuple.v1();
         TransportRequest request = tuple.v2();

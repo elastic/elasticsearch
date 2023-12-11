@@ -69,10 +69,16 @@ public class RotatableSecret {
      */
     public boolean matches(SecureString secret) {
         checkExpired();
-        if ((Strings.hasText(secrets.current) == false && Strings.hasText(secrets.prior) == false) || Strings.hasText(secret) == false) {
+        if (Strings.hasText(secret) == false) {
             return false;
         }
-        return secrets.current.equals(secret) || (secrets.prior != null && secrets.prior.equals(secret));
+        boolean currentSecretValid = Strings.hasText(secrets.current);
+        boolean priorSecretValid = Strings.hasText(secrets.prior);
+        if (currentSecretValid && secrets.current.equals(secret)) {
+            return true;
+        } else {
+            return priorSecretValid && secrets.prior.equals(secret);
+        }
     }
 
     // for testing only
@@ -92,12 +98,12 @@ public class RotatableSecret {
     private void checkExpired() {
         boolean needToUnlock = false;
         long stamp = stampedLock.tryOptimisticRead();
-        boolean expired = secrets.prior != null && secrets.priorValidTill.isBefore(Instant.now()); // optimistic read
+        boolean expired = secrets.prior != null && secrets.priorValidTill.compareTo(Instant.now()) <= 0; // optimistic read
         if (stampedLock.validate(stamp) == false) {
             // optimism failed...potentially block to obtain the read lock and try the read again
             stamp = stampedLock.readLock();
             needToUnlock = true;
-            expired = secrets.prior != null && secrets.priorValidTill.isBefore(Instant.now()); // locked read
+            expired = secrets.prior != null && secrets.priorValidTill.compareTo(Instant.now()) <= 0; // locked read
         }
         try {
             if (expired) {

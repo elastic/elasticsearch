@@ -12,6 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
+import java.util.stream.IntStream;
+
 /**
  * A {@link BytesReference} of the given length which contains all zeroes.
  */
@@ -56,16 +58,15 @@ public class ZeroBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesRefIterator iterator() {
-        if (length <= PageCacheRecycler.BYTE_PAGE_SIZE) {
-            return super.iterator();
-        }
-        final byte[] buffer = new byte[PageCacheRecycler.BYTE_PAGE_SIZE];
+        final byte[] buffer = new byte[Math.min(length, PageCacheRecycler.BYTE_PAGE_SIZE)];
         return new BytesRefIterator() {
-
             int remaining = length;
 
             @Override
             public BytesRef next() {
+                if (IntStream.range(0, buffer.length).map(i -> buffer[i]).anyMatch(b -> b != 0)) {
+                    throw new AssertionError("Internal pages from ZeroBytesReference must be zero");
+                }
                 if (remaining > 0) {
                     final int nextLength = Math.min(remaining, buffer.length);
                     remaining -= nextLength;

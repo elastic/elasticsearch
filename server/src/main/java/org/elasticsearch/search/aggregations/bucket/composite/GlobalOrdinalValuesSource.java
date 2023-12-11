@@ -76,7 +76,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, type, missingBucket, missingOrder, reverseMul);
         this.uniqueValueCount = uniqueValueCount;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);

@@ -12,7 +12,8 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.index.shard.ShardId;
+
+import java.util.Objects;
 
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
@@ -65,26 +66,52 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             return YES_NOT_RUNNING;
         }
 
-        final ShardId shardId = shardRouting.shardId();
-        return snapshotsInProgress.asStream()
-            .filter(entry -> entry.hasShardsInInitState() && entry.isClone() == false)
-            .map(entry -> entry.shards().get(shardId))
-            .filter(
-                shardSnapshotStatus -> shardSnapshotStatus != null
-                    && shardSnapshotStatus.state().completed() == false
-                    && shardSnapshotStatus.nodeId() != null
-                    && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())
-            )
-            .findAny()
-            .map(
-                shardSnapshotStatus -> allocation.decision(
+        if (shardRouting.currentNodeId() == null) {
+            // Shard is not assigned to a node
+            return YES_NOT_SNAPSHOTTED;
+        }
+
+        for (final var entriesByRepo : snapshotsInProgress.entriesByRepo()) {
+            for (final var entry : entriesByRepo) {
+                if (entry.isClone()) {
+                    // clones do not run on data nodes
+                    continue;
+                }
+
+                if (entry.hasShardsInInitState() == false) {
+                    // this snapshot has no running shard snapshots
+                    // (NB this means we let ABORTED shards move without waiting for them to complete)
+                    continue;
+                }
+
+                final var shardSnapshotStatus = entry.shards().get(shardRouting.shardId());
+
+                if (shardSnapshotStatus == null) {
+                    // this snapshot is not snapshotting the shard to allocate
+                    continue;
+                }
+
+                if (shardSnapshotStatus.state().completed()) {
+                    // this shard snapshot is complete
+                    continue;
+                }
+
+                if (Objects.equals(shardRouting.currentNodeId(), shardSnapshotStatus.nodeId()) == false) {
+                    // this shard snapshot is allocated to a different node
+                    continue;
+                }
+
+                return allocation.decision(
                     Decision.THROTTLE,
                     NAME,
-                    "waiting for snapshotting of shard [%s] to complete on this node [%s]",
-                    shardId,
-                    shardSnapshotStatus.nodeId()
-                )
-            )
-            .orElse(YES_NOT_SNAPSHOTTED);
+                    "waiting for snapshot [%s] of shard [%s] to complete on node [%s]",
+                    entry.snapshot(),
+                    shardRouting.shardId(),
+                    shardRouting.currentNodeId()
+                );
+            }
+        }
+
+        return YES_NOT_SNAPSHOTTED;
     }
 }

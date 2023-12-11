@@ -47,11 +47,9 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearSecurityCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearSecurityCacheRequest::new,
             ClearSecurityCacheRequest.Node::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

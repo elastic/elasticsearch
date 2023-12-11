@@ -12,6 +12,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -21,36 +22,36 @@ public class Cast {
     /**
      * Build the evaluator supplier to cast {@code in} from {@code current} to {@code required}.
      */
-    public static ExpressionEvaluator.Factory cast(DataType current, DataType required, ExpressionEvaluator.Factory in) {
+    public static ExpressionEvaluator.Factory cast(Source source, DataType current, DataType required, ExpressionEvaluator.Factory in) {
         if (current == required) {
             return in;
         }
         if (current == DataTypes.NULL || required == DataTypes.NULL) {
-            return dvrCtx -> EvalOperator.CONSTANT_NULL;
+            return EvalOperator.CONSTANT_NULL_FACTORY;
         }
         if (required == DataTypes.DOUBLE) {
             if (current == DataTypes.LONG) {
-                return dvrCtx -> new CastLongToDoubleEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastLongToDoubleEvaluator.Factory(source, in);
             }
             if (current == DataTypes.INTEGER) {
-                return dvrCtx -> new CastIntToDoubleEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastIntToDoubleEvaluator.Factory(source, in);
             }
             if (current == DataTypes.UNSIGNED_LONG) {
-                return dvrCtx -> new CastUnsignedLongToDoubleEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastUnsignedLongToDoubleEvaluator.Factory(source, in);
             }
             throw cantCast(current, required);
         }
         if (required == DataTypes.UNSIGNED_LONG) {
             if (current == DataTypes.LONG) {
-                return dvrCtx -> new CastLongToUnsignedLongEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastLongToUnsignedLongEvaluator.Factory(source, in);
             }
             if (current == DataTypes.INTEGER) {
-                return dvrCtx -> new CastIntToUnsignedLongEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastIntToUnsignedLongEvaluator.Factory(source, in);
             }
         }
         if (required == DataTypes.LONG) {
             if (current == DataTypes.INTEGER) {
-                return dvrCtx -> new CastIntToLongEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastIntToLongEvaluator.Factory(source, in);
             }
             throw cantCast(current, required);
         }

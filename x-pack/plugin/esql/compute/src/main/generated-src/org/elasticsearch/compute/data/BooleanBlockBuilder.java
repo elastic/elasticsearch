@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+
 import java.util.Arrays;
 
 /**
@@ -20,7 +23,7 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
     BooleanBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(initialSize);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
         values = new boolean[initialSize];
     }
 
@@ -178,22 +181,33 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
 
     @Override
     public BooleanBlock build() {
-        finish();
-        BooleanBlock block;
-        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            block = new ConstantBooleanVector(values[0], 1, blockFactory).asBlock();
-        } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
-            }
-            if (isDense() && singleValued()) {
-                block = new BooleanArrayVector(values, positionCount, blockFactory).asBlock();
+        try {
+            finish();
+            BooleanBlock theBlock;
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = blockFactory.newConstantBooleanBlockWith(values[0], 1, estimatedBytes);
             } else {
-                block = new BooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                    values = Arrays.copyOf(values, valueCount);
+                }
+                if (isDense() && singleValued()) {
+                    theBlock = blockFactory.newBooleanArrayVector(values, positionCount, estimatedBytes).asBlock();
+                } else {
+                    theBlock = blockFactory.newBooleanArrayBlock(
+                        values,
+                        positionCount,
+                        firstValueIndexes,
+                        nullsMask,
+                        mvOrdering,
+                        estimatedBytes
+                    );
+                }
             }
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
-        return block;
     }
 }

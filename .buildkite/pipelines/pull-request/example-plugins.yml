@@ -1,0 +1,18 @@
+config:
+  included-regions:
+    - build-conventions/.*
+    - build-tools/.*
+    - build-tools-internal/.*
+    - plugins/examples/.*
+steps:
+  - label: example-plugins
+    command: |-
+      cd $$WORKSPACE/plugins/examples
+
+      $$WORKSPACE/.ci/scripts/run-gradle.sh -Dorg.gradle.jvmargs=-Xmx8g build --include-build $$WORKSPACE
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

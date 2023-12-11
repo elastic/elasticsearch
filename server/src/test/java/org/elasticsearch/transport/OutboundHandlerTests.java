@@ -317,16 +317,17 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals("header_value", header.getHeaders().v1().get("header"));
     }
 
+    /**
+     * This logger is mentioned in the docs by name, so we cannot rename it without adjusting the docs. Thus we fix the expected logger
+     * name in this string constant rather than using {@code OutboundHandler.class.getCanonicalName()}.
+     */
+    private static final String EXPECTED_LOGGER_NAME = "org.elasticsearch.transport.OutboundHandler";
+
     public void testSlowLogOutboundMessage() throws Exception {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                OutboundHandler.class.getCanonicalName(),
-                Level.WARN,
-                "sending transport message "
-            )
+            new MockLogAppender.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
         );
         final Logger outboundHandlerLogger = LogManager.getLogger(OutboundHandler.class);
         Loggers.addAppender(outboundHandlerLogger, mockAppender);
@@ -334,7 +335,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
         try {
             final int length = randomIntBetween(1, 100);
-            final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> f = new PlainActionFuture<>();
             handler.sendBytes(new FakeTcpChannel() {
                 @Override
                 public void sendMessage(BytesReference reference, ActionListener<Void> listener) {

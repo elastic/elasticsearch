@@ -11,12 +11,14 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -61,7 +63,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(maxPageSize, sliceQueue, limit);
+            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit);
         }
 
         @Override
@@ -89,11 +91,11 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
-    public LuceneSourceOperator(int maxPageSize, LuceneSliceQueue sliceQueue, int limit) {
-        super(maxPageSize, sliceQueue);
+    public LuceneSourceOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue, int limit) {
+        super(blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
-        this.docsBuilder = IntVector.newVectorBuilder(Math.min(limit, maxPageSize));
+        this.docsBuilder = IntVector.newVectorBuilder(Math.min(limit, maxPageSize), blockFactory);
         this.leafCollector = new LeafCollector() {
             @Override
             public void setScorer(Scorable scorer) {
@@ -143,22 +145,31 @@ public class LuceneSourceOperator extends LuceneOperator {
             Page page = null;
             if (currentPagePos >= minPageSize || remainingDocs <= 0 || scorer.isDone()) {
                 pagesEmitted++;
-                page = new Page(
-                    currentPagePos,
-                    new DocVector(
-                        IntBlock.newConstantBlockWith(scorer.shardIndex(), currentPagePos).asVector(),
-                        IntBlock.newConstantBlockWith(scorer.leafReaderContext().ord, currentPagePos).asVector(),
-                        docsBuilder.build(),
-                        true
-                    ).asBlock()
-                );
-                docsBuilder = IntVector.newVectorBuilder(Math.min(remainingDocs, maxPageSize));
+                IntBlock shard = null;
+                IntBlock leaf = null;
+                IntVector docs = null;
+                try {
+                    shard = IntBlock.newConstantBlockWith(scorer.shardIndex(), currentPagePos, blockFactory);
+                    leaf = IntBlock.newConstantBlockWith(scorer.leafReaderContext().ord, currentPagePos, blockFactory);
+                    docs = docsBuilder.build();
+                    docsBuilder = IntVector.newVectorBuilder(Math.min(remainingDocs, maxPageSize), blockFactory);
+                    page = new Page(currentPagePos, new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock());
+                } finally {
+                    if (page == null) {
+                        Releasables.closeExpectNoException(shard, leaf, docs);
+                    }
+                }
                 currentPagePos = 0;
             }
             return page;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override
+    public void close() {
+        docsBuilder.close();
     }
 
     @Override

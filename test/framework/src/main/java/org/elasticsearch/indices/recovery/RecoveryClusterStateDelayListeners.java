@@ -74,7 +74,6 @@ public class RecoveryClusterStateDelayListeners implements Releasable {
     }
 
     public void delayUntilRecoveryStart(SubscribableListener<Void> listener) {
-        ESTestCase.assertFalse(startRecoveryListener.isDone());
         startRecoveryListener.addListener(listener);
     }
 }

@@ -22,7 +22,7 @@ import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -137,33 +137,12 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
             if (queryCancellation.isEnabled() == false) {
-                return in.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+                in.searchNearestVectors(field, target, collector, acceptDocs);
+                return;
             }
-            // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
-            // match all docs to allow timeout checking.
-            final Bits updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
-            Bits timeoutCheckingAcceptDocs = new Bits() {
-                private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
-                private int calls;
-
-                @Override
-                public boolean get(int index) {
-                    if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
-                        queryCancellation.checkCancelled();
-                    }
-
-                    return updatedAcceptDocs.get(index);
-                }
-
-                @Override
-                public int length() {
-                    return updatedAcceptDocs.length();
-                }
-            };
-
-            return in.searchNearestVectors(field, target, k, timeoutCheckingAcceptDocs, visitedLimit);
+            in.searchNearestVectors(field, target, collector, new TimeOutCheckingBits(acceptDocs));
         }
 
         @Override
@@ -176,33 +155,37 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
             if (queryCancellation.isEnabled() == false) {
-                return in.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+                in.searchNearestVectors(field, target, collector, acceptDocs);
+                return;
             }
-            // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
-            // match all docs to allow timeout checking.
-            final Bits updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
-            Bits timeoutCheckingAcceptDocs = new Bits() {
-                private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
-                private int calls;
+            in.searchNearestVectors(field, target, collector, new TimeOutCheckingBits(acceptDocs));
+        }
 
-                @Override
-                public boolean get(int index) {
-                    if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
-                        queryCancellation.checkCancelled();
-                    }
+        private class TimeOutCheckingBits implements Bits {
+            private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+            private final Bits updatedAcceptDocs;
+            private int calls;
 
-                    return updatedAcceptDocs.get(index);
+            TimeOutCheckingBits(Bits acceptDocs) {
+                // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
+                // match all docs to allow timeout checking.
+                this.updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
+            }
+
+            @Override
+            public boolean get(int index) {
+                if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                    queryCancellation.checkCancelled();
                 }
+                return updatedAcceptDocs.get(index);
+            }
 
-                @Override
-                public int length() {
-                    return updatedAcceptDocs.length();
-                }
-            };
-
-            return in.searchNearestVectors(field, target, k, timeoutCheckingAcceptDocs, visitedLimit);
+            @Override
+            public int length() {
+                return updatedAcceptDocs.length();
+            }
         }
     }
 

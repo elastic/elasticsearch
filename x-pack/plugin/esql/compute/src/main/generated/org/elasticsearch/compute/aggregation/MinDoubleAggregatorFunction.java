@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinDoubleAggregator}.
@@ -26,17 +27,22 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("min", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final DoubleState state;
 
   private final List<Integer> channels;
 
-  public MinDoubleAggregatorFunction(List<Integer> channels, DoubleState state) {
+  public MinDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      DoubleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static MinDoubleAggregatorFunction create(List<Integer> channels) {
-    return new MinDoubleAggregatorFunction(channels, new DoubleState(MinDoubleAggregator.init()));
+  public static MinDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MinDoubleAggregatorFunction(driverContext, channels, new DoubleState(MinDoubleAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -50,11 +56,7 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    DoubleBlock block = (DoubleBlock) uncastBlock;
+    DoubleBlock block = page.getBlock(channels.get(0));
     DoubleVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -88,6 +90,10 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
+      return;
+    }
     DoubleVector min = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
     BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
     assert min.getPositionCount() == 1;
@@ -99,17 +105,17 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1);
+      blocks[offset] = Block.constantNullBlock(1, driverContext.blockFactory());
       return;
     }
-    blocks[offset] = DoubleBlock.newConstantBlockWith(state.doubleValue(), 1);
+    blocks[offset] = DoubleBlock.newConstantBlockWith(state.doubleValue(), 1, driverContext.blockFactory());
   }
 
   @Override

@@ -28,8 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class RestSearchActionTests extends RestActionTestCase {
-    @SuppressWarnings("this-escape")
+public final class RestSearchActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     private RestSearchAction action;

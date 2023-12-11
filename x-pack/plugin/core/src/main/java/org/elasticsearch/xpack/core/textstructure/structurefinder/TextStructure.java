@@ -523,7 +523,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             && Objects.equals(this.explanation, that.explanation);
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private int numLinesAnalyzed;
         private int numMessagesAnalyzed;
@@ -553,7 +553,6 @@ public class TextStructure implements ToXContentObject, Writeable {
             this(Format.SEMI_STRUCTURED_TEXT);
         }
 
-        @SuppressWarnings("this-escape")
         public Builder(Format format) {
             setFormat(format);
         }

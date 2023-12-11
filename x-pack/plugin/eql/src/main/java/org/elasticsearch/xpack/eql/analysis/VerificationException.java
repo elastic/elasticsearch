@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.ql.common.Failure;
 
@@ -14,12 +13,8 @@ import java.util.Collection;
 
 public class VerificationException extends EqlClientException {
 
-    protected VerificationException(Collection<Failure> sources) {
+    public VerificationException(Collection<Failure> sources) {
         super(Failure.failMessage(sources));
     }
 
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
-    }
 }

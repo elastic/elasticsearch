@@ -9,12 +9,14 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Builds {@link Block}s from keys and values encoded into {@link BytesRef}s.
  */
-interface ResultBuilder {
+interface ResultBuilder extends Releasable {
     /**
      * Called for each sort key before {@link #decodeValue} to consume the sort key and
      * store the value of the key for {@link #decodeValue} can use it to reconstruct
@@ -36,15 +38,21 @@ interface ResultBuilder {
      */
     Block build();
 
-    static ResultBuilder resultBuilderFor(ElementType elementType, TopNEncoder encoder, boolean inKey, int positions) {
+    static ResultBuilder resultBuilderFor(
+        BlockFactory blockFactory,
+        ElementType elementType,
+        TopNEncoder encoder,
+        boolean inKey,
+        int positions
+    ) {
         return switch (elementType) {
-            case BOOLEAN -> new ResultBuilderForBoolean(encoder, inKey, positions);
-            case BYTES_REF -> new ResultBuilderForBytesRef(encoder, inKey, positions);
-            case INT -> new ResultBuilderForInt(encoder, inKey, positions);
-            case LONG -> new ResultBuilderForLong(encoder, inKey, positions);
-            case DOUBLE -> new ResultBuilderForDouble(encoder, inKey, positions);
-            case NULL -> new ResultBuilderForNull();
-            case DOC -> new ResultBuilderForDoc(positions);
+            case BOOLEAN -> new ResultBuilderForBoolean(blockFactory, encoder, inKey, positions);
+            case BYTES_REF -> new ResultBuilderForBytesRef(blockFactory, encoder, inKey, positions);
+            case INT -> new ResultBuilderForInt(blockFactory, encoder, inKey, positions);
+            case LONG -> new ResultBuilderForLong(blockFactory, encoder, inKey, positions);
+            case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
+            case NULL -> new ResultBuilderForNull(blockFactory);
+            case DOC -> new ResultBuilderForDoc(blockFactory, positions);
             default -> {
                 assert false : "Result builder for [" + elementType + "]";
                 throw new UnsupportedOperationException("Result builder for [" + elementType + "]");

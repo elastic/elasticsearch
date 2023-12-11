@@ -22,7 +22,7 @@ public abstract class InternalPercentilesRanksTestCase<T extends InternalAggrega
         PercentileRanks parsedPercentileRanks = (PercentileRanks) parsedAggregation;
 
         for (Percentile percentile : aggregation) {
-            Double value = percentile.getValue();
+            Double value = percentile.value();
             assertEquals(aggregation.percent(value), parsedPercentileRanks.percent(value), 0);
             assertEquals(aggregation.percentAsString(value), parsedPercentileRanks.percentAsString(value));
         }

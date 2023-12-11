@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -36,7 +37,6 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-public abstract class FieldMapper extends Mapper implements Cloneable {
+public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
 
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
@@ -1108,7 +1108,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return new Parameter<>(
                 "meta",
                 true,
-                Collections::emptyMap,
+                Map::of,
                 (n, c, o) -> TypeParsers.parseMeta(n, o),
                 m -> m.fieldType().meta(),
                 XContentBuilder::stringStringMap,
@@ -1311,7 +1311,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         continue;
                     }
                     case "boost" -> {
-                        if (parserContext.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
+                        if (parserContext.indexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
                             throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
                         }
                         deprecationLogger.warn(
@@ -1355,7 +1355,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         iterator.remove();
                         continue;
                     }
-                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(IndexVersion.V_8_0_0)) {
+                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(IndexVersions.V_8_0_0)) {
                         // The parameter is unknown, but this mapping is from a dynamic template.
                         // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
                         deprecationLogger.warn(
@@ -1402,7 +1402,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private static final Set<String> DEPRECATED_PARAMS = Set.of("store", "meta", "index", "doc_values", "index_options", "similarity");
 
         private static boolean isDeprecatedParameter(String propName, IndexVersion indexCreatedVersion) {
-            if (indexCreatedVersion.onOrAfter(IndexVersion.V_8_0_0)) {
+            if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
                 return false;
             }
             return DEPRECATED_PARAMS.contains(propName);
@@ -1431,7 +1431,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {}, IndexVersion.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_COMPATIBLE);
         }
 
         /**
@@ -1446,7 +1446,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
-            this(builderFunction, contextValidator, IndexVersion.MINIMUM_COMPATIBLE);
+            this(builderFunction, contextValidator, IndexVersions.MINIMUM_COMPATIBLE);
         }
 
         private TypeParser(

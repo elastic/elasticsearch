@@ -52,7 +52,12 @@ of datasets and configurations that we use for our nightly benchmarks.
 include::search-speed.asciidoc[tag=warm-fs-cache]
 
 The following file extensions are used for the approximate kNN search:
-"vec" (for vector values), "vex" (for HNSW graph), "vem" (for metadata).
++
+--
+* `vec` and `veq` for vector values
+* `vex` for HNSW graph
+* `vem`, `vemf`, and `vemq` for metadata
+--
 
 [discrete]
 === Reduce vector dimensionality
@@ -65,6 +70,14 @@ dimensional options available. You could also experiment with dimensionality
 reduction techniques like PCA. When experimenting with different approaches,
 it's important to measure the impact on relevance to ensure the search
 quality is still acceptable.
+
+[discrete]
+=== Reduce vector memory foot-print
+
+The default <<dense-vector-element-type,`element_type`>> is `float`. But this can be
+automatically quantized during index time through <<dense-vector-quantization,`quantization`>>. Quantization will
+reduce the required memory by 4x, but it will also reduce the precision of the vectors. For `float` vectors with
+`dim` greater than or equal to `384`, using a <<dense-vector-quantization,`quantized`>> index is highly recommended.
 
 [discrete]
 === Exclude vector fields from `_source`
@@ -83,14 +96,19 @@ since it relies on separate data structures to perform the search. Before
 using the <<include-exclude, `excludes`>> parameter, make sure to review the
 downsides of omitting fields from `_source`.
 
+Another option is to use  <<synthetic-source,synthetic `_source`>> if all
+your index fields support it.
+
+
 [discrete]
 === Reduce the number of index segments
 
 {es} shards are composed of segments, which are internal storage elements in
-the index. For approximate kNN search, {es} stores the dense vector values of
-each segment as an HNSW graph. kNN search must check each segment, searching
-through one HNSW graph after another. This means kNN search can be
-significantly faster if there are fewer segments. By default, {es} periodically
+the index. For approximate kNN search, {es} stores the vector values of
+each segment as a separate HNSW graph, so kNN search must check each segment.
+The recent parallelization of kNN search made it much faster to search across
+multiple segments, but still kNN search can be up to several times
+faster if there are fewer segments. By default, {es} periodically
 merges smaller segments into larger ones through a background
 <<index-modules-merge, merge process>>. If this isn't sufficient, you can take
 explicit steps to reduce the number of index segments.

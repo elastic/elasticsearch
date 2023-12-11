@@ -206,7 +206,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         int user = 0;
         while (timestamp < now) {
             List<String> data = new ArrayList<>();
-            for (int i = 0; i < 10000; i++) {
+            for (int i = 0; i < 20000; i++) {
                 // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
                 // always represented in more than 22 UTF-8 bytes. Otherwise platform differences in when the small string
                 // optimisation is used will make the results of this test very different for the different platforms.

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-to_long]]
 === `TO_LONG`
 Converts an input value to a long value.

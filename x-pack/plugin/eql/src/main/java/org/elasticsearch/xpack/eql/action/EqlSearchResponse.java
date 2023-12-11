@@ -281,7 +281,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 fetchFields = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_038)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
                 missing = in.readBoolean();
             } else {
                 missing = index.isEmpty();
@@ -304,7 +304,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                     out.writeMap(fetchFields, StreamOutput::writeWriteable);
                 }
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_038)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
                 // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events
                 // see https://github.com/elastic/elasticsearch/pull/98130
                 out.writeBoolean(missing);

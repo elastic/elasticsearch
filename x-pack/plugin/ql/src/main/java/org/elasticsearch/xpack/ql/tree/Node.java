@@ -407,13 +407,13 @@ public abstract class Node<T extends Node<T>> {
         return sb.toString();
     }
 
-    private String toString(Object obj) {
+    private static String toString(Object obj) {
         StringBuilder sb = new StringBuilder();
         toString(sb, obj);
         return sb.toString();
     }
 
-    private void toString(StringBuilder sb, Object obj) {
+    private static void toString(StringBuilder sb, Object obj) {
         if (obj instanceof Iterable) {
             sb.append("[");
             for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {

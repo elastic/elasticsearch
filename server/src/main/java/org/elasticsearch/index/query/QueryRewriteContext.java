@@ -9,6 +9,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -321,5 +322,16 @@ public class QueryRewriteContext {
             }
         }
         return matches;
+    }
+
+    /**
+     * Same as {@link #getMatchingFieldNames(String)} with pattern {@code *} but returns an {@link Iterable} instead of a set.
+     */
+    public Iterable<String> getAllFieldNames() {
+        var allFromMapping = mappingLookup.getMatchingFieldNames("*");
+        // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
+        return runtimeMappings.isEmpty()
+            ? allFromMapping
+            : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
     }
 }

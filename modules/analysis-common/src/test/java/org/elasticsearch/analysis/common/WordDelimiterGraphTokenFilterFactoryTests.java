@@ -16,6 +16,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -187,8 +188,8 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                     IndexMetadata.SETTING_VERSION_CREATED,
                     IndexVersionUtils.randomVersionBetween(
                         random(),
-                        IndexVersion.V_7_0_0,
-                        IndexVersionUtils.getPreviousVersion(IndexVersion.V_7_3_0)
+                        IndexVersions.V_7_0_0,
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
                     )
                 )
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")

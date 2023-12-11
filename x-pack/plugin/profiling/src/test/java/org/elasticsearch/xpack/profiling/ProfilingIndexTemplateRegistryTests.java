@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.junit.After;
 import org.junit.Before;
@@ -316,22 +317,28 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         Map<String, Integer> composableTemplates = new HashMap<>();
         Map<String, LifecyclePolicy> policies = new HashMap<>();
         for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
-            // outdated (or missing) version
-            componentTemplates.put(templateName, frequently() ? ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1 : null);
+            // outdated version
+            componentTemplates.put(templateName, randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
         }
         for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
-            // outdated (or missing) version
-            composableTemplates.put(templateName, frequently() ? ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1 : null);
+            // outdated version
+            composableTemplates.put(templateName, randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
         }
         for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
             // make a copy as we're modifying the version mapping
             Map<String, Object> metadata = new HashMap<>(policy.getMetadata());
-            if (frequently()) {
-                metadata.put("version", ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1);
-            } else {
-                metadata.remove("version");
-            }
-            policies.put(policy.getName(), new LifecyclePolicy(policy.getName(), policy.getPhases(), metadata));
+            // outdated version
+            metadata.put("version", randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
+            policies.put(
+                policy.getName(),
+                new LifecyclePolicy(
+                    TimeseriesLifecycleType.INSTANCE,
+                    policy.getName(),
+                    policy.getPhases(),
+                    metadata,
+                    policy.getDeprecated()
+                )
+            );
         }
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
 

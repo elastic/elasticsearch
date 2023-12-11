@@ -1,0 +1,6 @@
+pr: 101385
+summary: "ESQL: Fix planning of MV_EXPAND with foldable expressions"
+area: ES|QL
+type: bug
+issues:
+ - 101118

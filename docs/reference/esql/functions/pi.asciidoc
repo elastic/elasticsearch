@@ -1,3 +1,4 @@
+[discrete]
 [[esql-pi]]
 === `PI`
 [.text-center]

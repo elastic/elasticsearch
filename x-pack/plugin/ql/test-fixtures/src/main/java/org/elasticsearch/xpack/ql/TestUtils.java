@@ -295,22 +295,27 @@ public final class TestUtils {
         return new Tuple<>(folder, file);
     }
 
-    public static TestNodes buildNodeAndVersions(RestClient client) throws IOException {
+    public static TestNodes buildNodeAndVersions(RestClient client, String bwcNodesVersion) throws IOException {
         Response response = client.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        TestNodes nodes = new TestNodes();
+        TestNodes nodes = new TestNodes(bwcNodesVersion);
         for (String id : nodesAsMap.keySet()) {
-            Version nodeVersion = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
+            String nodeVersion = objectPath.evaluate("nodes." + id + ".version");
 
             Object tvField;
             TransportVersion transportVersion = null;
-            if (nodeVersion.before(Version.V_8_8_0)) {
-                transportVersion = TransportVersion.fromId(nodeVersion.id);   // no transport_version field
-            } else if ((tvField = objectPath.evaluate("nodes." + id + ".transport_version")) != null) {
+            if ((tvField = objectPath.evaluate("nodes." + id + ".transport_version")) != null) {
                 // this json might be from a node <8.8.0, but about a node >=8.8.0
                 // in which case the transport_version field won't exist. Just ignore it for now.
                 transportVersion = TransportVersion.fromString(tvField.toString());
+            } else { // no transport_version field
+                // this json might be from a node <8.8.0, but about a node >=8.8.0
+                // In that case the transport_version field won't exist. Just ignore it for now.
+                Version version = Version.fromString(nodeVersion);
+                if (version.before(Version.V_8_8_0)) {
+                    transportVersion = TransportVersion.fromId(version.id);
+                }
             }
 
             nodes.add(

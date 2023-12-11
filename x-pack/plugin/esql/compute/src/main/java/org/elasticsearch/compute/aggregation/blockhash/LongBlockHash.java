@@ -13,14 +13,12 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayBlock;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeLong;
 
@@ -42,32 +40,47 @@ final class LongBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    LongBlockHash(int channel, BigArrays bigArrays) {
+    LongBlockHash(int channel, DriverContext driverContext) {
+        super(driverContext);
         this.channel = channel;
         this.longHash = new LongHash(1, bigArrays);
     }
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        LongBlock block = page.getBlock(channel);
-        LongVector vector = block.asVector();
-        if (vector == null) {
-            addInput.add(0, add(block));
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            seenNull = true;
+            try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
+                addInput.add(0, groupIds);
+            }
         } else {
-            addInput.add(0, add(vector));
+            LongBlock longBlock = page.getBlock(channel);
+            LongVector longVector = longBlock.asVector();
+            if (longVector == null) {
+                try (IntBlock groupIds = add(longBlock)) {
+                    addInput.add(0, groupIds);
+                }
+            } else {
+                try (IntVector groupIds = add(longVector)) {
+                    addInput.add(0, groupIds);
+                }
+            }
         }
     }
 
     private IntVector add(LongVector vector) {
-        int[] groups = new int[vector.getPositionCount()];
-        for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getLong(i))));
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getLong(i)))));
+            }
+            return builder.build();
         }
-        return new IntArrayVector(groups, groups.length);
     }
 
     private IntBlock add(LongBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hash(longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hash(blockFactory, longHash);
         seenNull |= result.sawNull();
         return result.ords();
     }
@@ -82,7 +95,8 @@ final class LongBlockHash extends BlockHash {
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
-            return new LongBlock[] { new LongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
+            return new LongBlock[] {
+                blockFactory.newLongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
         }
 
         final int size = Math.toIntExact(longHash.size());
@@ -92,12 +106,12 @@ final class LongBlockHash extends BlockHash {
         }
 
         // TODO call something like takeKeyOwnership to claim the keys array directly
-        return new LongBlock[] { new LongArrayVector(keys, keys.length).asBlock() };
+        return new LongBlock[] { blockFactory.newLongArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1));
+        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1), blockFactory);
     }
 
     @Override

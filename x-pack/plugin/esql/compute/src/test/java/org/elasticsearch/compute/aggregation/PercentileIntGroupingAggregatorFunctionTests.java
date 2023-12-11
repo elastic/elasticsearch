@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
@@ -42,9 +43,10 @@ public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggreg
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         int max = between(1, (int) Math.min(Integer.MAX_VALUE, Long.MAX_VALUE / size));
         return new LongIntBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), between(-1, max)))
         );
     }
@@ -56,7 +58,8 @@ public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggreg
         if (td.size() > 0) {
             double expected = td.quantile(percentile / 100);
             double value = ((DoubleBlock) result).getDouble(position);
-            assertThat(value, closeTo(expected, expected * 0.1));
+            double errorDelta = Math.abs(expected * 0.1);
+            assertThat(value, closeTo(expected, errorDelta));
         } else {
             assertTrue(result.isNull(position));
         }

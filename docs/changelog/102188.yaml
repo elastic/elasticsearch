@@ -1,0 +1,5 @@
+pr: 102188
+summary: Track blocks in `AsyncOperator`
+area: ES|QL
+type: enhancement
+issues: []

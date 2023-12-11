@@ -15,12 +15,12 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -44,14 +45,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  */
-public class BulkItemResponse implements Writeable, StatusToXContentObject {
+public class BulkItemResponse implements Writeable, ToXContentObject {
 
     private static final String _INDEX = "_index";
     private static final String _ID = "_id";
     private static final String STATUS = "status";
     private static final String ERROR = "error";
 
-    @Override
     public RestStatus status() {
         return failure == null ? response.status() : failure.getStatus();
     }
@@ -506,7 +506,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
     }
 
     private void writeResponseType(StreamOutput out) throws IOException {
-        if (response instanceof IndexResponse) {
+        if (response instanceof SimulateIndexResponse) {
+            out.writeByte((byte) 4);
+        } else if (response instanceof IndexResponse) {
             out.writeByte((byte) 0);
         } else if (response instanceof DeleteResponse) {
             out.writeByte((byte) 1);
@@ -524,6 +526,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             case 1 -> new DeleteResponse(shardId, in);
             case 2 -> null;
             case 3 -> new UpdateResponse(shardId, in);
+            case 4 -> new SimulateIndexResponse(in);
             default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
         };
     }
@@ -535,6 +538,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             case 1 -> new DeleteResponse(in);
             case 2 -> null;
             case 3 -> new UpdateResponse(in);
+            case 4 -> new SimulateIndexResponse(in);
             default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
         };
     }

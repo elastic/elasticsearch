@@ -1,3 +1,4 @@
+[discrete]
 [[esql-now]]
 === `NOW`
 Returns current date and time.

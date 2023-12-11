@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterInfoTests;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -30,6 +30,7 @@ import java.util.stream.IntStream;
 
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase<DesiredBalanceResponse> {
@@ -49,22 +50,10 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         );
     }
 
-    private DesiredBalanceStats randomDesiredBalanceStats() {
-        return new DesiredBalanceStats(
-            randomNonNegativeLong(),
-            randomBoolean(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
-    }
-
     private ClusterBalanceStats randomClusterBalanceStats() {
         return new ClusterBalanceStats(
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
             randomBoolean()
                 ? Map.of(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName(), randomTierBalanceStats())
                 : randomSubsetOf(
@@ -81,21 +70,27 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     private ClusterBalanceStats.TierBalanceStats randomTierBalanceStats() {
         return new ClusterBalanceStats.TierBalanceStats(
-            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
-            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
-            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
-            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble())
+            randomMetricStats(),
+            randomMetricStats(),
+            randomMetricStats(),
+            randomMetricStats(),
+            randomMetricStats()
         );
+    }
+
+    private ClusterBalanceStats.MetricStats randomMetricStats() {
+        return new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble());
     }
 
     private ClusterBalanceStats.NodeBalanceStats randomNodeBalanceStats() {
         return new ClusterBalanceStats.NodeBalanceStats(
             randomAlphaOfLength(10),
             List.of(randomFrom("data_content", "data_hot", "data_warm", "data_cold")),
-            randomIntBetween(0, Integer.MAX_VALUE),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
             randomDouble(),
-            randomLongBetween(0, Long.MAX_VALUE),
-            randomLongBetween(0, Long.MAX_VALUE)
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -148,7 +143,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
     protected DesiredBalanceResponse mutateInstance(DesiredBalanceResponse instance) {
         return switch (randomInt(4)) {
             case 0 -> new DesiredBalanceResponse(
-                randomValueOtherThan(instance.getStats(), this::randomDesiredBalanceStats),
+                randomValueOtherThan(instance.getStats(), DesiredBalanceStatsTests::randomDesiredBalanceStats),
                 instance.getClusterBalanceStats(),
                 instance.getRoutingTable(),
                 instance.getClusterInfo()
@@ -203,8 +198,13 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
         // cluster balance stats
         Map<String, Object> clusterBalanceStats = (Map<String, Object>) json.get("cluster_balance_stats");
-        assertThat(clusterBalanceStats.keySet(), containsInAnyOrder("tiers", "nodes"));
+        assertThat(clusterBalanceStats.keySet(), containsInAnyOrder("shard_count", "undesired_shard_allocation_count", "tiers", "nodes"));
 
+        assertEquals(clusterBalanceStats.get("shard_count"), response.getClusterBalanceStats().shards());
+        assertEquals(
+            clusterBalanceStats.get("undesired_shard_allocation_count"),
+            response.getClusterBalanceStats().undesiredShardAllocations()
+        );
         // tier balance stats
         Map<String, Object> tiers = (Map<String, Object>) clusterBalanceStats.get("tiers");
         assertEquals(tiers.keySet(), response.getClusterBalanceStats().tiers().keySet());
@@ -212,7 +212,13 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             Map<String, Object> tierStats = (Map<String, Object>) tiers.get(entry.getKey());
             assertThat(
                 tierStats.keySet(),
-                containsInAnyOrder("shard_count", "forecast_write_load", "forecast_disk_usage", "actual_disk_usage")
+                containsInAnyOrder(
+                    "shard_count",
+                    "undesired_shard_allocation_count",
+                    "forecast_write_load",
+                    "forecast_disk_usage",
+                    "actual_disk_usage"
+                )
             );
 
             Map<String, Object> shardCountStats = (Map<String, Object>) tierStats.get("shard_count");
@@ -222,6 +228,16 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             assertEquals(shardCountStats.get("min"), entry.getValue().shardCount().min());
             assertEquals(shardCountStats.get("max"), entry.getValue().shardCount().max());
             assertEquals(shardCountStats.get("std_dev"), entry.getValue().shardCount().stdDev());
+
+            Map<String, Object> undesiredShardAllocationCountStats = (Map<String, Object>) tierStats.get(
+                "undesired_shard_allocation_count"
+            );
+            assertThat(undesiredShardAllocationCountStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
+            assertEquals(undesiredShardAllocationCountStats.get("total"), entry.getValue().undesiredShardAllocations().total());
+            assertEquals(undesiredShardAllocationCountStats.get("average"), entry.getValue().undesiredShardAllocations().average());
+            assertEquals(undesiredShardAllocationCountStats.get("min"), entry.getValue().undesiredShardAllocations().min());
+            assertEquals(undesiredShardAllocationCountStats.get("max"), entry.getValue().undesiredShardAllocations().max());
+            assertEquals(undesiredShardAllocationCountStats.get("std_dev"), entry.getValue().undesiredShardAllocations().stdDev());
 
             Map<String, Object> forecastWriteLoadStats = (Map<String, Object>) tierStats.get("forecast_write_load");
             assertThat(forecastWriteLoadStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
@@ -258,6 +274,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     "node_id",
                     "roles",
                     "shard_count",
+                    "undesired_shard_allocation_count",
                     "forecast_write_load",
                     "forecast_disk_usage_bytes",
                     "actual_disk_usage_bytes"
@@ -266,6 +283,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             assertEquals(nodesStats.get("node_id"), entry.getValue().nodeId());
             assertEquals(nodesStats.get("roles"), entry.getValue().roles());
             assertEquals(nodesStats.get("shard_count"), entry.getValue().shards());
+            assertEquals(nodesStats.get("undesired_shard_allocation_count"), entry.getValue().undesiredShardAllocations());
             assertEquals(nodesStats.get("forecast_write_load"), entry.getValue().forecastWriteLoad());
             assertEquals(nodesStats.get("forecast_disk_usage_bytes"), entry.getValue().forecastShardSize());
             assertEquals(nodesStats.get("actual_disk_usage_bytes"), entry.getValue().actualShardSize());

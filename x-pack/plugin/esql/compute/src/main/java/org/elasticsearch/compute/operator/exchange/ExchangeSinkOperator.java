@@ -36,10 +36,6 @@ public class ExchangeSinkOperator extends SinkOperator {
         implements
             SinkOperatorFactory {
 
-        public ExchangeSinkOperatorFactory(Supplier<ExchangeSink> exchangeSinks) {
-            this(exchangeSinks, Function.identity());
-        }
-
         @Override
         public SinkOperator get(DriverContext driverContext) {
             return new ExchangeSinkOperator(exchangeSinks.get(), transformer);
@@ -77,10 +73,9 @@ public class ExchangeSinkOperator extends SinkOperator {
     }
 
     @Override
-    public void addInput(Page page) {
+    protected void doAddInput(Page page) {
         pagesAccepted++;
-        var newPage = transformer.apply(page);
-        sink.addPage(newPage);
+        sink.addPage(transformer.apply(page));
     }
 
     @Override

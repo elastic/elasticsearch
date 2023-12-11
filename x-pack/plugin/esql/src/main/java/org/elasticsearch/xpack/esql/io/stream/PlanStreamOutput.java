@@ -15,9 +15,12 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.io.IOException;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSourceNoText;
 
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
@@ -47,6 +50,15 @@ public final class PlanStreamOutput extends OutputStreamStreamOutput {
     public void writePhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
         assert physicalPlan.children().size() <= 1;
         writeNamed(PhysicalPlan.class, physicalPlan);
+    }
+
+    public void writeSource(Source source) throws IOException {
+        writeBoolean(true);
+        writeSourceNoText(this, source);
+    }
+
+    public void writeNoSource() throws IOException {
+        writeBoolean(false);
     }
 
     public void writeExpression(Expression expression) throws IOException {

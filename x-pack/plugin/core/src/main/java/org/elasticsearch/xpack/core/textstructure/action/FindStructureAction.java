@@ -15,11 +15,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
@@ -42,7 +41,7 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
         super(NAME, Response::new);
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject, Writeable {
+    public static class Response extends ActionResponse implements ToXContentObject, Writeable {
 
         private final TextStructure textStructure;
 
@@ -58,11 +57,6 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             textStructure.writeTo(out);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         @Override

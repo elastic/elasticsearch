@@ -20,8 +20,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,8 +34,11 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class LuceneOperator extends SourceOperator {
+    private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
 
     public static final int NO_LIMIT = Integer.MAX_VALUE;
+
+    protected final BlockFactory blockFactory;
 
     private int processSlices;
     final int maxPageSize;
@@ -46,7 +52,8 @@ public abstract class LuceneOperator extends SourceOperator {
     int pagesEmitted;
     boolean doneCollecting;
 
-    public LuceneOperator(int maxPageSize, LuceneSliceQueue sliceQueue) {
+    public LuceneOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue) {
+        this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
     }
@@ -56,9 +63,7 @@ public abstract class LuceneOperator extends SourceOperator {
     }
 
     @Override
-    public void close() {
-
-    }
+    public void close() {}
 
     LuceneScorer getCurrentOrLoadNextScorer() {
         while (currentScorer == null || currentScorer.isDone()) {
@@ -76,14 +81,15 @@ public abstract class LuceneOperator extends SourceOperator {
                 }
             }
             final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
-            final LeafReaderContext leaf = partialLeaf.leafReaderContext;
+            logger.trace("Starting {}", partialLeaf);
+            final LeafReaderContext leaf = partialLeaf.leafReaderContext();
             if (currentScorer == null || currentScorer.leafReaderContext() != leaf) {
                 final Weight weight = currentSlice.weight().get();
                 currentScorer = new LuceneScorer(currentSlice.shardIndex(), currentSlice.searchContext(), weight, leaf);
             }
-            assert currentScorer.maxPosition <= partialLeaf.maxDoc : currentScorer.maxPosition + ">" + partialLeaf.maxDoc;
-            currentScorer.maxPosition = partialLeaf.maxDoc;
-            currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc);
+            assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
+            currentScorer.maxPosition = partialLeaf.maxDoc();
+            currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc());
         }
         if (Thread.currentThread() != currentScorer.executingThread) {
             currentScorer.reinitialize();
@@ -124,6 +130,9 @@ public abstract class LuceneOperator extends SourceOperator {
 
         void scoreNextRange(LeafCollector collector, Bits acceptDocs, int numDocs) throws IOException {
             assert isDone() == false : "scorer is exhausted";
+            // avoid overflow and limit the range
+            numDocs = Math.min(maxPosition - position, numDocs);
+            assert numDocs > 0 : "scorer was exhausted";
             position = bulkScorer.score(collector, acceptDocs, position, Math.min(maxPosition, position + numDocs));
         }
 
@@ -145,6 +154,14 @@ public abstract class LuceneOperator extends SourceOperator {
 
         SearchContext searchContext() {
             return searchContext;
+        }
+
+        Weight weight() {
+            return weight;
+        }
+
+        int position() {
+            return position;
         }
     }
 
@@ -175,49 +192,62 @@ public abstract class LuceneOperator extends SourceOperator {
         private final int processedSlices;
         private final int totalSlices;
         private final int pagesEmitted;
-        private final int slicePosition;
-        private final int sliceSize;
+        private final int sliceIndex;
+        private final int sliceMin;
+        private final int sliceMax;
+        private final int current;
 
         private Status(LuceneOperator operator) {
             processedSlices = operator.processSlices;
+            sliceIndex = operator.sliceIndex;
             totalSlices = operator.sliceQueue.totalSlices();
             LuceneSlice slice = operator.currentSlice;
-            final PartialLeafReaderContext leaf;
-            int sliceIndex = operator.sliceIndex;
             if (slice != null && sliceIndex < slice.numLeaves()) {
-                leaf = slice.getLeaf(sliceIndex);
+                PartialLeafReaderContext leaf = slice.getLeaf(sliceIndex);
+                sliceMin = leaf.minDoc();
+                sliceMax = leaf.maxDoc();
             } else {
-                leaf = null;
+                sliceMin = 0;
+                sliceMax = 0;
             }
             LuceneScorer scorer = operator.currentScorer;
-            slicePosition = scorer != null ? scorer.position : 0;
-            sliceSize = leaf != null ? leaf.maxDoc - leaf.minDoc : 0;
+            if (scorer == null) {
+                current = 0;
+            } else {
+                current = scorer.position;
+            }
             pagesEmitted = operator.pagesEmitted;
         }
 
-        Status(int processedSlices, int totalSlices, int pagesEmitted, int slicePosition, int sliceSize) {
+        Status(int processedSlices, int sliceIndex, int totalSlices, int pagesEmitted, int sliceMin, int sliceMax, int current) {
             this.processedSlices = processedSlices;
+            this.sliceIndex = sliceIndex;
             this.totalSlices = totalSlices;
-            this.slicePosition = slicePosition;
-            this.sliceSize = sliceSize;
             this.pagesEmitted = pagesEmitted;
+            this.sliceMin = sliceMin;
+            this.sliceMax = sliceMax;
+            this.current = current;
         }
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
+            sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
-            slicePosition = in.readVInt();
-            sliceSize = in.readVInt();
             pagesEmitted = in.readVInt();
+            sliceMin = in.readVInt();
+            sliceMax = in.readVInt();
+            current = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(processedSlices);
+            out.writeVInt(sliceIndex);
             out.writeVInt(totalSlices);
-            out.writeVInt(slicePosition);
-            out.writeVInt(sliceSize);
             out.writeVInt(pagesEmitted);
+            out.writeVInt(sliceMin);
+            out.writeVInt(sliceMax);
+            out.writeVInt(current);
         }
 
         @Override
@@ -225,11 +255,15 @@ public abstract class LuceneOperator extends SourceOperator {
             return ENTRY.name;
         }
 
-        public int currentLeaf() {
+        public int processedSlices() {
             return processedSlices;
         }
 
-        public int totalLeaves() {
+        public int sliceIndex() {
+            return sliceIndex;
+        }
+
+        public int totalSlices() {
             return totalSlices;
         }
 
@@ -237,22 +271,28 @@ public abstract class LuceneOperator extends SourceOperator {
             return pagesEmitted;
         }
 
-        public int slicePosition() {
-            return slicePosition;
+        public int sliceMin() {
+            return sliceMin;
         }
 
-        public int sliceSize() {
-            return sliceSize;
+        public int sliceMax() {
+            return sliceMax;
+        }
+
+        public int current() {
+            return current;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("processed_sliced", processedSlices);
+            builder.field("processed_slices", processedSlices);
+            builder.field("slice_index", sliceIndex);
             builder.field("total_slices", totalSlices);
-            builder.field("slice_position", slicePosition);
-            builder.field("slice_size", sliceSize);
             builder.field("pages_emitted", pagesEmitted);
+            builder.field("slice_min", sliceMin);
+            builder.field("slice_max", sliceMax);
+            builder.field("current", current);
             return builder.endObject();
         }
 
@@ -262,15 +302,17 @@ public abstract class LuceneOperator extends SourceOperator {
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
             return processedSlices == status.processedSlices
+                && sliceIndex == status.sliceIndex
                 && totalSlices == status.totalSlices
                 && pagesEmitted == status.pagesEmitted
-                && slicePosition == status.slicePosition
-                && sliceSize == status.sliceSize;
+                && sliceMin == status.sliceMin
+                && sliceMax == status.sliceMax
+                && current == status.current;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(processedSlices, totalSlices, pagesEmitted, slicePosition, sliceSize);
+            return Objects.hash(processedSlices, sliceIndex, totalSlices, pagesEmitted, sliceMin, sliceMax, current);
         }
 
         @Override

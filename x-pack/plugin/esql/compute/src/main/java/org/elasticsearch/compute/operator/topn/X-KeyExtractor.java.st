@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator.topn;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -22,11 +21,11 @@ abstract class KeyExtractorFor$Type$ implements KeyExtractor {
             return new KeyExtractorFor$Type$.ForVector(encoder, nul, nonNul, v);
         }
         if (ascending) {
-            return block.mvOrdering() == Block.MvOrdering.ASCENDING
+            return block.mvSortedAscending()
                 ? new KeyExtractorFor$Type$.MinForAscending(encoder, nul, nonNul, block)
                 : new KeyExtractorFor$Type$.MinForUnordered(encoder, nul, nonNul, block);
         }
-        return block.mvOrdering() == Block.MvOrdering.ASCENDING
+        return block.mvSortedAscending()
             ? new KeyExtractorFor$Type$.MaxForAscending(encoder, nul, nonNul, block)
             : new KeyExtractorFor$Type$.MaxForUnordered(encoder, nul, nonNul, block);
     }

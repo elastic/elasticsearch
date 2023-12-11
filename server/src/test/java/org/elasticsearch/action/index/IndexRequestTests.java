@@ -46,10 +46,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -448,5 +450,33 @@ public class IndexRequestTests extends ESTestCase {
 
     static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    public void testSerialization() throws IOException {
+        // Note: IndexRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a Writable
+        IndexRequest indexRequest = createTestInstance();
+        IndexRequest copy = copyWriteable(indexRequest, null, IndexRequest::new);
+        assertThat(copy.getListExecutedPipelines(), equalTo(indexRequest.getListExecutedPipelines()));
+        assertThat(copy.getExecutedPipelines(), equalTo(indexRequest.getExecutedPipelines()));
+        assertThat(copy.getPipeline(), equalTo(indexRequest.getPipeline()));
+        assertThat(copy.isRequireAlias(), equalTo(indexRequest.isRequireAlias()));
+        assertThat(copy.ifSeqNo(), equalTo(indexRequest.ifSeqNo()));
+        assertThat(copy.getFinalPipeline(), equalTo(indexRequest.getFinalPipeline()));
+        assertThat(copy.ifPrimaryTerm(), equalTo(indexRequest.ifPrimaryTerm()));
+    }
+
+    private IndexRequest createTestInstance() {
+        IndexRequest indexRequest = new IndexRequest(randomAlphaOfLength(20));
+        indexRequest.setPipeline(randomAlphaOfLength(15));
+        indexRequest.setRequestId(randomLong());
+        indexRequest.setRequireAlias(randomBoolean());
+        indexRequest.setIfSeqNo(randomNonNegativeLong());
+        indexRequest.setFinalPipeline(randomAlphaOfLength(20));
+        indexRequest.setIfPrimaryTerm(randomNonNegativeLong());
+        indexRequest.setListExecutedPipelines(randomBoolean());
+        for (int i = 0; i < randomIntBetween(0, 20); i++) {
+            indexRequest.addPipeline(randomAlphaOfLength(20));
+        }
+        return indexRequest;
     }
 }

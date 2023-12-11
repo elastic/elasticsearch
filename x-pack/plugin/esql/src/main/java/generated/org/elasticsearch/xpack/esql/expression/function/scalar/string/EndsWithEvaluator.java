@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -16,20 +17,25 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link EndsWith}.
  * This class is generated. Do not edit it.
  */
 public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator suffix;
 
   private final DriverContext driverContext;
 
-  public EndsWithEvaluator(EvalOperator.ExpressionEvaluator str,
+  public EndsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator suffix, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.suffix = suffix;
     this.driverContext = driverContext;
@@ -37,54 +43,64 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
   @Override
   public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (BytesRefBlock suffixBlock = (BytesRefBlock) suffix.eval(page)) {
+        BytesRefVector strVector = strBlock.asVector();
+        if (strVector == null) {
+          return eval(page.getPositionCount(), strBlock, suffixBlock);
+        }
+        BytesRefVector suffixVector = suffixBlock.asVector();
+        if (suffixVector == null) {
+          return eval(page.getPositionCount(), strBlock, suffixBlock);
+        }
+        return eval(page.getPositionCount(), strVector, suffixVector).asBlock();
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block suffixUncastBlock = suffix.eval(page);
-    if (suffixUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock suffixBlock = (BytesRefBlock) suffixUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, suffixBlock);
-    }
-    BytesRefVector suffixVector = suffixBlock.asVector();
-    if (suffixVector == null) {
-      return eval(page.getPositionCount(), strBlock, suffixBlock);
-    }
-    return eval(page.getPositionCount(), strVector, suffixVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock suffixBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef suffixScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef suffixScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (suffixBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (suffixBlock.getValueCount(p) != 1) {
+          if (suffixBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(EndsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), suffixBlock.getBytesRef(suffixBlock.getFirstValueIndex(p), suffixScratch)));
       }
-      if (suffixBlock.isNull(p) || suffixBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(EndsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), suffixBlock.getBytesRef(suffixBlock.getFirstValueIndex(p), suffixScratch)));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector suffixVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef suffixScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef suffixScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -95,5 +111,30 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, suffix);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory suffix;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory suffix) {
+      this.source = source;
+      this.str = str;
+      this.suffix = suffix;
+    }
+
+    @Override
+    public EndsWithEvaluator get(DriverContext context) {
+      return new EndsWithEvaluator(source, str.get(context), suffix.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "EndsWithEvaluator[" + "str=" + str + ", suffix=" + suffix + "]";
+    }
   }
 }

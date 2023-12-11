@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -125,6 +126,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
         };
         private boolean assertToXContentEquivalence = true;
+        private Consumer<T> dispose = t -> {};
 
         private XContentTester(
             CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
@@ -142,24 +144,32 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             for (int runs = 0; runs < numberOfTestRuns; runs++) {
                 XContentType xContentType = randomFrom(XContentType.values()).canonical();
                 T testInstance = instanceSupplier.apply(xContentType);
-                BytesReference originalXContent = toXContent.apply(testInstance, xContentType);
-                BytesReference shuffledContent = insertRandomFieldsAndShuffle(
-                    originalXContent,
-                    xContentType,
-                    supportsUnknownFields,
-                    shuffleFieldsExceptions,
-                    randomFieldsExcludeFilter,
-                    createParser
-                );
-                XContentParser parser = createParser.apply(XContentFactory.xContent(xContentType), shuffledContent);
-                T parsed = fromXContent.apply(parser);
-                assertEqualsConsumer.accept(testInstance, parsed);
-                if (assertToXContentEquivalence) {
-                    assertToXContentEquivalent(
-                        toXContent.apply(testInstance, xContentType),
-                        toXContent.apply(parsed, xContentType),
-                        xContentType
+                try {
+                    BytesReference originalXContent = toXContent.apply(testInstance, xContentType);
+                    BytesReference shuffledContent = insertRandomFieldsAndShuffle(
+                        originalXContent,
+                        xContentType,
+                        supportsUnknownFields,
+                        shuffleFieldsExceptions,
+                        randomFieldsExcludeFilter,
+                        createParser
                     );
+                    XContentParser parser = createParser.apply(XContentFactory.xContent(xContentType), shuffledContent);
+                    T parsed = fromXContent.apply(parser);
+                    try {
+                        assertEqualsConsumer.accept(testInstance, parsed);
+                        if (assertToXContentEquivalence) {
+                            assertToXContentEquivalent(
+                                toXContent.apply(testInstance, xContentType),
+                                toXContent.apply(parsed, xContentType),
+                                xContentType
+                            );
+                        }
+                    } finally {
+                        dispose.accept(parsed);
+                    }
+                } finally {
+                    dispose.accept(testInstance);
                 }
             }
         }
@@ -191,6 +201,11 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
 
         public XContentTester<T> assertToXContentEquivalence(boolean assertToXContentEquivalence) {
             this.assertToXContentEquivalence = assertToXContentEquivalence;
+            return this;
+        }
+
+        public XContentTester<T> dispose(Consumer<T> dispose) {
+            this.dispose = dispose;
             return this;
         }
     }

@@ -48,7 +48,6 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
     }
 
     /** Check that the reset method cleans up a feature */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97780")
     public void testResetSystemIndices() throws Exception {
         String systemIndex1 = ".test-system-idx-1";
         String systemIndex2 = ".second-test-system-idx-1";

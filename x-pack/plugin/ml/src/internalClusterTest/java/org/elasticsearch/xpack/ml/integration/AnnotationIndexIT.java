@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -13,10 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -38,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
@@ -283,12 +282,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
                 try {
                     assertBusy(() -> {
-                        try {
-                            SearchResponse response = client().search(new SearchRequest(".ml-notifications*")).actionGet();
-                            assertEquals(1, response.getHits().getHits().length);
-                        } catch (SearchPhaseExecutionException e) {
-                            throw new AssertionError("Notifications index exists but shards not yet ready - continuing busy wait", e);
-                        }
+                        assertHitCount(client().search(new SearchRequest(".ml-notifications*")), 1);
                         assertFalse(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
                         assertEquals(0, numberOfAnnotationsAliases());
                     });
@@ -309,15 +303,14 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
             IndexRequest stateDoc = new IndexRequest(".ml-state");
             stateDoc.source(Collections.singletonMap("state", "blah"));
-            IndexResponse indexResponse = client().index(stateDoc).actionGet();
+            DocWriteResponse indexResponse = client().index(stateDoc).actionGet();
             assertEquals(RestStatus.CREATED, indexResponse.status());
 
             // Creating the .ml-state index would normally cause .ml-annotations
             // to be created, but in this case it shouldn't as we're doing a reset
 
             assertBusy(() -> {
-                SearchResponse response = client().search(new SearchRequest(".ml-state")).actionGet();
-                assertEquals(1, response.getHits().getHits().length);
+                assertHitCount(client().search(new SearchRequest(".ml-state")), 1);
                 assertFalse(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
                 assertEquals(0, numberOfAnnotationsAliases());
             });
@@ -330,8 +323,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex()
             .setIndices(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-            .execute()
-            .actionGet();
+            .get();
         return Arrays.asList(getIndexResponse.getIndices()).contains(expectedName);
     }
 

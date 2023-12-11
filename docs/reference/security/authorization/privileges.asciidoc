@@ -186,6 +186,9 @@ security roles of the user who created or updated them.
 All cluster read-only operations, like cluster health and state, hot threads,
 node info, node and cluster stats, and pending cluster tasks.
 
+`monitor_enrich`::
+All read-only operations related to managing and executing enrich policies.
+
 `monitor_ml`::
 All read-only {ml} operations, such as getting information about {dfeeds}, jobs,
 model snapshots, or results.

@@ -38,6 +38,8 @@ import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 
 public class SqlCompatIT extends BaseRestSqlTestCase {
 
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
     private static RestClient newNodesClient;
     private static RestClient oldNodesClient;
     private static TransportVersion bwcVersion;
@@ -47,7 +49,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         if (newNodesClient == null) {
             assertNull(oldNodesClient);
 
-            TestNodes nodes = buildNodeAndVersions(client());
+            TestNodes nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);
             bwcVersion = nodes.getBWCTransportVersion();
             newNodesClient = buildClient(
                 restClientSettings(),

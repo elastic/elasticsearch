@@ -328,7 +328,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      * - then store the size of the allocation ids and the index position
      *   data.put(ShardId(".watch", 0), new Tuple(1, 4))
      */
-    Map<ShardId, ShardAllocationConfiguration> getLocalShardAllocationIds(List<ShardRouting> localShards, IndexRoutingTable routingTable) {
+    static Map<ShardId, ShardAllocationConfiguration> getLocalShardAllocationIds(
+        List<ShardRouting> localShards,
+        IndexRoutingTable routingTable
+    ) {
         Map<ShardId, ShardAllocationConfiguration> data = Maps.newMapWithExpectedSize(localShards.size());
 
         for (ShardRouting shardRouting : localShards) {

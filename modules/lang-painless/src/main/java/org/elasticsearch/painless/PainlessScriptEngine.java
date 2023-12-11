@@ -151,7 +151,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context, ScriptScope scriptScope) {
+    private static <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context, ScriptScope scriptScope) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.statefulFactoryClazz).getInternalName();
@@ -271,7 +271,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> T generateFactory(Loader loader, ScriptContext<T> context, Type classType, ScriptScope scriptScope) {
+    private static <T> T generateFactory(Loader loader, ScriptContext<T> context, Type classType, ScriptScope scriptScope) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.factoryClazz).getInternalName();
@@ -362,7 +362,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
-    private void writeNeedsMethods(Class<?> clazz, ClassWriter writer, Set<String> extractedVariables) {
+    private static void writeNeedsMethods(Class<?> clazz, ClassWriter writer, Set<String> extractedVariables) {
         for (Method method : clazz.getMethods()) {
             if (method.getName().startsWith("needs")
                 && method.getReturnType().equals(boolean.class)
@@ -458,7 +458,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         return compilerSettings;
     }
 
-    private ScriptException convertToScriptException(String scriptSource, Throwable t) {
+    private static ScriptException convertToScriptException(String scriptSource, Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         ScriptException.Position pos = null;
@@ -495,15 +495,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 break;
             }
         }
-        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngine.NAME, pos);
+        Throwable cause = ErrorCauseWrapper.maybeWrap(t);
+        throw new ScriptException("compile error", cause, scriptStack, scriptSource, PainlessScriptEngine.NAME, pos);
     }
 
     // very simple heuristic: +/- 25 chars. can be improved later.
-    private int getPreviousStatement(int offset) {
+    private static int getPreviousStatement(int offset) {
         return Math.max(0, offset - 25);
     }
 
-    private int getNextStatement(String scriptSource, int offset) {
+    private static int getNextStatement(String scriptSource, int offset) {
         return Math.min(scriptSource.length(), offset + 25);
     }
 }

@@ -38,8 +38,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Makes sure that the circuit breaker is "plugged in" to ESQL by configuring an
- * unreasonably small breaker and tripping it.
+ * Tests runtime fields against ESQL.
  */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -53,14 +52,16 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
 
     public void testLong() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("long");
-        EsqlQueryResponse response = run("from test | stats sum(const)");
-        assertThat(getValuesList(response), equalTo(List.of(List.of((long) SIZE))));
+        try (EsqlQueryResponse response = run("from test | stats sum(const)")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of((long) SIZE))));
+        }
     }
 
     public void testDouble() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("double");
-        EsqlQueryResponse response = run("from test | stats sum(const)");
-        assertThat(getValuesList(response), equalTo(List.of(List.of((double) SIZE))));
+        try (EsqlQueryResponse response = run("from test | stats sum(const)")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of((double) SIZE))));
+        }
     }
 
     public void testKeyword() throws InterruptedException, IOException {
@@ -76,8 +77,9 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
      */
     public void testKeywordBy() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("keyword");
-        EsqlQueryResponse response = run("from test | stats max(foo) by const");
-        assertThat(getValuesList(response), equalTo(List.of(List.of(SIZE - 1L, "const"))));
+        try (EsqlQueryResponse response = run("from test | stats max(foo) by const")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(SIZE - 1L, "const"))));
+        }
     }
 
     public void testBoolean() throws InterruptedException, IOException {
@@ -89,9 +91,10 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
 
     public void testDate() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("date");
-        EsqlQueryResponse response = run("""
-            from test | eval d=date_format("yyyy", const) | stats min (foo) by d""");
-        assertThat(getValuesList(response), equalTo(List.of(List.of(0L, "2023"))));
+        try (EsqlQueryResponse response = run("""
+            from test | eval d=date_format("yyyy", const) | stats min (foo) by d""")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L, "2023"))));
+        }
     }
 
     private void createIndexWithConstRuntimeField(String type) throws InterruptedException, IOException {
@@ -110,7 +113,7 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < SIZE; i++) {
-            bulk.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
         }
         bulk.get();
     }

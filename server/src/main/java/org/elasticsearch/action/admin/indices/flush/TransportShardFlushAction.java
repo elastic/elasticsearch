@@ -79,20 +79,18 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         IndexShard primary,
         ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            primary.flush(shardRequest.getRequest());
+        primary.flush(shardRequest.getRequest(), listener.map(flushed -> {
             logger.trace("{} flush request executed on primary", primary.shardId());
             return new PrimaryResult<>(shardRequest, new ReplicationResponse());
-        });
+        }));
     }
 
     @Override
     protected void shardOperationOnReplica(ShardFlushRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            replica.flush(request.getRequest());
+        replica.flush(request.getRequest(), listener.map(flushed -> {
             logger.trace("{} flush request executed on replica", replica.shardId());
             return new ReplicaResult();
-        });
+        }));
     }
 
     // TODO: Remove this transition in 9.0

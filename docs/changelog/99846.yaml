@@ -1,5 +1,0 @@
-pr: 99846
-summary: Update version range in `jvm.options` for the Panama Vector API
-area: Vector Search
-type: bug
-issues: []

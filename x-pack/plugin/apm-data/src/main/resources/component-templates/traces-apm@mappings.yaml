@@ -1,0 +1,34 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default mappings for traces-apm* data streams
+  managed: true
+template:
+  mappings:
+    properties:
+      processor.event:
+        type: keyword
+      event.success_count:
+        type: byte
+        index: false
+      span.duration.us:
+        type: long
+      transaction.duration.us:
+        type: long
+      http.response.transfer_size:
+        type: long
+        index: false
+      http.response.encoded_body_size:
+        type: long
+        index: false
+      http.response.decoded_body_size:
+        type: long
+        index: false
+      span.representative_count:
+        type: scaled_float
+        scaling_factor: 1000
+        index: false
+      transaction.representative_count:
+        type: scaled_float
+        scaling_factor: 1000
+        index: false

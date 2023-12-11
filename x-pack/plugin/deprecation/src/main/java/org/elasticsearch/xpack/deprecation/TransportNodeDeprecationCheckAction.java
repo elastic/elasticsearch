@@ -64,11 +64,9 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     ) {
         super(
             NodesDeprecationCheckAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesDeprecationCheckRequest::new,
             NodesDeprecationCheckAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );

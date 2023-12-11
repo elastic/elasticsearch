@@ -9,19 +9,23 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.versionfield.Version;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -39,6 +43,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -46,6 +52,8 @@ import static org.elasticsearch.xpack.ql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public final class CsvTestUtils {
     private static final int MAX_WIDTH = 20;
@@ -54,13 +62,56 @@ public final class CsvTestUtils {
 
     private CsvTestUtils() {}
 
-    public static boolean isEnabled(String testName) {
-        return testName.endsWith("-Ignore") == false;
+    public static boolean isEnabled(String testName, Version version) {
+        if (testName.endsWith("-Ignore")) {
+            return false;
+        }
+        Tuple<Version, Version> skipRange = skipVersionRange(testName);
+        if (skipRange != null && version.onOrAfter(skipRange.v1()) && version.onOrBefore(skipRange.v2())) {
+            return false;
+        }
+        return true;
+    }
+
+    private static final Pattern INSTRUCTION_PATTERN = Pattern.compile("#\\[(.*?)]");
+
+    public static Map<String, String> extractInstructions(String testName) {
+        Matcher matcher = INSTRUCTION_PATTERN.matcher(testName);
+        Map<String, String> pairs = new HashMap<>();
+        if (matcher.find()) {
+            String[] groups = matcher.group(1).split(",");
+            for (String group : groups) {
+                String[] kv = group.split(":");
+                if (kv.length != 2) {
+                    throw new IllegalArgumentException("expected instruction in [k1:v1,k2:v2] format; got " + matcher.group(1));
+                }
+                pairs.put(kv[0].trim(), kv[1].trim());
+            }
+        }
+        return pairs;
+    }
+
+    public static Tuple<Version, Version> skipVersionRange(String testName) {
+        Map<String, String> pairs = extractInstructions(testName);
+        String versionRange = pairs.get("skip");
+        if (versionRange != null) {
+            String[] skipVersions = versionRange.split("-");
+            if (skipVersions.length != 2) {
+                throw new IllegalArgumentException("malformed version range : " + versionRange);
+            }
+            String lower = skipVersions[0].trim();
+            String upper = skipVersions[1].trim();
+            return Tuple.tuple(
+                lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
+                upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
+            );
+        }
+        return null;
     }
 
     public static Tuple<Page, List<String>> loadPageFromCsv(URL source) throws Exception {
 
-        record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) {
+        record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
                 if (stringValue.contains(",")) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
@@ -78,6 +129,11 @@ public final class CsvTestUtils {
 
                 var converted = stringValue.length() == 0 ? null : type.convert(stringValue);
                 builderWrapper().append().accept(converted);
+            }
+
+            @Override
+            public void close() {
+                builderWrapper.close();
             }
         }
 
@@ -119,7 +175,11 @@ public final class CsvTestUtils {
                             if (type == Type.NULL) {
                                 throw new IllegalArgumentException("Null type is not allowed in the test data; found " + entries[i]);
                             }
-                            columns[i] = new CsvColumn(name, type, BlockUtils.wrapperFor(ElementType.fromJava(type.clazz()), 8));
+                            columns[i] = new CsvColumn(
+                                name,
+                                type,
+                                BlockUtils.wrapperFor(BlockFactory.getNonBreakingInstance(), ElementType.fromJava(type.clazz()), 8)
+                            );
                         }
                     }
                     // data rows
@@ -151,11 +211,15 @@ public final class CsvTestUtils {
             }
         }
         var columnNames = new ArrayList<String>(columns.length);
-        var blocks = Arrays.stream(columns)
-            .peek(b -> columnNames.add(b.name))
-            .map(b -> b.builderWrapper.builder().build())
-            .toArray(Block[]::new);
-        return new Tuple<>(new Page(blocks), columnNames);
+        try {
+            var blocks = Arrays.stream(columns)
+                .peek(b -> columnNames.add(b.name))
+                .map(b -> b.builderWrapper.builder().build())
+                .toArray(Block[]::new);
+            return new Tuple<>(new Page(blocks), columnNames);
+        } finally {
+            Releasables.closeExpectNoException(columns);
+        }
     }
 
     /**
@@ -263,8 +327,7 @@ public final class CsvTestUtils {
                 for (int i = 0; i < row.size(); i++) {
                     String value = row.get(i);
                     if (value == null || value.trim().equalsIgnoreCase(NULL_VALUE)) {
-                        value = null;
-                        rowValues.add(columnTypes.get(i).convert(value));
+                        rowValues.add(null);
                         continue;
                     }
 
@@ -317,14 +380,16 @@ public final class CsvTestUtils {
                 : ((BytesRef) l).compareTo((BytesRef) r),
             BytesRef.class
         ),
-        VERSION(v -> new Version(v).toBytesRef(), BytesRef.class),
+        VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(
             x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(),
             (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),
             Long.class
         ),
-        BOOLEAN(Booleans::parseBoolean, Boolean.class);
+        BOOLEAN(Booleans::parseBoolean, Boolean.class),
+        GEO_POINT(x -> x == null ? null : GEO.pointAsLong(GEO.stringAsPoint(x)), Long.class),
+        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(x)), Long.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -337,6 +402,7 @@ public final class CsvTestUtils {
             LOOKUP.put("BYTE", INTEGER);
 
             // add also the types with short names
+            LOOKUP.put("BOOL", BOOLEAN);
             LOOKUP.put("I", INTEGER);
             LOOKUP.put("L", LONG);
             LOOKUP.put("UL", UNSIGNED_LONG);
@@ -415,7 +481,7 @@ public final class CsvTestUtils {
         }
     }
 
-    static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
+    public static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
@@ -441,21 +507,23 @@ public final class CsvTestUtils {
         logger.info(sb.toString());
     }
 
-    static void logData(List<List<Object>> values, Logger logger) {
-        for (List<Object> list : values) {
-            logger.info(rowAsString(list));
+    static void logData(Iterator<Iterator<Object>> values, Logger logger) {
+        while (values.hasNext()) {
+            var val = values.next();
+            logger.info(rowAsString(val));
         }
     }
 
-    private static String rowAsString(List<Object> list) {
+    private static String rowAsString(Iterator<Object> iterator) {
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
-        for (int i = 0; i < list.size(); i++) {
+        for (int i = 0; iterator.hasNext(); i++) {
             column.setLength(0);
             if (i > 0) {
                 sb.append(" | ");
             }
-            sb.append(trimOrPad(column.append(list.get(i))));
+            var next = iterator.next();
+            sb.append(trimOrPad(column.append(next)));
         }
         return sb.toString();
     }

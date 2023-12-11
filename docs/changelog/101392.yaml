@@ -1,0 +1,5 @@
+pr: 101392
+summary: Include ML processor limits in `_ml/info` response
+area: Machine Learning
+type: enhancement
+issues: []

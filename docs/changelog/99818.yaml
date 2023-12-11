@@ -1,6 +1,0 @@
-pr: 99818
-summary: Add checks in term and terms queries that input terms are not too long
-area: Search
-type: enhancement
-issues:
- - 99802

@@ -39,7 +39,7 @@ public class AcosTests extends AbstractFunctionTestCase {
                 Math.nextDown(-1d),
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "java.lang.ArithmeticException: Acos input out of range"
+                    "Line -1:-1: java.lang.ArithmeticException: Acos input out of range"
                 )
             )
         );
@@ -52,7 +52,7 @@ public class AcosTests extends AbstractFunctionTestCase {
                 Double.POSITIVE_INFINITY,
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "java.lang.ArithmeticException: Acos input out of range"
+                    "Line -1:-1: java.lang.ArithmeticException: Acos input out of range"
                 )
             )
         );

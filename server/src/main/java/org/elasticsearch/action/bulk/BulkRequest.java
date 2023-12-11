@@ -232,7 +232,7 @@ public class BulkRequest extends ActionRequest
      * Adds a framed data in binary format
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, null, null, null, null, true, xContentType, RestApiVersion.current());
+        return add(data, defaultIndex, null, null, null, null, null, true, xContentType, RestApiVersion.current());
     }
 
     /**
@@ -240,7 +240,7 @@ public class BulkRequest extends ActionRequest
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex, XContentType xContentType)
         throws IOException {
-        return add(data, defaultIndex, null, null, null, null, allowExplicitIndex, xContentType, RestApiVersion.current());
+        return add(data, defaultIndex, null, null, null, null, null, allowExplicitIndex, xContentType, RestApiVersion.current());
 
     }
 
@@ -251,6 +251,7 @@ public class BulkRequest extends ActionRequest
         @Nullable FetchSourceContext defaultFetchSourceContext,
         @Nullable String defaultPipeline,
         @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultListExecutedPipelines,
         boolean allowExplicitIndex,
         XContentType xContentType,
         RestApiVersion restApiVersion
@@ -265,6 +266,7 @@ public class BulkRequest extends ActionRequest
             defaultFetchSourceContext,
             pipeline,
             requireAlias,
+            defaultListExecutedPipelines,
             allowExplicitIndex,
             xContentType,
             (indexRequest, type) -> internalAdd(indexRequest),

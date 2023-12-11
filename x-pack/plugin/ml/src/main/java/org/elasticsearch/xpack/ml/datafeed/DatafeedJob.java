@@ -482,7 +482,7 @@ class DatafeedJob {
         }
     }
 
-    private boolean isConflictException(Exception e) {
+    private static boolean isConflictException(Exception e) {
         return e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT;
     }
 

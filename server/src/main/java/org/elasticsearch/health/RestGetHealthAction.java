@@ -51,4 +51,9 @@ public class RestGetHealthAction extends BaseRestHandler {
             new RestChunkedToXContentListener<>(channel)
         );
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

@@ -18,8 +18,8 @@ public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<
     NodesHotThreadsResponse,
     NodesHotThreadsRequestBuilder> {
 
-    public NodesHotThreadsRequestBuilder(ElasticsearchClient client, NodesHotThreadsAction action) {
-        super(client, action, new NodesHotThreadsRequest());
+    public NodesHotThreadsRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportNodesHotThreadsAction.TYPE, new NodesHotThreadsRequest());
     }
 
     public NodesHotThreadsRequestBuilder setThreads(int threads) {

@@ -1,5 +1,0 @@
-pr: 98268
-summary: Dense vector field types are indexed by default
-area: Vector Search
-type: enhancement
-issues: []

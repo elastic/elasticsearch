@@ -10,9 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -118,7 +120,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(TermsEnumAction.NAME, transportService, actionFilters, TermsEnumRequest::new);
+        super(TermsEnumAction.NAME, transportService, actionFilters, TermsEnumRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.clusterService = clusterService;
         this.searchService = searchService;
@@ -147,10 +149,26 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        new AsyncBroadcastAction(task, request, listener).start();
+        // log any errors that occur in a successful partial results scenario
+        ActionListener<TermsEnumResponse> loggingListener = listener.delegateFailureAndWrap((l, termsEnumResponse) -> {
+            // Deduplicate failures by exception message and index
+            ShardOperationFailedException[] deduplicated = ExceptionsHelper.groupBy(termsEnumResponse.getShardFailures());
+            for (ShardOperationFailedException e : deduplicated) {
+                boolean causeHas500Status = false;
+                if (e.getCause() != null) {
+                    causeHas500Status = ExceptionsHelper.status(e.getCause()).getStatus() >= 500;
+                }
+                if ((e.status().getStatus() >= 500 || causeHas500Status)
+                    && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e.getCause()) == false) {
+                    logger.warn("TransportTermsEnumAction shard failure (partial results response)", e);
+                }
+            }
+            l.onResponse(termsEnumResponse);
+        });
+        new AsyncBroadcastAction(task, request, loggingListener).start();
     }
 
-    protected NodeTermsEnumRequest newNodeRequest(
+    protected static NodeTermsEnumRequest newNodeRequest(
         final OriginalIndices originalIndices,
         final String nodeId,
         final Set<ShardId> shardIds,
@@ -165,7 +183,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return new NodeTermsEnumRequest(originalIndices, nodeId, shardIds, request, taskStartMillis);
     }
 
-    private NodeTermsEnumResponse readShardResponse(StreamInput in) throws IOException {
+    private static NodeTermsEnumResponse readShardResponse(StreamInput in) throws IOException {
         return new NodeTermsEnumResponse(in);
     }
 
@@ -207,7 +225,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return fastNodeBundles;
     }
 
-    private TermsEnumResponse mergeResponses(
+    private static TermsEnumResponse mergeResponses(
         TermsEnumRequest request,
         AtomicReferenceArray<?> atomicResponses,
         boolean complete,
@@ -274,7 +292,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return new TermsEnumResponse(ans, (failedShards + successfulShards), successfulShards, failedShards, shardFailures, complete);
     }
 
-    private List<String> mergeResponses(List<List<String>> termsList, int size) {
+    private static List<String> mergeResponses(List<List<String>> termsList, int size) {
         final PriorityQueue<TermIterator> pq = new PriorityQueue<>(termsList.size()) {
             @Override
             protected boolean lessThan(TermIterator a, TermIterator b) {

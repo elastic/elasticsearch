@@ -29,6 +29,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -50,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -159,7 +161,6 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminSearchClient);
             final Version esVersion = versionVersionTuple.v1();
-            final Version masterVersion = versionVersionTuple.v2();
             final String os = readOsFromNodesInfo(adminSearchClient);
 
             searchYamlTestClient = new TestCandidateAwareClient(
@@ -167,7 +168,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 searchClient,
                 hosts,
                 esVersion,
-                masterVersion,
+                ESRestTestCase::clusterHasFeature,
                 os,
                 this::getClientBuilderWithSniffedHosts
             );
@@ -328,11 +329,11 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             RestClient restClient,
             List<HttpHost> hosts,
             Version esVersion,
-            Version masterVersion,
+            Predicate<String> clusterFeaturesPredicate,
             String os,
             CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
         ) {
-            super(restSpec, restClient, hosts, esVersion, masterVersion, os, clientBuilderWithSniffedNodes);
+            super(restSpec, restClient, hosts, esVersion, clusterFeaturesPredicate, os, clientBuilderWithSniffedNodes);
         }
 
         public void setTestCandidate(ClientYamlTestCandidate testCandidate) {
@@ -389,10 +390,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
             if (apiName.equals("search") || apiName.equals("msearch") || apiName.equals("async_search.submit")) {
                 final String testCandidateTestPath = testCandidate.getTestPath();
-                if (testCandidateTestPath.equals("search/350_point_in_time/basic")
-                    || testCandidateTestPath.equals("search/350_point_in_time/point-in-time with slicing")
-                    || testCandidateTestPath.equals("search/350_point_in_time/msearch")
-                    || testCandidateTestPath.equals("search/350_point_in_time/wildcard")
+                if (testCandidateTestPath.startsWith("search/350_point_in_time")
                     || testCandidateTestPath.equals("async_search/20-with-poin-in-time/Async search with point in time")) {
                     return false;
                 }

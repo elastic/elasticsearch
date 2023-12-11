@@ -118,7 +118,8 @@ public class NodeService implements Closeable {
         boolean indices
     ) {
         return new NodeInfo(
-            Version.CURRENT,
+            // TODO: revert to Build.current().version() when Kibana is updated
+            Version.CURRENT.toString(),
             TransportVersion.current(),
             IndexVersion.current(),
             findComponentVersions(),
@@ -155,6 +156,7 @@ public class NodeService implements Closeable {
 
     public NodeStats stats(
         CommonStatsFlags indices,
+        boolean includeShardsStats,
         boolean os,
         boolean process,
         boolean jvm,
@@ -176,7 +178,7 @@ public class NodeService implements Closeable {
         return new NodeStats(
             transportService.getLocalNode(),
             System.currentTimeMillis(),
-            indices.anySet() ? indicesService.stats(indices) : null,
+            indices.anySet() ? indicesService.stats(indices, includeShardsStats) : null,
             os ? monitorService.osService().stats() : null,
             process ? monitorService.processService().stats() : null,
             jvm ? monitorService.jvmService().stats() : null,

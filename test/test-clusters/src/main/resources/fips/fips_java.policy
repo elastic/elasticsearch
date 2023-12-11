@@ -1,6 +1,10 @@
 grant {
      permission java.security.SecurityPermission "putProviderProperty.BCFIPS";
      permission java.security.SecurityPermission "putProviderProperty.BCJSSE";
+     permission java.security.SecurityPermission "getProperty.keystore.type.compat";
+     permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
+     permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
+     permission java.security.SecurityPermission "getProperty.jdk.tls.server.defaultDHEParameters";
      permission java.lang.RuntimePermission "getProtectionDomain";
      permission java.util.PropertyPermission "java.runtime.name", "read";
      permission org.bouncycastle.crypto.CryptoServicesPermission "tlsAlgorithmsEnabled";

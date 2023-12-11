@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongBytesRefTupleBlockSourceOperator;
@@ -35,8 +36,9 @@ public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends Groupi
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongBytesRefTupleBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), new BytesRef(String.valueOf(between(1, 10000)))))
         );
     }

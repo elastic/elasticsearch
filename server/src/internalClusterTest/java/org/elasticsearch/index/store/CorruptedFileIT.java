@@ -158,7 +158,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         disableAllocation("test");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -166,7 +166,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
-        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
+        assertHitCount(prepareSearch().setSize(0), numDocs);
 
         final int numShards = numShards("test");
         ShardRouting corruptedShardRouting = corruptRandomPrimaryFile();
@@ -192,7 +192,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         final int numIterations = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIterations; i++) {
-            assertHitCount(client().prepareSearch().setSize(numDocs).get(), numDocs);
+            assertHitCount(prepareSearch().setSize(numDocs), numDocs);
         }
 
         /*
@@ -269,7 +269,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -277,7 +277,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
-        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
+        assertHitCount(prepareSearch().setSize(0), numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile();
         /*
@@ -350,23 +350,20 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final AtomicBoolean corrupt = new AtomicBoolean(true);
         final CountDownLatch hasCorrupted = new CountDownLatch(1);
         for (var dataNode : dataNodes) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                dataNode.getName()
-            ));
-            mockTransportService.addSendBehavior(
-                internalCluster().getInstance(TransportService.class, unluckyNode.getName()),
-                (connection, requestId, action, request, options) -> {
-                    if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
-                        int i = randomIntBetween(0, req.content().length() - 1);
-                        array[i] = (byte) ~array[i]; // flip one byte in the content
-                        hasCorrupted.countDown();
+            MockTransportService.getInstance(dataNode.getName())
+                .addSendBehavior(
+                    internalCluster().getInstance(TransportService.class, unluckyNode.getName()),
+                    (connection, requestId, action, request, options) -> {
+                        if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                            RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                            byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
+                            int i = randomIntBetween(0, req.content().length() - 1);
+                            array[i] = (byte) ~array[i]; // flip one byte in the content
+                            hasCorrupted.countDown();
+                        }
+                        connection.sendRequest(requestId, action, request, options);
                     }
-                    connection.sendRequest(requestId, action, request, options);
-                }
-            );
+                );
         }
 
         updateIndexSettings(
@@ -405,16 +402,16 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
-        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
+        assertHitCount(prepareSearch().setSize(0), numDocs);
 
-        var source = (MockTransportService) internalCluster().getInstance(TransportService.class, primariesNode.getName());
-        var target = internalCluster().getInstance(TransportService.class, unluckyNode.getName());
+        final var source = MockTransportService.getInstance(primariesNode.getName());
+        final var target = MockTransportService.getInstance(unluckyNode.getName());
 
         final boolean truncate = randomBoolean();
         source.addSendBehavior(target, (connection, requestId, action, request, options) -> {
@@ -509,7 +506,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         final int numIterations = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIterations; i++) {
-            assertHitCount(client().prepareSearch().setSize(numDocs).get(), numDocs);
+            assertHitCount(prepareSearch().setSize(numDocs), numDocs);
         }
     }
 
@@ -544,13 +541,13 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
-        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
+        assertHitCount(prepareSearch().setSize(0), numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile(false);
         logger.info("--> shard {} has a corrupted file", shardRouting);
@@ -611,13 +608,13 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
-        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
+        assertHitCount(prepareSearch().setSize(0), numDocs);
 
         // disable allocations of replicas post restart (the restart will change replicas to primaries, so we have
         // to capture replicas post restart)

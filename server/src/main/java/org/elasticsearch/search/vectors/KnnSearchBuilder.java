@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.NESTED_KNN_VECTOR_QUERY_V;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -48,6 +50,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
     public static final ParseField BOOST_FIELD = AbstractQueryBuilder.BOOST_FIELD;
+    public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<KnnSearchBuilder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
@@ -90,6 +93,12 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             ObjectParser.ValueType.OBJECT_ARRAY
         );
         PARSER.declareFloat(KnnSearchBuilder::boost, BOOST_FIELD);
+        PARSER.declareField(
+            KnnSearchBuilder::innerHit,
+            (p, c) -> InnerHitBuilder.fromXContent(p),
+            INNER_HITS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
     public static KnnSearchBuilder fromXContent(XContentParser parser) throws IOException {
@@ -105,6 +114,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     final Float similarity;
     final List<QueryBuilder> filterQueries;
     float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+    InnerHitBuilder innerHitBuilder;
 
     /**
      * Defines a kNN search.
@@ -219,6 +229,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             this.similarity = null;
         }
+        if (in.getTransportVersion().onOrAfter(NESTED_KNN_VECTOR_QUERY_V)) {
+            this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+        }
     }
 
     public int k() {
@@ -254,13 +267,24 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return this;
     }
 
+    public KnnSearchBuilder innerHit(InnerHitBuilder innerHitBuilder) {
+        this.innerHitBuilder = innerHitBuilder;
+        return this;
+    }
+
+    public InnerHitBuilder innerHit() {
+        return innerHitBuilder;
+    }
+
     @Override
     public KnnSearchBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         if (querySupplier != null) {
             if (querySupplier.get() == null) {
                 return this;
             }
-            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, similarity).boost(boost).addFilterQueries(filterQueries);
+            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, similarity).boost(boost)
+                .addFilterQueries(filterQueries)
+                .innerHit(innerHitBuilder);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
@@ -280,7 +304,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 }
                 ll.onResponse(null);
             })));
-            return new KnnSearchBuilder(field, toSet::get, k, numCands, filterQueries, similarity).boost(boost);
+            return new KnnSearchBuilder(field, toSet::get, k, numCands, filterQueries, similarity).boost(boost).innerHit(innerHitBuilder);
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
@@ -292,7 +316,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             rewrittenQueries.add(rewrittenQuery);
         }
         if (changed) {
-            return new KnnSearchBuilder(field, queryVector, k, numCands, similarity).boost(boost).addFilterQueries(rewrittenQueries);
+            return new KnnSearchBuilder(field, queryVector, k, numCands, similarity).boost(boost)
+                .addFilterQueries(rewrittenQueries)
+                .innerHit(innerHitBuilder);
         }
         return this;
     }
@@ -317,6 +343,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             && Objects.equals(querySupplier, that.querySupplier)
             && Objects.equals(filterQueries, that.filterQueries)
             && Objects.equals(similarity, that.similarity)
+            && Objects.equals(innerHitBuilder, that.innerHitBuilder)
             && boost == that.boost;
     }
 
@@ -331,6 +358,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             similarity,
             Arrays.hashCode(queryVector),
             Objects.hashCode(filterQueries),
+            innerHitBuilder,
             boost
         );
     }
@@ -357,6 +385,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 filterQuery.toXContent(builder, params);
             }
             builder.endArray();
+        }
+
+        if (innerHitBuilder != null) {
+            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
 
         if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
@@ -391,6 +423,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(similarity);
+        }
+        if (out.getTransportVersion().onOrAfter(NESTED_KNN_VECTOR_QUERY_V)) {
+            out.writeOptionalWriteable(innerHitBuilder);
         }
     }
 }

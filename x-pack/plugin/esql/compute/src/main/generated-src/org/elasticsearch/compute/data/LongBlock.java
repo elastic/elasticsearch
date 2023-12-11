@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -17,7 +18,7 @@ import java.io.IOException;
  * Block that stores long values.
  * This class is generated. Do not edit it.
  */
-public sealed interface LongBlock extends Block permits FilterLongBlock, LongArrayBlock, LongVectorBlock {
+public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock {
 
     /**
      * Retrieves the long value stored at the given value index.
@@ -36,33 +37,38 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
     @Override
     LongBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::of);
-
     @Override
     default String getWriteableName() {
         return "LongBlock";
     }
 
-    static LongBlock of(StreamInput in) throws IOException {
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::readFrom);
+
+    private static LongBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static LongBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return LongVector.of(in).asBlock();
+            return LongVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendLong(in.readLong());
+        try (LongBlock.Builder builder = in.blockFactory().newLongBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendLong(in.readLong());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
@@ -107,6 +113,9 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
      * equals method works properly across different implementations of the LongBlock interface.
      */
     static boolean equals(LongBlock block1, LongBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -158,31 +167,52 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
         return result;
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
+     * @deprecated use {@link BlockFactory#newLongBlockBuilder}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static Builder newBlockBuilder(int estimatedSize) {
         return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Returns a builder.
+     * @deprecated use {@link BlockFactory#newLongBlockBuilder}
+     */
+    @Deprecated
     static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newLongBlockBuilder(estimatedSize);
     }
 
-    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
+     * @deprecated use {@link BlockFactory#newConstantLongBlockWith}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static LongBlock newConstantBlockWith(long value, int positions) {
         return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Returns a constant block.
+     * @deprecated use {@link BlockFactory#newConstantLongBlockWith}
+     */
+    @Deprecated
     static LongBlock newConstantBlockWith(long value, int positions, BlockFactory blockFactory) {
         return blockFactory.newConstantLongBlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits LongBlockBuilder {
-
+    /**
+     * Builder for {@link LongBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.LongBuilder permits LongBlockBuilder {
         /**
          * Appends a long to the current entry.
          */
+        @Override
         Builder appendLong(long value);
 
         /**
@@ -206,12 +236,11 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

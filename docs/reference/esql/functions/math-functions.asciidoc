@@ -1,0 +1,52 @@
+[[esql-math-functions]]
+==== {esql} mathematical functions
+
+++++
+<titleabbrev>Mathematical functions</titleabbrev>
+++++
+
+{esql} supports these mathematical functions:
+
+// tag::math_list[]
+* <<esql-abs>>
+* <<esql-acos>>
+* <<esql-asin>>
+* <<esql-atan>>
+* <<esql-atan2>>
+* <<esql-ceil>>
+* <<esql-cos>>
+* <<esql-cosh>>
+* <<esql-e>>
+* <<esql-floor>>
+* <<esql-log10>>
+* <<esql-pi>>
+* <<esql-pow>>
+* <<esql-round>>
+* <<esql-sin>>
+* <<esql-sinh>>
+* <<esql-sqrt>>
+* <<esql-tan>>
+* <<esql-tanh>>
+* <<esql-tau>>
+// end::math_list[]
+
+include::abs.asciidoc[]
+include::acos.asciidoc[]
+include::asin.asciidoc[]
+include::atan.asciidoc[]
+include::atan2.asciidoc[]
+include::ceil.asciidoc[]
+include::cos.asciidoc[]
+include::cosh.asciidoc[]
+include::e.asciidoc[]
+include::floor.asciidoc[]
+include::log10.asciidoc[]
+include::pi.asciidoc[]
+include::pow.asciidoc[]
+include::round.asciidoc[]
+include::sin.asciidoc[]
+include::sinh.asciidoc[]
+include::sqrt.asciidoc[]
+include::tan.asciidoc[]
+include::tanh.asciidoc[]
+include::tau.asciidoc[]

@@ -1,5 +1,0 @@
-pr: 99677
-summary: Using 1 MB chunks for elser model storage
-area: Machine Learning
-type: bug
-issues: [ ]

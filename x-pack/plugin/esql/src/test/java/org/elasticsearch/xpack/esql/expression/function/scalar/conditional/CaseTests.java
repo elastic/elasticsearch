@@ -87,12 +87,14 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     public void testEvalCase() {
-        testCase(
-            caseExpr -> toJavaObject(
-                caseExpr.toEvaluator(child -> evaluator(child)).get(driverContext()).eval(new Page(IntBlock.newConstantBlockWith(0, 1))),
-                0
-            )
-        );
+        testCase(caseExpr -> {
+            try (
+                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(child -> evaluator(child)).get(driverContext());
+                Block block = eval.eval(new Page(IntBlock.newConstantBlockWith(0, 1)))
+            ) {
+                return toJavaObject(block, 0);
+            }
+        });
     }
 
     public void testFoldCase() {
@@ -146,7 +148,7 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     public void testCaseIsLazy() {
         Case caseExpr = caseExpr(true, 1, true, 2);
-        assertEquals(1, toJavaObject(caseExpr.toEvaluator(child -> {
+        try (Block block = caseExpr.toEvaluator(child -> {
             Object value = child.fold();
             if (value != null && value.equals(2)) {
                 return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
@@ -161,7 +163,9 @@ public class CaseTests extends AbstractFunctionTestCase {
                 };
             }
             return evaluator(child);
-        }).get(driverContext()).eval(new Page(IntBlock.newConstantBlockWith(0, 1))), 0));
+        }).get(driverContext()).eval(new Page(IntBlock.newConstantBlockWith(0, 1)))) {
+            assertEquals(1, toJavaObject(block, 0));
+        }
     }
 
     private static Case caseExpr(Object... args) {

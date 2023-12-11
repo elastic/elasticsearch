@@ -15,11 +15,10 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
-public class StringQueryPredicate extends FullTextPredicate {
+public final class StringQueryPredicate extends FullTextPredicate {
 
     private final Map<String, Float> fields;
 
-    @SuppressWarnings("this-escape")
     public StringQueryPredicate(Source source, String query, String options) {
         super(source, query, options, emptyList());
 

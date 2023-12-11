@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexSettings;
@@ -35,6 +34,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 3)
 @ESIntegTestCase.SuiteScopeTestCase
@@ -114,10 +114,10 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         ensureGreen("time_index");
 
         for (int i = 0; i < 500; i++) {
-            client().prepareIndex("time_index").setSource("@timestamp", i).setRouting("a").get();
+            prepareIndex("time_index").setSource("@timestamp", i).setRouting("a").get();
         }
         for (int i = 500; i < 1000; i++) {
-            client().prepareIndex("time_index").setSource("@timestamp", i).setRouting("b").get();
+            prepareIndex("time_index").setSource("@timestamp", i).setRouting("b").get();
         }
 
         client().admin().indices().prepareRefresh("time_index").get();
@@ -130,123 +130,129 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         });
 
         // match 2 separate shard with no overlap in queries
-        SearchResponse response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(499)),
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(500).lt(505))
+        assertResponse(
+            prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(499)),
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(500).lt(505))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(5, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(3, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(5, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(3, response.getSkippedShards());
+            }
+        );
 
         // match 2 shards with overlap in queries
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(505)),
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(497).lt(507))
+        assertResponse(
+            prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(495).lte(505)),
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(497).lt(507))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(5, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(3, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(5, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(3, response.getSkippedShards());
+            }
+        );
 
         // match one shard with one query in range and one query out of range
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(501).lte(505)),
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
+        assertResponse(
+            prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(501).lte(505)),
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(4, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(4, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(4, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(4, response.getSkippedShards());
+            }
+        );
 
         // match no shards, but still use one to generate a search response
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(4000).lte(5000)),
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
+        assertResponse(
+            prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(4000).lte(5000)),
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(10000).lt(10005))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(0, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(4, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(0, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(4, response.getSkippedShards());
+            }
+        );
 
         // match one shard with with no overlap in queries
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(700).lt(705))
+        assertResponse(
+            prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(700).lt(705))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(5, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(4, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(5, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(4, response.getSkippedShards());
+            }
+        );
 
         // match one shard with exact overlap in queries
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .setRankBuilder(new RRFRankBuilder(20, 1))
-            .setTrackTotalHits(false)
-            .setSubSearches(
-                List.of(
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
-                    new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(600).lt(605))
+        assertResponse(
+            prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1)
+                .setRankBuilder(new RRFRankBuilder(20, 1))
+                .setTrackTotalHits(false)
+                .setSubSearches(
+                    List.of(
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gt(600).lte(605)),
+                        new SubSearchSourceBuilder(QueryBuilders.rangeQuery("@timestamp").gte(600).lt(605))
+                    )
                 )
-            )
-            .setSize(5)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(5, response.getHits().getHits().length);
-        assertEquals(5, response.getSuccessfulShards());
-        assertEquals(4, response.getSkippedShards());
+                .setSize(5),
+            response -> {
+                assertNull(response.getHits().getTotalHits());
+                assertEquals(5, response.getHits().getHits().length);
+                assertEquals(5, response.getSuccessfulShards());
+                assertEquals(4, response.getSkippedShards());
+            }
+        );
     }
 }

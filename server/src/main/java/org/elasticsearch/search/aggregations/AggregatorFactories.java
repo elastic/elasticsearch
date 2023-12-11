@@ -42,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -274,7 +275,7 @@ public class AggregatorFactories {
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
      */
-    public static class Builder implements Writeable, ToXContentObject {
+    public static final class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
         // Using LinkedHashSets to preserve the order of insertion, that makes the results
@@ -290,7 +291,6 @@ public class AggregatorFactories {
         /**
          * Read from a stream.
          */
-        @SuppressWarnings("this-escape")
         public Builder(StreamInput in) throws IOException {
             int factoriesSize = in.readVInt();
             for (int i = 0; i < factoriesSize; i++) {
@@ -339,9 +339,9 @@ public class AggregatorFactories {
          * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query
          * phase.
          */
-        public boolean supportsParallelCollection() {
+        public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
             for (AggregationBuilder builder : aggregationBuilders) {
-                if (builder.supportsParallelCollection() == false) {
+                if (builder.supportsParallelCollection(fieldCardinalityResolver) == false) {
                     return false;
                 }
             }
@@ -367,7 +367,6 @@ public class AggregatorFactories {
         public ActionRequestValidationException validate(ActionRequestValidationException e) {
             PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
                 aggregationBuilders,
-                pipelineAggregatorBuilders,
                 e
             );
             validatePipelines(context);

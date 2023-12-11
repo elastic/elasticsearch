@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.instanceOf;
@@ -45,7 +46,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
         int docCount = iterations(10, 1000);
         logger.info("-->  create random index {} with {} records", indexName, docCount);
         addRandomDocuments(indexName, docCount);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCount);
+        assertHitCount(prepareSearch(indexName).setSize(0), docCount);
 
         final String snapshotName = randomName();
         logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
@@ -113,7 +114,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             writeBlob(container, "test", new BytesArray(data));
             assertArrayEquals(readBlobFully(container, "test", data.length), data);
-            assertTrue(container.blobExists("test"));
+            assertTrue(container.blobExists(randomPurpose(), "test"));
         }
     }
 }

@@ -8,8 +8,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
@@ -43,7 +43,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final String originalMaster = internalCluster().getMasterName();
 
         logger.info("--> excluding master node {}", originalMaster);
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
+        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
     }
@@ -92,10 +92,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             if (sender.equals(excludedNodeName)) {
                 continue;
             }
-            final MockTransportService senderTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                sender
-            );
+            final var senderTransportService = MockTransportService.getInstance(sender);
             for (final String receiver : nodeNames) {
                 senderTransportService.addSendBehavior(
                     internalCluster().getInstance(TransportService.class, receiver),

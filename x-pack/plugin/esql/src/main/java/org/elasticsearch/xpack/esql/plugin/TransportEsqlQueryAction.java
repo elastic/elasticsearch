@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -45,12 +45,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ExchangeService exchangeService;
     private final ClusterService clusterService;
     private final Executor requestExecutor;
+    private final EnrichPolicyResolver enrichPolicyResolver;
     private final EnrichLookupService enrichLookupService;
-    private final Settings settings;
 
     @Inject
     public TransportEsqlQueryAction(
-        Settings settings,
         TransportService transportService,
         ActionFilters actionFilters,
         PlanExecutor planExecutor,
@@ -58,7 +57,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ExchangeService exchangeService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        BlockFactory blockFactory
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -67,19 +67,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.requestExecutor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        EsqlBlockFactoryParams.init(bigArrays);
-        var blockFactory = BlockFactory.getGlobalInstance();
+        this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays, blockFactory);
         this.computeService = new ComputeService(
             searchService,
             transportService,
             exchangeService,
             enrichLookupService,
+            clusterService,
             threadPool,
             bigArrays,
             blockFactory
         );
-        this.settings = settings;
     }
 
     @Override
@@ -90,32 +89,38 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         EsqlConfiguration configuration = new EsqlConfiguration(
-            request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
+            ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
             null,
             clusterService.getClusterName().value(),
             request.pragmas(),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(settings)
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE),
+            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE),
+            request.query(),
+            request.profile()
         );
         String sessionId = sessionID(task);
         planExecutor.esql(
             request,
             sessionId,
             configuration,
+            enrichPolicyResolver,
             listener.delegateFailureAndWrap(
                 (delegate, physicalPlan) -> computeService.execute(
                     sessionId,
                     (CancellableTask) task,
                     physicalPlan,
                     configuration,
-                    delegate.map(pages -> {
+                    delegate.map(result -> {
                         List<ColumnInfo> columns = physicalPlan.output()
                             .stream()
                             .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
                             .toList();
-                        return new EsqlQueryResponse(columns, pages, request.columnar());
+                        EsqlQueryResponse.Profile profile = configuration.profile()
+                            ? new EsqlQueryResponse.Profile(result.profiles())
+                            : null;
+                        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar());
                     })
                 )
             )

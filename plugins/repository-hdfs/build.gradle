@@ -59,12 +59,6 @@ dependencies {
     runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
     //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
 
-    // Set the keytab files in the classpath so that we can access them from test code without the security manager
-    // freaking out.
-    if (isEclipse == false) {
-        javaRestTestRuntimeOnly project(path: ':test:fixtures:krb5kdc-fixture', configuration:'krb5KeytabsHdfsDir')
-    }
-
     krb5Keytabs project(path: ':test:fixtures:krb5kdc-fixture', configuration: 'krb5KeytabsHdfsDir')
     krb5Config project(path: ':test:fixtures:krb5kdc-fixture', configuration: 'krb5ConfHdfsFile')
 }
@@ -187,7 +181,11 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
                 }
             }
             testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-            classpath = sourceSets.javaRestTest.runtimeClasspath + files(portsFileDir)
+            // Set the keytab files in the classpath so that we can access them from test code without the security manager
+            // freaking out.
+            classpath = sourceSets.javaRestTest.runtimeClasspath +
+              configurations.krb5Keytabs +
+              files(portsFileDir)
         }
     }
 
@@ -281,7 +279,7 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
         if (disabledIntegTestTaskNames.contains(name) == false) {
             nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
             nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-            jvmArgs "-Djava.security.krb5.conf=${project.configurations.krb5Config.getSingleFile().getPath()}"
+            nonInputProperties.systemProperty "java.security.krb5.conf", "${project.configurations.krb5Config.getSingleFile().getPath()}"
             nonInputProperties.systemProperty(
                     "test.krb5.keytab.hdfs",
                     new File(project.configurations.krb5Keytabs.singleFile, "hdfs_hdfs.build.elastic.co.keytab").getPath()
@@ -291,7 +289,7 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
 
     testClusters.matching { it.name == testTask.name }.configureEach {
         if (testTask.name.contains("Secure")) {
-            systemProperty "java.security.krb5.conf", configurations.krb5Config.singleFile.getPath()
+            systemProperty "java.security.krb5.conf", { configurations.krb5Config.singleFile.getPath() }, IGNORE_VALUE
             extraConfigFile(
                     "repository-hdfs/krb5.keytab",
                     new File(project.configurations.krb5Keytabs.singleFile, "elasticsearch.keytab"),

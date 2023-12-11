@@ -59,7 +59,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
      * A request to analyze a text associated with a specific index. Allow to provide
      * the actual analyzer name to perform the analysis with.
      */
-    public static class Request extends SingleShardRequest<Request> {
+    public static final class Request extends SingleShardRequest<Request> {
 
         private String[] text;
         private String analyzer;
@@ -91,7 +91,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
          *
          * @param index The text to analyze
          */
-        @SuppressWarnings("this-escape")
         public Request(String index) {
             this.index(index);
         }

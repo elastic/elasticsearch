@@ -851,12 +851,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         for (int i = 0; i < numberOfThreads; i++) {
             executor.submit(() -> {
-                try {
-                    barrier.await();
-                    latch.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(latch);
             });
         }
         barrier.await();

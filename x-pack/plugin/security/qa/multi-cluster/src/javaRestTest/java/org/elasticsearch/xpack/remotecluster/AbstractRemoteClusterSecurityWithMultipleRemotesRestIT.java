@@ -215,10 +215,14 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
         final Response response = performRequestWithRemoteSearchUser(new Request("GET", searchPath));
         assertOK(response);
         final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-        final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-            .map(SearchHit::getIndex)
-            .collect(Collectors.toList());
-        assertThat(actualIndices, containsInAnyOrder(expectedIndices));
+        try {
+            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                .map(SearchHit::getIndex)
+                .collect(Collectors.toList());
+            assertThat(actualIndices, containsInAnyOrder(expectedIndices));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     static Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

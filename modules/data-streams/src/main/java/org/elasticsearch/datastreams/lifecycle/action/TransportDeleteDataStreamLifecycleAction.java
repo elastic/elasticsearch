@@ -47,7 +47,7 @@ public class TransportDeleteDataStreamLifecycleAction extends AcknowledgedTransp
         SystemIndices systemIndices
     ) {
         super(
-            DeleteDataStreamLifecycleAction.NAME,
+            DeleteDataStreamLifecycleAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,

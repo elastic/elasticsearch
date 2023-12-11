@@ -72,6 +72,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -284,6 +285,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos;
     private volatile long indexingTimeBeforeShardStartedInNanos;
+    private final SubscribableListener<Void> waitForEngineOrClosedShardListeners = new SubscribableListener<>();
 
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
     private volatile long globalCheckPointIfUnpromotable;
@@ -1391,22 +1393,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *         If <code>false</code> is returned, no flush happened.
      */
     public boolean flush(FlushRequest request) {
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        flush(request, future);
+        return future.actionGet();
+    }
+
+    /**
+     * Executes the given flush request against the engine.
+     *
+     * @param request the flush request
+     * @param listener to notify after full durability has been achieved.
+     *                 <code>false</code> if <code>waitIfOngoing==false</code>
+     *                 and an ongoing request is detected, else <code>true</code>.
+     *                 If <code>false</code> is returned, no flush happened.
+     */
+    public void flush(FlushRequest request, ActionListener<Boolean> listener) {
         final boolean waitIfOngoing = request.waitIfOngoing();
         final boolean force = request.force();
         logger.trace("flush with {}", request);
-        /*
-         * We allow flushes while recovery since we allow operations to happen while recovering and we want to keep the translog under
-         * control (up to deletes, which we do not GC). Yet, we do not use flush internally to clear deletes and flush the index writer
-         * since we use Engine#writeIndexingBuffer for this now.
-         */
-        verifyNotClosed();
-        final long time = System.nanoTime();
-        // TODO: Transition this method to async to support async flush
-        PlainActionFuture<Engine.FlushResult> future = PlainActionFuture.newFuture();
-        getEngine().flush(force, waitIfOngoing, future);
-        Engine.FlushResult flushResult = future.actionGet();
-        flushMetric.inc(System.nanoTime() - time);
-        return flushResult.flushPerformed();
+        ActionListener.run(listener, l -> {
+            /*
+             * We allow flushes while recovery since we allow operations to happen while recovering and we want to keep the translog under
+             * control (up to deletes, which we do not GC). Yet, we do not use flush internally to clear deletes and flush the index writer
+             * since we use Engine#writeIndexingBuffer for this now.
+             */
+            verifyNotClosed();
+            final long startTime = System.nanoTime();
+            getEngine().flush(
+                force,
+                waitIfOngoing,
+                ActionListener.runBefore(l.map(Engine.FlushResult::flushPerformed), () -> flushMetric.inc(System.nanoTime() - startTime))
+            );
+        });
     }
 
     /**
@@ -1657,6 +1675,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 synchronized (mutex) {
                     changeState(IndexShardState.CLOSED, reason);
                 }
+                checkAndCallWaitForEngineOrClosedShardListeners();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -2003,7 +2022,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-            final Engine newEngine = engineFactory.newReadWriteEngine(config);
+            final Engine newEngine = createEngine(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
             // We set active because we are now writing operations to the engine; this way,
@@ -2015,6 +2034,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
         assert assertSequenceNumbersInCommit();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
+        checkAndCallWaitForEngineOrClosedShardListeners();
+    }
+
+    // awful hack to work around problem in CloseFollowerIndexIT
+    static boolean suppressCreateEngineErrors;
+
+    private Engine createEngine(EngineConfig config) {
+        if (suppressCreateEngineErrors) {
+            try {
+                return engineFactory.newReadWriteEngine(config);
+            } catch (Error e) {
+                ExceptionsHelper.maybeDieOnAnotherThread(e);
+                throw new RuntimeException("rethrowing suppressed error", e);
+            }
+        } else {
+            return engineFactory.newReadWriteEngine(config);
+        }
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
@@ -2271,25 +2307,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
                 logger.debug("flushing shard on inactive");
-                threadPool.executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (state != IndexShardState.CLOSED) {
-                            active.set(true);
-                            logger.warn("failed to flush shard on inactive", e);
+                threadPool.executor(ThreadPool.Names.FLUSH)
+                    .execute(() -> flush(new FlushRequest().waitIfOngoing(false).force(false), new ActionListener<>() {
+                        @Override
+                        public void onResponse(Boolean flushed) {
+                            if (flushed == false) {
+                                // In case an ongoing flush was detected, revert active flag so that a next flushOnIdle request
+                                // will retry (#87888)
+                                active.set(true);
+                            }
+                            periodicFlushMetric.inc();
                         }
-                    }
 
-                    @Override
-                    protected void doRun() {
-                        if (flush(new FlushRequest().waitIfOngoing(false).force(false)) == false) {
-                            // In case an ongoing flush was detected, revert active flag so that a next flushOnIdle request
-                            // will retry (#87888)
-                            active.set(true);
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (state != IndexShardState.CLOSED) {
+                                active.set(true);
+                                logger.warn("failed to flush shard on inactive", e);
+                            }
                         }
-                        periodicFlushMetric.inc();
-                    }
-                });
+                    }));
             }
         }
     }
@@ -3218,7 +3255,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert assertPrimaryMode();
         // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
-        assert indexSettings.getIndexVersionCreated().before(IndexVersion.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
+        assert indexSettings.getIndexVersionCreated().before(IndexVersions.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
         return replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
     }
 
@@ -3736,27 +3773,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  */
                 if (shouldPeriodicallyFlush()) {
                     logger.debug("submitting async flush request");
-                    final AbstractRunnable flush = new AbstractRunnable() {
-                        @Override
-                        public void onFailure(final Exception e) {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("failed to flush index", e);
+                    threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
+                        flush(new FlushRequest(), new ActionListener<>() {
+                            @Override
+                            public void onResponse(Boolean flushed) {
+                                periodicFlushMetric.inc();
                             }
-                        }
 
-                        @Override
-                        protected void doRun() {
-                            flush(new FlushRequest());
-                            periodicFlushMetric.inc();
-                        }
-
-                        @Override
-                        public void onAfter() {
-                            flushOrRollRunning.compareAndSet(true, false);
-                            afterWriteOperation();
-                        }
-                    };
-                    threadPool.executor(ThreadPool.Names.FLUSH).execute(flush);
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (state != IndexShardState.CLOSED) {
+                                    logger.warn("failed to flush index", e);
+                                }
+                            }
+                        });
+                        flushOrRollRunning.compareAndSet(true, false);
+                        afterWriteOperation();
+                    });
                 } else if (shouldRollTranslogGeneration()) {
                     logger.debug("submitting async roll translog generation request");
                     final AbstractRunnable roll = new AbstractRunnable() {
@@ -3819,16 +3852,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // lets skip this refresh since we are search idle and
                     // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                     // cause the next schedule to refresh.
+                    logger.trace("scheduledRefresh: search-idle, skipping refresh");
                     engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                     setRefreshPending(engine);
                     l.onResponse(false);
                     return;
                 } else {
-                    logger.trace("refresh with source [schedule]");
+                    logger.trace("scheduledRefresh: refresh with source [schedule]");
                     engine.maybeRefresh("schedule", l.map(Engine.RefreshResult::refreshed));
                     return;
                 }
             }
+            logger.trace("scheduledRefresh: no refresh needed");
             engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
             l.onResponse(false);
         });
@@ -3924,7 +3959,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
                     if (location == pendingRefreshLocation.get()) {
-                        getEngine().maybeRefresh("ensure-shard-search-active", PlainActionFuture.newFuture());
+                        getEngine().maybeRefresh("ensure-shard-search-active", new PlainActionFuture<>());
                     }
                 });
             }
@@ -4172,7 +4207,36 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return "IndexShard(shardRouting=" + shardRouting + ")";
     }
 
+    /**
+     * @deprecated use {@link #waitForPrimaryTermAndGeneration(long, long, ActionListener)} instead.
+     */
+    @Deprecated
     public void waitForSegmentGeneration(long segmentGeneration, ActionListener<Long> listener) {
-        getEngine().addSegmentGenerationListener(segmentGeneration, listener);
+        waitForPrimaryTermAndGeneration(getOperationPrimaryTerm(), segmentGeneration, listener);
     }
+
+    private void checkAndCallWaitForEngineOrClosedShardListeners() {
+        if (getEngineOrNull() != null || state == IndexShardState.CLOSED) {
+            waitForEngineOrClosedShardListeners.onResponse(null);
+        }
+    }
+
+    /**
+     * Registers a listener for an event when the shard opens the engine or is the shard is closed
+     */
+    public void waitForEngineOrClosedShard(ActionListener<Void> listener) {
+        waitForEngineOrClosedShardListeners.addListener(listener);
+    }
+
+    /**
+     * Registers a listener for an event when the shard advances to the provided primary term and segment generation
+     */
+    public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
+        waitForEngineOrClosedShard(
+            listener.delegateFailureAndWrap(
+                (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
+            )
+        );
+    }
+
 }

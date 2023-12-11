@@ -136,7 +136,10 @@ public class NodeLoadDetector {
         }
     }
 
-    private void updateLoadGivenModelAssignments(NodeLoad.Builder nodeLoad, TrainedModelAssignmentMetadata trainedModelAssignmentMetadata) {
+    private static void updateLoadGivenModelAssignments(
+        NodeLoad.Builder nodeLoad,
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata
+    ) {
         if (trainedModelAssignmentMetadata != null && trainedModelAssignmentMetadata.allAssignments().isEmpty() == false) {
             for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.allAssignments().values()) {
                 if (Optional.ofNullable(assignment.getNodeRoutingTable().get(nodeLoad.getNodeId()))

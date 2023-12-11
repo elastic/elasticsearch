@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,7 +47,7 @@ import static org.elasticsearch.core.Strings.format;
 
 public class TransportShardMultiGetAction extends TransportSingleShardAction<MultiGetShardRequest, MultiGetShardResponse> {
 
-    private static final String ACTION_NAME = MultiGetAction.NAME + "[shard]";
+    private static final String ACTION_NAME = TransportMultiGetAction.NAME + "[shard]";
     public static final ActionType<MultiGetShardResponse> TYPE = new ActionType<>(ACTION_NAME, MultiGetShardResponse::new);
     private static final Logger logger = LogManager.getLogger(TransportShardMultiGetAction.class);
 
@@ -203,7 +204,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                             ActionRunnable.supply(l, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId)).run();
                         } else {
                             assert r.segmentGeneration() > -1L;
-                            indexShard.waitForSegmentGeneration(
+                            assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
+                            indexShard.waitForPrimaryTermAndGeneration(
+                                r.primaryTerm(),
                                 r.segmentGeneration(),
                                 listener.delegateFailureAndWrap(
                                     (ll, aLong) -> getExecutor(request, shardId).execute(

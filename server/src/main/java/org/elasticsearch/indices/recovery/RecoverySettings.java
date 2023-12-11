@@ -14,7 +14,6 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -29,6 +28,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -46,10 +46,9 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
-    public static final Version SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_15_0;
-    public static final IndexVersion SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION = IndexVersion.V_7_15_0;
+    public static final IndexVersion SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION = IndexVersions.V_7_15_0;
     public static final TransportVersion SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION = TransportVersions.V_7_15_0;
-    public static final IndexVersion SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = IndexVersion.V_7_16_0;
+    public static final IndexVersion SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = IndexVersions.V_7_16_0;
     public static final TransportVersion SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION = TransportVersions.V_7_16_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);

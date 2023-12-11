@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.action.admin.cluster.allocation.DeleteDesiredBalanceAction;
-import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
-import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportDeleteDesiredBalanceAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportDeleteDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -34,18 +34,15 @@ import java.util.stream.Stream;
 public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
 
     public static final Set<String> SIMPLE_ACTIONS = Set.of(
-        AddVotingConfigExclusionsAction.NAME,
-        ClearVotingConfigExclusionsAction.NAME,
+        TransportAddVotingConfigExclusionsAction.TYPE.name(),
+        TransportClearVotingConfigExclusionsAction.TYPE.name(),
         PutLicenseAction.NAME,
         DeleteLicenseAction.NAME,
         // Autoscaling does not publish its actions to core, literal strings are needed.
         "cluster:admin/autoscaling/put_autoscaling_policy",
         "cluster:admin/autoscaling/delete_autoscaling_policy",
-        // Repository analysis actions are not mentioned in core, literal strings are needed.
+        // Repository analysis is not mentioned in core, a literal string is needed.
         "cluster:admin/repository/analyze",
-        "cluster:admin/repository/analyze/blob",
-        "cluster:admin/repository/analyze/blob/read",
-        "cluster:admin/repository/analyze/register",
         // Node shutdown APIs are operator only
         "cluster:admin/shutdown/create",
         "cluster:admin/shutdown/get",
@@ -53,11 +50,11 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         // Node removal prevalidation API
         PrevalidateNodeRemovalAction.NAME,
         // Desired Nodes API
-        DeleteDesiredNodesAction.NAME,
+        TransportDeleteDesiredNodesAction.TYPE.name(),
         GetDesiredNodesAction.NAME,
         UpdateDesiredNodesAction.NAME,
-        GetDesiredBalanceAction.NAME,
-        DeleteDesiredBalanceAction.NAME
+        TransportGetDesiredBalanceAction.TYPE.name(),
+        TransportDeleteDesiredBalanceAction.TYPE.name()
     );
 
     private final ClusterSettings clusterSettings;

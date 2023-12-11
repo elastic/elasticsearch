@@ -22,6 +22,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -53,7 +54,7 @@ public class TransportActionProxyTests extends ESTestCase {
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
     protected static final VersionInformation version0 = new VersionInformation(
         CURRENT_VERSION.minimumCompatibilityVersion(),
-        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
     protected static final TransportVersion transportVersion0 = TransportVersions.MINIMUM_COMPATIBLE;
@@ -63,7 +64,7 @@ public class TransportActionProxyTests extends ESTestCase {
 
     protected static final VersionInformation version1 = new VersionInformation(
         Version.fromId(CURRENT_VERSION.id + 1),
-        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
     protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.current().id() + 1);

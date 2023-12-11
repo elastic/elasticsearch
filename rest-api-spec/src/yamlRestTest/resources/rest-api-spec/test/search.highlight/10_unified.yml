@@ -93,3 +93,50 @@ teardown:
   - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown."}
   - match: {hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown."}
   - match: {hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown."}
+---
+"Test hybrid search with knn where automatically disables weighted mode":
+  - skip:
+      version: ' - 8.11.99'
+      reason: 'kNN was not correctly skipped until 8.12'
+
+  - do:
+      indices.create:
+        index: test-highlighting-knn
+        body:
+          mappings:
+            "properties":
+              "vectors":
+                "type": "dense_vector"
+                "dims": 2
+                "index": true
+                "similarity": "l2_norm"
+              "text":
+                "type": "text"
+                "fields":
+                  "fvh":
+                    "type": "text"
+                    "term_vector": "with_positions_offsets"
+                  "postings":
+                    "type": "text"
+                    "index_options": "offsets"
+  - do:
+      index:
+        index: test-highlighting-knn
+        id:    "1"
+        body:
+          "text" : "The quick brown fox is brown."
+          "vectors": [1, 2]
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test-highlighting-knn
+        body: {
+          "query": { "multi_match": { "query": "quick brown fox", "type": "phrase", "fields": [ "text*" ] } },
+          "highlight": { "type": "unified", "fields": { "*": { } } },
+          "knn": { "field": "vectors", "query_vector": [1, 2], "k": 10, "num_candidates": 10 } }
+
+  - match: { hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }
+  - match: { hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }
+  - match: { hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }

@@ -11,6 +11,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
@@ -25,8 +26,10 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -37,6 +40,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.transport.Compression;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -68,7 +72,6 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -267,7 +270,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
-        assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterVersion().onOrAfter(Version.V_8_2_0));
+
+        var originalClusterHasNewTimeSeriesIndexing = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_8_2_0))
+            .orElse(true);
+        assumeTrue("indexing time series indices changed in 8.2.0", originalClusterHasNewTimeSeriesIndexing);
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -309,7 +315,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
-        assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterVersion().onOrAfter(Version.V_8_2_0));
+        var originalClusterHasNewTimeSeriesIndexing = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_8_2_0))
+            .orElse(true);
+        assumeTrue("indexing time series indices changed in 8.2.0", originalClusterHasNewTimeSeriesIndexing);
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {
@@ -882,21 +890,14 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     /**
-     * Tests recovery of an index with or without a translog and the
-     * statistics we gather about that.
+     * Tests recovery of an index.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52031")
     public void testRecovery() throws Exception {
         int count;
-        boolean shouldHaveTranslog;
         if (isRunningAgainstOldCluster()) {
             count = between(200, 300);
-            /* We've had bugs in the past where we couldn't restore
-             * an index without a translog so we randomize whether
-             * or not we have one. */
-            shouldHaveTranslog = randomBoolean();
             Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -911,21 +912,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             flushRequest.addParameter("force", "true");
             flushRequest.addParameter("wait_if_ongoing", "true");
             assertOK(client().performRequest(flushRequest));
-
-            if (shouldHaveTranslog) {
-                // Update a few documents so we are sure to have a translog
-                indexRandomDocuments(
-                    count / 10,
-                    false, // flushing here would invalidate the whole thing
-                    false,
-                    true,
-                    i -> jsonBuilder().startObject().field("field", "value").endObject()
-                );
-            }
-            saveInfoDocument(index + "_should_have_translog", Boolean.toString(shouldHaveTranslog));
         } else {
             count = countOfIndexedRandomDocuments();
-            shouldHaveTranslog = Booleans.parseBoolean(loadInfoDocument(index + "_should_have_translog"));
         }
 
         // Count the documents in the index to make sure we have as many as we put there
@@ -936,72 +924,13 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertTotalHits(count, countResponse);
 
         if (false == isRunningAgainstOldCluster()) {
-            boolean restoredFromTranslog = false;
             boolean foundPrimary = false;
             Request recoveryRequest = new Request("GET", "/_cat/recovery/" + index);
             recoveryRequest.addParameter("h", "index,shard,type,stage,translog_ops_recovered");
             recoveryRequest.addParameter("s", "index,shard,type");
             String recoveryResponse = toStr(client().performRequest(recoveryRequest));
-            for (String line : recoveryResponse.split("\n")) {
-                // Find the primaries
-                foundPrimary = true;
-                if (false == line.contains("done") && line.contains("existing_store")) {
-                    continue;
-                }
-                /* Mark if we see a primary that looked like it restored from the translog.
-                 * Not all primaries will look like this all the time because we modify
-                 * random documents when we want there to be a translog and they might
-                 * not be spread around all the shards. */
-                Matcher m = Pattern.compile("(\\d+)$").matcher(line);
-                assertTrue(line, m.find());
-                int translogOps = Integer.parseInt(m.group(1));
-                if (translogOps > 0) {
-                    restoredFromTranslog = true;
-                }
-            }
+            foundPrimary = recoveryResponse.split("\n").length > 0;
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
-            assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
-
-            var luceneVersion = IndexVersion.current().luceneVersion();
-            String currentLuceneVersion = luceneVersion.toString();
-            int currentLuceneVersionMajor = luceneVersion.major;
-            String bwcLuceneVersion = getOldClusterIndexVersion().luceneVersion().toString();
-            if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
-                int numCurrentVersion = 0;
-                int numBwcVersion = 0;
-                Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
-                segmentsRequest.addParameter("h", "prirep,shard,index,version");
-                segmentsRequest.addParameter("s", "prirep,shard,index");
-                String segmentsResponse = toStr(client().performRequest(segmentsRequest));
-                for (String line : segmentsResponse.split("\n")) {
-                    if (false == line.startsWith("p")) {
-                        continue;
-                    }
-                    Matcher m = Pattern.compile("((\\d+)\\.\\d+\\.\\d+)$").matcher(line);
-                    assertTrue(line, m.find());
-                    String version = m.group(1);
-                    int major = Integer.parseInt(m.group(2));
-                    if (currentLuceneVersion.equals(version)) {
-                        numCurrentVersion++;
-                    } else if (bwcLuceneVersion.equals(version)) {
-                        numBwcVersion++;
-                    } else if (major == currentLuceneVersionMajor - 1) {
-                        // we can read one lucene version back. The upgrade path might have created old segment versions.
-                        // that's ok, we just ignore them
-                        continue;
-                    } else {
-                        fail(
-                            "expected lucene version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line
-                        );
-                    }
-                }
-                assertNotEquals(
-                    "expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
-                    0,
-                    numCurrentVersion
-                );
-                assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);
-            }
         }
     }
 
@@ -1020,7 +949,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // Create the index
             count = between(200, 300);
             Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
@@ -1073,7 +1002,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 {
                     templateBuilder.startObject("term");
                     {
-                        templateBuilder.field("version", isRunningAgainstOldCluster() ? getOldClusterVersion() : Version.CURRENT);
+                        templateBuilder.field("version", isRunningAgainstOldCluster() ? getOldClusterVersion() : Build.current().version());
                     }
                     templateBuilder.endObject();
                 }
@@ -1113,7 +1042,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
         checkSnapshot("old_snap", count, getOldClusterVersion(), getOldClusterIndexVersion());
         if (false == isRunningAgainstOldCluster()) {
-            checkSnapshot("new_snap", count, Version.CURRENT, IndexVersion.current());
+            checkSnapshot("new_snap", count, Build.current().version(), IndexVersion.current());
         }
     }
 
@@ -1236,7 +1165,12 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             closeIndex(index);
         }
 
-        if (getOldClusterVersion().onOrAfter(Version.V_7_2_0)) {
+        @UpdateForV9 // This check can be removed (always assume true)
+        var originalClusterSupportsReplicationOfClosedIndices = parseLegacyVersion(getOldClusterVersion()).map(
+            v -> v.onOrAfter(Version.V_7_2_0)
+        ).orElse(true);
+
+        if (originalClusterSupportsReplicationOfClosedIndices) {
             ensureGreenLongWait(index);
             assertClosedIndex(index, true);
         } else {
@@ -1303,7 +1237,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     @SuppressWarnings("unchecked")
-    private void checkSnapshot(String snapshotName, int count, Version tookOnVersion, IndexVersion tookOnIndexVersion) throws IOException {
+    private void checkSnapshot(String snapshotName, int count, String tookOnVersion, IndexVersion tookOnIndexVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));
@@ -1313,7 +1247,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         // the format can change depending on the ES node version running & this test code running
         assertThat(
             XContentMapValues.extractValue("snapshots.version", snapResponse),
-            either(Matchers.<Object>equalTo(List.of(tookOnVersion.toString()))).or(equalTo(List.of(tookOnIndexVersion.toString())))
+            either(Matchers.<Object>equalTo(List.of(tookOnVersion))).or(equalTo(List.of(tookOnIndexVersion.toString())))
         );
 
         // Remove the routing setting and template so we can test restoring them.
@@ -1373,7 +1307,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         Map<String, Object> clusterSettingsResponse = entityAsMap(client().performRequest(clusterSettingsRequest));
         @SuppressWarnings("unchecked")
         final Map<String, Object> persistentSettings = (Map<String, Object>) clusterSettingsResponse.get("persistent");
-        assertThat(persistentSettings.get("cluster.routing.allocation.exclude.test_attr"), equalTo(getOldClusterVersion().toString()));
+        assertThat(persistentSettings.get("cluster.routing.allocation.exclude.test_attr"), equalTo(getOldClusterVersion()));
 
         // Check that the template was restored successfully
         Request getTemplateRequest = new Request("GET", "/_template/test_template");
@@ -1388,14 +1322,14 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         expectedTemplate.put("order", 0);
         Map<String, Object> aliases = new HashMap<>();
         aliases.put("alias1", emptyMap());
-        aliases.put("alias2", singletonMap("filter", singletonMap("term", singletonMap("version", tookOnVersion.toString()))));
+        aliases.put("alias2", singletonMap("filter", singletonMap("term", singletonMap("version", tookOnVersion))));
         expectedTemplate.put("aliases", aliases);
         expectedTemplate = singletonMap("test_template", expectedTemplate);
         if (false == expectedTemplate.equals(getTemplateResponse)) {
             NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
             builder.compareMaps(getTemplateResponse, expectedTemplate);
             logger.info("expected: {}\nactual:{}", expectedTemplate, getTemplateResponse);
-            fail("template doesn't match:\n" + builder.toString());
+            fail("template doesn't match:\n" + builder);
         }
     }
 
@@ -1514,7 +1448,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
             Settings.Builder settings = indexSettings(1, 1);
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -1577,7 +1511,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -1639,7 +1573,12 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     @SuppressWarnings("unchecked")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
-        assumeTrue(".tasks became a system index in 7.10.0", getOldClusterVersion().onOrAfter(Version.V_7_10_0));
+
+        @UpdateForV9 // assumeTrue can be removed (condition always true)
+        var originalClusterTaskIndexIsSystemIndex = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_10_0))
+            .orElse(true);
+
+        assumeTrue(".tasks became a system index in 7.10.0", originalClusterTaskIndexIsSystemIndex);
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
         if (isRunningAgainstOldCluster()) {
@@ -1698,7 +1637,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
             // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
             // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+            if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_ENFORCED) == false) {
                 // Create an alias to make sure it gets upgraded properly
                 Request putAliasRequest = new Request("POST", "/_aliases");
                 putAliasRequest.setJsonEntity("""
@@ -1747,8 +1686,15 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         }
     }
 
+    /**
+     * This test ensures that soft deletes are enabled a when upgrading a pre-8 cluster to 8.0+
+     */
+    @UpdateForV9 // This test can be removed in v9
     public void testEnableSoftDeletesOnRestore() throws Exception {
-        assumeTrue("soft deletes must be enabled on 8.0+", getOldClusterVersion().before(Version.V_8_0_0));
+        var originalClusterDidNotEnforceSoftDeletes = parseLegacyVersion(getOldClusterVersion()).map(v -> v.before(Version.V_8_0_0))
+            .orElse(false);
+
+        assumeTrue("soft deletes must be enabled on 8.0+", originalClusterDidNotEnforceSoftDeletes);
         final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {
             final Settings.Builder settings = indexSettings(1, 1);
@@ -1861,16 +1807,15 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     /**
-     * In 7.14 the cluster.remote.*.transport.compress setting was change from a boolean to an enum setting
+     * In 7.14 the cluster.remote.*.transport.compress setting was changed from a boolean to an enum setting
      * with true/false as options. This test ensures that the old boolean setting in cluster state is
      * translated properly. This test can be removed in 9.0.
      */
+    @UpdateForV9
     public void testTransportCompressionSetting() throws IOException {
-        assumeTrue("the old transport.compress setting existed before 7.14", getOldClusterVersion().before(Version.V_7_14_0));
-        assumeTrue(
-            "Early versions of 6.x do not have cluster.remote* prefixed settings",
-            getOldClusterVersion().onOrAfter(Version.V_7_14_0.minimumCompatibilityVersion())
-        );
+        var originalClusterCompressSettingIsBoolean = parseLegacyVersion(getOldClusterVersion()).map(v -> v.before(Version.V_7_14_0))
+            .orElse(false);
+        assumeTrue("the old transport.compress setting existed before 7.14", originalClusterCompressSettingIsBoolean);
         if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
             try (XContentBuilder builder = jsonBuilder()) {

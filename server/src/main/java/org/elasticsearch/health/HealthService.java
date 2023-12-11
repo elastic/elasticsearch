@@ -182,7 +182,7 @@ public class HealthService {
      * @param results                  The results that the listener will be notified of, if they pass validation
      * @param listener                 A listener to be notified of results
      */
-    private void validateResultsAndNotifyListener(
+    private static void validateResultsAndNotifyListener(
         @Nullable String indicatorName,
         List<HealthIndicatorResult> results,
         ActionListener<List<HealthIndicatorResult>> listener
@@ -203,7 +203,7 @@ public class HealthService {
      * @param computeDetails If details should be calculated on which indicators are causing the UNKNOWN state.
      * @return Details explaining why results are UNKNOWN, or an empty detail set if computeDetails is false.
      */
-    private HealthIndicatorDetails healthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
+    private static HealthIndicatorDetails healthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
         assert preflightResults.isEmpty() == false : "Requires at least one non-GREEN preflight result";
         HealthIndicatorDetails unknownDetails;
         if (computeDetails) {
@@ -226,7 +226,7 @@ public class HealthService {
      * @param details the details to include on the result
      * @return A result with the UNKNOWN status
      */
-    private HealthIndicatorResult generateUnknownResult(
+    private static HealthIndicatorResult generateUnknownResult(
         HealthIndicatorService indicatorService,
         String summary,
         HealthIndicatorDetails details

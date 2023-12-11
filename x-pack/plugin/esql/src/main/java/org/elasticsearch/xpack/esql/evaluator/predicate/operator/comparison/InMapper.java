@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -55,16 +54,16 @@ public class InMapper extends ExpressionMapper<In> {
 
             for (int i = 0; i < listEvaluators().size(); i++) {
                 var evaluator = listEvaluators.get(i);
-                Block block = evaluator.eval(page);
-
-                Vector vector = block.asVector();
-                if (vector != null) {
-                    updateValues((BooleanVector) vector, values);
-                } else {
-                    if (block.areAllValuesNull()) {
-                        nullInValues = true;
+                try (BooleanBlock block = (BooleanBlock) evaluator.eval(page)) {
+                    BooleanVector vector = block.asVector();
+                    if (vector != null) {
+                        updateValues(vector, values);
                     } else {
-                        updateValues((BooleanBlock) block, values, nulls);
+                        if (block.areAllValuesNull()) {
+                            nullInValues = true;
+                        } else {
+                            updateValues(block, values, nulls);
+                        }
                     }
                 }
             }

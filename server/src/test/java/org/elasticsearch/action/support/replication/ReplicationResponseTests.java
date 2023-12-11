@@ -151,10 +151,14 @@ public class ReplicationResponseTests extends ESTestCase {
                 assertEquals(expectedFailure.status(), actualFailure.status());
                 assertEquals(expectedFailure.nodeId(), actualFailure.nodeId());
                 assertEquals(expectedFailure.primary(), actualFailure.primary());
-
-                ElasticsearchException expectedCause = (ElasticsearchException) expectedFailure.getCause();
-                ElasticsearchException actualCause = (ElasticsearchException) actualFailure.getCause();
-                assertDeepEquals(expectedCause, actualCause);
+                Throwable expectedCause = expectedFailure.getCause();
+                Throwable actualCause = actualFailure.getCause();
+                if (expectedCause instanceof ElasticsearchException) {
+                    assertDeepEquals((ElasticsearchException) expectedCause, (ElasticsearchException) actualCause);
+                } else {
+                    assertEquals(expectedCause.getClass(), actualCause.getClass());
+                    assertEquals(expectedCause.getMessage(), actualCause.getMessage());
+                }
             }
         }
     }

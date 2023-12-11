@@ -92,9 +92,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 (Optional, Boolean) If `true`, the response includes additional details about
 score computation as part of a hit. Defaults to `false`.
 
-`ignore_throttled`::
-(Optional, Boolean) If `true`, specified concrete, expanded, or aliased indices
-are not included in the response when throttled. Defaults to `true`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

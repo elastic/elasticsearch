@@ -19,14 +19,28 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.util.ElementFilter;
 
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
+import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
+import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR_BUILDER;
+import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR_FIXED_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK_BUILDER;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
+import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
+import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_BUILDER;
+import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_FIXED_BUILDER;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
+import static org.elasticsearch.compute.gen.Types.INT_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
+import static org.elasticsearch.compute.gen.Types.INT_VECTOR_BUILDER;
+import static org.elasticsearch.compute.gen.Types.INT_VECTOR_FIXED_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
+import static org.elasticsearch.compute.gen.Types.LONG_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
+import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_BUILDER;
+import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_FIXED_BUILDER;
 
 /**
  * Finds declared methods for the code generator.
@@ -93,6 +107,56 @@ public class Methods {
             return "appendDouble";
         }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
+    }
+
+    /**
+     * Returns the name of the method used to build {@code t} instances
+     * from a {@code BlockFactory}.
+     */
+    static String buildFromFactory(TypeName t) {
+        if (t.equals(BOOLEAN_BLOCK_BUILDER)) {
+            return "newBooleanBlockBuilder";
+        }
+        if (t.equals(BOOLEAN_VECTOR_FIXED_BUILDER)) {
+            return "newBooleanVectorFixedBuilder";
+        }
+        if (t.equals(BOOLEAN_VECTOR_BUILDER)) {
+            return "newBooleanVectorBuilder";
+        }
+        if (t.equals(BYTES_REF_BLOCK_BUILDER)) {
+            return "newBytesRefBlockBuilder";
+        }
+        if (t.equals(BYTES_REF_VECTOR_BUILDER)) {
+            return "newBytesRefVectorBuilder";
+        }
+        if (t.equals(INT_BLOCK_BUILDER)) {
+            return "newIntBlockBuilder";
+        }
+        if (t.equals(INT_VECTOR_FIXED_BUILDER)) {
+            return "newIntVectorFixedBuilder";
+        }
+        if (t.equals(INT_VECTOR_BUILDER)) {
+            return "newIntVectorBuilder";
+        }
+        if (t.equals(LONG_BLOCK_BUILDER)) {
+            return "newLongBlockBuilder";
+        }
+        if (t.equals(LONG_VECTOR_FIXED_BUILDER)) {
+            return "newLongVectorFixedBuilder";
+        }
+        if (t.equals(LONG_VECTOR_BUILDER)) {
+            return "newLongVectorBuilder";
+        }
+        if (t.equals(DOUBLE_BLOCK_BUILDER)) {
+            return "newDoubleBlockBuilder";
+        }
+        if (t.equals(DOUBLE_VECTOR_BUILDER)) {
+            return "newDoubleVectorBuilder";
+        }
+        if (t.equals(DOUBLE_VECTOR_FIXED_BUILDER)) {
+            return "newDoubleVectorFixedBuilder";
+        }
+        throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }
 
     /**

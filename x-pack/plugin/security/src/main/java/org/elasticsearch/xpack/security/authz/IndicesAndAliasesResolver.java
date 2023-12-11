@@ -160,19 +160,6 @@ class IndicesAndAliasesResolver {
             );
         }
 
-        // TODO: Shard level requests have wildcard expanded already and do not need go through this check
-        final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).toList();
-        if (wildcards.isEmpty() == false) {
-            throw new IllegalArgumentException(
-                "the action "
-                    + action
-                    + " does not support wildcards;"
-                    + " the provided index expression(s) ["
-                    + Strings.collectionToCommaDelimitedString(wildcards)
-                    + "] are not allowed"
-            );
-        }
-
         // NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
         // replacing their indices.
         // That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
@@ -180,9 +167,26 @@ class IndicesAndAliasesResolver {
         // shard level requests.
         final List<String> localIndices = new ArrayList<>(indices.length);
         for (String name : indices) {
+            // TODO: Shard level requests have wildcard expanded already and do not need go through this check
+            if (Regex.isSimpleMatchPattern(name)) {
+                throwOnUnexpectedWildcards(action, indices);
+            }
             localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(name));
         }
         return new ResolvedIndices(localIndices, List.of());
+    }
+
+    private static void throwOnUnexpectedWildcards(String action, String[] indices) {
+        final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).toList();
+        assert wildcards.isEmpty() == false : "we already know that there's at least one wildcard in the indices";
+        throw new IllegalArgumentException(
+            "the action "
+                + action
+                + " does not support wildcards;"
+                + " the provided index expression(s) ["
+                + Strings.collectionToCommaDelimitedString(wildcards)
+                + "] are not allowed"
+        );
     }
 
     ResolvedIndices resolveIndicesAndAliases(

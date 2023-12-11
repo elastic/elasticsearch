@@ -34,7 +34,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 * `text`
 * `unsigned_long`
 * `version`
-* Geo/spatial
+* Spatial types
 ** `geo_point`
 ** `point`
 
@@ -47,7 +47,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** `counter`
 ** `position`
 ** `aggregate_metric_double`
-* Geo/spatial
+* Spatial types
 ** `geo_shape`
 ** `shape`
 * Date/time

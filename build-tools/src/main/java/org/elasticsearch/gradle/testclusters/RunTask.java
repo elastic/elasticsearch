@@ -213,7 +213,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
                 // if metrics were not enabled explicitly for gradlew run we should disable them
                 else if (node.getSettingKeys().contains("telemetry.metrics.enabled") == false) { // metrics
                     node.setting("telemetry.metrics.enabled", "false");
-                } else if (node.getSettingKeys().contains("tracing.apm.agent.enabled") == false) { //tracing
+                } else if (node.getSettingKeys().contains("tracing.apm.agent.enabled") == false) { // tracing
                     node.setting("tracing.apm.agent.enable", "false");
                 }
 

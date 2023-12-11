@@ -138,7 +138,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 // intentionally not writing any docs
             }
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
@@ -165,7 +165,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedMaxValue = Double.NEGATIVE_INFINITY;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -214,7 +214,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedMaxValue = Double.NEGATIVE_INFINITY;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -264,7 +264,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedSum = 0;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -388,7 +388,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
     public void testNestedOrdering() throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 iw.addDocuments(generateBook("1", new String[] { "a" }, new int[] { 12, 13, 14 }));
                 iw.addDocuments(generateBook("2", new String[] { "b" }, new int[] { 5, 50 }));
                 iw.addDocuments(generateBook("3", new String[] { "c" }, new int[] { 39, 19 }));
@@ -515,7 +515,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             books.add(Tuple.tuple(Strings.format("%03d", i), chapters));
         }
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 int id = 0;
                 for (Tuple<String, int[]> book : books) {
                     iw.addDocuments(generateBook(Strings.format("%03d", id), new String[] { book.v1() }, book.v2()));
@@ -565,7 +565,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
     public void testPreGetChildLeafCollectors() throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 List<Iterable<IndexableField>> documents = new ArrayList<>();
                 LuceneDocument document = new LuceneDocument();
                 document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("1"), Field.Store.NO));
@@ -683,7 +683,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -724,7 +724,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedMaxValue = Double.NEGATIVE_INFINITY;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     expectedMaxValue = Math.max(expectedMaxValue, generateMaxDocs(documents, 1, i, NESTED_OBJECT, VALUE_FIELD_NAME));
@@ -790,7 +790,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 )
             );
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 buildResellerData(numProducts, numResellers).accept(iw);
             }
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {

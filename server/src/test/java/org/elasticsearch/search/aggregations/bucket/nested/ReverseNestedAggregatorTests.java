@@ -61,7 +61,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
 
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 // intentionally not writing any docs
             }
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
@@ -90,7 +90,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedMaxValue = Double.NEGATIVE_INFINITY;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numParentDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -146,7 +146,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numParentDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -211,7 +211,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         );
 
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 NestedAggregatorTests.buildResellerData(numProducts, numResellers).accept(iw);
             }
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {

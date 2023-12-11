@@ -767,7 +767,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES), true);
+        },
+            new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES)
+                .withLogDocMergePolicy()
+        );
     }
 
     /**
@@ -820,8 +823,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 builder,
                 new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            ),
-            true
+            ).withLogDocMergePolicy()
         );
     }
 
@@ -876,8 +878,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 builder,
                 new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            ),
-            true
+            ).withLogDocMergePolicy()
         );
     }
 
@@ -3098,7 +3099,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testParentFactoryValidation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter indexWriter = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 Document document = new Document();
                 document.clear();
                 addToDocument(0, document, createDocument("term-field", "a", "long", 100L));

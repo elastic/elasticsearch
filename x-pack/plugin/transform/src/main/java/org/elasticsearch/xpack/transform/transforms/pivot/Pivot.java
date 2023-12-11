@@ -148,9 +148,9 @@ public class Pivot extends AbstractCompositeAggFunction {
         // < 7.11 as epoch millis
         // >= 7.11 as string
         // note: it depends on the version when the transform has been created, not the version of the code
-        boolean datesAsEpoch = settings.getDatesAsEpochMillis() != null ? settings.getDatesAsEpochMillis()
-            : version.onOrAfter(TransformConfigVersion.V_7_11_0) ? false
-            : true;
+        boolean datesAsEpoch = settings.getDatesAsEpochMillis() != null
+            ? settings.getDatesAsEpochMillis()
+            : version.before(TransformConfigVersion.V_7_11_0);
 
         return AggregationResultUtils.extractCompositeAggregationResults(
             agg,

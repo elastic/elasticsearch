@@ -18,6 +18,8 @@ setup:
       connector.check_in:
         connector_id: test-connector
 
+  - match: { result: updated }
+
   - do:
       connector.get:
         connector_id: test-connector

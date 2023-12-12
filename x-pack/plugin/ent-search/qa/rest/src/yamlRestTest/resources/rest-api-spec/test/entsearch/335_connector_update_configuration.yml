@@ -39,6 +39,9 @@ setup:
                   type: greater_than
               value: 123
 
+
+  - match: { result: updated }
+
   - do:
       connector.get:
         connector_id: test-connector
@@ -47,6 +50,7 @@ setup:
   - match: { configuration.some_field.sensitive: false }
   - match: { configuration.some_field.display: numeric }
   - match: { status: configured }
+
 
   - do:
       connector.update_configuration:
@@ -72,11 +76,14 @@ setup:
                   type: greater_than
               value: 456
 
+  - match: { result: updated }
+
   - do:
       connector.get:
         connector_id: test-connector
 
   - match: { configuration.some_field.value: 456 }
+  - match: { status: configured }
 
 ---
 "Update Connector Configuration - Connector doesn't exist":

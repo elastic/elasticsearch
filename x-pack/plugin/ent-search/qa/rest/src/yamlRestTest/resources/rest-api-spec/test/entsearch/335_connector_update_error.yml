@@ -21,6 +21,9 @@ setup:
         body:
           error: "some error"
 
+
+  - match: { result: updated }
+
   - do:
       connector.get:
         connector_id: test-connector

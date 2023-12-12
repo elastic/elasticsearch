@@ -38,6 +38,8 @@ setup:
             reduce_whitespace: true
             run_ml_inference: false
 
+  - match: { result: updated }
+
   - do:
       connector.get:
         connector_id: test-connector

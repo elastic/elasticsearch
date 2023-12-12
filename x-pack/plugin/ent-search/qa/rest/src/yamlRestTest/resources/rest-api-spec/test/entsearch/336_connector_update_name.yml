@@ -21,6 +21,9 @@ setup:
         body:
           name: test-name
 
+
+  - match: { result: updated }
+
   - do:
       connector.get:
         connector_id: test-connector
@@ -35,6 +38,8 @@ setup:
         body:
           name: test-name
           description: test-description
+
+  - match: { result: updated }
 
   - do:
       connector.get:

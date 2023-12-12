@@ -452,11 +452,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void putShutdownForRemovalMetadata(ClusterService clusterService, String nodeName, ActionListener<Void> listener) {
-        final var shutdownType = randomFrom(
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            SingleNodeShutdownMetadata.Type.SIGTERM
-            // not testing REPLACE just because it requires us to specify the replacement node
-        );
+        // not testing REPLACE just because it requires us to specify the replacement node
+        final var shutdownType = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM);
         final var shutdownMetadata = SingleNodeShutdownMetadata.builder()
             .setType(shutdownType)
             .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())

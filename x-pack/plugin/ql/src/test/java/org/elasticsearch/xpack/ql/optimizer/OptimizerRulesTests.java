@@ -1771,6 +1771,15 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
     }
 
+    public void testIsNotNullOnIsNullField() {
+        EsRelation relation = relation();
+        var fieldA = getFieldAttribute("a");
+        Expression inn = isNotNull(fieldA);
+        Filter f = new Filter(EMPTY, relation, inn);
+
+        assertEquals(f, new OptimizerRules.InferIsNotNull().apply(f));
+    }
+
     public void testIsNotNullOnOperatorWithOneField() {
         EsRelation relation = relation();
         var fieldA = getFieldAttribute("a");

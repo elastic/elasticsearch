@@ -71,6 +71,7 @@ import java.util.function.BiFunction;
 
 import static java.lang.Math.signum;
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineAnd;
@@ -1798,8 +1799,8 @@ public final class OptimizerRules {
      * This handles the case of fields nested inside functions or expressions in order to avoid:
      * - having to evaluate the whole expression
      * - not pushing down the filter due to expression evaluation
-     * IS NULL cannot be simplified since it leads to a disjunction which cannot prevents the simplified IS NULL
-     * to be pushed down:
+     * IS NULL cannot be simplified since it leads to a disjunction which prevents the filter to be
+     * pushed down:
      * (x + 1) IS NULL --> x IS NULL OR x + 1 IS NULL
      * and x IS NULL cannot be pushed down
      * <br/>
@@ -1843,30 +1844,30 @@ public final class OptimizerRules {
          */
         protected Set<Expression> resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases) {
             Set<Expression> resolvedExpressions = new LinkedHashSet<>();
-            doResolve(exp, aliases, resolvedExpressions);
-            return resolvedExpressions;
+            boolean changed = doResolve(exp, aliases, resolvedExpressions);
+            return changed ? resolvedExpressions : emptySet();
         }
 
-        private void doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
-            if (skipExpression(exp)) {
+        private boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
+            boolean changed = false;
+            // check if the expression can be skipped or is not nullabe
+            if (skipExpression(exp) || exp.nullable() == Nullability.FALSE) {
                 resolvedExpressions.add(exp);
             } else {
-                // expression might be nullable, go after it
-                if (exp.nullable() != Nullability.FALSE) {
-                    for (Expression e : exp.references()) {
-                        Expression resolved = aliases.resolve(e, e);
-                        // found a root attribute, bail out
-                        if (resolved instanceof Attribute a && resolved == e) {
-                            resolvedExpressions.add(a);
-                        } else {
-                            // go further
-                            doResolve(resolved, aliases, resolvedExpressions);
-                        }
+                for (Expression e : exp.references()) {
+                    Expression resolved = aliases.resolve(e, e);
+                    // found a root attribute, bail out
+                    if (resolved instanceof Attribute a && resolved == e) {
+                        resolvedExpressions.add(a);
+                        // don't mark things as change if the original expression hasn't been broken down
+                        changed |= resolved != exp;
+                    } else {
+                        // go further
+                        changed |= doResolve(resolved, aliases, resolvedExpressions);
                     }
-                } else {
-                    resolvedExpressions.add(exp);
                 }
             }
+            return changed;
         }
 
         protected boolean skipExpression(Expression e) {

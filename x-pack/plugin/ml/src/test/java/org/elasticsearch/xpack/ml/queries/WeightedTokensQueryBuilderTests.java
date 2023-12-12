@@ -190,46 +190,54 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             List<Document> documents = List.of(
                 createDocument(
-                    List.of("the", "quick", "brown", "fox", "jumped", "over", "lazy", "dog"),
-                    List.of(.2f, 1.8f, 1.75f, 5.9f, 1.6f, 1.4f, .4f, 4.8f)
+                    List.of("the", "quick", "brown", "fox", "jumped", "over", "lazy", "dog", "me"),
+                    List.of(.2f, 1.8f, 1.75f, 5.9f, 1.6f, 1.4f, .4f, 4.8f, 2.1f)
                 ),
                 createDocument(
-                    List.of("the", "rains", "in", "spain", "fall", "mainly", "on", "plain"),
-                    List.of(.1f, 3.6f, .1f, 4.8f, .6f, .3f, .1f, 2.6f)
+                    List.of("the", "rains", "in", "spain", "fall", "mainly", "on", "plain", "me"),
+                    List.of(.1f, 3.6f, .1f, 4.8f, .6f, .3f, .1f, 2.6f, 2.1f)
                 ),
                 createDocument(
-                    List.of("betty", "bought", "butter", "but", "the", "was", "bitter"),
-                    List.of(6.8f, 1.4f, .5f, 3.2f, .1f, 3.2f, .6f)
+                    List.of("betty", "bought", "butter", "but", "the", "was", "bitter", "me"),
+                    List.of(6.8f, 1.4f, .5f, 3.2f, .1f, 3.2f, .6f, 2.1f)
                 ),
-                createDocument(List.of("she", "sells", "seashells", "by", "the", "seashore"), List.of(.2f, 1.4f, 5.9f, .1f, .1f, 3.6f))
+                createDocument(
+                    List.of("she", "sells", "seashells", "by", "the", "seashore", "me"),
+                    List.of(.2f, 1.4f, 5.9f, .1f, .1f, 3.6f, 2.1f)
+                )
             );
             iw.addDocuments(documents);
+
+            List<WeightedToken> inputTokens = List.of(
+                new WeightedToken("the", .1f),      // Will be pruned - score too low, freq too high
+                new WeightedToken("black", 5.3f),   // Will be pruned - does not exist in index
+                new WeightedToken("dog", 7.5f),     // Will be kept - high score and low freq
+                new WeightedToken("jumped", 4.5f),  // Will be kept - high score and low freq
+                new WeightedToken("on", .1f),       // Will be kept - low score but also low freq
+                new WeightedToken("me", 3.8f)       // Will be kept - high freq but also high score
+            );
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
 
-                WeightedTokensQueryBuilder noPruningQuery = new WeightedTokensQueryBuilder(
-                    RANK_FEATURES_FIELD,
-                    List.of(new WeightedToken("the", .1f), new WeightedToken("dog", 2.5f), new WeightedToken("jumped", 4.5f)),
-                    null
-                );
+                WeightedTokensQueryBuilder noPruningQuery = new WeightedTokensQueryBuilder(RANK_FEATURES_FIELD, inputTokens, null);
                 Query query = noPruningQuery.doToQuery(context);
-                assertCorrectLuceneQuery("noPruningQuery", query, List.of("the", "dog", "jumped"));
+                assertCorrectLuceneQuery("noPruningQuery", query, List.of("the", "black", "dog", "jumped", "on", "me"));
 
                 WeightedTokensQueryBuilder queryThatShouldBePruned = new WeightedTokensQueryBuilder(
                     RANK_FEATURES_FIELD,
-                    List.of(new WeightedToken("the", .1f), new WeightedToken("dog", 2.5f), new WeightedToken("jumped", 4.5f)),
+                    inputTokens,
                     new TokenPruningConfig(1.5f, 0.5f, false)
                 );
                 query = queryThatShouldBePruned.doToQuery(context);
-                assertCorrectLuceneQuery("queryThatShouldBePruned", query, List.of("dog", "jumped"));
+                assertCorrectLuceneQuery("queryThatShouldBePruned", query, List.of("dog", "jumped", "on", "me"));
 
                 WeightedTokensQueryBuilder onlyScorePrunedTokensQuery = new WeightedTokensQueryBuilder(
                     RANK_FEATURES_FIELD,
-                    List.of(new WeightedToken("the", .1f), new WeightedToken("dog", 2.5f), new WeightedToken("jumped", 4.5f)),
+                    inputTokens,
                     new TokenPruningConfig(1.5f, 0.5f, true)
                 );
                 query = onlyScorePrunedTokensQuery.doToQuery(context);
-                assertCorrectLuceneQuery("onlyScorePrunedTokensQuery", query, List.of("the"));
+                assertCorrectLuceneQuery("onlyScorePrunedTokensQuery", query, List.of("the", "black"));
             }
         }
     }

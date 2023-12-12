@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -21,8 +22,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.Transports;
 
-import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
@@ -33,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
@@ -90,20 +90,12 @@ public class HotThreads {
             return;
         }
 
-        final String hotThreads;
-        try {
-            hotThreads = new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect();
-        } catch (Exception e) {
-            logger.error(() -> org.elasticsearch.common.Strings.format("failed to detect local hot threads with prefix [%s]", prefix), e);
-            return;
-        }
-
         try (
             var stream = ChunkedLoggingStream.create(logger, level, prefix, referenceDocs);
             var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
         ) {
-            writer.write(hotThreads);
-        } catch (IOException e) {
+            new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect(writer);
+        } catch (Exception e) {
             logger.error(() -> org.elasticsearch.common.Strings.format("failed to write local hot threads with prefix [%s]", prefix), e);
         }
     }
@@ -194,12 +186,12 @@ public class HotThreads {
         return this;
     }
 
-    public String detect() throws Exception {
+    public void detect(Writer writer) throws Exception {
         synchronized (mutex) {
-            return innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), (interval) -> {
+            innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), (interval) -> {
                 Thread.sleep(interval);
                 return null;
-            });
+            }, writer);
         }
     }
 
@@ -270,8 +262,13 @@ public class HotThreads {
         return (((double) time) / interval.nanos()) * 100;
     }
 
-    String innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId, SleepFunction<Long, Void> threadSleep)
-        throws Exception {
+    void innerDetect(
+        ThreadMXBean threadBean,
+        SunThreadInfo sunThreadInfo,
+        long currentThreadId,
+        SleepFunction<Long, Void> threadSleep,
+        Writer writer
+    ) throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -286,14 +283,14 @@ public class HotThreads {
             throw new ElasticsearchException("thread wait/blocked time accounting is not supported on this JDK");
         }
 
-        StringBuilder sb = new StringBuilder().append("Hot threads at ")
+        writer.append("Hot threads at ")
             .append(DATE_TIME_FORMATTER.format(LocalDateTime.now(Clock.systemUTC())))
             .append(", interval=")
-            .append(interval)
+            .append(interval.toString())
             .append(", busiestThreads=")
-            .append(busiestThreads)
+            .append(Integer.toString(busiestThreads))
             .append(", ignoreIdleThreads=")
-            .append(ignoreIdleThreads)
+            .append(Boolean.toString(ignoreIdleThreads))
             .append(":\n");
 
         // Capture before and after thread state with timings
@@ -343,9 +340,8 @@ public class HotThreads {
             ThreadTimeAccumulator topThread = topThreads.get(t);
 
             switch (type) {
-                case MEM -> sb.append(
-                    String.format(
-                        Locale.ROOT,
+                case MEM -> writer.append(
+                    Strings.format(
                         "%n%s memory allocated by thread '%s'%n",
                         ByteSizeValue.ofBytes(topThread.getAllocatedBytes()),
                         threadName
@@ -358,9 +354,8 @@ public class HotThreads {
                         : getTimeSharePercentage(topThread.getOtherTime());
                     double percentTotal = (Transports.isTransportThread(threadName)) ? percentCpu : percentOther + percentCpu;
                     String otherLabel = (Transports.isTransportThread(threadName)) ? "idle" : "other";
-                    sb.append(
-                        String.format(
-                            Locale.ROOT,
+                    writer.append(
+                        Strings.format(
                             "%n%4.1f%% [cpu=%1.1f%%, %s=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
                             percentTotal,
                             percentCpu,
@@ -376,9 +371,8 @@ public class HotThreads {
                 default -> {
                     long time = ThreadTimeAccumulator.valueGetterForReportType(type).applyAsLong(topThread);
                     double percent = getTimeSharePercentage(time);
-                    sb.append(
-                        String.format(
-                            Locale.ROOT,
+                    writer.append(
+                        Strings.format(
                             "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
                             percent,
                             TimeValue.timeValueNanos(time),
@@ -417,29 +411,21 @@ public class HotThreads {
                 if (allInfos[i][t] != null) {
                     final StackTraceElement[] show = allInfos[i][t].getStackTrace();
                     if (count == 1) {
-                        sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
+                        writer.append(Strings.format("  unique snapshot%n"));
                         for (StackTraceElement frame : show) {
-                            sb.append(String.format(Locale.ROOT, "    %s%n", frame));
+                            writer.append(Strings.format("    %s%n", frame));
                         }
                     } else {
-                        sb.append(
-                            String.format(
-                                Locale.ROOT,
-                                "  %d/%d snapshots sharing following %d elements%n",
-                                count,
-                                threadElementsSnapshotCount,
-                                maxSim
-                            )
+                        writer.append(
+                            Strings.format("  %d/%d snapshots sharing following %d elements%n", count, threadElementsSnapshotCount, maxSim)
                         );
                         for (int l = show.length - maxSim; l < show.length; l++) {
-                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
+                            writer.append(Strings.format("    %s%n", show[l]));
                         }
                     }
                 }
             }
         }
-
-        return sb.toString();
     }
 
     static int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {

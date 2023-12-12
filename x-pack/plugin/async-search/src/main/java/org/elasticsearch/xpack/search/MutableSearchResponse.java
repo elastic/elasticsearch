@@ -47,21 +47,32 @@ class MutableSearchResponse {
     private int successfulShards;
     private TotalHits totalHits;
     /**
-     * How we get the reduced aggs when {@link #finalResponse} isn't populated.
+     * For local-only searches and cross-cluster searches when minimize_roundtrips=false:
+     * How we get the reduced aggs when {@link #latestFullResponse} isn't populated.
      * We default to returning no aggs, this {@code -> null}. We'll replace
      * this as we receive updates on the search progress listener.
      */
     private Supplier<InternalAggregations> reducedAggsSource = () -> null;
     private int reducePhase;
     /**
-     * The response produced by the search API. Once we receive it we stop
+     * For local-only searches and cross-cluster search with minimize_roundtrips=false,
+     * this is the response produced by the search API. Once we receive it we stop
      * building our own {@linkplain SearchResponse}s when get async search
      * is called, and instead return this.
+     *
+     * For cross-cluster search with minimize_roundtrips=true, this holds the
+     * merged full SearchResponse of all clusters that have reported back so far.
+     * Once the final response is received (via updateFinalResponse), the frozen
+     * flag is set to true.
      */
-    private SearchResponse finalResponse;
+    private SearchResponse latestFullResponse;
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
 
+    /**
+     * Set to true when the final SearchResponse has been received
+     * or a fatal error has occurred.
+     */
     private boolean frozen;
 
     /**
@@ -110,13 +121,14 @@ class MutableSearchResponse {
     /**
      * Updates the response with the result of a partial reduction.
      * Called only when minimize_roundtrips=true
-     * @param response
+     * @param response latest full response with SearchResponses from all
+     *                 clusters that have reported back
      */
     synchronized void updatePartialResponse(SearchResponse response) {
         failIfFrozen();
 
         this.responseHeaders = threadContext.getResponseHeaders();
-        this.finalResponse = response;
+        this.latestFullResponse = response;
         this.isPartial = true;
     }
 
@@ -131,7 +143,7 @@ class MutableSearchResponse {
             : getShardsInResponseMismatchInfo(response, ccsMinimizeRoundtrips);
 
         this.responseHeaders = threadContext.getResponseHeaders();
-        this.finalResponse = response;
+        this.latestFullResponse = response;
         this.isPartial = isPartialResponse(response);
         this.frozen = true;
     }
@@ -202,9 +214,9 @@ class MutableSearchResponse {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
         SearchResponse searchResponse;
-        if (finalResponse != null) {
-            // We have a final response, use it.
-            searchResponse = finalResponse;
+        if (latestFullResponse != null) {
+            // We have a full response, use it.
+            searchResponse = latestFullResponse;
         } else if (clusters == null) {
             // An error occurred before we got the shard list
             searchResponse = null;
@@ -245,19 +257,19 @@ class MutableSearchResponse {
             // include clusters in the status if present and not Clusters.EMPTY (the case for local searches only)
             clustersInStatus = clusters;
         }
-        if (finalResponse != null) {
+        if (latestFullResponse != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
                 frozen == false,
                 frozen == false,
                 startTime,
                 expirationTime,
-                startTime + finalResponse.getTook().millis(),
-                finalResponse.getTotalShards(),
-                finalResponse.getSuccessfulShards(),
-                finalResponse.getSkippedShards(),
-                finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().length : 0,
-                finalResponse.status(),
+                startTime + latestFullResponse.getTook().millis(),
+                latestFullResponse.getTotalShards(),
+                latestFullResponse.getSuccessfulShards(),
+                latestFullResponse.getSkippedShards(),
+                latestFullResponse.getShardFailures() != null ? latestFullResponse.getShardFailures().length : 0,
+                latestFullResponse.status(),
                 clustersInStatus
             );
         }

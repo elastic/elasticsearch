@@ -110,8 +110,8 @@ final class SearchResponseMerger implements Releasable {
     }
 
     /**
-     * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
-     * so that all responses are merged into a single one.
+     * Returns the merged response of all SearchResponses received so far. This can be called at any point,
+     * including when only some clusters have finished, in order to get "incremental" partial results.
      */
     SearchResponse getMergedResponse(Clusters clusters) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,

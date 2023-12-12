@@ -221,9 +221,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testAnomalyDetectionOnly() throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
-            MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false, false));
-            machineLearning.loadExtensions(loader);
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false, false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, hasItem(instanceOf(RestGetJobsAction.class)));
@@ -242,9 +241,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testDataFrameAnalyticsOnly() throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
-            MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false, false));
-            machineLearning.loadExtensions(loader);
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false, false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
@@ -263,9 +261,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testNlpOnly() throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
-            MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true, false));
-            machineLearning.loadExtensions(loader);
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true, false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
@@ -385,6 +382,12 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public static MachineLearning createTrialLicensedMachineLearning(Settings settings) {
-        return new TrialLicensedMachineLearning(settings);
+        return createTrialLicensedMachineLearning(settings, null);
+    }
+
+    public static MachineLearning createTrialLicensedMachineLearning(Settings settings, MlTestExtensionLoader loader) {
+        MachineLearning mlPlugin = new TrialLicensedMachineLearning(settings);
+        mlPlugin.loadExtensions(loader);
+        return mlPlugin;
     }
 }

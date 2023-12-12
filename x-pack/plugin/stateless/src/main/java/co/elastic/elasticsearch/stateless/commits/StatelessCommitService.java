@@ -294,51 +294,53 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
             // todo: reevaluate this.
             blobReference.incRef();
-            CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.runAfter(ActionListener.wrap(new ActionListener<>() {
-                @Override
-                public void onResponse(StatelessCompoundCommit commit) {
-                    commitState.sendNewCommitNotification(blobReference, commit);
-                }
+            CommitUpload commitUpload = new CommitUpload(
+                commitState,
+                ActionListener.runAfter(
+                    ActionListener.wrap(commit -> commitState.sendNewCommitNotification(blobReference, commit), new Consumer<>() {
+                        @Override
+                        public void accept(Exception e) {
+                            assert assertClosedOrRejectionFailure(e);
+                            ShardCommitState.State state = commitState.state;
+                            if (closedOrRelocated(state)) {
+                                logger.debug(
+                                    () -> format(
+                                        "%s failed to upload commit [%s] to object store because shard has invalid state %s",
+                                        reference.getShardId(),
+                                        reference.getGeneration(),
+                                        state
+                                    ),
+                                    e
+                                );
+                            } else {
+                                logger.warn(
+                                    () -> format(
+                                        "%s failed to upload commit [%s] to object store for unexpected reason",
+                                        reference.getShardId(),
+                                        reference.getGeneration()
+                                    ),
+                                    e
+                                );
+                            }
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    assert assertClosedOrRejectionFailure(e);
-                    ShardCommitState.State state = commitState.state;
-                    if (closedOrRelocated(state)) {
-                        logger.debug(
-                            () -> format(
-                                "%s failed to upload commit [%s] to object store because shard has invalid state %s",
-                                reference.getShardId(),
-                                reference.getGeneration(),
-                                state
-                            ),
-                            e
-                        );
-                    } else {
-                        logger.warn(
-                            () -> format(
-                                "%s failed to upload commit [%s] to object store for unexpected reason",
-                                reference.getShardId(),
-                                reference.getGeneration()
-                            ),
-                            e
-                        );
+                        private boolean assertClosedOrRejectionFailure(final Exception e) {
+                            final var closed = closedOrRelocated(commitState.state);
+                            assert closed
+                                || e instanceof EsRejectedExecutionException
+                                || e instanceof IndexNotFoundException
+                                || e instanceof ShardNotFoundException : closed + " vs " + e;
+                            return true;
+                        }
+                    }),
+                    () -> {
+                        IOUtils.closeWhileHandlingException(reference);
+                        blobReference.decRef();
                     }
-                }
-
-                private boolean assertClosedOrRejectionFailure(final Exception e) {
-                    final var closed = closedOrRelocated(commitState.state);
-                    assert closed
-                        || e instanceof EsRejectedExecutionException
-                        || e instanceof IndexNotFoundException
-                        || e instanceof ShardNotFoundException : closed + " vs " + e;
-                    return true;
-                }
-
-            }), () -> {
-                IOUtils.closeWhileHandlingException(reference);
-                blobReference.decRef();
-            }), reference, TimeValue.timeValueMillis(50));
+                ),
+                reference,
+                TimeValue.timeValueMillis(50)
+            );
             commitUpload.run();
             success = true;
         } catch (Exception ex) {

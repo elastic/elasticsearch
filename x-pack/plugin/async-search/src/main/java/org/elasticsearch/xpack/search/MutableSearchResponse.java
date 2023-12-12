@@ -106,6 +106,9 @@ class MutableSearchResponse {
         int reducePhase
     ) {
         failIfFrozen();
+        if (clusters.isCcsMinimizeRoundtrips()) {
+            return;
+        }
         if (reducePhase < this.reducePhase) {
             // should never happen since partial response are updated under a lock
             // in the search phase controller

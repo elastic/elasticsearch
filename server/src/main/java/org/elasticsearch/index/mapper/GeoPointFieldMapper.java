@@ -364,7 +364,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             List.of(new SimpleVectorTileFormatter())
         );
 
-        private final GeoPoint nullValue;
         private final FieldValues<GeoPoint> scriptValues;
         private final IndexMode indexMode;
 
@@ -380,8 +379,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             TimeSeriesParams.MetricType metricType,
             IndexMode indexMode
         ) {
-            super(name, indexed, stored, hasDocValues, parser, meta);
-            this.nullValue = nullValue;
+            super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
             this.scriptValues = scriptValues;
             this.metricType = metricType;
             this.indexMode = indexMode;
@@ -480,18 +478,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
-        }
-
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // TODO: If we have doc-values we have to use them, due to BlockSourceReader.columnAtATimeReader() returning null
-            // if (hasDocValues()) {
-            // return new BlockDocValuesReader.LongsBlockLoader(name());
-            // }
-            // TODO: Enhance BlockLoaderContext with knowledge about preferring to load from source (see EsPhysicalOperationProviders)
-            return new BlockSourceReader.PointsBlockLoader(
-                valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
-            );
         }
 
         @Override

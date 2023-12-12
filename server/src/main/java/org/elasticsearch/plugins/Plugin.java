@@ -12,6 +12,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -77,6 +78,11 @@ public abstract class Plugin implements Closeable {
          * A service to allow watching and updating cluster state
          */
         ClusterService clusterService();
+
+        /**
+         * A service to reroute shards to other nodes
+         */
+        RerouteService rerouteService();
 
         /**
          * A service to allow retrieving an executor to run an async action

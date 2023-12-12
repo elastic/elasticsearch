@@ -107,7 +107,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             return SnapshotsInProgress.ShardSnapshotStatus.success(nodeId, shardSnapshotResult);
         } else {
             final String reason = shardState.failed() ? randomAlphaOfLength(10) : null;
-            return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, reason, new ShardGeneration(1L));
+            return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, new ShardGeneration(1L), reason);
         }
     }
 
@@ -409,8 +409,8 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     new SnapshotsInProgress.ShardSnapshotStatus(
                         "nodeId",
                         ShardState.FAILED,
-                        "failure-reason",
-                        new ShardGeneration("fail-gen")
+                        new ShardGeneration("fail-gen"),
+                        "failure-reason"
                     )
                 ),
                 null,

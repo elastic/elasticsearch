@@ -125,6 +125,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
             BlockFactory.getNonBreakingInstance(),
+            Settings.EMPTY,
             config(),
             null,
             null,
@@ -142,7 +143,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             pragmas,
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
-            StringUtils.EMPTY
+            StringUtils.EMPTY,
+            false
         );
     }
 

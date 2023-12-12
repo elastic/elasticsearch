@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -99,7 +100,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final RestClient restClient,
         final List<HttpHost> hosts,
         final Version esVersion,
-        final Version masterVersion,
+        final Predicate<String> clusterFeaturesPredicate,
         final String os
     ) {
         return new ClientYamlDocsTestClient(
@@ -107,7 +108,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             restClient,
             hosts,
             esVersion,
-            masterVersion,
+            clusterFeaturesPredicate,
             os,
             this::getClientBuilderWithSniffedHosts
         );

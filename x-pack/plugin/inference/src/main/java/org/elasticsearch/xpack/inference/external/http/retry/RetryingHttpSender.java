@@ -9,16 +9,19 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
@@ -109,13 +112,22 @@ public class RetryingHttpSender implements Retrier {
 
         /**
          * If the connection gets closed by the server or because of the connections time to live is exceeded we'll likely get a
-         * {@link org.apache.http.ConnectionClosedException} exception which is a child of IOException. For now,
-         * we'll consider all IOExceptions retryable because something failed while we were trying to send the request
+         * {@link org.apache.http.ConnectionClosedException} exception which is a child of IOException.
+         *
          * @param e the Exception received while sending the request
          * @return a {@link RetryException} if this exception can be retried
          */
         private Exception transformIfRetryable(Exception e) {
             var exceptionToReturn = e;
+
+            if (e instanceof UnknownHostException) {
+                return new ElasticsearchStatusException(
+                    format("Invalid host [%s], please check that the URL is correct.", request.getURI()),
+                    RestStatus.BAD_REQUEST,
+                    e
+                );
+            }
+
             if (e instanceof IOException) {
                 exceptionToReturn = new RetryException(true, e);
             }

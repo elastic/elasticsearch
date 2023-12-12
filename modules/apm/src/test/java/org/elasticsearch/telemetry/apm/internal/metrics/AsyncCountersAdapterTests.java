@@ -99,4 +99,26 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         metrics = otelMeter.getRecorder().getMeasurements(doubleAsyncCounter);
         assertThat(metrics, hasSize(0));
     }
+
+    public void testNullGaugeRecord() throws Exception {
+        DoubleAsyncCounter dcounter = registry.registerDoubleAsyncCounter(
+            "name",
+            "desc",
+            "unit",
+            new AtomicReference<DoubleWithAttributes>()::get
+        );
+        otelMeter.collectMetrics();
+        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(dcounter);
+        assertThat(metrics, hasSize(0));
+
+        LongAsyncCounter lcounter = registry.registerLongAsyncCounter(
+            "name",
+            "desc",
+            "unit",
+            new AtomicReference<LongWithAttributes>()::get
+        );
+        otelMeter.collectMetrics();
+        metrics = otelMeter.getRecorder().getMeasurements(lcounter);
+        assertThat(metrics, hasSize(0));
+    }
 }

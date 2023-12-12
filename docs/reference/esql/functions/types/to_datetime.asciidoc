@@ -1,0 +1,11 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v | result
+datetime | datetime
+double | datetime
+integer | datetime
+keyword | datetime
+long | datetime
+text | datetime
+unsigned_long | datetime
+|===

@@ -192,16 +192,15 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
     ) {
         if (haveAllPreviousDeletionsCompleted && mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
-            ActionListener<Boolean> nextListener = ActionListener.wrap(
-                booleanResponse -> deleteExpiredData(
+            ActionListener<Boolean> nextListener = listener.delegateFailureAndWrap(
+                (delegate, booleanResponse) -> deleteExpiredData(
                     request,
                     mlDataRemoversIterator,
                     requestsPerSecond,
-                    listener,
+                    delegate,
                     isTimedOutSupplier,
                     booleanResponse
-                ),
-                listener::onFailure
+                )
             );
             // Removing expired ML data and artifacts requires multiple operations.
             // These are queued up and executed sequentially in the action listener,

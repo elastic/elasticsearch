@@ -11,10 +11,10 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -173,7 +173,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         safeAwait(
             SubscribableListener.<ActionResponse.Empty>newForked(
                 l -> client().execute(
-                    AddVotingConfigExclusionsAction.INSTANCE,
+                    TransportAddVotingConfigExclusionsAction.TYPE,
                     new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { masterName }, TimeValue.timeValueSeconds(10)),
                     l
                 )
@@ -229,7 +229,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         safeAwait(SubscribableListener.<ActionResponse.Empty>newForked(l -> {
             final var clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
             clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
-            client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest, l);
+            client().execute(TransportClearVotingConfigExclusionsAction.TYPE, clearVotingConfigExclusionsRequest, l);
         }));
 
         clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));

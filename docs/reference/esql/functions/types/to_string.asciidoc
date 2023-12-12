@@ -2,8 +2,10 @@
 |===
 v | result
 boolean | keyword
+cartesian_point | keyword
 datetime | keyword
 double | keyword
+geo_point | keyword
 integer | keyword
 ip | keyword
 keyword | keyword

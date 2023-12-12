@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
@@ -25,7 +26,7 @@ import static org.elasticsearch.TransportVersions.INFERENCE_MULTIPLE_INPUTS;
 import static org.elasticsearch.TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED;
 import static org.elasticsearch.TransportVersions.ML_INFERENCE_OPENAI_ADDED;
 import static org.elasticsearch.TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
-import static org.elasticsearch.xpack.inference.action.InferenceAction.Response.transformToServiceResults;
+import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Response.transformToServiceResults;
 
 public class InferenceActionResponseTests extends AbstractBWCWireSerializationTestCase<InferenceAction.Response> {
 

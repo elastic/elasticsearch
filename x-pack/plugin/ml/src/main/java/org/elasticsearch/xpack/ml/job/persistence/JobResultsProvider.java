@@ -635,13 +635,19 @@ public class JobResultsProvider {
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                     if (CollectionUtils.isEmpty(shardFailures) == false) {
                         LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
-                        listener.onFailure(new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),
+                                RestStatus.TOO_MANY_REQUESTS
+                            )
+                        );
                         return;
                     }
                     if (unavailableShards > 0) {
                         listener.onFailure(
-                            new ElasticsearchException(
-                                "[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards"
+                            new ElasticsearchStatusException(
+                                "[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards",
+                                RestStatus.TOO_MANY_REQUESTS
                             )
                         );
                         return;
@@ -739,13 +745,19 @@ public class JobResultsProvider {
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                     if (CollectionUtils.isEmpty(shardFailures) == false) {
                         LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
-                        errorHandler.accept(new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                        errorHandler.accept(
+                            new ElasticsearchStatusException(
+                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),
+                                RestStatus.TOO_MANY_REQUESTS
+                            )
+                        );
                         return;
                     }
                     if (unavailableShards > 0) {
                         errorHandler.accept(
-                            new ElasticsearchException(
-                                "[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards"
+                            new ElasticsearchStatusException(
+                                "[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards",
+                                RestStatus.TOO_MANY_REQUESTS
                             )
                         );
                         return;
@@ -1410,24 +1422,27 @@ public class JobResultsProvider {
                 .setTrackTotalHits(true)
                 .get();
         }
+        try {
+            List<ModelPlot> results = new ArrayList<>();
 
-        List<ModelPlot> results = new ArrayList<>();
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            BytesReference source = hit.getSourceRef();
-            try (
-                InputStream stream = source.streamInput();
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
-            ) {
-                ModelPlot modelPlot = ModelPlot.LENIENT_PARSER.apply(parser, null);
-                results.add(modelPlot);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse modelPlot", e);
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                BytesReference source = hit.getSourceRef();
+                try (
+                    InputStream stream = source.streamInput();
+                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                        .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
+                ) {
+                    ModelPlot modelPlot = ModelPlot.LENIENT_PARSER.apply(parser, null);
+                    results.add(modelPlot);
+                } catch (IOException e) {
+                    throw new ElasticsearchParseException("failed to parse modelPlot", e);
+                }
             }
-        }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
+            return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public QueryPage<CategorizerStats> categorizerStats(String jobId, int from, int size) {
@@ -1444,24 +1459,27 @@ public class JobResultsProvider {
                 .setTrackTotalHits(true)
                 .get();
         }
+        try {
+            List<CategorizerStats> results = new ArrayList<>();
 
-        List<CategorizerStats> results = new ArrayList<>();
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            BytesReference source = hit.getSourceRef();
-            try (
-                InputStream stream = source.streamInput();
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
-            ) {
-                CategorizerStats categorizerStats = CategorizerStats.LENIENT_PARSER.apply(parser, null).build();
-                results.add(categorizerStats);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse categorizerStats", e);
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                BytesReference source = hit.getSourceRef();
+                try (
+                    InputStream stream = source.streamInput();
+                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                        .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
+                ) {
+                    CategorizerStats categorizerStats = CategorizerStats.LENIENT_PARSER.apply(parser, null).build();
+                    results.add(categorizerStats);
+                } catch (IOException e) {
+                    throw new ElasticsearchParseException("failed to parse categorizerStats", e);
+                }
             }
-        }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
+            return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     /**

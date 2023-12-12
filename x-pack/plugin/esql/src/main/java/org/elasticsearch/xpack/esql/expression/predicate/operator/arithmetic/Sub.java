@@ -38,7 +38,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubIntsEvaluator.Factory::new,
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
-            (s, lhs, rhs) -> new SubDoublesEvaluator.Factory(lhs, rhs),
+            (s, lhs, rhs) -> new SubDoublesEvaluator.Factory(source, lhs, rhs),
             SubDatetimesEvaluator.Factory::new
         );
     }

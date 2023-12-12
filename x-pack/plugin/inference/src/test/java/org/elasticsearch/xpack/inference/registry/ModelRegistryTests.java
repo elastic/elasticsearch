@@ -18,8 +18,11 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -29,12 +32,14 @@ import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -62,8 +67,8 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.ModelConfigMap>();
-        registry.getUnparsedModelMap("1", listener);
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        registry.getModelWithSecrets("1", listener);
 
         ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.getMessage(), is("Model not found [1]"));
@@ -76,8 +81,8 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.ModelConfigMap>();
-        registry.getUnparsedModelMap("1", listener);
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        registry.getModelWithSecrets("1", listener);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
@@ -93,8 +98,8 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.ModelConfigMap>();
-        registry.getUnparsedModelMap("1", listener);
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        registry.getModelWithSecrets("1", listener);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
@@ -110,8 +115,8 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.ModelConfigMap>();
-        registry.getUnparsedModelMap("1", listener);
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        registry.getModelWithSecrets("1", listener);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
@@ -120,21 +125,69 @@ public class ModelRegistryTests extends ESTestCase {
         );
     }
 
-    public void testGetUnparsedModelMap_ReturnsModelConfigMap_WhenBothInferenceAndSecretsHitsAreFound() {
+    public void testGetModelWithSecrets() {
         var client = mockClient();
+        String config = """
+            {
+              "model_id": "1",
+              "task_type": "sparse_embedding",
+              "service": "foo"
+            }
+            """;
+        String secrets = """
+            {
+              "api_key": "secret"
+            }
+            """;
+
         var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
+        inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
         var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".secrets-inference"));
+        inferenceSecretsHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(secrets))));
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit, inferenceSecretsHit }));
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.ModelConfigMap>();
-        registry.getUnparsedModelMap("1", listener);
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        registry.getModelWithSecrets("1", listener);
 
         var modelConfig = listener.actionGet(TIMEOUT);
-        assertThat(modelConfig.config(), nullValue());
-        assertThat(modelConfig.secrets(), nullValue());
+        assertEquals("1", modelConfig.modelId());
+        assertEquals("foo", modelConfig.service());
+        assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
+        assertThat(modelConfig.settings().keySet(), empty());
+        assertThat(modelConfig.secrets().keySet(), hasSize(1));
+        assertEquals("secret", modelConfig.secrets().get("api_key"));
+    }
+
+    public void testGetModelNoSecrets() {
+        var client = mockClient();
+        String config = """
+            {
+              "model_id": "1",
+              "task_type": "sparse_embedding",
+              "service": "foo"
+            }
+            """;
+
+        var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
+        inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
+
+        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
+
+        var registry = new ModelRegistry(client);
+
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        registry.getModel("1", listener);
+
+        registry.getModel("1", listener);
+        var modelConfig = listener.actionGet(TIMEOUT);
+        assertEquals("1", modelConfig.modelId());
+        assertEquals("foo", modelConfig.service());
+        assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
+        assertThat(modelConfig.settings().keySet(), empty());
+        assertThat(modelConfig.secrets().keySet(), empty());
     }
 
     public void testStoreModel_ReturnsTrue_WhenNoFailuresOccur() {

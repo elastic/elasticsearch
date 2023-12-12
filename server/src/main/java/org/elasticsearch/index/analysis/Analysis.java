@@ -44,6 +44,7 @@ import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
+import org.apache.lucene.analysis.util.CSVUtil;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -64,6 +65,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -255,6 +257,34 @@ public class Analysis {
             String message = String.format(Locale.ROOT, "IOException while reading %s: %s", settingPath, path.toString());
             throw new IllegalArgumentException(message, ioe);
         }
+    }
+
+    public static List<String> getWordList(
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        boolean removeComments,
+        boolean checkDuplicate
+    ) {
+        final List<String> wordList = getWordList(env, settings, settingPath, settingList, removeComments);
+        if (wordList != null && !wordList.isEmpty() && checkDuplicate) {
+            Set<String> dup = new HashSet<>();
+            int lineNum = 0;
+            for (String line : wordList) {
+                // ignore comments
+                if (line.startsWith("#") == false) {
+                    String[] values = CSVUtil.parse(line);
+                    if (dup.add(values[0]) == false) {
+                        throw new IllegalArgumentException(
+                                "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
+                        );
+                    }
+                }
+                ++lineNum;
+            }
+        }
+        return wordList;
     }
 
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {

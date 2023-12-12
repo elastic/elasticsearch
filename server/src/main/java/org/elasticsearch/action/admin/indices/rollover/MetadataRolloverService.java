@@ -292,9 +292,8 @@ public class MetadataRolloverService {
         assert createIndexClusterStateRequest.performReroute() == false
             : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
 
-        ClusterState updatedWithLazyRolloverFalse = MetadataDataStreamsService.setRolloverNeeded(currentState, dataStreamName, false);
         ClusterState newState = createIndexService.applyCreateIndexRequest(
-            updatedWithLazyRolloverFalse,
+            currentState,
             createIndexClusterStateRequest,
             silent,
             (builder, indexMetadata) -> {
@@ -315,6 +314,7 @@ public class MetadataRolloverService {
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
 
         newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
+        newState = MetadataDataStreamsService.setRolloverNeeded(newState, dataStreamName, false);
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }

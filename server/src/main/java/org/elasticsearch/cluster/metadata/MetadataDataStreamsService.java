@@ -221,12 +221,14 @@ public class MetadataDataStreamsService {
 
     /**
      * Creates an updated cluster state in which the requested data stream has the flag that it needs a rollover set to true.
-     * Visible for testing.
      */
     public static ClusterState setRolloverNeeded(ClusterState currentState, String dataStreamName, boolean rolloverNeeded) {
         Metadata metadata = currentState.metadata();
-        Metadata.Builder builder = Metadata.builder(metadata);
         var dataStream = validateDataStream(metadata, dataStreamName);
+        if (dataStream.isRolloverNeeded() == rolloverNeeded) {
+            return currentState;
+        }
+        Metadata.Builder builder = Metadata.builder(metadata);
         builder.put(
             new DataStream(
                 dataStream.getName(),

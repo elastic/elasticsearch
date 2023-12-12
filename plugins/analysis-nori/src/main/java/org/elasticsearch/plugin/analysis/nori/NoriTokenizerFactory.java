@@ -45,7 +45,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
             );
         }
-        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, true);
+        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, true, true);
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
         }

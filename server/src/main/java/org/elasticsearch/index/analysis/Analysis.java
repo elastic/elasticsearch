@@ -268,7 +268,7 @@ public class Analysis {
         boolean checkDuplicate
     ) {
         final List<String> wordList = getWordList(env, settings, settingPath, settingList, removeComments);
-        if (wordList != null && !wordList.isEmpty() && checkDuplicate) {
+        if (wordList != null && wordList.isEmpty() == false && checkDuplicate) {
             Set<String> dup = new HashSet<>();
             int lineNum = 0;
             for (String line : wordList) {
@@ -277,7 +277,7 @@ public class Analysis {
                     String[] values = CSVUtil.parse(line);
                     if (dup.add(values[0]) == false) {
                         throw new IllegalArgumentException(
-                                "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
+                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
                         );
                     }
                 }

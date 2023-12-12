@@ -117,6 +117,17 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         );
     }
 
+    public void testNoriAnalyzerDuplicateUserDictRule() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "nori")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C쁠쁠", "세종", "세종", "세종시 세종 시")
+            .build();
+
+        final IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        System.out.println("exc.getMessage() = " + exc.getMessage());
+        assertThat(exc.getMessage(), containsString("[세종] in user dictionary at line [3]"));
+    }
+
     public void testNoriTokenizer() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.tokenizer.my_tokenizer.type", "nori_tokenizer")

@@ -374,19 +374,20 @@ public final class BulkRequestParser {
                             }
                         }
                     } else if ("create".equals(action)) {
-                        IndexRequest indexRequest = new IndexRequest(index).id(id)
-                            .routing(routing)
-                            .version(version)
-                            .versionType(versionType)
-                            .create(true)
-                            .setPipeline(pipeline)
-                            .setIfSeqNo(ifSeqNo)
-                            .setIfPrimaryTerm(ifPrimaryTerm)
-                            .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                            .setDynamicTemplates(dynamicTemplates)
-                            .setRequireAlias(requireAlias)
-                            .setListExecutedPipelines(listExecutedPipelines);
+                        IndexRequest indexRequest = new IndexRequest(index);
                         try {
+                            indexRequest.id(id)
+                                .routing(routing)
+                                .version(version)
+                                .versionType(versionType)
+                                .create(true)
+                                .setPipeline(pipeline)
+                                .setIfSeqNo(ifSeqNo)
+                                .setIfPrimaryTerm(ifPrimaryTerm)
+                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                .setDynamicTemplates(dynamicTemplates)
+                                .setRequireAlias(requireAlias)
+                                .setListExecutedPipelines(listExecutedPipelines);
                             indexRequestConsumer.accept(indexRequest, type);
                         } finally {
                             indexRequest.decRef();

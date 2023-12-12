@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -65,7 +66,7 @@ public abstract class AbstractBaseReindexRestHandler<
             throw validationException;
         }
         final var responseListener = new SubscribableListener<BulkByScrollResponse>();
-        final var task = client.executeLocally(action, internal, responseListener);
+        final var task = client.executeLocally(action, internal, ActionListener.runAfter(responseListener, internal::decRef));
         responseListener.addListener(new LoggingTaskListener<>(task));
         return sendTask(client.getLocalNodeId(), task);
     }

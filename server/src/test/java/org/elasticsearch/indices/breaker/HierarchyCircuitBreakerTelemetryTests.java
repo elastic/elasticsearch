@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.breaker;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -180,10 +181,12 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
                     .get()
                     .isAcknowledged()
             );
-            assertEquals(
-                RestStatus.OK.getStatus(),
-                client().prepareIndex("test").setWaitForActiveShards(1).setSource("field", "value").get().status().getStatus()
-            );
+            IndexRequestBuilder indexRequestBuilder = client().prepareIndex("test").setWaitForActiveShards(1).setSource("field", "value");
+            try {
+                assertEquals(RestStatus.OK.getStatus(), indexRequestBuilder.get().status().getStatus());
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         } catch (CircuitBreakingException cbex) {
             final List<Measurement> dataNodeMeasurements = getMeasurements(dataNodeName);
             final List<Measurement> masterNodeMeasurements = getMeasurements(masterNodeName);

@@ -403,6 +403,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             Translog.Location location = new Translog.Location(0, 0, 0);
 
             randomlySetIgnoredPrimaryResponse(items[0]);
+            items[0].decRef();
 
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
             TransportShardBulkAction.executeBulkItemRequest(
@@ -450,6 +451,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         try (BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items)) {
 
             randomlySetIgnoredPrimaryResponse(items[0]);
+            items[0].decRef();
 
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
             TransportShardBulkAction.executeBulkItemRequest(
@@ -841,6 +843,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 writeRequest.decRef();
             }
             try (BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items)) {
+                for (BulkItemRequest item : items) {
+                    item.decRef();
+                }
 
                 BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
                 while (context.hasMoreOperationsToExecute()) {
@@ -903,6 +908,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // the beating will continue until success has come.
         writeRequest.retryOnConflict(Integer.MAX_VALUE);
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+        writeRequest.decRef();
 
         IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
@@ -968,6 +974,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             latch.await();
         }
         updateResponse.decRef();
+        primaryRequest.decRef();
     }
 
     public void testForceExecutionOnRejectionAfterMappingUpdate() throws Exception {
@@ -1021,6 +1028,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 when(shard.mapperService()).thenReturn(mock(MapperService.class));
 
                 randomlySetIgnoredPrimaryResponse(items[0]);
+                items[0].decRef();
+                items[1].decRef();
 
                 AtomicInteger updateCalled = new AtomicInteger();
 

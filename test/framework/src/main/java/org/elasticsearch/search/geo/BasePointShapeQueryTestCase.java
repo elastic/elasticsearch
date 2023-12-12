@@ -498,7 +498,9 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
                 "type": "Point"
               }
             }""";
-        client().index(new IndexRequest(defaultIndexName).id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+        IndexRequest indexRequest = new IndexRequest(defaultIndexName).id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE);
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
 
         Point point = new Point(-35, -25);
 

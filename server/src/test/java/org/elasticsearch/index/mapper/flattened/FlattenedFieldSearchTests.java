@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper.flattened;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -75,7 +76,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMatchQuery() throws Exception {
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -85,8 +86,9 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                     .field("origin", "https://www.elastic.co")
                     .endObject()
                     .endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertHitCount(client().prepareSearch().setQuery(matchQuery("headers", "application/json")), 1L);
 
@@ -96,7 +98,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiMatchQuery() throws Exception {
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -106,8 +108,9 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                     .field("origin", "https://www.elastic.co")
                     .endObject()
                     .endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertHitCount(client().prepareSearch().setQuery(multiMatchQuery("application/json", "headers")), 1L);
         assertHitCount(client().prepareSearch().setQuery(multiMatchQuery("application/json text/plain", "headers.content-type")), 1L);
@@ -116,7 +119,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testQueryStringQuery() throws Exception {
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -126,8 +129,9 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                     .field("field2", "2.718")
                     .endObject()
                     .endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(queryStringQuery("flattened.field1:value")), 1);
         assertHitCountAndNoFailures(
@@ -138,7 +142,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testSimpleQueryStringQuery() throws Exception {
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -148,8 +152,9 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                     .field("field2", "2.718")
                     .endObject()
                     .endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(simpleQueryStringQuery("value").field("flattened.field1")), 1);
         assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(simpleQueryStringQuery("+value +2.718").field("flattened")), 1);
@@ -157,7 +162,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testExists() throws Exception {
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -166,8 +171,9 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                     .field("content-type", "application/json")
                     .endObject()
                     .endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertHitCount(client().prepareSearch().setQuery(existsQuery("headers")), 1L);
         assertHitCount(client().prepareSearch().setQuery(existsQuery("headers.content-type")), 1L);
@@ -183,22 +189,24 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
             // Add a random number of documents containing a flattened field, plus
             // a small number of dummy documents.
             for (int i = 0; i < numDocs; ++i) {
-                bulkRequest.add(
-                    client().prepareIndex()
-                        .setSource(
-                            XContentFactory.jsonBuilder()
-                                .startObject()
-                                .startObject("flattened")
-                                .field("first", i)
-                                .field("second", i / 2)
-                                .endObject()
-                                .endObject()
-                        )
-                );
+                IndexRequestBuilder indexRequestBuilder = client().prepareIndex()
+                    .setSource(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("flattened")
+                            .field("first", i)
+                            .field("second", i / 2)
+                            .endObject()
+                            .endObject()
+                    );
+                bulkRequest.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
 
             for (int i = 0; i < 10; i++) {
-                bulkRequest.add(prepareIndex("test").setSource("other_field", "1"));
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setSource("other_field", "1");
+                bulkRequest.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
 
             BulkResponse bulkResponse = bulkRequest.get();
@@ -249,18 +257,18 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     public void testTermsAggregation() throws IOException {
         try (BulkRequestBuilder bulkRequest = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE)) {
             for (int i = 0; i < 5; i++) {
-                bulkRequest.add(
-                    client().prepareIndex()
-                        .setSource(
-                            XContentFactory.jsonBuilder()
-                                .startObject()
-                                .startObject("labels")
-                                .field("priority", "urgent")
-                                .field("release", "v1.2." + i)
-                                .endObject()
-                                .endObject()
-                        )
-                );
+                IndexRequestBuilder indexRequestBuilder = client().prepareIndex()
+                    .setSource(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("labels")
+                            .field("priority", "urgent")
+                            .field("release", "v1.2." + i)
+                            .endObject()
+                            .endObject()
+                    );
+                bulkRequest.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
 
             BulkResponse bulkResponse = bulkRequest.get();
@@ -329,7 +337,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testLoadDocValuesFields() throws Exception {
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -339,8 +347,9 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                     .field("other_key", "other_value")
                     .endObject()
                     .endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertNoFailuresAndResponse(
             client().prepareSearch("test").addDocValueField("flattened").addDocValueField("flattened.key"),
@@ -361,7 +370,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldSort() throws Exception {
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -371,10 +380,11 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                     .field("other_key", "D")
                     .endObject()
                     .endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
-        prepareIndex("test").setId("2")
+        indexRequestBuilder = prepareIndex("test").setId("2")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -384,13 +394,17 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                     .field("other_key", "C")
                     .endObject()
                     .endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
-        prepareIndex("test").setId("3")
+        indexRequestBuilder = prepareIndex("test").setId("3")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(XContentFactory.jsonBuilder().startObject().startObject("flattened").field("other_key", "E").endObject().endObject())
-            .get();
+            .setSource(
+                XContentFactory.jsonBuilder().startObject().startObject("flattened").field("other_key", "E").endObject().endObject()
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertNoFailuresAndResponse(client().prepareSearch("test").addSort("flattened", SortOrder.DESC), response -> {
             assertHitCount(response, 3);
@@ -416,7 +430,11 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         headers.put("origin", "https://www.elastic.co");
         Map<String, Object> source = Collections.singletonMap("headers", headers);
 
-        prepareIndex("test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource(source).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(source);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertResponse(
             client().prepareSearch("test").setFetchSource(true),

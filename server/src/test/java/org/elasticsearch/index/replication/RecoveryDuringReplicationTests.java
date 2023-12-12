@@ -651,6 +651,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             assertThat(replica2.getMaxSeenAutoIdTimestamp(), equalTo(maxTimestampOnReplica1));
             for (IndexRequest request : replicationRequests) {
                 shards.index(request); // deliver via normal replication
+                request.decRef();
             }
             for (IndexShard shard : shards) {
                 assertThat(shard.getMaxSeenAutoIdTimestamp(), equalTo(Math.max(maxTimestampOnReplica1, maxTimestampOnReplica2)));

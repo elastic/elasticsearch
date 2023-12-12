@@ -197,7 +197,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         AtomicLong expected = new AtomicLong();
         TransportBulkAction action = createAction(controlled, expected);
-        action.doExecute(null, bulkRequest, new ActionListener<BulkResponse>() {
+        action.doExecute(null, bulkRequest, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse bulkItemResponses) {
                 if (controlled) {
@@ -211,14 +211,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
                         greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
                     );
                 }
-                bulkRequest.close();
             }
 
             @Override
-            public void onFailure(Exception e) {
-                bulkRequest.close();
-            }
-        });
+            public void onFailure(Exception e) {}
+        }, bulkRequest::decRef));
     }
 
     static class Resolver extends IndexNameExpressionResolver {

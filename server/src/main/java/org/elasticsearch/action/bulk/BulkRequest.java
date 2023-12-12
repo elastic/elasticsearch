@@ -158,7 +158,6 @@ public class BulkRequest extends ActionRequest
     BulkRequest internalAdd(IndexRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
-
         request.incRef();
         requests.add(request);
         // lack of source is validated in validate() method
@@ -210,7 +209,7 @@ public class BulkRequest extends ActionRequest
      * The list of requests in this bulk request.
      */
     public List<DocWriteRequest<?>> requests() {
-        return this.requests;
+        return Collections.unmodifiableList(this.requests);
     }
 
     /**

@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -268,7 +269,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNull(meta.index("test"));
 
         test = createIndex("test");
-        prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test"), 1);
         IndexMetadata secondMetadata = clusterService.state().metadata().index("test");

@@ -50,6 +50,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -415,6 +416,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                                 DocWriteRequest<?> request = bulkRequest.requests.get(i);
                                 if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                    if (bulkRequest.requests.get(i) instanceof RefCounted refCounted) {
+                                        refCounted.decRef();
+                                    }
                                     bulkRequest.requests.set(i, null);
                                 }
                             }
@@ -648,20 +652,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         new ShardId(concreteIndex, shardId),
                         shard -> new ArrayList<>()
                     );
-                    System.out.println("**** creating");
-                    try {
-                        shardRequests.add(new BulkItemRequest(i, docWriteRequest));
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        throw e;
-                    }
-                    System.out.println("**** created");
+                    shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
                     String name = ia != null ? ia.getName() : docWriteRequest.index();
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again
+                    if (bulkRequest.requests.get(i) instanceof RefCounted refCounted) {
+                        refCounted.decRef();
+                    }
                     bulkRequest.requests.set(i, null);
                 }
             }
@@ -685,7 +685,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 );
                 for (BulkItemRequest request : requests) {
                     // The BulkShardRequest constructor has incremented the ref, and we are no longer directly referencing this object
-                    System.out.println("**** decreffing");
                     request.decRef();
                 }
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
@@ -828,6 +827,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             BulkItemResponse bulkItemResponse = BulkItemResponse.failure(idx, request.opType(), failure);
             responses.set(idx, bulkItemResponse);
             // make sure the request gets never processed again
+            if (bulkRequest.requests.get(idx) instanceof RefCounted refCounted) {
+                refCounted.decRef();
+            }
             bulkRequest.requests.set(idx, null);
         }
     }

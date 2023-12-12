@@ -72,6 +72,8 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         assertEquals(slicingTask, forSliced.getParentTask());
 
         extraForSliceAssertions(original, forSliced);
+        forSliced.decRef();
+        original.decRef();
     }
 
     protected abstract R newRequest();

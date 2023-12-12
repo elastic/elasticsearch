@@ -191,40 +191,43 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 final BulkRequest bulkRequest = toSingleItemBulkRequest(upsertRequest);
                 client.bulk(
                     bulkRequest,
-                    ActionListener.releaseAfter(unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
-                        UpdateResponse update = new UpdateResponse(
-                            response.getShardInfo(),
-                            response.getShardId(),
-                            response.getId(),
-                            response.getSeqNo(),
-                            response.getPrimaryTerm(),
-                            response.getVersion(),
-                            response.getResult()
-                        );
-                        if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
-                            Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
-                                upsertSourceBytes,
-                                true,
-                                upsertRequest.getContentType()
+                    ActionListener.runAfter(
+                        ActionListener.releaseAfter(unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                            UpdateResponse update = new UpdateResponse(
+                                response.getShardInfo(),
+                                response.getShardId(),
+                                response.getId(),
+                                response.getSeqNo(),
+                                response.getPrimaryTerm(),
+                                response.getVersion(),
+                                response.getResult()
                             );
-                            update.setGetResult(
-                                UpdateHelper.extractGetResult(
-                                    request,
-                                    request.concreteIndex(),
-                                    response.getSeqNo(),
-                                    response.getPrimaryTerm(),
-                                    response.getVersion(),
-                                    sourceAndContent.v2(),
-                                    sourceAndContent.v1(),
-                                    upsertSourceBytes
-                                )
-                            );
-                        } else {
-                            update.setGetResult(null);
-                        }
-                        update.setForcedRefresh(response.forcedRefresh());
-                        listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest)
+                            if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
+                                Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+                                    upsertSourceBytes,
+                                    true,
+                                    upsertRequest.getContentType()
+                                );
+                                update.setGetResult(
+                                    UpdateHelper.extractGetResult(
+                                        request,
+                                        request.concreteIndex(),
+                                        response.getSeqNo(),
+                                        response.getPrimaryTerm(),
+                                        response.getVersion(),
+                                        sourceAndContent.v2(),
+                                        sourceAndContent.v1(),
+                                        upsertSourceBytes
+                                    )
+                                );
+                            } else {
+                                update.setGetResult(null);
+                            }
+                            update.setForcedRefresh(response.forcedRefresh());
+                            listener.onResponse(update);
+                        }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest),
+                        upsertRequest::decRef
+                    )
                 );
             }
             case UPDATED -> {
@@ -234,31 +237,34 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
                 client.bulk(
                     bulkRequest,
-                    ActionListener.releaseAfter(unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
-                        UpdateResponse update = new UpdateResponse(
-                            response.getShardInfo(),
-                            response.getShardId(),
-                            response.getId(),
-                            response.getSeqNo(),
-                            response.getPrimaryTerm(),
-                            response.getVersion(),
-                            response.getResult()
-                        );
-                        update.setGetResult(
-                            UpdateHelper.extractGetResult(
-                                request,
-                                request.concreteIndex(),
+                    ActionListener.runAfter(
+                        ActionListener.releaseAfter(unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                            UpdateResponse update = new UpdateResponse(
+                                response.getShardInfo(),
+                                response.getShardId(),
+                                response.getId(),
                                 response.getSeqNo(),
                                 response.getPrimaryTerm(),
                                 response.getVersion(),
-                                result.updatedSourceAsMap(),
-                                result.updateSourceContentType(),
-                                indexSourceBytes
-                            )
-                        );
-                        update.setForcedRefresh(response.forcedRefresh());
-                        listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest)
+                                response.getResult()
+                            );
+                            update.setGetResult(
+                                UpdateHelper.extractGetResult(
+                                    request,
+                                    request.concreteIndex(),
+                                    response.getSeqNo(),
+                                    response.getPrimaryTerm(),
+                                    response.getVersion(),
+                                    result.updatedSourceAsMap(),
+                                    result.updateSourceContentType(),
+                                    indexSourceBytes
+                                )
+                            );
+                            update.setForcedRefresh(response.forcedRefresh());
+                            listener.onResponse(update);
+                        }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest),
+                        indexRequest::decRef
+                    )
                 );
             }
             case DELETED -> {
@@ -295,14 +301,18 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             }
             case NOOP -> {
                 UpdateResponse update = result.action();
-                IndexService indexServiceOrNull = indicesService.indexService(shardId.getIndex());
-                if (indexServiceOrNull != null) {
-                    IndexShard shard = indexService.getShardOrNull(shardId.getId());
-                    if (shard != null) {
-                        shard.noopUpdate();
+                try {
+                    IndexService indexServiceOrNull = indicesService.indexService(shardId.getIndex());
+                    if (indexServiceOrNull != null) {
+                        IndexShard shard = indexService.getShardOrNull(shardId.getId());
+                        if (shard != null) {
+                            shard.noopUpdate();
+                        }
                     }
+                    listener.onResponse(update);
+                } finally {
+                    update.decRef();
                 }
-                listener.onResponse(update);
             }
             default -> throw new IllegalStateException("Illegal result " + result.getResponseResult());
         }

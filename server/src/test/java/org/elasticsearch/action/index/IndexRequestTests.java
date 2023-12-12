@@ -76,8 +76,12 @@ public class IndexRequestTests extends ESTestCase {
 
     public void testReadIncorrectOpType() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            try (IndexRequest ignored = new IndexRequest("").opType("foobar")) {}
-            ;
+            IndexRequest indexRequest = new IndexRequest("");
+            try {
+                indexRequest.opType("foobar");
+            } finally {
+                indexRequest.decRef();
+            }
         });
         assertThat(e.getMessage(), equalTo("opType must be 'create' or 'index', found: [foobar]"));
     }
@@ -273,6 +277,7 @@ public class IndexRequestTests extends ESTestCase {
             assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
             serialized.decRef();
         }
+        indexRequest.decRef();
     }
 
     public void testToStringSizeLimit() {
@@ -492,6 +497,7 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(copy.getFinalPipeline(), equalTo(indexRequest.getFinalPipeline()));
         assertThat(copy.ifPrimaryTerm(), equalTo(indexRequest.ifPrimaryTerm()));
         indexRequest.decRef();
+        copy.decRef();
     }
 
     private IndexRequest createTestInstance() {

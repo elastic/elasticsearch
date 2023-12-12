@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -126,7 +127,11 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
         };
         private boolean assertToXContentEquivalence = true;
-        private Consumer<T> dispose = t -> {};
+        private Consumer<T> dispose = t -> {
+            if (t instanceof RefCounted refCounted) {
+                refCounted.decRef();
+            }
+        };
 
         private XContentTester(
             CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,

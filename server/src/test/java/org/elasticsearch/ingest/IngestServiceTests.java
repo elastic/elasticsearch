@@ -1221,6 +1221,7 @@ public class IngestServiceTests extends ESTestCase {
             UpdateRequest updateRequest = new UpdateRequest("_index", "_id1").upsert("{}", "{}");
             updateRequest.upsertRequest().setPipeline("_id");
             bulkRequest.add(updateRequest);
+            updateRequest.decRef();
             IndexRequest indexRequest = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_id1");
             bulkRequest.add(indexRequest);
             indexRequest.decRef();
@@ -1532,13 +1533,15 @@ public class IngestServiceTests extends ESTestCase {
             int numIndexRequests = 0;
             for (int i = 0; i < numRequest; i++) {
                 if (randomBoolean()) {
-                    DocWriteRequest<?> request;
                     if (randomBoolean()) {
-                        request = new DeleteRequest("_index", "_id");
+                        DeleteRequest request = new DeleteRequest("_index", "_id");
+                        bulkRequest.add(request);
                     } else {
-                        request = new UpdateRequest("_index", "_id");
+                        UpdateRequest request = new UpdateRequest("_index", "_id");
+                        bulkRequest.add(request);
+                        request.decRef();
                     }
-                    bulkRequest.add(request);
+
                 } else {
                     IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
                     indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");

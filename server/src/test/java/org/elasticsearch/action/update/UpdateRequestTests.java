@@ -406,6 +406,7 @@ public class UpdateRequestTests extends ESTestCase {
             .timeout(randomTimeValue());
         runTimeoutTest(getResult, updateRequest);
         upsert.decRef();
+        updateRequest.decRef();
     }
 
     private void runTimeoutTest(final GetResult getResult, final UpdateRequest updateRequest) {
@@ -419,6 +420,9 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(action, instanceOf(ReplicationRequest.class));
         final ReplicationRequest<?> request = (ReplicationRequest<?>) action;
         assertThat(request.timeout(), equalTo(updateRequest.timeout()));
+        if (action != updateRequest.upsertRequest()) {
+            request.decRef();
+        }
     }
 
     public void testToAndFromXContent() throws IOException {
@@ -620,6 +624,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
         request.decRef();
+        ((IndexRequest) result.action()).decRef();
 
         // Now where the script changes the op to "delete"
         request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'delete'"));
@@ -629,7 +634,6 @@ public class UpdateRequestTests extends ESTestCase {
 
         assertThat(result.action(), instanceOf(DeleteRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.DELETED));
-        request.decRef();
 
         // We treat everything else as a No-op
         boolean goodNoop = randomBoolean();
@@ -644,9 +648,6 @@ public class UpdateRequestTests extends ESTestCase {
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
-        if (result.action() instanceof IndexRequest indexRequest) {
-            indexRequest.decRef();
-        }
     }
 
     public void testToString() throws IOException {

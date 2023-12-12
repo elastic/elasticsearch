@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -104,7 +105,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setId(id).setSource("text", "sometext");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         indicesAdmin().prepareFlush(indexName).get();
 

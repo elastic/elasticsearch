@@ -159,6 +159,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             "Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",
             e.getMessage()
         );
+        reindex.decRef();
     }
 
     public void testReindexFromRemoteDoesNotSupportSlices() {
@@ -183,6 +184,8 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
             e.getMessage()
         );
+        reindex.decRef();
+
     }
 
     public void testNoSliceBuilderSetWithSlicedRequest() {
@@ -191,6 +194,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: can't specify both manual and automatic slicing at the same time;", e.getMessage());
+        reindex.decRef();
     }
 
     @Override
@@ -352,6 +356,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             ReindexRequest r = ReindexRequest.fromXContent(p);
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] { "source" }, r.getSearchRequest().indices());
+            r.decRef();
         }
     }
 
@@ -368,11 +373,13 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     public void testCommaSeparatedSourceIndices() throws IOException {
         ReindexRequest r = parseRequestWithSourceIndices("a,b");
         assertArrayEquals(new String[] { "a", "b" }, r.getSearchRequest().indices());
+        r.decRef();
     }
 
     public void testArraySourceIndices() throws IOException {
         ReindexRequest r = parseRequestWithSourceIndices(new String[] { "a", "b" });
         assertArrayEquals(new String[] { "a", "b" }, r.getSearchRequest().indices());
+        r.decRef();
     }
 
     public void testEmptyStringSourceIndices() throws IOException {
@@ -381,6 +388,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         ActionRequestValidationException validationException = r.validate();
         assertNotNull(validationException);
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+        r.decRef();
     }
 
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {

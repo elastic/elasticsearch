@@ -159,6 +159,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         if (in.readBoolean()) {
             upsertRequest = new IndexRequest(shardId, in);
+            upsertRequest.incRef();
         }
         docAsUpsert = in.readBoolean();
         ifSeqNo = in.readZLong();
@@ -717,6 +718,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest upsert(IndexRequest upsertRequest) {
         this.upsertRequest = upsertRequest;
+        this.upsertRequest.incRef();
         return this;
     }
 
@@ -1019,8 +1021,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public boolean decRef() {
         boolean success = refCounted.decRef();
         // new RuntimeException("decRef").printStackTrace(System.out);
-        if (refCounted.hasReferences() == false && doc != null) {
-            success = doc.decRef() && success;
+        if (refCounted.hasReferences() == false) {
+            if (doc != null) {
+                success = doc.decRef() && success;
+            }
+            if (upsertRequest != null) {
+                success = upsertRequest.decRef() && success;
+            }
         }
         return success;
     }

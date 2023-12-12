@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
@@ -73,10 +74,11 @@ public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShap
         ensureGreen();
 
         Point point = GeometryTestUtils.randomPoint(false);
-        prepareIndex(defaultIndexName).setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(point)).endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertHitCount(client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", point)), 1);
     }

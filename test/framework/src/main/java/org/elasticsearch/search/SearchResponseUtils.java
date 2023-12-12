@@ -7,17 +7,22 @@
  */
 package org.elasticsearch.search;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 
 public enum SearchResponseUtils {
     ;
 
-    public static long getTotalHitsValue(SearchRequestBuilder request) {
+    public static TotalHits getTotalHits(SearchRequestBuilder request) {
         var resp = request.get();
         try {
-            return resp.getHits().getTotalHits().value;
+            return resp.getHits().getTotalHits();
         } finally {
             resp.decRef();
         }
+    }
+
+    public static long getTotalHitsValue(SearchRequestBuilder request) {
+        return getTotalHits(request).value;
     }
 }

@@ -7,20 +7,25 @@
 
 package org.elasticsearch.test.fixtures.idp;
 
-import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
-import org.junit.rules.TestRule;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.images.builder.Transferable;
 
-public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule, CacheableTestFixture {
+public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestContainer {
 
     private static final int PORT = 8080;
 
+    /**
+     * for packer caching only
+     * */
+    protected OidcProviderTestContainer() {
+        this(Network.newNetwork());
+    }
+
     public OidcProviderTestContainer(Network network) {
         super(
-            new ImageFromDockerfile("es-oidc-provider-fixture", false).withFileFromClasspath("oidc/setup.sh", "/oidc/setup.sh")
+            new ImageFromDockerfile("es-oidc-provider-fixture").withFileFromClasspath("oidc/setup.sh", "/oidc/setup.sh")
                 // we cannot make use of docker file builder
                 // as it does not support multi-stage builds
                 .withFileFromClasspath("Dockerfile", "oidc/Dockerfile")
@@ -58,13 +63,4 @@ public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestC
         return getC2OPUrl() + "/c2id";
     }
 
-    @Override
-    public void cache() {
-        try {
-            start();
-            stop();
-        } catch (RuntimeException e) {
-            logger().warn("Error while caching container images.", e);
-        }
-    }
 }

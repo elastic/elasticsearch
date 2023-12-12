@@ -182,7 +182,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
         assertThat(metadata.get("oidc(sub)"), equalTo("alice"));
-        assertThat(metadata.get("oidc(iss)"), equalTo(ci2d.getC2IssuerUrl()));
+        assertThat(metadata.get("oidc(iss)"), equalTo(c2id.getC2IssuerUrl()));
     }
 
     private void verifyElasticsearchAccessTokenForImplicitFlow(String accessToken) throws Exception {
@@ -194,7 +194,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
         assertThat(metadata.get("oidc(sub)"), equalTo("alice"));
-        assertThat(metadata.get("oidc(iss)"), equalTo(ci2d.getC2IssuerUrl()));
+        assertThat(metadata.get("oidc(iss)"), equalTo(c2id.getC2IssuerUrl()));
     }
 
     private PrepareAuthResponse getRedirectedFromFacilitator(String realmName) throws Exception {

@@ -7,10 +7,8 @@
 
 package org.elasticsearch.test.fixtures.idp;
 
-import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -19,16 +17,23 @@ import java.nio.file.Path;
 
 import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
-public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule, CacheableTestFixture {
+public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer {
 
     public static final String DOCKER_BASE_IMAGE = "openjdk:11.0.16-jre";
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Path certsPath;
 
+    /**
+     * for packer caching only
+     * */
+    protected IdpTestContainer() {
+        this(Network.newNetwork());
+    }
+
     public IdpTestContainer(Network network) {
         super(
-            new ImageFromDockerfile("es-idp-testfixture", false).withDockerfileFromBuilder(
+            new ImageFromDockerfile("es-idp-testfixture").withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
                     .env("jetty_version", "9.3.27.v20190418")
                     .env("jetty_hash", "7c7c80dd1c9f921771e2b1a05deeeec652d5fcaa")
@@ -137,13 +142,9 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
     }
 
     @Override
-    public void cache() {
-        try {
-            start();
-            stop();
-        } catch (RuntimeException e) {
-            logger().warn("Error while caching container images.", e);
-        }
+    public void stop() {
+        super.stop();
+        temporaryFolder.delete();
     }
 
     public Path getBrowserPem() {

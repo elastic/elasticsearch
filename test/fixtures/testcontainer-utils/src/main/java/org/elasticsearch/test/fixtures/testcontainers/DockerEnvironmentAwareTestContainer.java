@@ -8,11 +8,14 @@
 
 package org.elasticsearch.test.fixtures.testcontainers;
 
+import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.junit.Assume;
+import org.junit.rules.TestRule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 import java.io.File;
@@ -26,7 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class DockerEnvironmentAwareTestContainer extends GenericContainer<DockerEnvironmentAwareTestContainer> {
+public abstract class DockerEnvironmentAwareTestContainer extends GenericContainer<DockerEnvironmentAwareTestContainer>
+    implements
+        TestRule,
+        CacheableTestFixture {
     protected static final Logger LOGGER = LoggerFactory.getLogger(DockerEnvironmentAwareTestContainer.class);
 
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
@@ -52,6 +58,7 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<Docker
 
     public DockerEnvironmentAwareTestContainer(ImageFromDockerfile imageFromDockerfile) {
         super(imageFromDockerfile);
+        withLogConsumer(new Slf4jLogConsumer(logger()));
     }
 
     @Override
@@ -59,6 +66,16 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<Docker
         Assume.assumeFalse("Docker support excluded on OS", EXCLUDED_OS);
         Assume.assumeTrue("Docker probing succesful", DOCKER_PROBING_SUCCESSFUL);
         super.start();
+    }
+
+    @Override
+    public void cache() {
+        try {
+            start();
+            stop();
+        } catch (RuntimeException e) {
+            logger().warn("Error while caching container images.", e);
+        }
     }
 
     static String deriveId(Map<String, String> values) {

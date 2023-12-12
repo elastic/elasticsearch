@@ -7,10 +7,8 @@
 
 package org.elasticsearch.test.fixtures.idp;
 
-import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -19,7 +17,7 @@ import java.nio.file.Path;
 
 import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
-public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule, CacheableTestFixture {
+public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestContainer {
 
     public static final String DOCKER_BASE_IMAGE = "osixia/openldap:1.4.0";
 
@@ -32,7 +30,7 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
 
     public OpenLdapTestContainer(Network network) {
         super(
-            new ImageFromDockerfile("es-openldap-testfixture", false).withDockerfileFromBuilder(
+            new ImageFromDockerfile("es-openldap-testfixture").withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
                     .env("LDAP_ADMIN_PASSWORD", "NickFuryHeartsES")
                     .env("LDAP_DOMAIN", "oldap.test.elasticsearch.com")
@@ -71,19 +69,15 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
     }
 
     @Override
-    public void cache() {
-        try {
-            start();
-            stop();
-        } catch (RuntimeException e) {
-            logger().warn("Error while caching container images.", e);
-        }
-    }
-
-    @Override
     public void start() {
         super.start();
         setupCerts();
+    }
+
+    @Override
+    public void stop() {
+        super.stop();
+        temporaryFolder.delete();
     }
 
     private void setupCerts() {

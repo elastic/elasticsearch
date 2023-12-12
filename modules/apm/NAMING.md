@@ -5,7 +5,6 @@ We propose a set of guidelines to build consistent and readable names for metric
 This set of “rules” has been built by looking at naming conventions and best practices used by other software (e.g. Prometheus, Datadog) or standards (OpenTelemetry, OpenMetrics - see  for details). \
 They follow OpenTelemetry guidelines most closely with some ES specifics.
 
-
 ## Guidelines
 
 A metric name should be composed of **elements** limited by **separators** to organize them in a **hierarchy**.
@@ -49,9 +48,6 @@ Examples :
 * These can all be composed with the suffixes below, e.g. <code>es.process.jvm.collection.<strong>time.total</strong></code>, <code>es.indices.storage.write.<strong>total</strong></code> to represent the monotonic sum of time spent in GC and the total number of bytes written to indices respectively.
 
 **Pluralization** and **suffixes**:
-
-
-
 * If the metric is unit-less, use plural: `es.threadpool.activethreads`, `es.indices.docs`
 * Use `total` as a suffix for monotonic sums (e.g. <code>es.indices.docs.deleted.<strong>total</strong></code>)
 * Use `count` to represent the count of "things" in the metric name/namespace (e.g. if we have `es.process.jvm.classes.loaded`, we will express the number of classes currently loaded by the JVM as <code>es.process.jvm.classes.loaded.<strong>count</strong></code>, and the total number of classes loaded since the JVM started as <code>es.process.jvm.classes.loaded.<strong>total</strong></code>
@@ -59,15 +55,12 @@ Examples :
     * Exception: consider using utilization when the ratio is between a usage and its limit, e.g. the ratio between <code>es.process.jvm.heap.<strong>usage</strong></code> and <code>es.process.jvm.heap.<strong>limit</strong></code> should be <code>es.process.jvm.heap.<strong>utilization</strong></code>
 * If it has a unit of measure, then it should not be plural (and also not include the unit of measure, see above). Examples:  <code>es.process.jvm.collection.time, es.process.mem.virtual.usage<strong>, </strong>es.indices.storage.utilization</code>
 
-
 ### Attributes
 
-Attribute names should follow the same rules. In particular rules about:
+Attribute names should follow the same rules. In particular, these rules apply to attributes too:
 * elements and separators
 * hierarchy/namespaces
 * units
 * pluralization (when an attribute represents a measurement)
-
-apply to attributes too.
 
 For **pluralization**, when an attribute represents an entity, the attribute name should be singular (e.g.` es.security.realm_type`, not` es.security.realms_type` or `es.security.realm_types`), unless it represents a collection (e.g.` es.rest.request_headers`)

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService.AuditableReq
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
@@ -53,11 +54,7 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
 
         final Authenticator.Context context = mock(Authenticator.Context.class);
 
-        final ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(
-            randomAlphaOfLength(20),
-            new SecureString(randomAlphaOfLength(20).toCharArray()),
-            randomFrom(ApiKey.Type.values())
-        );
+        final ApiKeyCredentials apiKeyCredentials = randomApiKeyCredentials();
         when(context.getMostRecentAuthenticationToken()).thenReturn(apiKeyCredentials);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(context.getThreadContext()).thenReturn(threadContext);
@@ -86,24 +83,18 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
 
     public void testRecordingSuccessfulAuthenticationMetrics() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final long initialNanoTime = randomLongBetween(0, 100);
+        final TestNanoTimeSupplier nanoTimeSupplier = new TestNanoTimeSupplier(initialNanoTime);
         final ApiKeyService apiKeyService = mock(ApiKeyService.class);
-        final ApiKeyAuthenticator apiKeyAuthenticator = new ApiKeyAuthenticator(
-            apiKeyService,
-            randomAlphaOfLengthBetween(3, 8),
-            telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry()
-        );
+        final ApiKeyAuthenticator apiKeyAuthenticator = createApiKeyAuthenticator(apiKeyService, telemetryPlugin, nanoTimeSupplier);
 
-        final ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(
-            randomAlphaOfLength(12),
-            new SecureString(randomAlphaOfLength(20).toCharArray()),
-            randomFrom(ApiKey.Type.values())
-        );
+        final ApiKeyCredentials apiKeyCredentials = randomApiKeyCredentials();
+        final Authenticator.Context context = mockApiKeyAuthenticationContext(apiKeyCredentials);
 
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final Authenticator.Context context = mockApiKeyAuthenticationContext(threadContext, apiKeyCredentials);
-
+        final long executionTimeInNanos = randomLongBetween(0, 500);
         doAnswer(invocation -> {
             final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
+            nanoTimeSupplier.advanceTime(executionTimeInNanos);
             listener.onResponse(
                 AuthenticationResult.success(
                     new User(randomAlphaOfLengthBetween(3, 8)),
@@ -114,72 +105,62 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(apiKeyService).tryAuthenticate(same(threadContext), same(apiKeyCredentials), anyActionListener());
+        }).when(apiKeyService).tryAuthenticate(any(), same(apiKeyCredentials), anyActionListener());
 
-        // Randomly call authentication multiple times
-        final int numOfAuthentications = randomInt(3);
-        for (int i = 0; i < numOfAuthentications; i++) {
-            final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
-            apiKeyAuthenticator.authenticate(context, future);
-            var authResult = future.actionGet();
-            assertThat(authResult.isAuthenticated(), equalTo(true));
-        }
-        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticator.METRIC_SUCCESS_COUNT);
-        assertThat(successMetrics.size(), equalTo(numOfAuthentications));
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        apiKeyAuthenticator.authenticate(context, future);
+        final AuthenticationResult<Authentication> authResult = future.actionGet();
+        assertThat(authResult.isAuthenticated(), equalTo(true));
 
-        successMetrics.forEach(metric -> {
-            // verify that we always record a single authentication
-            assertThat(metric.getLong(), equalTo(1L));
+        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement("es.security.authc.api_key.success.count");
+        assertThat(successMetrics.size(), equalTo(1));
 
-            // and that all attributes are present
-            assertThat(
-                metric.attributes(),
-                equalTo(
-                    Map.ofEntries(
-                        Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                        Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-                    )
+        // verify that we always record a single authentication
+        assertThat(successMetrics.get(0).getLong(), equalTo(1L));
+        // and that all attributes are present
+        assertThat(
+            successMetrics.get(0).attributes(),
+            equalTo(
+                Map.ofEntries(
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
                 )
-            );
-        });
+            )
+        );
 
         // verify that there were no failures recorded
         assertZeroFailedAuthMetrics(telemetryPlugin);
+
+        // verify we recorded authentication time
+        assertAuthenticationTimeMetric(telemetryPlugin, apiKeyCredentials, executionTimeInNanos);
     }
 
     public void testRecordingFailedAuthenticationMetrics() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final long initialNanoTime = randomLongBetween(1, 100);
+        final TestNanoTimeSupplier nanoTimeSupplier = new TestNanoTimeSupplier(initialNanoTime);
         final ApiKeyService apiKeyService = mock(ApiKeyService.class);
-        final ApiKeyAuthenticator apiKeyAuthenticator = new ApiKeyAuthenticator(
-            apiKeyService,
-            randomAlphaOfLengthBetween(3, 8),
-            telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry()
-        );
+        final ApiKeyAuthenticator apiKeyAuthenticator = createApiKeyAuthenticator(apiKeyService, telemetryPlugin, nanoTimeSupplier);
 
-        final ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(
-            randomAlphaOfLength(12),
-            new SecureString(randomAlphaOfLength(20).toCharArray()),
-            randomFrom(ApiKey.Type.values())
-        );
-
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final Authenticator.Context context = mockApiKeyAuthenticationContext(threadContext, apiKeyCredentials);
+        final ApiKeyCredentials apiKeyCredentials = randomApiKeyCredentials();
+        final Authenticator.Context context = mockApiKeyAuthenticationContext(apiKeyCredentials);
 
         final Exception exception = randomFrom(new ElasticsearchException("API key auth exception"), null);
-        final AuthenticationResult<User> failedAuth;
-
         final boolean failWithTermination = randomBoolean();
+        final AuthenticationResult<User> failedAuth;
         if (failWithTermination) {
             failedAuth = AuthenticationResult.terminate("terminated API key auth", exception);
         } else {
             failedAuth = AuthenticationResult.unsuccessful("unsuccessful API key auth", exception);
         }
 
+        final long executionTimeInNanos = randomLongBetween(0, 500);
         doAnswer(invocation -> {
+            nanoTimeSupplier.advanceTime(executionTimeInNanos);
             final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
             listener.onResponse(failedAuth);
             return Void.TYPE;
-        }).when(apiKeyService).tryAuthenticate(same(threadContext), same(apiKeyCredentials), anyActionListener());
+        }).when(apiKeyService).tryAuthenticate(any(), same(apiKeyCredentials), anyActionListener());
         final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
         apiKeyAuthenticator.authenticate(context, future);
 
@@ -200,34 +181,31 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
 
         // verify that there were no successes recorded
         assertZeroSuccessAuthMetrics(telemetryPlugin);
+
+        // verify we recorded authentication time
+        assertAuthenticationTimeMetric(telemetryPlugin, apiKeyCredentials, executionTimeInNanos);
     }
 
     public void testRecordingFailedAuthenticationMetricsOnExceptions() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final long initialNanoTime = randomLongBetween(0, 100);
+        final TestNanoTimeSupplier nanoTimeSupplier = new TestNanoTimeSupplier(initialNanoTime);
         final ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        final ApiKeyAuthenticator apiKeyAuthenticator = createApiKeyAuthenticator(apiKeyService, telemetryPlugin, nanoTimeSupplier);
 
-        final ApiKeyAuthenticator apiKeyAuthenticator = new ApiKeyAuthenticator(
-            apiKeyService,
-            randomAlphaOfLengthBetween(3, 8),
-            telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry()
-        );
+        final ApiKeyCredentials apiKeyCredentials = randomApiKeyCredentials();
+        final Authenticator.Context context = mockApiKeyAuthenticationContext(apiKeyCredentials);
 
-        final ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(
-            randomAlphaOfLength(12),
-            new SecureString(randomAlphaOfLength(20).toCharArray()),
-            randomFrom(ApiKey.Type.values())
-        );
-
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final Authenticator.Context context = mockApiKeyAuthenticationContext(threadContext, apiKeyCredentials);
         final ElasticsearchSecurityException exception = new ElasticsearchSecurityException("API key auth exception");
         when(context.getRequest().exceptionProcessingRequest(same(exception), any())).thenReturn(exception);
 
+        final long executionTimeInNanos = randomLongBetween(0, 500);
         doAnswer(invocation -> {
+            nanoTimeSupplier.advanceTime(executionTimeInNanos);
             final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
             listener.onFailure(exception);
             return Void.TYPE;
-        }).when(apiKeyService).tryAuthenticate(same(threadContext), same(apiKeyCredentials), anyActionListener());
+        }).when(apiKeyService).tryAuthenticate(any(), same(apiKeyCredentials), anyActionListener());
 
         final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
         apiKeyAuthenticator.authenticate(context, future);
@@ -240,6 +218,9 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
 
         // verify that there were no successes recorded
         assertZeroSuccessAuthMetrics(telemetryPlugin);
+
+        // verify we recorded authentication time
+        assertAuthenticationTimeMetric(telemetryPlugin, apiKeyCredentials, executionTimeInNanos);
     }
 
     private void assertSingleFailedAuthMetric(
@@ -247,7 +228,7 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         ApiKeyCredentials apiKeyCredentials,
         String failureMessage
     ) {
-        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticator.METRIC_FAILURES_COUNT);
+        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement("es.security.authc.api_key.failures.count");
         assertThat(failuresMetrics.size(), equalTo(1));
         assertThat(
             failuresMetrics.get(0).attributes(),
@@ -255,28 +236,88 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
                 Map.ofEntries(
                     Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
                     Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON, failureMessage)
+                    Map.entry("es.security.api_key_authc_failure_reason", failureMessage)
+                )
+            )
+        );
+    }
+
+    private void assertAuthenticationTimeMetric(
+        TestTelemetryPlugin telemetryPlugin,
+        ApiKeyCredentials credentials,
+        long expectedAuthenticationTime
+    ) {
+        List<Measurement> authTimeMetrics = telemetryPlugin.getLongHistogramMeasurement("es.security.authc.api_key.time");
+        assertThat(authTimeMetrics.size(), equalTo(1));
+        assertThat(authTimeMetrics.get(0).getLong(), equalTo(expectedAuthenticationTime));
+        assertThat(
+            authTimeMetrics.get(0).attributes(),
+            equalTo(
+                Map.ofEntries(
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, credentials.getId()),
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value())
                 )
             )
         );
     }
 
     private void assertZeroSuccessAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
-        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticator.METRIC_SUCCESS_COUNT);
+        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement("es.security.authc.api_key.success.count");
         assertThat(successMetrics.size(), equalTo(0));
     }
 
     private void assertZeroFailedAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
-        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(ApiKeyAuthenticator.METRIC_FAILURES_COUNT);
+        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement("es.security.authc.api_key.failures.count");
         assertThat(failuresMetrics.size(), equalTo(0));
     }
 
-    private Authenticator.Context mockApiKeyAuthenticationContext(ThreadContext threadContext, ApiKeyCredentials apiKeyCredentials) {
+    private static ApiKeyCredentials randomApiKeyCredentials() {
+        return new ApiKeyCredentials(
+            randomAlphaOfLength(12),
+            new SecureString(randomAlphaOfLength(20).toCharArray()),
+            randomFrom(ApiKey.Type.values())
+        );
+    }
+
+    private static ApiKeyAuthenticator createApiKeyAuthenticator(
+        ApiKeyService apiKeyService,
+        TestTelemetryPlugin telemetryPlugin,
+        LongSupplier nanoTimeSupplier
+    ) {
+        return new ApiKeyAuthenticator(
+            apiKeyService,
+            randomAlphaOfLengthBetween(3, 8),
+            telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry(),
+            nanoTimeSupplier
+        );
+    }
+
+    private static Authenticator.Context mockApiKeyAuthenticationContext(ApiKeyCredentials apiKeyCredentials) {
         final Authenticator.Context context = mock(Authenticator.Context.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(context.getMostRecentAuthenticationToken()).thenReturn(apiKeyCredentials);
         when(context.getThreadContext()).thenReturn(threadContext);
         final AuditableRequest auditableRequest = mock(AuditableRequest.class);
         when(context.getRequest()).thenReturn(auditableRequest);
         return context;
     }
+
+    private static class TestNanoTimeSupplier implements LongSupplier {
+
+        private long currentTime;
+
+        TestNanoTimeSupplier(long initialTime) {
+            this.currentTime = initialTime;
+        }
+
+        public void advanceTime(long timeToAdd) {
+            this.currentTime += timeToAdd;
+        }
+
+        @Override
+        public long getAsLong() {
+            return currentTime;
+        }
+    }
+
 }

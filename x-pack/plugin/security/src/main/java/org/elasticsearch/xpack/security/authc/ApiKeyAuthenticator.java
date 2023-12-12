@@ -18,30 +18,29 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-class ApiKeyAuthenticator extends MetricsRecordingAuthenticator implements Authenticator {
+class ApiKeyAuthenticator implements Authenticator {
 
-    public static final String METRIC_SUCCESS_COUNT = "es.security.authc.api_key.success.count";
-    public static final String METRIC_FAILURES_COUNT = "es.security.authc.api_key.failures.count";
-
-    public static final String ATTRIBUTE_API_KEY_ID = "es.security.api_key_id";
-    public static final String ATTRIBUTE_API_KEY_TYPE = "es.security.api_key_type";
-    public static final String ATTRIBUTE_AUTHC_FAILURE_REASON = "es.security.api_key_authc_failure_reason";
+    public static final String ATTRIBUTE_API_KEY_ID = AuthenticationMetrics.ATTRIBUTE_NAMESPACE_PREFIX + "api_key_id";
+    public static final String ATTRIBUTE_API_KEY_TYPE = AuthenticationMetrics.ATTRIBUTE_NAMESPACE_PREFIX + "api_key_type";
 
     private static final Logger logger = LogManager.getLogger(ApiKeyAuthenticator.class);
 
     private final ApiKeyService apiKeyService;
     private final String nodeName;
 
+    private final AuthenticationMetrics<ApiKeyCredentials> authenticationMetrics;
+
     ApiKeyAuthenticator(ApiKeyService apiKeyService, String nodeName, MeterRegistry meterRegistry) {
-        super(
-            meterRegistry.registerLongCounter(METRIC_SUCCESS_COUNT, "Number of successful API Key authentications.", "count"),
-            meterRegistry.registerLongCounter(METRIC_FAILURES_COUNT, "Number of failed API Key authentications.", "count")
-        );
+        this(apiKeyService, nodeName, meterRegistry, System::nanoTime);
+    }
+
+    ApiKeyAuthenticator(ApiKeyService apiKeyService, String nodeName, MeterRegistry meterRegistry, LongSupplier nanoTimeSupplier) {
+        this.authenticationMetrics = new AuthenticationMetrics<>(meterRegistry, "api_key", this::buildMetricAttributes, nanoTimeSupplier);
         this.apiKeyService = apiKeyService;
         this.nodeName = nodeName;
     }
@@ -66,50 +65,41 @@ class ApiKeyAuthenticator extends MetricsRecordingAuthenticator implements Authe
             return;
         }
         ApiKeyCredentials apiKeyCredentials = (ApiKeyCredentials) authenticationToken;
-        apiKeyService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
-            if (authResult.isAuthenticated()) {
-                final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
-                recordSuccessfulAuthentication(buildMetricAttributes(apiKeyCredentials));
-                listener.onResponse(AuthenticationResult.success(authentication));
-            } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                Exception e = (authResult.getException() != null)
-                    ? authResult.getException()
-                    : Exceptions.authenticationError(authResult.getMessage());
-                logger.debug(() -> "API key service terminated authentication for request [" + context.getRequest() + "]", e);
-                context.getRequest().exceptionProcessingRequest(e, authenticationToken);
-                recordFailedAuthentication(buildMetricAttributes(apiKeyCredentials, authResult.getMessage()));
-                listener.onFailure(e);
-            } else {
-                if (authResult.getMessage() != null) {
-                    if (authResult.getException() != null) {
-                        logger.warn(
-                            () -> format("Authentication using apikey failed - %s", authResult.getMessage()),
-                            authResult.getException()
-                        );
-                    } else {
-                        logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
+        apiKeyService.tryAuthenticate(
+            context.getThreadContext(),
+            apiKeyCredentials,
+            authenticationMetrics.wrap(apiKeyCredentials, ActionListener.wrap(authResult -> {
+                if (authResult.isAuthenticated()) {
+                    final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
+                    listener.onResponse(AuthenticationResult.success(authentication));
+                } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                    Exception e = (authResult.getException() != null)
+                        ? authResult.getException()
+                        : Exceptions.authenticationError(authResult.getMessage());
+                    logger.debug(() -> "API key service terminated authentication for request [" + context.getRequest() + "]", e);
+                    context.getRequest().exceptionProcessingRequest(e, authenticationToken);
+                    listener.onFailure(e);
+                } else {
+                    if (authResult.getMessage() != null) {
+                        if (authResult.getException() != null) {
+                            logger.warn(
+                                () -> format("Authentication using apikey failed - %s", authResult.getMessage()),
+                                authResult.getException()
+                            );
+                        } else {
+                            logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
+                        }
                     }
+                    listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));
                 }
-                recordFailedAuthentication(buildMetricAttributes(apiKeyCredentials, authResult.getMessage()));
-                listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));
-            }
-        }, e -> {
-            recordFailedAuthentication(buildMetricAttributes(apiKeyCredentials, e.getMessage()));
-            listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null));
-        }));
+            }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null))))
+        );
     }
 
     private Map<String, Object> buildMetricAttributes(ApiKeyCredentials credentials) {
-        return buildMetricAttributes(credentials, null);
-    }
-
-    private Map<String, Object> buildMetricAttributes(ApiKeyCredentials credentials, String failureReason) {
-        final Map<String, Object> attributes = new HashMap<>(3);
-        attributes.put(ATTRIBUTE_API_KEY_ID, credentials.getId());
-        attributes.put(ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value());
-        if (failureReason != null) {
-            attributes.put(ATTRIBUTE_AUTHC_FAILURE_REASON, failureReason);
-        }
-        return attributes;
+        return Map.ofEntries(
+            Map.entry(ATTRIBUTE_API_KEY_ID, credentials.getId()),
+            Map.entry(ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value())
+        );
     }
 }

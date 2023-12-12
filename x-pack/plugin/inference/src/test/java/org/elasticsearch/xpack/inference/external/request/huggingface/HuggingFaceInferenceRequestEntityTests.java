@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 
-public class HuggingFaceElserRequestEntityTests extends ESTestCase {
+public class HuggingFaceInferenceRequestEntityTests extends ESTestCase {
 
     public void testXContent() throws IOException {
         var entity = new HuggingFaceInferenceRequestEntity(List.of("abc"));

@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.xpack.inference.external.request.Request;
 
-public class RetryException extends ElasticsearchException implements ElasticsearchWrapperException {
+public class RetryException extends ElasticsearchException implements ElasticsearchWrapperException, Retryable {
     private final boolean shouldRetry;
 
     public RetryException(boolean shouldRetry, Throwable cause) {
@@ -32,6 +33,12 @@ public class RetryException extends ElasticsearchException implements Elasticsea
         this.shouldRetry = shouldRetry;
     }
 
+    @Override
+    public Request rebuildRequest(Request original) {
+        return original;
+    }
+
+    @Override
     public boolean shouldRetry() {
         return shouldRetry;
     }

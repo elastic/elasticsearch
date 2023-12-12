@@ -57,8 +57,7 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typesToCan
 public final class PainlessLookupBuilder {
 
     private static final Pattern CLASS_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
-    private static final Pattern METHOD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
-    private static final Pattern FIELD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
+    private static final Pattern METHOD_AND_FIELD_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][_a-zA-Z0-9]*$");
 
     public static PainlessLookup buildFromWhitelists(
         List<Whitelist> whitelists,
@@ -596,7 +595,7 @@ public final class PainlessLookupBuilder {
 
         String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
 
-        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid method name [" + methodName + "] for target class [" + targetCanonicalClassName + "]."
             );
@@ -862,7 +861,7 @@ public final class PainlessLookupBuilder {
 
         String targetCanonicalClassName = typeToCanonicalTypeName(targetClass);
 
-        if (FIELD_NAME_PATTERN.matcher(fieldName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(fieldName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid field name [" + fieldName + "] for target class [" + targetCanonicalClassName + "]."
             );
@@ -1092,7 +1091,7 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid imported method name [" + methodName + "] for target class [" + targetCanonicalClassName + "]."
             );
@@ -1350,7 +1349,7 @@ public final class PainlessLookupBuilder {
             }
         }
 
-        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid method name [" + methodName + "] for class binding [" + targetCanonicalClassName + "]."
             );
@@ -1561,7 +1560,7 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+        if (METHOD_AND_FIELD_NAME_PATTERN.matcher(methodName).matches() == false) {
             throw new IllegalArgumentException(
                 "invalid method name [" + methodName + "] for instance binding [" + targetCanonicalClassName + "]."
             );

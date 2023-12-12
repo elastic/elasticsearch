@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.action.search.SearchTransportAPMMetrics.ACTION_ATTRIBUTE_NAME;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.CLEAR_SCROLL_CONTEXTS_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.DFS_ACTION_METRIC;
 import static org.elasticsearch.action.search.SearchTransportAPMMetrics.FETCH_ID_ACTION_METRIC;
@@ -603,7 +604,7 @@ public class SearchTransportService {
                 transportRequestHandler.messageReceived(request, channel, task);
             } finally {
                 var elapsedTime = transportService.getThreadPool().relativeTimeInMillis() - startTime;
-                searchTransportMetrics.getActionLatencies().record(elapsedTime, Map.of("action", actionQualifier));
+                searchTransportMetrics.getActionLatencies().record(elapsedTime, Map.of(ACTION_ATTRIBUTE_NAME, actionQualifier));
             }
         };
     }

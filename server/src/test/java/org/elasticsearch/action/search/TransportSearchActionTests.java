@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
@@ -77,6 +76,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -147,10 +147,6 @@ public class TransportSearchActionTests extends ESTestCase {
         List<ShardRouting> shardRoutings = GroupShardsIteratorTests.randomShardRoutings(shardId);
         return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices);
     }
-
-    public static SearchTransportAPMMetrics testSearchTransportAPMMetrics = new SearchTransportAPMMetrics(
-        TelemetryProvider.NOOP.getMeterRegistry()
-    );
 
     public void testMergeShardsIterators() {
         Index[] indices = new Index[randomIntBetween(1, 10)];
@@ -1552,6 +1548,82 @@ public class TransportSearchActionTests extends ESTestCase {
         ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();
         assertTrue(anotherShardIterator.isPresent());
         assertThat(anotherShardIterator.get().getTargetNodeIds(), hasSize(0));
+    }
+
+    public void testSearchMetrics() throws Exception {
+        Settings settings = Settings.builder()
+            .put("node.name", TransportSearchAction.class.getSimpleName())
+//            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            .build();
+        ActionFilters actionFilters = mock(ActionFilters.class);
+        when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
+        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
+        ThreadPool threadPool = new ThreadPool(settings);
+        try {
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                VersionInformation.CURRENT,
+                transportVersion,
+                threadPool
+            );
+
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().query(new DummyQueryBuilder() {
+                @Override
+                protected void doWriteTo(StreamOutput out) throws IOException {
+                    throw new IllegalArgumentException("Not serializable to " + transportVersion);
+                }
+            }));
+            NodeClient client = new NodeClient(settings, threadPool);
+
+            SearchService searchService = mock(SearchService.class);
+            when(searchService.getRewriteContext(any())).thenReturn(new QueryRewriteContext(null, null, null));
+            ClusterService clusterService = new ClusterService(
+                settings,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                null
+            );
+            var recordingMeterRegistry = new RecordingMeterRegistry();
+            TransportSearchAction action = new TransportSearchAction(
+                threadPool,
+                new NoneCircuitBreakerService(),
+                transportService,
+                searchService,
+                new SearchTransportService(transportService, client, null),
+                null,
+                clusterService,
+                actionFilters,
+                null,
+                null,
+                null,
+                new SearchTransportAPMMetrics(recordingMeterRegistry)
+            );
+
+            CountDownLatch latch = new CountDownLatch(1);
+            action.doExecute(null, searchRequest, new ActionListener<>() {
+
+                @Override
+                public void onResponse(SearchResponse response) {
+                    latch.countDown();
+                    fail("should not be called");
+                }
+
+                @Override
+                public void onFailure(Exception ex) {
+                    assertThat(
+                        ex.getMessage(),
+                        containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
+                    );
+                    assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
+                    assertEquals("Not serializable to " + transportVersion, ex.getCause().getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
+        } finally {
+            assertTrue(ESTestCase.terminate(threadPool));
+        }
     }
 
     public void testCCSCompatibilityCheck() throws Exception {

@@ -795,7 +795,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats,
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
-            this.fieldsForModels
+            this.fieldsForModels  // TODO: Need to take fieldsForModels from MappingMetadata in this constructor?
         );
     }
 
@@ -1842,7 +1842,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;
         private Long shardSizeInBytesForecast = null;
-        private Map<String, Set<String>> fieldsForModels = Map.of();
+        private final ImmutableOpenMap.Builder<String, Set<String>> fieldsForModels;
 
         public Builder(String index) {
             this.index = index;
@@ -1850,6 +1850,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.customMetadata = ImmutableOpenMap.builder();
             this.inSyncAllocationIds = new HashMap<>();
             this.rolloverInfos = ImmutableOpenMap.builder();
+            this.fieldsForModels = ImmutableOpenMap.builder();
             this.isSystem = false;
         }
 
@@ -1874,7 +1875,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats = indexMetadata.stats;
             this.indexWriteLoadForecast = indexMetadata.writeLoadForecast;
             this.shardSizeInBytesForecast = indexMetadata.shardSizeInBytesForecast;
-            this.fieldsForModels = indexMetadata.fieldsForModels;
+            this.fieldsForModels = ImmutableOpenMap.builder(indexMetadata.fieldsForModels);
         }
 
         public Builder index(String index) {
@@ -1959,7 +1960,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Map<String, Set<String>> fieldsForModels = mappingMd.getFieldsForModels();
             // TODO: Need to clear fieldsForModels if the version from MappingMetadata is null?
             if (fieldsForModels != null) {
-                this.fieldsForModels = fieldsForModels;
+                processFieldsForModels(this.fieldsForModels, fieldsForModels);
             }
             return this;
         }
@@ -2110,12 +2111,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public Builder fieldsForModels(Map<String, Set<String>> fieldsForModels) {
-            if (fieldsForModels != null) {
-                this.fieldsForModels = fieldsForModels;
-            } else if (!this.fieldsForModels.isEmpty()) {
-                this.fieldsForModels = Map.of();
-            }
-
+            processFieldsForModels(this.fieldsForModels, fieldsForModels);
             return this;
         }
 
@@ -2314,7 +2310,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 stats,
                 indexWriteLoadForecast,
                 shardSizeInBytesForecast,
-                fieldsForModels
+                fieldsForModels.build()
             );
         }
 
@@ -2730,6 +2726,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(new MappingMetadata(mappingType, mapping));
             } else if (mapping.size() > 1) {
                 builder.putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping));
+            }
+        }
+
+        private static void processFieldsForModels(
+            ImmutableOpenMap.Builder<String, Set<String>> builder,
+            Map<String, Set<String>> fieldsForModels
+        ) {
+            builder.clear();
+            if (fieldsForModels != null) {
+                // Ensure that all field sets contained in the processed map are immutable
+                fieldsForModels.forEach((k, v) -> builder.put(k, Set.copyOf(v)));
             }
         }
     }

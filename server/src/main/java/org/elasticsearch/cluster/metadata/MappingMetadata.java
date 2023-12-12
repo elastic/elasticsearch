@@ -49,7 +49,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routingRequired = docMapper.routingFieldMapper().required();
-        this.fieldsForModels = null;  // TODO: Set fieldsForModels here
+        this.fieldsForModels = docMapper.mappers().getFieldsForModels();
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })
@@ -61,7 +61,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         }
         this.type = mappingMap.keySet().iterator().next();
         this.routingRequired = routingRequired((Map<String, Object>) mappingMap.get(this.type));
-        this.fieldsForModels = null; // TODO: Set fieldsForModels here
+        this.fieldsForModels = null;
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })
@@ -77,7 +77,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
-        this.fieldsForModels = null; // TODO: Set fieldsForModels here
+        this.fieldsForModels = null;
     }
 
     public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {

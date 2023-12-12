@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
@@ -1553,7 +1554,7 @@ public class TransportSearchActionTests extends ESTestCase {
     public void testSearchMetrics() throws Exception {
         Settings settings = Settings.builder()
             .put("node.name", TransportSearchAction.class.getSimpleName())
-//            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            // .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
             .build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);

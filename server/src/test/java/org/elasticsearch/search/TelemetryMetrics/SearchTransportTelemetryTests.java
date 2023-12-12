@@ -55,14 +55,12 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
     public void testSearchTransportMetricsDfsQueryThenFetch() throws InterruptedException {
         var indexName = "test1";
         createIndex(indexName);
-        indexRandom(
-            true,
-            false,
-            prepareIndex(indexName).setId("1").setSource("body", "foo")
-        );
+        indexRandom(true, false, prepareIndex(indexName).setId("1").setSource("body", "foo"));
 
-        assertSearchHitsWithoutFailures(prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setQuery(simpleQueryStringQuery("foo")), "1");
+        assertSearchHitsWithoutFailures(
+            prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("foo")),
+            "1"
+        );
         assertEquals(getNumShards(indexName).numPrimaries, getNumberOfMeasurements(DFS_ACTION_METRIC));
         assertEquals(getNumShards(indexName).numPrimaries, getNumberOfMeasurements(QUERY_ID_ACTION_METRIC));
         assertNotEquals(0, getNumberOfMeasurements(FETCH_ID_ACTION_METRIC));
@@ -72,14 +70,12 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
     public void testSearchTransportMetricsQueryThenFetch() throws InterruptedException {
         var indexName = "test2";
         createIndex(indexName);
-        indexRandom(
-            true,
-            false,
-            prepareIndex(indexName).setId("1").setSource("body", "foo")
-        );
+        indexRandom(true, false, prepareIndex(indexName).setId("1").setSource("body", "foo"));
 
-        assertSearchHitsWithoutFailures(prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(simpleQueryStringQuery("foo")), "1");
+        assertSearchHitsWithoutFailures(
+            prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("foo")),
+            "1"
+        );
         assertEquals(getNumShards(indexName).numPrimaries, getNumberOfMeasurements(QUERY_ACTION_METRIC));
         assertNotEquals(0, getNumberOfMeasurements(FETCH_ID_ACTION_METRIC));
         resetMeter();
@@ -93,7 +89,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
             false,
             prepareIndex(indexName).setId("1").setSource("body", "foo"),
             prepareIndex(indexName).setId("2").setSource("body", "foo")
-        ); //getNumShards(indexName).numPrimaries
+        ); // getNumShards(indexName).numPrimaries
 
         assertScrollResponsesAndHitCount(
             TimeValue.timeValueSeconds(60),
@@ -123,19 +119,16 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
     }
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {
-        return internalCluster().getDataNodeInstance(PluginsService.class)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .toList()
-            .get(0);
+        return internalCluster().getDataNodeInstance(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().get(0);
     }
 
     private long getNumberOfMeasurements(String attributeValue) {
-        final List<Measurement> measurements = getTestTelemetryPlugin()
-            .getLongHistogramMeasurement(org.elasticsearch.action.search.SearchTransportAPMMetrics.SEARCH_ACTION_LATENCY_BASE_METRIC);
+        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+            org.elasticsearch.action.search.SearchTransportAPMMetrics.SEARCH_ACTION_LATENCY_BASE_METRIC
+        );
         return measurements.stream()
             .filter(
-                m ->
-                    m.attributes().get(org.elasticsearch.action.search.SearchTransportAPMMetrics.ACTION_ATTRIBUTE_NAME) == attributeValue
+                m -> m.attributes().get(org.elasticsearch.action.search.SearchTransportAPMMetrics.ACTION_ATTRIBUTE_NAME) == attributeValue
             )
             .count();
     }

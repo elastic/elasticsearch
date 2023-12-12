@@ -36,7 +36,6 @@ Returns information about all stored connectors.
 The following example lists all connectors:
 
 ////
-
 [source,console]
 --------------------------------------------------
 PUT _connector/connector-1
@@ -56,6 +55,13 @@ PUT _connector/connector-2
 --------------------------------------------------
 // TESTSETUP
 
+[source,console]
+--------------------------------------------------
+DELETE _connector/connector-1
+
+DELETE _connector/connector-2
+--------------------------------------------------
+// TEARDOWN
 ////
 
 [source,console]

@@ -61,6 +61,7 @@ import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
@@ -794,14 +795,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = indexer.getClient()
-                        .prepareSearch()
-                        .setTrackTotalHits(true)
-                        .setSize(0)
-                        .setQuery(QueryBuilders.matchAllQuery())
-                        .get()
-                        .getHits()
-                        .getTotalHits().value;
+                    long count = SearchResponseUtils.getTotalHitsValue(
+                        indexer.getClient().prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(QueryBuilders.matchAllQuery())
+                    );
 
                     if (count == lastKnownCount) {
                         // no progress - try to refresh for the next time

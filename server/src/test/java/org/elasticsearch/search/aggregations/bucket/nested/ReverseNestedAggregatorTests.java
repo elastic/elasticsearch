@@ -13,11 +13,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -62,14 +59,9 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         return wrapInMockESDirectoryReader(reader);
     }
 
-    private static RandomIndexWriter newRandomIndexWriter(Directory directory) throws IOException {
-        final IndexWriterConfig conf = newIndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(new LogDocMergePolicy());
-        return new RandomIndexWriter(random(), directory, conf);
-    }
-
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 // intentionally not writing any docs
             }
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
@@ -98,7 +90,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedMaxValue = Double.NEGATIVE_INFINITY;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numParentDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -154,7 +146,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numParentDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -219,7 +211,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         );
 
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = newRandomIndexWriter(directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 NestedAggregatorTests.buildResellerData(numProducts, numResellers).accept(iw);
             }
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {

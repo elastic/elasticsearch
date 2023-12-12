@@ -993,23 +993,33 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
-        String name = functionName(); // TODO types table for operators
-        FunctionDefinition definition = definition(name);
-        if (definition == null) {
-            LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");
+        String name = functionName();
+        if (binaryOperator(name) != null) {
+            renderTypesTable(List.of("lhs", "rhs"));
             return;
         }
+        if (unaryOperator(name) != null) {
+            renderTypesTable(List.of("v"));
+            return;
+        }
+        FunctionDefinition definition = definition(name);
+        if (definition != null) {
+            renderTypesTable(EsqlFunctionRegistry.description(definition).argNames());
+            return;
+        }
+        LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");
+    }
 
-        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
+    private static void renderTypesTable(List<String> argNames) throws IOException {
         StringBuilder header = new StringBuilder();
-        for (String arg : args) {
+        for (String arg : argNames) {
             header.append(arg).append(" | ");
         }
         header.append("result");
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures.entrySet()) {
-            if (sig.getKey().size() != args.size()) {
+            if (sig.getKey().size() != argNames.size()) {
                 continue;
             }
             StringBuilder b = new StringBuilder();
@@ -1052,9 +1062,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "div" -> "/";
             case "equals" -> "==";
             case "greater_than" -> ">";
-            case "greater_than_or_equal_to" -> ">=";
+            case "greater_than_or_equal" -> ">=";
             case "less_than" -> "<";
-            case "less_than_or_equal_to" -> "<=";
+            case "less_than_or_equal" -> "<=";
             case "mod" -> "%";
             case "mul" -> "*";
             case "not_equals" -> "!=";

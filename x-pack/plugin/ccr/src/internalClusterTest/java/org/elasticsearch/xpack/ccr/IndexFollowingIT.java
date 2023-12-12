@@ -1348,10 +1348,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             final IndexRoutingTable indexRoutingTable = leaderRoutingTable.index("index1");
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 final ShardId shardId = indexRoutingTable.shard(i).shardId();
-                leaderClient().execute(
-                    RetentionLeaseActions.Remove.INSTANCE,
-                    new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)
-                ).get();
+                leaderClient().execute(RetentionLeaseActions.REMOVE, new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId))
+                    .get();
             }
         }, exceptions -> assertThat(exceptions.size(), greaterThan(0)));
     }

@@ -22,8 +22,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
@@ -879,14 +879,14 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
-            () -> authorize(authentication, DeleteIndexAction.NAME, request),
-            DeleteIndexAction.NAME,
+            () -> authorize(authentication, TransportDeleteIndexAction.TYPE.name(), request),
+            TransportDeleteIndexAction.TYPE.name(),
             "test user"
         );
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),
-            eq(DeleteIndexAction.NAME),
+            eq(TransportDeleteIndexAction.TYPE.name()),
             eq(request),
             authzInfoRoles(Role.EMPTY.names())
         );
@@ -2351,7 +2351,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             new Tuple<>(PutMappingAction.NAME, new PutMappingRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
         );
         requests.add(
-            new Tuple<>(DeleteIndexAction.NAME, new DeleteIndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
+            new Tuple<>(
+                TransportDeleteIndexAction.TYPE.name(),
+                new DeleteIndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
+            )
         );
         for (final Tuple<String, TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();

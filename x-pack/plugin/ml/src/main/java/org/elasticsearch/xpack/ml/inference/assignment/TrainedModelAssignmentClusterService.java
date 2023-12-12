@@ -1105,6 +1105,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             Set<String> removedNodes = nodesDelta.removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> addedNodes = nodesDelta.addedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
+            logger.debug(() -> format("Initial node change info; removed nodes: %s; added nodes: %s", removedNodes, addedNodes));
+
             Set<String> exitingShutDownNodes;
             if (nodesShutdownChanged) {
                 Set<String> previousShuttingDownNodes = nodesShuttingDown(event.previousState());
@@ -1117,6 +1119,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 // and nodes that are marked for shutdown in this event only
                 exitingShutDownNodes = Sets.difference(shuttingDownNodes, previousShuttingDownNodes);
                 removedNodes.addAll(exitingShutDownNodes);
+
+                logger.debug(
+                    () -> format(
+                        "Nodes shutting down changed; previous shutting down nodes: %s; returning nodes: %s",
+                        previousShuttingDownNodes,
+                        returningShutDownNodes
+                    )
+                );
             } else {
                 exitingShutDownNodes = Collections.emptySet();
             }

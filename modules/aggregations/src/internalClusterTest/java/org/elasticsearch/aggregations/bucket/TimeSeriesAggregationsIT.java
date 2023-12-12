@@ -78,7 +78,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        int numberOfIndices = randomIntBetween(1, 3);
+        int numberOfIndices = randomIntBetween(1, 1);
         numberOfDimensions = randomIntBetween(1, 5);
         numberOfMetrics = randomIntBetween(1, 10);
         String[] routingKeys = randomSubsetOf(

@@ -366,12 +366,12 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                         }
                     }
                     case "geo_point" -> {
-                        long longVal = GEO.pointAsLong(GEO.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                        SpatialPoint pointVal = GEO.stringAsPoint(value.toString());
+                        ((PointBlock.Builder) builder).appendPoint(pointVal);
                     }
                     case "cartesian_point" -> {
-                        long longVal = CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                        SpatialPoint pointVal = CARTESIAN.stringAsPoint(value.toString());
+                        ((PointBlock.Builder) builder).appendPoint(pointVal);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }

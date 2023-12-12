@@ -33,6 +33,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -46,6 +49,7 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,6 +66,7 @@ import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegis
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -112,6 +117,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             xContentRegistry
         );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
+        assertThat(disabledRegistry.getLifecyclePolicies(), hasSize(0));
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
@@ -165,6 +171,65 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+    }
+
+    public void testPolicyAlreadyExists() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
+        assertThat(policies, hasSize(1));
+        LifecyclePolicy policy = policies.get(0);
+        policyMap.put(policy.getName(), policy);
+
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutComposableIndexTemplateAction) {
+                // Ignore this, it's verified in another test
+                return new TestPutIndexTemplateResponse(true);
+            } else if (action instanceof PutLifecycleAction) {
+                fail("if the policy already exists it should be re-put");
+            } else {
+                fail("client called with unexpected request:" + request.toString());
+            }
+            return null;
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
+        registry.clusterChanged(event);
+    }
+
+    public void testPolicyAlreadyExistsButDiffers() throws IOException {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
+        String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
+        assertThat(policies, hasSize(1));
+        LifecyclePolicy policy = policies.get(0);
+
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutComposableIndexTemplateAction) {
+                // Ignore this, it's verified in another test
+                return new TestPutIndexTemplateResponse(true);
+            } else if (action instanceof PutLifecycleAction) {
+                fail("if the policy already exists it should be re-put");
+            } else {
+                fail("client called with unexpected request:" + request.toString());
+            }
+            return null;
+        });
+
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), policyStr)
+        ) {
+            LifecyclePolicy different = LifecyclePolicy.parse(parser, policy.getName());
+            policyMap.put(policy.getName(), different);
+            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
+            registry.clusterChanged(event);
+        }
     }
 
     public void testThatVersionedOldTemplatesAreUpgraded() throws Exception {

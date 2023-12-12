@@ -318,7 +318,7 @@ a         | a
 
 
 //see https://github.com/elastic/elasticsearch/issues/103331
-keepStarMvExpand
+keepStarMvExpand#[skip:-8.12.99]
 from employees | where emp_no == 10001 | keep * |  mv_expand first_name;
 
 avg_worked_seconds:long | birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date           | is_rehired:boolean | job_positions:keyword                 | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean  

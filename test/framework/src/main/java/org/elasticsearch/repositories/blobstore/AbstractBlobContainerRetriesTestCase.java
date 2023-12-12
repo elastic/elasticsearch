@@ -307,9 +307,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         Exception exception = expectThrows(unresponsiveExceptionType(), () -> {
             if (randomBoolean()) {
-                Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_blob_no_response"));
+                Streams.readFully(blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_no_response"));
             } else {
-                Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_blob_no_response", 0, 1));
+                Streams.readFully(blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_no_response", 0, 1));
             }
         });
         assertThat(

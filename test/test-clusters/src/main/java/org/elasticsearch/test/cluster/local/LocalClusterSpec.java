@@ -9,6 +9,7 @@
 package org.elasticsearch.test.cluster.local;
 
 import org.elasticsearch.test.cluster.ClusterSpec;
+import org.elasticsearch.test.cluster.ConfigFileProvider;
 import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
@@ -89,6 +90,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final Map<String, Resource> keystoreFiles;
         private final String keystorePassword;
         private final Map<String, Resource> extraConfigFiles;
+        private final List<ConfigFileProvider> extraConfigFileProviders;
         private final List<SystemPropertyProvider> systemPropertyProviders;
         private final Map<String, String> systemProperties;
         private final List<String> jvmArgs;
@@ -111,6 +113,7 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, Resource> keystoreFiles,
             String keystorePassword,
             Map<String, Resource> extraConfigFiles,
+            List<ConfigFileProvider> extraConfigFileProviders,
             List<SystemPropertyProvider> systemPropertyProviders,
             Map<String, String> systemProperties,
             List<String> jvmArgs
@@ -131,6 +134,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.keystoreFiles = keystoreFiles;
             this.keystorePassword = keystorePassword;
             this.extraConfigFiles = extraConfigFiles;
+            this.extraConfigFileProviders = extraConfigFileProviders;
             this.systemPropertyProviders = systemPropertyProviders;
             this.systemProperties = systemProperties;
             this.jvmArgs = jvmArgs;
@@ -326,6 +330,7 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.keystoreFiles,
                         n.keystorePassword,
                         n.extraConfigFiles,
+                        n.extraConfigFileProviders,
                         n.systemPropertyProviders,
                         n.systemProperties,
                         n.jvmArgs
@@ -336,6 +341,13 @@ public class LocalClusterSpec implements ClusterSpec {
             newCluster.setNodes(nodeSpecs);
 
             return nodeSpecs.stream().filter(n -> n.getName().equals(this.getName())).findFirst().get();
+        }
+
+        public Map<String, Resource> resolveExtraConfigFiles() {
+            Map<String, Resource> resolvedExtraFiles = new HashMap<>();
+            extraConfigFileProviders.forEach(p -> resolvedExtraFiles.putAll(p.get(this)));
+            resolvedExtraFiles.putAll(extraConfigFiles);
+            return resolvedExtraFiles;
         }
     }
 }

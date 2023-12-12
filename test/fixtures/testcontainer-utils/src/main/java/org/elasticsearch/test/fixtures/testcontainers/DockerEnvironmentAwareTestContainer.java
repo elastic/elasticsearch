@@ -52,7 +52,6 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<Docker
 
     public DockerEnvironmentAwareTestContainer(ImageFromDockerfile imageFromDockerfile) {
         super(imageFromDockerfile);
-        withReuse(true);
     }
 
     @Override

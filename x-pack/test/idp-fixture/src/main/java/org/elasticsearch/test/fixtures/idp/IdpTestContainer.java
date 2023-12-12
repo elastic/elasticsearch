@@ -10,13 +10,16 @@ package org.elasticsearch.test.fixtures.idp;
 import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TestRule;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
-public class IdpTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule, CacheableTestFixture {
+public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule, CacheableTestFixture {
 
     public static final String DOCKER_BASE_IMAGE = "openjdk:11.0.16-jre";
 
-    public IdpTestContainer() {
+    public IdpTestContainer(Network network) {
         super(
             new ImageFromDockerfile("es-idp-testfixture", false).withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
@@ -37,6 +40,7 @@ public class IdpTestContainer extends DockerEnvironmentAwareTestContainer implem
                     .env("PATH", "$PATH:$JAVA_HOME/bin")
                     .env("JETTY_BROWSER_SSL_KEYSTORE_PASSWORD", "secret")
                     .env("JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD", "secret")
+                    .env("JETTY_MAX_HEAP", "64m")
                     // Manually override the jetty keystore otherwise it will attempt to download and fail
                     .run("mkdir -p /opt/shib-jetty-base/modules")
                     .copy("idp/jetty-custom/ssl.mod", "/opt/shib-jetty-base/modules/ssl.mod")
@@ -108,16 +112,26 @@ public class IdpTestContainer extends DockerEnvironmentAwareTestContainer implem
                     .run("chmod 750 /usr/local/bin/run-jetty.sh /usr/local/bin/init-idp.sh")
                     .run("chmod +x /opt/jetty-home/bin/jetty.sh")
                     // Opening 4443 (browser TLS), 8443 (mutual auth TLS)
-                    .expose(4443, 8443)
                     .cmd("run-jetty.sh")
+//                    .expose(4443)
                     .build()
 
-            ).withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
-             .withFileFromClasspath("idp/jetty-custom/keystore", "/idp/jetty-custom/keystore")
-             .withFileFromClasspath("idp/shib-jetty-base/", "/idp/shib-jetty-base/")
-             .withFileFromClasspath("idp/shibboleth-idp/", "/idp/shibboleth-idp/")
-             .withFileFromClasspath("idp/bin/", "/idp/bin/")
+
+            )
+                .withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
+                .withFileFromClasspath("idp/jetty-custom/keystore", "/idp/jetty-custom/keystore")
+                .withFileFromClasspath("idp/shib-jetty-base/", "/idp/shib-jetty-base/")
+                .withFileFromClasspath("idp/shibboleth-idp/", "/idp/shibboleth-idp/")
+                .withFileFromClasspath("idp/bin/", "/idp/bin/")
+
+
         );
+        //withLogConsumer(new Slf4jLogConsumer(logger()));
+        withNetworkAliases("idp");
+        withNetwork(network);
+        addExposedPorts(4443,8443);
+        //waitingFor(Wait.forHealthcheck());
+//        withWaitStrategy(Wait.forHealthCheck());
     }
 
     @Override

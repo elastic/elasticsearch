@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -43,6 +45,8 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.idp.IdpTestContainer;
+import org.elasticsearch.test.fixtures.idp.OpenLdapTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -55,19 +59,25 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
+import org.testcontainers.containers.Network;
+import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -85,12 +95,15 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * An integration test for validating SAML authentication against a real Identity Provider (Shibboleth)
  */
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class SamlAuthenticationIT extends ESRestTestCase {
 
     private static final String SAML_RESPONSE_FIELD = "SAMLResponse";
     private static final String KIBANA_PASSWORD = "K1b@na K1b@na K1b@na";
 
-    private static IdpTestContainer idpFixture = new IdpTestContainer();
+    private static Network network = Network.newNetwork();
+    private static OpenLdapTestContainer openLdapTestContainer = new OpenLdapTestContainer(network);
+    private static IdpTestContainer idpFixture = new IdpTestContainer(network);
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -135,15 +148,24 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         .setting("xpack.security.authc.realms.native.native.order", "4")
         .setting("xpack.ml.enabled", "false")
         .setting("logger.org.elasticsearch.xpack.security", "TRACE")
-        .configFile("sp-signing.key", Resource.fromClasspath("sp-signing.key"))
-        .configFile("idp-metadata.xml", Resource.fromClasspath("idp-metadata.xml"))
-        .configFile("sp-signing.crt", Resource.fromClasspath("sp-signing.crt"))
+        .configFile("sp-signing.key", Resource.fromClasspath("/idp/shibboleth-idp/credentials/sp-signing.key"))
+        .configFile("idp-metadata.xml", () -> Resource.fromString(calculateIdpMetaData()))
+        .configFile("sp-signing.crt", Resource.fromClasspath("/idp/shibboleth-idp/credentials/sp-signing.crt"))
         .user("test_admin", "x-pack-test-password")
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(idpFixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(network).around(openLdapTestContainer).around(idpFixture).around(cluster);
 
+    private static String calculateIdpMetaData() {
+        Resource resource = Resource.fromClasspath("/idp/shibboleth-idp/metadata/idp-metadata.xml");
+        try {
+            String metadata = IOUtils.toString(resource.asStream());
+            return metadata.replace("${port}", String.valueOf(idpFixture.getMappedPort(4443)));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -532,8 +554,23 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         return HttpClients.custom().setSSLContext(getClientSslContext()).build();
     }
 
+    private FileSystem initFileSystem(URI uri) throws IOException {
+        try {
+            return FileSystems.getFileSystem(uri);
+        } catch (FileSystemNotFoundException e) {
+            return FileSystems.newFileSystem(uri, Collections.emptyMap());
+        } catch (IllegalArgumentException e) {
+            return FileSystems.getDefault();
+        }
+    }
+
     private SSLContext getClientSslContext() throws Exception {
-        final Path pem = getDataPath("/idp-browser.pem");
+
+        URI uri = getClass().getResource("/idp/shibboleth-idp/credentials/idp-browser.pem").toURI();
+        initFileSystem(uri);
+        // final Path pem = Paths.get(uri);
+
+        final Path pem = getDataPath("/idp/shibboleth-idp/credentials/idp-browser.pem");
         final X509ExtendedTrustManager trustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(pem));
         SSLContext context = SSLContext.getInstance("TLS");
         context.init(new KeyManager[0], new TrustManager[] { trustManager }, new SecureRandom());

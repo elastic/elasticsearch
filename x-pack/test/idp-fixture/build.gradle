@@ -11,15 +11,6 @@ configurations.all {
   transitive = false
 }
 
-//sourceSets {
-//  main {
-//    resources {
-//      // TODO: we can clean that up and move to src/main/resources ones we removed all docker compose usages for this fixture
-//      srcDir "idp"
-//    }
-//  }
-//}
-
 dependencies {
   testImplementation project(':test:framework')
 

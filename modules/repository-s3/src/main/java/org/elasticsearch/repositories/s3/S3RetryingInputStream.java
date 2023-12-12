@@ -14,9 +14,9 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
@@ -48,7 +48,8 @@ class S3RetryingInputStream extends InputStream {
     private final String blobKey;
     private final long start;
     private final long end;
-    private final List<IOException> failures;
+    private final List<Exception> failures;
+    private final long maxAttempts;
 
     private S3ObjectInputStream currentStream;
     private long currentStreamFirstOffset;
@@ -77,29 +78,46 @@ class S3RetryingInputStream extends InputStream {
         this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
         this.start = start;
         this.end = end;
-        openStream();
+        this.maxAttempts = blobStore.getMaxRetries() + 1;
+        openStreamWithRetry();
     }
 
-    private void openStream() throws IOException {
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
-            if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
-                assert start + currentOffset <= end
-                    : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
-                getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
-            }
-            final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
-            this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
-            this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(s3Object));
-            this.currentStream = s3Object.getObjectContent();
-        } catch (final AmazonClientException e) {
-            if (e instanceof AmazonS3Exception amazonS3Exception) {
-                if (404 == amazonS3Exception.getStatusCode()) {
-                    throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
+    private void openStreamWithRetry() throws IOException {
+        while (true) {
+            try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
+                getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
+                if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
+                    assert start + currentOffset <= end
+                        : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
+                    getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
                 }
+                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
+                this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
+                this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(s3Object));
+                this.currentStream = s3Object.getObjectContent();
+                return;
+            } catch (AmazonClientException e) {
+                if (e instanceof AmazonS3Exception amazonS3Exception && 404 == amazonS3Exception.getStatusCode()) {
+                    throw addSuppressedExceptions(
+                        new NoSuchFileException("Blob object [" + blobKey + "] not found: " + amazonS3Exception.getMessage())
+                    );
+                }
+
+                if (shouldRetry() == false) {
+                    final var finalException = addSuppressedExceptions(e);
+                    logForRetry(Level.WARN, "opening", finalException);
+                    throw finalException;
+                }
+
+                attempt += 1;
+                // Log at info level every ~5 minutes
+                logForRetry(attempt % 30 == 0 ? Level.INFO : Level.DEBUG, "opening", e);
+                if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
+                    failures.add(e);
+                }
+                maybeDelaySafely();
             }
-            throw addSuppressedExceptions(e);
         }
     }
 
@@ -166,45 +184,99 @@ class S3RetryingInputStream extends InputStream {
     }
 
     private void reopenStreamOrFail(IOException e) throws IOException {
-        if (purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
-            logger.warn(() -> format("""
-                failed reading [%s/%s] at offset [%s]""", blobStore.bucket(), blobKey, start + currentOffset), e);
-            throw e;
+        if (shouldRetry() == false) {
+            final var finalException = addSuppressedExceptions(e);
+            logForRetry(Level.WARN, "reading", finalException);
+            throw finalException;
         }
 
-        final int maxAttempts = blobStore.getMaxRetries() + 1;
+        attempt += 1;
+        // Log at info level every ~5 minutes
+        logForRetry(attempt % 30 == 0 ? Level.INFO : Level.DEBUG, "reading", e);
+        if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
+            failures.add(e);
+        }
+        maybeAbort(currentStream);
+        IOUtils.closeWhileHandlingException(currentStream);
+
+        maybeDelaySafely();
+        openStreamWithRetry();
+    }
+
+    private void logForRetry(Level level, String action, Exception e) {
+        if (attempt == 1) {
+            logger.log(
+                level,
+                () -> format(
+                    "failed %s [%s/%s] at offset [%s] with purpose [%s]",
+                    action,
+                    blobStore.bucket(),
+                    blobKey,
+                    start + currentOffset,
+                    purpose.getKey()
+                ),
+                e
+            );
+            return;
+        }
 
         final long meaningfulProgressSize = Math.max(1L, blobStore.bufferSizeInBytes() / 100L);
         final long currentStreamProgress = Math.subtractExact(Math.addExact(start, currentOffset), currentStreamFirstOffset);
         if (currentStreamProgress >= meaningfulProgressSize) {
             failuresAfterMeaningfulProgress += 1;
         }
-        final Supplier<String> messageSupplier = () -> format(
-            """
-                failed reading [%s/%s] at offset [%s]; this was attempt [%s] to read this blob which yielded [%s] bytes; in total \
-                [%s] of the attempts to read this blob have made meaningful progress and do not count towards the maximum number of \
-                retries; the maximum number of read attempts which do not make meaningful progress is [%s]""",
-            blobStore.bucket(),
-            blobKey,
-            start + currentOffset,
-            attempt,
-            currentStreamProgress,
-            failuresAfterMeaningfulProgress,
-            maxAttempts
+        logger.log(
+            level,
+            () -> format(
+                """
+                    failed %s [%s/%s] at offset [%s] with purpose [%s]; \
+                    this was attempt [%s] to read this blob which yielded [%s] bytes; in total \
+                    [%s] of the attempts to read this blob have made meaningful progress and do not count towards the maximum number of \
+                    retries; the maximum number of read attempts which do not make meaningful progress is [%s]""",
+                action,
+                blobStore.bucket(),
+                blobKey,
+                start + currentOffset,
+                purpose.getKey(),
+                attempt - 1,
+                currentStreamProgress,
+                failuresAfterMeaningfulProgress,
+                attempt - 1 - failuresAfterMeaningfulProgress
+            ),
+            e
         );
-        if (attempt >= maxAttempts + failuresAfterMeaningfulProgress) {
-            final var finalException = addSuppressedExceptions(e);
-            logger.warn(messageSupplier, finalException);
-            throw finalException;
+    }
+
+    private boolean shouldRetry() {
+        if (purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
+            return false;
         }
-        logger.debug(messageSupplier, e);
-        attempt += 1;
-        if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
-            failures.add(e);
+        if (purpose == OperationPurpose.INDICES) {
+            return true;
         }
-        maybeAbort(currentStream);
-        IOUtils.closeWhileHandlingException(currentStream);
-        openStream();
+        return attempt < maxAttempts + failuresAfterMeaningfulProgress;
+    }
+
+    private void maybeDelaySafely() {
+        final long delayInMillis = getRetryDelayInMillis();
+        if (delayInMillis > 0) {
+            try {
+                Thread.sleep(delayInMillis);
+            } catch (InterruptedException e) {
+                logger.info("delay interrupted", e);
+            }
+        }
+    }
+
+    // for testing
+    protected long getRetryDelayInMillis() {
+        final long initialDelayInMillis = 10L;
+        if (attempt > maxAttempts) {
+            // Cap max delay at 10 * 1024 millis, i.e. it retries every ~10 seconds at a minimum
+            return initialDelayInMillis << (Math.min(attempt - maxAttempts - 1, 10));
+        } else {
+            return 0; // No delay for initial retries within maxAttempts
+        }
     }
 
     @Override
@@ -247,7 +319,7 @@ class S3RetryingInputStream extends InputStream {
     }
 
     private <T extends Exception> T addSuppressedExceptions(T e) {
-        for (IOException failure : failures) {
+        for (Exception failure : failures) {
             e.addSuppressed(failure);
         }
         return e;

@@ -253,7 +253,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         Exception exception = expectThrows(
             unresponsiveExceptionType(),
-            () -> Streams.readFully(blobContainer.readBlob(randomPurpose(), "read_blob_unresponsive"))
+            () -> Streams.readFully(blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_unresponsive"))
         );
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
         assertThat(exception.getCause(), instanceOf(SocketTimeoutException.class));
@@ -270,8 +270,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
-                    ? blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete")
-                    : blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete", position, length)
+                    ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
+                    : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", position, length)
             ) {
                 Streams.readFully(stream);
             }
@@ -291,6 +291,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     }
 
     protected OperationPurpose randomRetryingPurpose() {
+        return randomPurpose();
+    }
+
+    protected OperationPurpose randomFiniteRetryingPurpose() {
         return randomPurpose();
     }
 
@@ -328,8 +332,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final Exception exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
-                    ? blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete", 0, 1)
-                    : blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete")
+                    ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", 0, 1)
+                    : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
             ) {
                 Streams.readFully(stream);
             }

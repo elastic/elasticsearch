@@ -7,10 +7,19 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
-public interface Retrier {
-    void send(Request request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener);
+/**
+ * Provides an exception for truncating the request input.
+ */
+public class ContentTooLargeException extends RetryException {
+
+    public ContentTooLargeException(Throwable cause) {
+        super(true, cause);
+    }
+
+    @Override
+    public Request rebuildRequest(Request original) {
+        return original.truncate();
+    }
 }

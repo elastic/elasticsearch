@@ -435,20 +435,22 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected List<NumberFieldMapperTests.OutOfRangeSpec> outOfRangeSpecs() {
-        return Collections.emptyList(); // unimplemented
+        // No outOfRangeSpecs are specified because ScaledFloatFieldMapper doesn't extend NumberFieldMapper and doesn't use a
+        // NumberFieldMapper.NumberType that is present in OutOfRangeSpecs
+        return Collections.emptyList();
     }
 
     @Override
-    public void testIgnoreMalformedWithObject() {} // unimplemented
+    public void testIgnoreMalformedWithObject() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
 
     @Override
-    public void testAllowMultipleValuesField() {} // unimplemented
+    public void testAllowMultipleValuesField() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
 
     @Override
-    public void testScriptableTypes() {} // unimplemented
+    public void testScriptableTypes() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
 
     @Override
-    public void testDimension() {} // unimplemented
+    public void testDimension() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
 
     @Override
     protected Number missingValue() {

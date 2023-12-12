@@ -190,19 +190,6 @@ public final class IngestDocument {
     }
 
     /**
-     * Returns the value contained in the document with the provided templated path
-     * @param pathTemplate The path within the document in dot-notation
-     * @param clazz The expected class of the field value
-     * @return the value for the provided path if existing, null otherwise
-     * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
-     * or if the field that is found at the provided path is not of the expected type.
-     */
-    // 1 usage
-    public <T> T getFieldValue(TemplateScript.Factory pathTemplate, Class<T> clazz) {
-        return getFieldValue(renderTemplate(pathTemplate), clazz);
-    }
-
-    /**
      * Returns the value contained in the document for the provided path as a byte array.
      * If the path value is a string, a base64 decode operation will happen.
      * If the path value is a byte array, it is just returned
@@ -238,17 +225,6 @@ public final class IngestDocument {
                 "Content field [" + path + "] of unknown type [" + object.getClass().getName() + "], must be string or byte array"
             );
         }
-    }
-
-    /**
-     * Checks whether the document contains a value for the provided templated path
-     * @param fieldPathTemplate the template for the path within the document in dot-notation
-     * @return true if the document contains a value for the field, false otherwise
-     * @throws IllegalArgumentException if the path is null, empty or invalid
-     */
-    // 1 usage
-    public boolean hasField(TemplateScript.Factory fieldPathTemplate) {
-        return hasField(renderTemplate(fieldPathTemplate));
     }
 
     /**
@@ -517,14 +493,14 @@ public final class IngestDocument {
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value to put in for the path key
      * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
     // 1 usage
-    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
+    public void setFieldValue(String path, ValueSource valueSource, boolean ignoreEmptyValue) {
         Object value = valueSource.copyAndResolve(templateModel);
         if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
             if (value == null) {
@@ -536,21 +512,21 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
+        setFieldValue(path, value);
     }
 
     /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
      * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
     // 1 usage
-    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
+    public void setFieldValue(String path, Object value, boolean ignoreEmptyValue) {
         if (ignoreEmptyValue) {
             if (value == null) {
                 return;
@@ -562,7 +538,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
+        setFieldValue(path, value);
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {

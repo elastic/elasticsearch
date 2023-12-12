@@ -311,7 +311,8 @@ The API returns the following response:
       "hidden": false,
       "system": false,
       "allow_custom_routing": false,
-      "replicated": false
+      "replicated": false,
+      "rollover_needed": false
     },
     {
       "name": "my-data-stream-two",
@@ -339,7 +340,8 @@ The API returns the following response:
       "hidden": false,
       "system": false,
       "allow_custom_routing": false,
-      "replicated": false
+      "replicated": false,
+      "rollover_needed": false
     }
   ]
 }

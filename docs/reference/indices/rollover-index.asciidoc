@@ -114,6 +114,12 @@ include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 If `true`, checks whether the current index satisfies the specified
 `conditions` but does not perform a rollover. Defaults to `false`.
 
+`lazy`::
+(Optional, Boolean)
+If `true`, signals that the data stream, (applies only to data streams) needs to be
+rolled over when the next indexing operation occurs. This applies when there
+are no `conditions` provided. Defaults to `false`.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -204,6 +210,11 @@ conditions were specified, this is an empty object.
 index met the condition.
 ====
 
+`lazy`::
+(Boolean)
+If `true`, {es} did not perform the rollover, but successfully marked the data stream to be rolled
+over at the next indexing event.
+
 [[rollover-index-api-example]]
 ==== {api-examples-title}
 
@@ -257,6 +268,7 @@ The API returns:
   "new_index": ".ds-my-data-stream-2099.05.07-000002",
   "rolled_over": true,
   "dry_run": false,
+  "lazy": false,
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
@@ -328,6 +340,7 @@ The API returns:
   "new_index": "my-index-2099.05.07-000002",
   "rolled_over": true,
   "dry_run": false,
+  "lazy": false,
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
@@ -399,6 +412,7 @@ The API returns:
   "new_index": "my-index-2099.05.07-000002",
   "rolled_over": true,
   "dry_run": false,
+  "lazy": false,
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,

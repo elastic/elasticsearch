@@ -312,7 +312,7 @@ public final class IngestDocument {
      * @param fieldPathTemplate Resolves to the path with dot-notation within the document
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
-    // 2 usages
+    // 1 usage
     public void removeField(TemplateScript.Factory fieldPathTemplate) {
         removeField(renderTemplate(fieldPathTemplate));
     }

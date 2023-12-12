@@ -49,7 +49,8 @@ public final class AppendProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
-        document.appendFieldValue(field, value, allowDuplicates);
+        String path = document.renderTemplate(field);
+        document.appendFieldValue(path, value, allowDuplicates);
         return document;
     }
 

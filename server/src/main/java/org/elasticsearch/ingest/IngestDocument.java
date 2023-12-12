@@ -447,18 +447,14 @@ public final class IngestDocument {
      * the provided value will be added to the newly created list.
      * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
      * existing (or newly created) list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value or values to append to the existing ones
      * @param allowDuplicates When false, any values that already exist in the field will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     // 1 usage
-    public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean allowDuplicates) {
-        appendFieldValue(
-            fieldPathTemplate.newInstance(templateModel).execute(),
-            valueSource.copyAndResolve(templateModel),
-            allowDuplicates
-        );
+    public void appendFieldValue(String path, ValueSource valueSource, boolean allowDuplicates) {
+        appendFieldValue(path, valueSource.copyAndResolve(templateModel), allowDuplicates);
     }
 
     /**

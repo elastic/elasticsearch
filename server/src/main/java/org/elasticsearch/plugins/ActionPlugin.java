@@ -29,7 +29,6 @@ import org.elasticsearch.rest.RestHeaderDefinition;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -38,7 +37,7 @@ import java.util.function.Supplier;
  * <pre>{@code
  *   {@literal @}Override
  *   public List<ActionHandler<?, ?>> getActions() {
- *       return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
+ *       return List.of(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
  *               new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
  *               new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
  *               new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
@@ -49,14 +48,14 @@ public interface ActionPlugin {
     /**
      * Actions added by this plugin.
      */
-    default List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    default Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Collections.emptyList();
     }
 
     /**
      * ActionType filters added by this plugin.
      */
-    default List<ActionFilter> getActionFilters() {
+    default Collection<ActionFilter> getActionFilters() {
         return Collections.emptyList();
     }
 
@@ -81,7 +80,7 @@ public interface ActionPlugin {
     /**
      * Rest handlers added by this plugin.
      */
-    default List<RestHandler> getRestHandlers(RestHandlerParameters parameters) {
+    default Collection<RestHandler> getRestHandlers(RestHandlerParameters parameters) {
         return Collections.emptyList();
     }
 

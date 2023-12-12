@@ -285,7 +285,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             if (shardSnapshotStatus.state() == ShardState.INIT && localNodeId.equals(shardSnapshotStatus.nodeId())) {
                 final var runningShard = runningShardsForSnapshot.get(shardId);
                 if (runningShard == null || runningShard.isPaused()) {
-                    logger.trace("[{}] adding shard to the queue", shardId);
+                    logger.trace("[{}] adding [{}] shard to the queue", shardId, runningShard == null ? "new" : "paused");
                     if (shardsToStart == null) {
                         shardsToStart = new HashMap<>();
                     }

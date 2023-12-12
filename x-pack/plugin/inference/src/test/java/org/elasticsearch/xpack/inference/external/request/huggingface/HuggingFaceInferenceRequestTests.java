@@ -12,6 +12,8 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 
 import java.io.IOException;
@@ -24,7 +26,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class HuggingFaceElserRequestTests extends ESTestCase {
+public class HuggingFaceInferenceRequestTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testCreateRequest() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abc");
@@ -44,10 +46,35 @@ public class HuggingFaceElserRequestTests extends ESTestCase {
         assertThat(inputList, contains("abc"));
     }
 
+    public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
+        var huggingFaceRequest = createRequest("www.google.com", "secret", "abcd");
+        var truncatedRequest = huggingFaceRequest.truncate();
+        assertThat(truncatedRequest.getURI().toString(), is(new URI("www.google.com").toString()));
+
+        var httpRequest = truncatedRequest.createRequest();
+        assertThat(httpRequest, instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest;
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap.get("inputs"), instanceOf(List.class));
+        assertThat(requestMap.get("inputs"), is(List.of("ab")));
+    }
+
+    public void testIsTruncated_ReturnsTrue() throws URISyntaxException, IOException {
+        var huggingFaceRequest = createRequest("www.google.com", "secret", "abcd");
+        assertFalse(huggingFaceRequest.getTruncationInfo()[0]);
+
+        var truncatedRequest = huggingFaceRequest.truncate();
+        assertTrue(truncatedRequest.getTruncationInfo()[0]);
+    }
+
     public static HuggingFaceInferenceRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {
         var account = new HuggingFaceAccount(new URI(url), new SecureString(apiKey.toCharArray()));
-        var entity = new HuggingFaceInferenceRequestEntity(List.of(input));
 
-        return new HuggingFaceInferenceRequest(account, entity);
+        return new HuggingFaceInferenceRequest(
+            TruncatorTests.createTruncator(),
+            account,
+            new Truncator.TruncationResult(List.of(input), new boolean[] { false })
+        );
     }
 }

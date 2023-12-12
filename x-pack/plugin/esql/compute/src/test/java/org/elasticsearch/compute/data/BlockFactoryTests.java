@@ -595,7 +595,6 @@ public class BlockFactoryTests extends ESTestCase {
         ).block();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103119")
     public void testAllowPassingBlockToDifferentContext() throws Exception {
         long overLimit1 = between(0, 10 * 1024);
         long maxOverLimit1 = randomLongBetween(overLimit1, 100 * 1024);

@@ -782,6 +782,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      * Tests shard recovery throttling on the target node. Node statistics should show throttling time on the target node, while no
      * throttling should be shown on the source node because the target will accept data more slowly than the source's throttling threshold.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103204")
     public void testTargetThrottling() throws Exception {
         logger.info("--> starting node A with default settings");
         final String nodeA = internalCluster().startNode();

@@ -809,7 +809,8 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             DUMMY_ENTITY_MEMORY,
-            DUMMY_ENTITY_PROCESSORS
+            DUMMY_ENTITY_PROCESSORS,
+            LearningToRankRescorerFeature.LEARNING_TO_RANK_ENABLED
         );
     }
 

@@ -241,7 +241,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.updateNodeIdsToRemoveQueue = clusterService.createTaskQueue(
             "snapshots-service-node-ids",
             Priority.NORMAL,
-            UpdateNodeIdsToRemoveTask::executeBatch
+            UpdateNodeIdsForRemovalTask::executeBatch
         );
     }
 
@@ -841,7 +841,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 if (newMaster
                     || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false
                     || supportsNodeRemovalTracking(event.state()) != supportsNodeRemovalTracking(event.previousState())) {
-                    updateNodeIdsToRemoveQueue.submitTask("SnapshotsService#updateNodeIdsToRemove", new UpdateNodeIdsToRemoveTask(), null);
+                    updateNodeIdsToRemoveQueue.submitTask(
+                        "SnapshotsService#updateNodeIdsToRemove",
+                        new UpdateNodeIdsForRemovalTask(),
+                        null
+                    );
                 }
             } else {
                 final List<Runnable> readyToResolveListeners = new ArrayList<>();
@@ -3967,15 +3971,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    private record UpdateNodeIdsToRemoveTask() implements ClusterStateTaskListener {
+    private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             // must be a master failover, and the new master will retry so nbd
             assert MasterService.isPublishFailureException(e) : e;
         }
 
-        static ClusterState executeBatch(ClusterStateTaskExecutor.BatchExecutionContext<UpdateNodeIdsToRemoveTask> batchExecutionContext) {
-            for (ClusterStateTaskExecutor.TaskContext<UpdateNodeIdsToRemoveTask> taskContext : batchExecutionContext.taskContexts()) {
+        static ClusterState executeBatch(
+            ClusterStateTaskExecutor.BatchExecutionContext<UpdateNodeIdsForRemovalTask> batchExecutionContext
+        ) {
+            for (ClusterStateTaskExecutor.TaskContext<UpdateNodeIdsForRemovalTask> taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(() -> {});
             }
 
@@ -3995,5 +4001,5 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED);
     }
 
-    private final MasterServiceTaskQueue<UpdateNodeIdsToRemoveTask> updateNodeIdsToRemoveQueue;
+    private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;
 }

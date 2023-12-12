@@ -155,7 +155,7 @@ PUT my-index-000001
           "match_mapping_type": ["long", "double"],
           "match": "count",
           "mapping": {
-            "type": "{dynamic_type}"
+            "type": "{dynamic_type}",
             "index": false
           }
         }

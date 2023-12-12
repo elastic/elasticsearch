@@ -7,7 +7,6 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -29,6 +28,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -194,64 +194,74 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
         }
         indexRandom(true, requests);
 
-        SearchResponse actual = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
-        )
-            .prepareSearch("test")
-            .addSort("id", SortOrder.ASC)
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .should(QueryBuilders.termQuery("field1", "value"))
-                    .should(QueryBuilders.termQuery("field2", "value"))
-                    .should(QueryBuilders.termQuery("field3", "value"))
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addSort("id", SortOrder.ASC)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .should(QueryBuilders.termQuery("field1", "value"))
+                        .should(QueryBuilders.termQuery("field2", "value"))
+                        .should(QueryBuilders.termQuery("field3", "value"))
+                ),
+            actual -> assertResponse(
+                prepareSearch("test").addSort("id", SortOrder.ASC)
+                    .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field1", "value"))),
+                expected -> {
+                    assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
+                    assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
+                    for (int i = 0; i < actual.getHits().getHits().length; i++) {
+                        assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
+                    }
+                }
             )
-            .get();
-        SearchResponse expected = prepareSearch("test").addSort("id", SortOrder.ASC)
-            .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field1", "value")))
-            .get();
-        assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
-        assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
-        for (int i = 0; i < actual.getHits().getHits().length; i++) {
-            assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
-        }
+        );
 
-        actual = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-            .prepareSearch("test")
-            .addSort("id", SortOrder.ASC)
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .should(QueryBuilders.termQuery("field1", "value"))
-                    .should(QueryBuilders.termQuery("field2", "value"))
-                    .should(QueryBuilders.termQuery("field3", "value"))
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addSort("id", SortOrder.ASC)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .should(QueryBuilders.termQuery("field1", "value"))
+                        .should(QueryBuilders.termQuery("field2", "value"))
+                        .should(QueryBuilders.termQuery("field3", "value"))
+                ),
+            actual -> assertResponse(
+                prepareSearch("test").addSort("id", SortOrder.ASC)
+                    .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field2", "value"))),
+                expected -> {
+                    assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
+                    assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
+                    for (int i = 0; i < actual.getHits().getHits().length; i++) {
+                        assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
+                    }
+                }
             )
-            .get();
-        expected = prepareSearch("test").addSort("id", SortOrder.ASC)
-            .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field2", "value")))
-            .get();
-        assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
-        assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
-        for (int i = 0; i < actual.getHits().getHits().length; i++) {
-            assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
-        }
+        );
 
-        actual = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
-            .prepareSearch("test")
-            .addSort("id", SortOrder.ASC)
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .should(QueryBuilders.termQuery("field1", "value"))
-                    .should(QueryBuilders.termQuery("field2", "value"))
-                    .should(QueryBuilders.termQuery("field3", "value"))
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
+                .prepareSearch("test")
+                .addSort("id", SortOrder.ASC)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .should(QueryBuilders.termQuery("field1", "value"))
+                        .should(QueryBuilders.termQuery("field2", "value"))
+                        .should(QueryBuilders.termQuery("field3", "value"))
+                ),
+            actual -> assertResponse(
+                prepareSearch("test").addSort("id", SortOrder.ASC)
+                    .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field3", "value"))),
+                expected -> {
+                    assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
+                    assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
+                    for (int i = 0; i < actual.getHits().getHits().length; i++) {
+                        assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
+                    }
+                }
             )
-            .get();
-        expected = prepareSearch("test").addSort("id", SortOrder.ASC)
-            .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field3", "value")))
-            .get();
-        assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
-        assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
-        for (int i = 0; i < actual.getHits().getHits().length; i++) {
-            assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
-        }
+        );
     }
 
 }

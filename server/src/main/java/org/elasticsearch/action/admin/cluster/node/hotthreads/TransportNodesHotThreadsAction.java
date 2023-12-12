@@ -25,6 +25,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.StringWriter;
 import java.util.List;
 
 public class TransportNodesHotThreadsAction extends TransportNodesAction<
@@ -79,8 +80,9 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
             .interval(request.request.interval)
             .threadElementsSnapshotCount(request.request.snapshots)
             .ignoreIdleThreads(request.request.ignoreIdleThreads);
-        try {
-            return new NodeHotThreads(clusterService.localNode(), hotThreads.detect());
+        try (var writer = new StringWriter()) {
+            hotThreads.detect(writer);
+            return new NodeHotThreads(clusterService.localNode(), writer.toString());
         } catch (Exception e) {
             throw new ElasticsearchException("failed to detect hot threads", e);
         }

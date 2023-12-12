@@ -811,12 +811,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             }
 
             @Override
-            public long getShardSize(ShardRouting shardRouting, long defaultValue) {
-                return 1L;
-            }
-
-            @Override
-            public Long getShardSize(ShardRouting shardRouting) {
+            public Long getShardSize(ShardId shardId, boolean primary) {
                 return 1L;
             }
         };

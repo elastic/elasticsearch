@@ -388,23 +388,11 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         masterTransportService.addRequestHandlingBehavior(
             SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
-            (handler, request, channel, task) -> SubscribableListener
-
-                .<Void>newForked(
-                    l -> putShutdownMetadata(
-                        clusterService,
-                        SingleNodeShutdownMetadata.builder()
-                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                            .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
-                            .setReason("test"),
-                        primaryNode,
-                        l
-                    )
-                )
-
-                .<Void>andThen((l, ignored) -> flushMasterQueue(clusterService, l))
-
-                .addListener(ActionTestUtils.assertNoFailureListener(ignored -> handler.messageReceived(request, channel, task)))
+            (handler, request, channel, task) -> putShutdownForRemovalMetadata(
+                clusterService,
+                primaryNode,
+                ActionTestUtils.assertNoFailureListener(ignored -> handler.messageReceived(request, channel, task))
+            )
         );
 
         assertEquals(
@@ -438,23 +426,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
     private static void putShutdownForRemovalMetadata(String nodeName, ClusterService clusterService) {
         PlainActionFuture.<Void, RuntimeException>get(
-            fut -> SubscribableListener
-
-                .<Void>newForked(l ->
-
-                putShutdownMetadata(
-                    clusterService,
-                    SingleNodeShutdownMetadata.builder()
-                        .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                        .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
-                        .setReason("test"),
-                    nodeName,
-                    l
-                ))
-
-                .<Void>andThen((l, ignored) -> flushMasterQueue(clusterService, l))
-
-                .addListener(fut),
+            fut -> putShutdownForRemovalMetadata(clusterService, nodeName, fut),
             10,
             TimeUnit.SECONDS
         );
@@ -477,6 +449,26 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 listener.onResponse(null);
             }
         });
+    }
+
+    private static void putShutdownForRemovalMetadata(ClusterService clusterService, String nodeName, ActionListener<Void> listener) {
+        final var shutdownType = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM
+            // not testing REPLACE just because it requires us to specify the replacement node
+        );
+        final var shutdownMetadata = SingleNodeShutdownMetadata.builder()
+            .setType(shutdownType)
+            .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
+            .setReason("test");
+        switch (shutdownType) {
+            case SIGTERM -> shutdownMetadata.setGracePeriod(TimeValue.timeValueSeconds(60));
+        }
+        SubscribableListener
+
+            .<Void>newForked(l -> putShutdownMetadata(clusterService, shutdownMetadata, nodeName, l))
+            .<Void>andThen((l, ignored) -> flushMasterQueue(clusterService, l))
+            .addListener(listener);
     }
 
     private static void putShutdownMetadata(

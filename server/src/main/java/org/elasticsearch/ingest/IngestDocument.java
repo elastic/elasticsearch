@@ -442,7 +442,6 @@ public final class IngestDocument {
      * @param allowDuplicates When false, any values that already exist in the field will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
-    // 1 usage
     public void appendFieldValue(String path, ValueSource valueSource, boolean allowDuplicates) {
         appendFieldValue(path, valueSource.copyAndResolve(templateModel), allowDuplicates);
     }
@@ -470,7 +469,6 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    // 9 test usages
     public void setFieldValue(String path, ValueSource valueSource) {
         setFieldValue(path, valueSource.copyAndResolve(templateModel));
     }
@@ -485,7 +483,6 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    // 1 usage
     public void setFieldValue(String path, ValueSource valueSource, boolean ignoreEmptyValue) {
         Object value = valueSource.copyAndResolve(templateModel);
         if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
@@ -511,7 +508,6 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    // 1 usage
     public void setFieldValue(String path, Object value, boolean ignoreEmptyValue) {
         if (ignoreEmptyValue) {
             if (value == null) {

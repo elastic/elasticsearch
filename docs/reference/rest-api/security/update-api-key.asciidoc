@@ -67,6 +67,9 @@ It supports nested data structure.
 Within the `metadata` object, top-level keys beginning with `_` are reserved for system usage.
 When specified, this fully replaces metadata previously associated with the API key.
 
+`expiration`::
+(Optional, string) Expiration time for the API key. By default, API keys never expire.
+
 [[security-api-update-api-key-response-body]]
 ==== {api-response-body-title}
 

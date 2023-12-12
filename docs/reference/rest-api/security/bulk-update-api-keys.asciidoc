@@ -63,6 +63,9 @@ The structure of a role descriptor is the same as the request for the <<api-key-
 Within the `metadata` object, top-level keys beginning with an underscore (`_`) are reserved for system usage.
 Any information specified with this parameter fully replaces metadata previously associated with the API key.
 
+`expiration`::
+(Optional, string) Expiration time for the API keys. By default, API keys never expire.
+
 [[security-api-bulk-update-api-keys-response-body]]
 ==== {api-response-body-title}
 
@@ -166,7 +169,8 @@ Further, assume that the owner user's permissions are:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following example updates the API keys created above, assigning them new role descriptors and metadata.
+The following example updates the API keys created above, assigning them new role descriptors, metadata and updates
+their expiration time.
 
 [source,console]
 ----
@@ -192,7 +196,8 @@ POST /_security/api_key/_bulk_update
        "trusted": true,
        "tags": ["production"]
     }
-  }
+  },
+  "expiration": "30d"
 }
 ----
 // TEST[skip:api key ids not available]

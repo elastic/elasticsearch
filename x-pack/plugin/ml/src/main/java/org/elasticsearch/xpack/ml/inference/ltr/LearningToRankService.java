@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.ltr;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -55,20 +52,6 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
 
 public class LearningToRankService {
-    /**
-     * This setting behave like a feature flag for the learning to rank feature but can be set by an operator on self-managed environment.
-     * The feature is enabled by default only for snapshots builds.
-     *
-     * Before enabling by default, ensure transport serialization is all corrected for future BWC.
-     *
-     * See {@link LearningToRankRescorerBuilder}
-     */
-    public static Setting<Boolean> LEARNING_TO_RANK_ENABLED = Setting.boolSetting("xpack.ml.learning_to_rank.enabled",
-        Build.current().isSnapshot(),
-        Setting.Property.OperatorDynamic,
-        Setting.Property.NodeScope
-    );
-
     private static final Map<String, String> SCRIPT_OPTIONS = Map.ofEntries(
         entry(MustacheScriptEngine.DETECT_MISSING_PARAMS_OPTION, Boolean.TRUE.toString())
     );
@@ -76,39 +59,26 @@ public class LearningToRankService {
     private final TrainedModelProvider trainedModelProvider;
     private final ScriptService scriptService;
     private final XContentParserConfiguration parserConfiguration;
-    private final boolean enabled;
 
     public LearningToRankService(
         ModelLoadingService modelLoadingService,
         TrainedModelProvider trainedModelProvider,
         ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Settings settings
+        NamedXContentRegistry xContentRegistry
     ) {
-        this(modelLoadingService, trainedModelProvider, scriptService, XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), settings);
+        this(modelLoadingService, trainedModelProvider, scriptService, XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry));
     }
 
     LearningToRankService(
         ModelLoadingService modelLoadingService,
         TrainedModelProvider trainedModelProvider,
         ScriptService scriptService,
-        XContentParserConfiguration parserConfiguration,
-        Settings settings
+        XContentParserConfiguration parserConfiguration
     ) {
         this.modelLoadingService = modelLoadingService;
         this.scriptService = scriptService;
         this.trainedModelProvider = trainedModelProvider;
         this.parserConfiguration = parserConfiguration;
-        this.enabled = LEARNING_TO_RANK_ENABLED.get(settings);
-    }
-
-    /**
-     * Check if the learning to rank is enabled or not.
-     *
-     * @return Whether the LTR feature is enabled or not.
-     */
-    public boolean isEnabled() {
-        return enabled;
     }
 
     /**

@@ -22,6 +22,8 @@ import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBu
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 public class ApiKeyAggregationsBuilder {
@@ -96,6 +98,16 @@ public class ApiKeyAggregationsBuilder {
             for (FiltersAggregator.KeyedFilter keyedFilter : filtersAggregationBuilder.filters()) {
                 keyedFilter.filter(ApiKeyBoolQueryBuilder.build(keyedFilter.filter(), authentication));
             }
+        } else if (aggregationBuilder instanceof CardinalityAggregationBuilder cardinalityAggregationBuilder) {
+            if (cardinalityAggregationBuilder.script() != null) {
+                throw new IllegalArgumentException("Unsupported script value source for [" + aggregationBuilder.getName() + "] agg");
+            }
+            cardinalityAggregationBuilder.field(ApiKeyFieldNameTranslators.translate(cardinalityAggregationBuilder.field()));
+        } else if (aggregationBuilder instanceof ValueCountAggregationBuilder valueCountAggregationBuilder) {
+            if (valueCountAggregationBuilder.script() != null) {
+                throw new IllegalArgumentException("Unsupported script value source for [" + aggregationBuilder.getName() + "] agg");
+            }
+            valueCountAggregationBuilder.field(ApiKeyFieldNameTranslators.translate(valueCountAggregationBuilder.field()));
         } else {
             throw new IllegalArgumentException(
                 "Unsupported agg [" + aggregationBuilder.getName() + "] of type [" + aggregationBuilder.getType() + "]"

@@ -465,14 +465,14 @@ public final class IngestDocument {
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value to put in for the path key
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
     // 9 test usages
-    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
+    public void setFieldValue(String path, ValueSource valueSource) {
+        setFieldValue(path, valueSource.copyAndResolve(templateModel));
     }
 
     /**

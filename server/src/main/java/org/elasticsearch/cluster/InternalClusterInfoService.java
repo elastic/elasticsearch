@@ -462,7 +462,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
             final long size = storeStats.sizeInBytes();
             final long dataSetSize = storeStats.totalDataSetSizeInBytes();
-            final long reserved = storeStats.getReservedSize().getBytes();
+            final long reserved = storeStats.reservedSizeInBytes();
 
             final String shardIdentifier = ClusterInfo.shardIdentifierFromRouting(shardRouting);
             logger.trace("shard: {} size: {} reserved: {}", shardIdentifier, size, reserved);

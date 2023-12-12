@@ -61,6 +61,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -150,7 +151,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 hosts,
                 os
             );
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, ESRestTestCase::clusterHasFeature, os);
             restTestExecutionContext = createRestTestExecutionContext(testCandidate, clientYamlTestClient);
             adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -188,10 +189,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         final RestClient restClient,
         final List<HttpHost> hosts,
         final Version esVersion,
-        final Version masterVersion,
+        final Predicate<String> clusterFeaturesPredicate,
         final String os
     ) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, os, this::getClientBuilderWithSniffedHosts);
+        return new ClientYamlTestClient(
+            restSpec,
+            restClient,
+            hosts,
+            esVersion,
+            clusterFeaturesPredicate,
+            os,
+            this::getClientBuilderWithSniffedHosts
+        );
     }
 
     @AfterClass

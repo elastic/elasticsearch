@@ -648,6 +648,22 @@ public class BlockFactoryTests extends ESTestCase {
         localBreaker2.close();
     }
 
+    public void testOwningFactoryOfVectorBlock() {
+        BlockFactory parentFactory = blockFactory(ByteSizeValue.ofBytes(between(1024, 4096)));
+        LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(parentFactory.breaker(), between(0, 1024), between(0, 1024));
+        BlockFactory localFactory = new BlockFactory(localBreaker, bigArrays, parentFactory);
+        int numValues = between(2, 10);
+        try (var builder = localFactory.newIntVectorBuilder(numValues)) {
+            for (int i = 0; i < numValues; i++) {
+                builder.appendInt(randomInt());
+            }
+            IntBlock block = builder.build().asBlock();
+            assertThat(block.blockFactory(), equalTo(localFactory));
+            block.allowPassingToDifferentDriver();
+            assertThat(block.blockFactory(), equalTo(parentFactory));
+        }
+    }
+
     static BytesRef randomBytesRef() {
         return new BytesRef(randomByteArrayOfLength(between(1, 20)));
     }

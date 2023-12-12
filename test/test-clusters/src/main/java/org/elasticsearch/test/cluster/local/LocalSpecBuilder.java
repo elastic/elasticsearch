@@ -113,7 +113,7 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T configFile(String fileName, Resource configFile);
 
     /**
-     * Adds a file to the node config directory computed by the given supplier
+     * Adds a file to the node config directory
      */
     T configFile(String fileName, Supplier<Resource> configFile);
 

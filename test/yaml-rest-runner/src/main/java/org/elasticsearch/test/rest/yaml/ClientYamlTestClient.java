@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
@@ -64,24 +65,24 @@ public class ClientYamlTestClient implements Closeable {
     private final ClientYamlSuiteRestSpec restSpec;
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
-    private final Version masterVersion;
     private final String os;
     private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes;
+    private final Predicate<String> clusterFeaturesPredicate;
 
     ClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
         final List<HttpHost> hosts,
         final Version esVersion,
-        final Version masterVersion,
+        final Predicate<String> clusterFeaturesPredicate,
         final String os,
         final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
     ) {
+        this.clusterFeaturesPredicate = clusterFeaturesPredicate;
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
         this.esVersion = esVersion;
-        this.masterVersion = masterVersion;
         this.os = os;
         this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
     }
@@ -93,8 +94,8 @@ public class ClientYamlTestClient implements Closeable {
         return esVersion;
     }
 
-    public Version getMasterVersion() {
-        return masterVersion;
+    public boolean clusterHasFeature(String featureId) {
+        return clusterFeaturesPredicate.test(featureId);
     }
 
     public String getOs() {

@@ -91,6 +91,6 @@ public class StartsWith extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return new StartsWithEvaluator.Factory(toEvaluator.apply(str), toEvaluator.apply(prefix));
+        return new StartsWithEvaluator.Factory(source(), toEvaluator.apply(str), toEvaluator.apply(prefix));
     }
 }

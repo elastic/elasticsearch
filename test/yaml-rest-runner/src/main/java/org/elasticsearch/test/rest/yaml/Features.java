@@ -39,7 +39,8 @@ public final class Features {
         "arbitrary_key",
         "allowed_warnings",
         "allowed_warnings_regex",
-        "close_to"
+        "close_to",
+        "is_after"
     );
 
     private Features() {

@@ -12,8 +12,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -568,7 +568,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor.ProfileSecuredRequestHandler<DeleteIndexRequest> requestHandler =
             new SecurityServerTransportInterceptor.ProfileSecuredRequestHandler<>(
                 logger,
-                DeleteIndexAction.NAME,
+                TransportDeleteIndexAction.TYPE.name(),
                 randomBoolean(),
                 threadPool.executor(randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC),
                 (request, channel, task) -> fail("should fail at destructive operations check to trigger listener failure"),

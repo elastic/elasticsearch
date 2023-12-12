@@ -86,6 +86,7 @@ public class JwtRestIT extends ESRestTestCase {
     private static final String VALID_SHARED_SECRET = "test-secret";
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider() {
         {
+            put("xpack.security.transport.ssl.secure_key_passphrase", "http-password");
             put("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", VALID_SHARED_SECRET);
         }
     };
@@ -98,7 +99,6 @@ public class JwtRestIT extends ESRestTestCase {
         .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
         .configFile("rsa.jwkset", Resource.fromClasspath("jwk/rsa-public-jwkset.json"))
-        .keystore(nodeSpec -> Map.of("xpack.security.transport.ssl.secure_key_passphrase", "http-password"))
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
@@ -508,7 +508,6 @@ public class JwtRestIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103308")
     public void testReloadClientSecret() throws Exception {
         final String principal = SERVICE_SUBJECT.get();
         final String username = getUsernameFromPrincipal(principal);

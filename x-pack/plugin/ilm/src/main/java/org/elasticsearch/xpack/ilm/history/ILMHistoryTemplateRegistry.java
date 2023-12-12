@@ -14,10 +14,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -67,6 +70,25 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
             return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
         } else {
             return Map.of();
+        }
+    }
+
+    private static final LifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new LifecyclePolicyConfig(
+        ILM_POLICY_NAME,
+        "/ilm-history-ilm-policy.json"
+    );
+
+    @Override
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of(LIFECYCLE_POLICY_CONFIG);
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        if (ilmHistoryEnabled) {
+            return lifecyclePolicies;
+        } else {
+            return List.of();
         }
     }
 

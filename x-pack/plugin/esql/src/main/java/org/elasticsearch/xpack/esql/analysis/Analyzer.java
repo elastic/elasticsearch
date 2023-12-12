@@ -439,7 +439,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *
          * // the two wildcard expressions have the same priority, even though the first one is more specific
          * // so last one wins
-         * row foo = 1, bar = 2 | keep fo*, bar, foo*   ->  bar, foo
+         * row foo = 1, bar = 2 | keep foo*, bar, fo*   ->  bar, foo
          *
          * // * has the lowest priority
          * row foo = 1, bar = 2 | keep *, foo   ->  bar, foo
@@ -472,7 +472,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             priority = 2;
                         } else if (proj instanceof UnresolvedAttribute ua) {
                             resolved = resolveAgainstList(ua, childOutput);
-                            priority = ua.name().contains("*") ? 1 : 0;
+                            priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
                         } else {
                             resolved = List.of(attribute);
                             priority = 0;

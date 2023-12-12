@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -266,7 +267,7 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testProjectOrder() {
+    public void testDuplicateProjections() {
         assertProjection("""
             from test
             | keep first_name, first_name
@@ -275,10 +276,31 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep first_name, first_name, last_name, first_name
             """, "last_name", "first_name");
+    }
+
+    public void testProjectWildcard() {
         assertProjection("""
             from test
             | keep first_name, *, last_name
             """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
+        assertProjection("""
+            from test
+            | keep first_name, last_name, *
+            """, "first_name", "last_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary");
+        assertProjection("""
+            from test
+            | keep *, first_name, last_name
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "first_name", "last_name");
+
+        var e = expectThrows(ParsingException.class, () -> analyze("""
+            from test
+            | keep *, first_name, last_name, *
+            """));
+        assertThat(e.getMessage(), containsString("Cannot specify [*] more than once"));
+
+    }
+
+    public void testProjectMixedWildcard() {
         assertProjection("""
             from test
             | keep *name, first*

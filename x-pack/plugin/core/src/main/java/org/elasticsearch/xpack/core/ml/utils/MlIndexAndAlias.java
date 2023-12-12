@@ -152,9 +152,8 @@ public final class MlIndexAndAlias {
                     firstConcreteIndex,
                     alias,
                     false,
-                    ActionListener.wrap(
-                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, indexCreatedListener),
-                        loggingListener::onFailure
+                    indexCreatedListener.delegateFailureAndWrap(
+                        (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, l)
                     )
                 );
                 return;
@@ -296,7 +295,7 @@ public final class MlIndexAndAlias {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             request,
-            ActionListener.<AcknowledgedResponse>wrap(resp -> listener.onResponse(resp.isAcknowledged()), listener::onFailure),
+            listener.<AcknowledgedResponse>delegateFailureAndWrap((l, resp) -> l.onResponse(resp.isAcknowledged())),
             client.admin().indices()::aliases
         );
     }

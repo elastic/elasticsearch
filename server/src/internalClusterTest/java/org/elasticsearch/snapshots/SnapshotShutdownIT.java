@@ -166,6 +166,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         putShutdownForRemovalMetadata(originalNode, clusterService);
         unblockAllDataNodes(repoName); // lets the shard snapshot abort, which frees up the shard so it can move
         safeAwait(snapshotStatusUpdateBarrier); // wait for the data node to finish and then try and update the master
+        masterTransportService.clearAllRules(); // the shard might migrate to the old master, so let it process more updates
 
         if (internalCluster().numMasterNodes() == 1) {
             internalCluster().startMasterOnlyNode();

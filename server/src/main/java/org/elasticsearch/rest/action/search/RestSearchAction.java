@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -54,6 +55,7 @@ import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTI
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -116,7 +118,15 @@ public class RestSearchAction extends BaseRestHandler {
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize, searchUsageHolder)
+            parser -> parseSearchRequest(
+                searchRequest,
+                request.getRestApiVersion(),
+                request.requestParams(),
+                parser,
+                client.getNamedWriteableRegistry(),
+                setSize,
+                searchUsageHolder
+            )
         );
 
         return channel -> {
@@ -129,7 +139,8 @@ public class RestSearchAction extends BaseRestHandler {
      * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
      *
      * @param searchRequest the search request that will hold what gets parsed
-     * @param request the rest request to read from
+     * @param restApiVersion REST API version for the request
+     * @param params request parameters
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter
      * @param namedWriteableRegistry the registry of named writeables
@@ -137,19 +148,21 @@ public class RestSearchAction extends BaseRestHandler {
      */
     public static void parseSearchRequest(
         SearchRequest searchRequest,
-        RestRequest request,
+        RestApiVersion restApiVersion,
+        RequestParams params,
         XContentParser requestContentParser,
         NamedWriteableRegistry namedWriteableRegistry,
         IntConsumer setSize
     ) throws IOException {
-        parseSearchRequest(searchRequest, request, requestContentParser, namedWriteableRegistry, setSize, null);
+        parseSearchRequest(searchRequest, restApiVersion, params, requestContentParser, namedWriteableRegistry, setSize, null);
     }
 
     /**
      * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
      *
      * @param searchRequest the search request that will hold what gets parsed
-     * @param request the rest request to read from
+     * @param restApiVersion REST API version for the request
+     * @param params request parameters
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter, will be null when there is no request body to parse
      * @param namedWriteableRegistry the registry of named writeables
@@ -158,21 +171,22 @@ public class RestSearchAction extends BaseRestHandler {
      */
     public static void parseSearchRequest(
         SearchRequest searchRequest,
-        RestRequest request,
+        RestApiVersion restApiVersion,
+        RequestParams params,
         @Nullable XContentParser requestContentParser,
         NamedWriteableRegistry namedWriteableRegistry,
         IntConsumer setSize,
         @Nullable SearchUsageHolder searchUsageHolder
     ) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
+        if (restApiVersion == RestApiVersion.V_7 && params.hasParam("type")) {
+            params.param("type");
             deprecationLogger.compatibleCritical("search_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
-        searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+        searchRequest.indices(Strings.splitStringByCommaToArray(params.param("index")));
         if (requestContentParser != null) {
             if (searchUsageHolder == null) {
                 searchRequest.source().parseXContent(requestContentParser, true);
@@ -181,52 +195,52 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
+        final int batchedReduceSize = params.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
         searchRequest.setBatchedReduceSize(batchedReduceSize);
-        if (request.hasParam("pre_filter_shard_size")) {
-            searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
+        if (params.hasParam("pre_filter_shard_size")) {
+            searchRequest.setPreFilterShardSize(params.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
-        if (request.hasParam("enable_fields_emulation")) {
+        if (params.hasParam("enable_fields_emulation")) {
             // this flag is a no-op from 8.0 on, we only want to consume it so its presence doesn't cause errors
-            request.paramAsBoolean("enable_fields_emulation", false);
+            params.paramAsBoolean("enable_fields_emulation", false);
         }
-        if (request.hasParam("max_concurrent_shard_requests")) {
+        if (params.hasParam("max_concurrent_shard_requests")) {
             // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
             // based on the number of nodes in the cluster
-            final int maxConcurrentShardRequests = request.paramAsInt(
+            final int maxConcurrentShardRequests = params.paramAsInt(
                 "max_concurrent_shard_requests",
                 searchRequest.getMaxConcurrentShardRequests()
             );
             searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
         }
 
-        if (request.hasParam("allow_partial_search_results")) {
+        if (params.hasParam("allow_partial_search_results")) {
             // only set if we have the parameter passed to override the cluster-level default
-            searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
+            searchRequest.allowPartialSearchResults(params.paramAsBoolean("allow_partial_search_results", null));
         }
 
-        searchRequest.searchType(request.param("search_type"));
-        parseSearchSource(searchRequest.source(), request, setSize);
-        searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
+        searchRequest.searchType(params.param("search_type"));
+        parseSearchSource(searchRequest.source(), restApiVersion, params, setSize);
+        searchRequest.requestCache(params.paramAsBoolean("request_cache", searchRequest.requestCache()));
 
-        String scroll = request.param("scroll");
+        String scroll = params.param("scroll");
         if (scroll != null) {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
-        searchRequest.routing(request.param("routing"));
-        searchRequest.preference(request.param("preference"));
-        searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+        searchRequest.routing(params.param("routing"));
+        searchRequest.preference(params.param("preference"));
+        searchRequest.indicesOptions(IndicesOptions.fromRequestParams(params, searchRequest.indicesOptions()));
 
-        validateSearchRequest(request, searchRequest);
+        validateRequestParams(params, searchRequest);
 
         if (searchRequest.pointInTimeBuilder() != null) {
-            preparePointInTime(searchRequest, request, namedWriteableRegistry);
+            preparePointInTime(searchRequest, params, namedWriteableRegistry);
         } else {
             searchRequest.setCcsMinimizeRoundtrips(
-                request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
+                params.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
             );
         }
-        if (request.paramAsBoolean("force_synthetic_source", false)) {
+        if (params.paramAsBoolean("force_synthetic_source", false)) {
             searchRequest.setForceSyntheticSource(true);
         }
     }
@@ -235,18 +249,23 @@ public class RestSearchAction extends BaseRestHandler {
      * Parses the rest request on top of the SearchSourceBuilder, preserving
      * values that are not overridden by the rest request.
      */
-    private static void parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request, IntConsumer setSize) {
-        QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+    private static void parseSearchSource(
+        final SearchSourceBuilder searchSourceBuilder,
+        RestApiVersion restApiVersion,
+        RequestParams params,
+        IntConsumer setSize
+    ) {
+        QueryBuilder queryBuilder = RestActions.requestParamsToQueryBuilder(params);
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
         }
 
-        if (request.hasParam("from")) {
-            searchSourceBuilder.from(request.paramAsInt("from", 0));
+        if (params.hasParam("from")) {
+            searchSourceBuilder.from(params.paramAsInt("from", 0));
         }
-        if (request.hasParam("size")) {
-            int size = request.paramAsInt("size", SearchService.DEFAULT_SIZE);
-            if (request.getRestApiVersion() == RestApiVersion.V_7 && size == -1) {
+        if (params.hasParam("size")) {
+            int size = params.paramAsInt("size", SearchService.DEFAULT_SIZE);
+            if (restApiVersion == RestApiVersion.V_7 && size == -1) {
                 // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
                 deprecationLogger.compatibleCritical(
                     "search-api-size-1",
@@ -258,31 +277,31 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        if (request.hasParam("explain")) {
-            searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
+        if (params.hasParam("explain")) {
+            searchSourceBuilder.explain(params.paramAsBoolean("explain", null));
         }
-        if (request.hasParam("version")) {
-            searchSourceBuilder.version(request.paramAsBoolean("version", null));
+        if (params.hasParam("version")) {
+            searchSourceBuilder.version(params.paramAsBoolean("version", null));
         }
-        if (request.hasParam("seq_no_primary_term")) {
-            searchSourceBuilder.seqNoAndPrimaryTerm(request.paramAsBoolean("seq_no_primary_term", null));
+        if (params.hasParam("seq_no_primary_term")) {
+            searchSourceBuilder.seqNoAndPrimaryTerm(params.paramAsBoolean("seq_no_primary_term", null));
         }
-        if (request.hasParam("timeout")) {
-            searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
+        if (params.hasParam("timeout")) {
+            searchSourceBuilder.timeout(params.paramAsTime("timeout", null));
         }
-        if (request.hasParam("terminate_after")) {
-            int terminateAfter = request.paramAsInt("terminate_after", SearchContext.DEFAULT_TERMINATE_AFTER);
+        if (params.hasParam("terminate_after")) {
+            int terminateAfter = params.paramAsInt("terminate_after", SearchContext.DEFAULT_TERMINATE_AFTER);
             searchSourceBuilder.terminateAfter(terminateAfter);
         }
 
         StoredFieldsContext storedFieldsContext = StoredFieldsContext.fromRestRequest(
             SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(),
-            request
+            params
         );
         if (storedFieldsContext != null) {
             searchSourceBuilder.storedFields(storedFieldsContext);
         }
-        String sDocValueFields = request.param("docvalue_fields");
+        String sDocValueFields = params.param("docvalue_fields");
         if (sDocValueFields != null) {
             if (Strings.hasText(sDocValueFields)) {
                 String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
@@ -291,26 +310,24 @@ public class RestSearchAction extends BaseRestHandler {
                 }
             }
         }
-        FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
+        FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRequestParams(params);
         if (fetchSourceContext != null) {
             searchSourceBuilder.fetchSource(fetchSourceContext);
         }
 
-        if (request.hasParam("track_scores")) {
-            searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
+        if (params.hasParam("track_scores")) {
+            searchSourceBuilder.trackScores(params.paramAsBoolean("track_scores", false));
         }
 
-        if (request.hasParam("track_total_hits")) {
-            if (Booleans.isBoolean(request.param("track_total_hits"))) {
-                searchSourceBuilder.trackTotalHits(request.paramAsBoolean("track_total_hits", true));
+        if (params.hasParam("track_total_hits")) {
+            if (Booleans.isBoolean(params.param("track_total_hits"))) {
+                searchSourceBuilder.trackTotalHits(params.paramAsBoolean("track_total_hits", true));
             } else {
-                searchSourceBuilder.trackTotalHitsUpTo(
-                    request.paramAsInt("track_total_hits", SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO)
-                );
+                searchSourceBuilder.trackTotalHitsUpTo(params.paramAsInt("track_total_hits", DEFAULT_TRACK_TOTAL_HITS_UP_TO));
             }
         }
 
-        String sSorts = request.param("sort");
+        String sSorts = params.param("sort");
         if (sSorts != null) {
             String[] sorts = Strings.splitStringByCommaToArray(sSorts);
             for (String sort : sorts) {
@@ -329,11 +346,11 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        String sStats = request.param("stats");
+        String sStats = params.param("stats");
         if (sStats != null) {
             searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
         }
-        SuggestBuilder suggestBuilder = parseSuggestUrlParameters(request);
+        SuggestBuilder suggestBuilder = parseSuggestRequestParams(params);
         if (suggestBuilder != null) {
             searchSourceBuilder.suggest(suggestBuilder);
         }
@@ -344,7 +361,15 @@ public class RestSearchAction extends BaseRestHandler {
     /**
      * package private for testing
      */
-    static SuggestBuilder parseSuggestUrlParameters(RestRequest request) {
+    static SuggestBuilder parseSuggestUrlParameters(RestRequest restRequest) {
+        return parseSuggestRequestParams(restRequest.requestParams(), restRequest.path());
+    }
+
+    static SuggestBuilder parseSuggestRequestParams(RequestParams request) {
+        return parseSuggestRequestParams(request, null);
+    }
+
+    private static SuggestBuilder parseSuggestRequestParams(RequestParams request, @Nullable String urlPath) {
         String suggestField = request.param("suggest_field");
         if (suggestField != null) {
             String suggestText = request.param("suggest_text", request.param("q"));
@@ -363,8 +388,8 @@ public class RestSearchAction extends BaseRestHandler {
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,
-                        "request [%s] contains parameters %s but missing 'suggest_field' parameter.",
-                        request.path(),
+                        "request %s contains parameters %s but missing 'suggest_field' parameter.",
+                        urlPath == null ? "" : "[" + urlPath + "]",
                         unconsumedParams.toString()
                     )
                 );
@@ -373,7 +398,7 @@ public class RestSearchAction extends BaseRestHandler {
         return null;
     }
 
-    static void preparePointInTime(SearchRequest request, RestRequest restRequest, NamedWriteableRegistry namedWriteableRegistry) {
+    static void preparePointInTime(SearchRequest request, RequestParams params, NamedWriteableRegistry namedWriteableRegistry) {
         assert request.pointInTimeBuilder() != null;
         ActionRequestValidationException validationException = null;
         if (request.indices().length > 0) {
@@ -391,7 +416,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.preference() != null) {
             validationException = addValidationError("[preference] cannot be used with point in time", validationException);
         }
-        if (restRequest.paramAsBoolean("ccs_minimize_roundtrips", false)) {
+        if (params.paramAsBoolean("ccs_minimize_roundtrips", false)) {
             validationException = addValidationError("[ccs_minimize_roundtrips] cannot be used with point in time", validationException);
             request.setCcsMinimizeRoundtrips(false);
         }
@@ -418,10 +443,14 @@ public class RestSearchAction extends BaseRestHandler {
      * might modify the search request to align certain parameters.
      */
     public static void validateSearchRequest(RestRequest restRequest, SearchRequest searchRequest) {
-        checkRestTotalHits(restRequest, searchRequest);
-        checkSearchType(restRequest, searchRequest);
+        validateRequestParams(restRequest.requestParams(), searchRequest);
+    }
+
+    private static void validateRequestParams(RequestParams params, SearchRequest searchRequest) {
+        checkRestTotalHits(params, searchRequest);
+        checkSearchType(params, searchRequest);
         // ensures that the rest param is consumed
-        restRequest.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
+        params.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
     }
 
     /**
@@ -432,8 +461,8 @@ public class RestSearchAction extends BaseRestHandler {
      * is used in conjunction with a lower bound value (other than {@link SearchContext#DEFAULT_TRACK_TOTAL_HITS_UP_TO})
      * for the track_total_hits option.
      */
-    private static void checkRestTotalHits(RestRequest restRequest, SearchRequest searchRequest) {
-        boolean totalHitsAsInt = restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false);
+    private static void checkRestTotalHits(RequestParams params, SearchRequest searchRequest) {
+        boolean totalHitsAsInt = params.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false);
         if (totalHitsAsInt == false) {
             return;
         }
@@ -455,8 +484,8 @@ public class RestSearchAction extends BaseRestHandler {
             }
     }
 
-    private static void checkSearchType(RestRequest restRequest, SearchRequest searchRequest) {
-        if (restRequest.hasParam("search_type") && searchRequest.hasKnnSearch()) {
+    private static void checkSearchType(RequestParams params, SearchRequest searchRequest) {
+        if (params.hasParam("search_type") && searchRequest.hasKnnSearch()) {
             throw new IllegalArgumentException(
                 "cannot set [search_type] when using [knn] search, since the search type is determined automatically"
             );

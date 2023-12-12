@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -185,8 +185,8 @@ public class StoredFieldsContext implements Writeable {
         }
     }
 
-    public static StoredFieldsContext fromRestRequest(String name, RestRequest request) {
-        String sField = request.param(name);
+    public static StoredFieldsContext fromRestRequest(String name, RequestParams params) {
+        String sField = params.param(name);
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);
             return fromList(Arrays.asList(sFields));

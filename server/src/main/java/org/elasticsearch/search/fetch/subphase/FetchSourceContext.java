@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ParseField;
@@ -93,11 +94,15 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {
+        return parseFromRequestParams(request.requestParams());
+    }
+
+    public static FetchSourceContext parseFromRequestParams(RequestParams params) {
         Boolean fetchSource = null;
         String[] sourceExcludes = null;
         String[] sourceIncludes = null;
 
-        String source = request.param("_source");
+        String source = params.param("_source");
         if (source != null) {
             if (Booleans.isTrue(source)) {
                 fetchSource = true;
@@ -108,12 +113,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             }
         }
 
-        String sIncludes = request.param("_source_includes");
+        String sIncludes = params.param("_source_includes");
         if (sIncludes != null) {
             sourceIncludes = Strings.splitStringByCommaToArray(sIncludes);
         }
 
-        String sExcludes = request.param("_source_excludes");
+        String sExcludes = params.param("_source_excludes");
         if (sExcludes != null) {
             sourceExcludes = Strings.splitStringByCommaToArray(sExcludes);
         }

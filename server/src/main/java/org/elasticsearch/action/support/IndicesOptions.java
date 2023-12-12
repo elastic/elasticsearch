@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -367,18 +368,22 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         return new IndicesOptions(opts, wildcards);
     }
 
-    public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
-        if (request.hasParam("ignore_throttled")) {
+    public static IndicesOptions fromRequestParams(RequestParams params, IndicesOptions defaultSettings) {
+        if (params.hasParam("ignore_throttled")) {
             DEPRECATION_LOGGER.warn(DeprecationCategory.API, "ignore_throttled_param", IGNORE_THROTTLED_DEPRECATION_MESSAGE);
         }
 
         return fromParameters(
-            request.param("expand_wildcards"),
-            request.param("ignore_unavailable"),
-            request.param("allow_no_indices"),
-            request.param("ignore_throttled"),
+            params.param("expand_wildcards"),
+            params.param("ignore_unavailable"),
+            params.param("allow_no_indices"),
+            params.param("ignore_throttled"),
             defaultSettings
         );
+    }
+
+    public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
+        return fromRequestParams(request.requestParams(), defaultSettings);
     }
 
     public static IndicesOptions fromMap(Map<String, Object> map, IndicesOptions defaultSettings) {

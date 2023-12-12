@@ -1429,6 +1429,9 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnresolvedMvExpand() {
         var e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | mv_expand bar"));
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | keep foo, foo | mv_expand foo"));
+        assertThat(e.getMessage(), containsString("Reference [foo] is ambiguous (to disambiguate use quotes or qualifiers)"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

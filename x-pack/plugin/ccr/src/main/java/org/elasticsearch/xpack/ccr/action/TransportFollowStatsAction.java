@@ -9,12 +9,8 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,15 +18,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -40,15 +32,10 @@ import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TransportFollowStatsAction extends TransportTasksAction<
@@ -98,74 +85,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 throw new ResourceNotFoundException("No shard follow tasks for follower indices [{}]", resources);
             }
         }
-        super.doExecute(task, request, listener.map(this::enrichWithIndexDocumentCountLag));
-    }
-
-    private FollowStatsAction.StatsResponses enrichWithIndexDocumentCountLag(final FollowStatsAction.StatsResponses responses)
-        throws Exception {
-        // structure of mapping: follower index -> (remote cluster, leader index)
-        final Map<String, Tuple<String, String>> followerIndexToRemoteCluster = new HashMap<>();
-        responses.getStatsResponses()
-            .stream()
-            .map(FollowStatsAction.StatsResponse::status)
-            .forEach(
-                status -> followerIndexToRemoteCluster.computeIfAbsent(
-                    status.followerIndex(),
-                    ignored -> Tuple.tuple(status.getRemoteCluster(), status.leaderIndex())
-                )
-            );
-        followerIndexToRemoteCluster.forEach((followerIndex, remoteClusterAndIndex) -> {
-            final String remoteCluster = remoteClusterAndIndex.v1();
-            final String leaderIndex = remoteClusterAndIndex.v2();
-            try {
-                responses.setFollowerIndexDocumentCountLag(followerIndex, getDocumentCountLag(followerIndex, leaderIndex, remoteCluster));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        return responses;
-    }
-
-    private long getDocumentCountLag(final String followerIndex, final String leaderIndex, final String remoteCluster) throws Exception {
-
-        final CompletableFuture<Long> localIndexDocCount = new CompletableFuture<>();
-        spawnDocCountRequest(transportService::getLocalNodeConnection, followerIndex, localIndexDocCount::complete);
-
-        final CompletableFuture<Long> remoteIndexDocCount = new CompletableFuture<>();
-        spawnDocCountRequest(
-            () -> transportService.getRemoteClusterService().getConnection(remoteCluster),
-            leaderIndex,
-            remoteIndexDocCount::complete
-        );
-
-        return remoteIndexDocCount.get() - localIndexDocCount.get();
-    }
-
-    private void spawnDocCountRequest(
-        final Supplier<Transport.Connection> connection,
-        final String indexName,
-        final Consumer<Long> docCount
-    ) {
-        SearchRequest countRequest = new SearchRequest(indexName);
-        countRequest.source(new SearchSourceBuilder().size(0).trackTotalHits(true));
-        transportService.sendRequest(
-            connection.get(),
-            SearchAction.NAME,
-            countRequest,
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse response) {
-                    docCount.accept(response.getHits().getTotalHits().value);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }, SearchResponse::new)
-        );
+        super.doExecute(task, request, listener);
     }
 
     @Override

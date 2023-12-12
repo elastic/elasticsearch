@@ -316,6 +316,9 @@ public class DynamicTemplate implements ToXContentObject {
         Stream<XContentFieldType> matchXContentFieldTypes;
         if (wildcardMatchMappingType) {
             matchXContentFieldTypes = Stream.of(XContentFieldType.values());
+            if (runtime) {
+                matchXContentFieldTypes = matchXContentFieldTypes.filter(XContentFieldType::supportsRuntimeField);
+            }
         } else {
             if (runtime) {
                 final List<String> unsupported = matchMappingType.stream()
@@ -339,9 +342,6 @@ public class DynamicTemplate implements ToXContentObject {
                 }
             }
             matchXContentFieldTypes = matchMappingType.stream().map(XContentFieldType::fromString);
-        }
-        if (runtime) {
-            matchXContentFieldTypes = matchXContentFieldTypes.filter(XContentFieldType::supportsRuntimeField);
         }
 
         final Set<XContentFieldType> unmatchXContentFieldTypesSet = unmatchMappingType.stream()

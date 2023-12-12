@@ -111,8 +111,8 @@ setup:
 ---
 "Test text expansion search with pruning config":
   - skip:
-      version: " - 8.11.99"
-      reason: "pruning introduced in 8.12.0"
+      version: " - 8.12.99"
+      reason: "pruning introduced in 8.13.0"
 
   - do:
       search:
@@ -132,8 +132,8 @@ setup:
 ---
 "Test named, boosted text expansion search with pruning config":
   - skip:
-      version: " - 8.11.99"
-      reason: "pruning introduced in 8.12.0"
+      version: " - 8.12.99"
+      reason: "pruning introduced in 8.13.0"
   - do:
       search:
         index: index-with-rank-features
@@ -172,8 +172,8 @@ setup:
 ---
 "Test text expansion search with default pruning config":
   - skip:
-      version: " - 8.11.99"
-      reason: "pruning introduced in 8.12.0"
+      version: " - 8.12.99"
+      reason: "pruning introduced in 8.13.0"
 
   - do:
       search:
@@ -191,8 +191,8 @@ setup:
 ---
 "Test text expansion search with weighted tokens rescoring only pruned tokens":
   - skip:
-      version: " - 8.11.99"
-      reason: "pruning introduced in 8.12.0"
+      version: " - 8.12.99"
+      reason: "pruning introduced in 8.13.0"
 
   - do:
       search:
@@ -212,8 +212,8 @@ setup:
 ---
 "Test weighted tokens search":
   - skip:
-      version: " - 8.11.99"
-      reason: "weighted token search introduced in 8.12.0"
+      version: " - 8.12.99"
+      reason: "weighted token search introduced in 8.13.0"
 
   - do:
       search:
@@ -233,8 +233,8 @@ setup:
 ---
 "Test weighted tokens search with default pruning config":
   - skip:
-      version: " - 8.11.99"
-      reason: "weighted token search introduced in 8.12.0"
+      version: " - 8.12.99"
+      reason: "weighted token search introduced in 8.13.0"
 
   - do:
       search:
@@ -251,8 +251,8 @@ setup:
 ---
 "Test weighted tokens search only scoring pruned tokens":
   - skip:
-      version: " - 8.11.99"
-      reason: "weighted token search introduced in 8.12.0"
+      version: " - 8.12.99"
+      reason: "weighted token search introduced in 8.13.0"
 
   - do:
       search:
@@ -271,8 +271,8 @@ setup:
 ---
 "Test weighted tokens search that prunes tokens based on frequency":
   - skip:
-      version: " - 8.11.99"
-      reason: "weighted token search introduced in 8.12.0"
+      version: " - 8.12.99"
+      reason: "weighted token search introduced in 8.13.0"
 
   - do:
       search:

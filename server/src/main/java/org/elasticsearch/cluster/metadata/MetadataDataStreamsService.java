@@ -70,7 +70,10 @@ public class MetadataDataStreamsService {
                 SetRolloverNeededTask setRolloverNeededTask,
                 ClusterState clusterState
             ) {
-                return new Tuple<>(setRolloverNeeded(clusterState, setRolloverNeededTask.getDataStreamName()), setRolloverNeededTask);
+                return new Tuple<>(
+                    setRolloverNeeded(clusterState, setRolloverNeededTask.getDataStreamName(), setRolloverNeededTask.isRolloverNeeded()),
+                    setRolloverNeededTask
+                );
             }
         };
         this.setRolloverNeededtaskQueue = clusterService.createTaskQueue(
@@ -142,13 +145,14 @@ public class MetadataDataStreamsService {
      */
     public void setRolloverNeeded(
         String dataStreamName,
+        boolean rolloverNeeded,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
         setRolloverNeededtaskQueue.submitTask(
             "set-rollover-needed",
-            new SetRolloverNeededTask(dataStreamName, ackTimeout, listener),
+            new SetRolloverNeededTask(dataStreamName, rolloverNeeded, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -219,7 +223,7 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data stream has the flag that it needs a rollover set to true.
      * Visible for testing.
      */
-    static ClusterState setRolloverNeeded(ClusterState currentState, String dataStreamName) {
+    public static ClusterState setRolloverNeeded(ClusterState currentState, String dataStreamName, boolean rolloverNeeded) {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
         var dataStream = validateDataStream(metadata, dataStreamName);
@@ -237,7 +241,7 @@ public class MetadataDataStreamsService {
                 dataStream.getLifecycle(),
                 dataStream.isFailureStore(),
                 dataStream.getFailureIndices(),
-                true
+                rolloverNeeded
             )
         );
         return ClusterState.builder(currentState).metadata(builder.build()).build();
@@ -345,14 +349,25 @@ public class MetadataDataStreamsService {
     static class SetRolloverNeededTask extends AckedBatchedClusterStateUpdateTask {
 
         private final String dataStreamName;
+        private final boolean rolloverNeeded;
 
-        SetRolloverNeededTask(String dataStreamName, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
+        SetRolloverNeededTask(
+            String dataStreamName,
+            boolean rolloverNeeded,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
             super(ackTimeout, listener);
             this.dataStreamName = dataStreamName;
+            this.rolloverNeeded = rolloverNeeded;
         }
 
         public String getDataStreamName() {
             return dataStreamName;
+        }
+
+        public boolean isRolloverNeeded() {
+            return rolloverNeeded;
         }
     }
 }

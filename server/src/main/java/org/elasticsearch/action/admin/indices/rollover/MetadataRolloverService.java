@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -290,8 +291,10 @@ public class MetadataRolloverService {
         createIndexClusterStateRequest.setMatchingTemplate(templateV2);
         assert createIndexClusterStateRequest.performReroute() == false
             : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
+
+        ClusterState updatedWithLazyRolloverFalse = MetadataDataStreamsService.setRolloverNeeded(currentState, dataStreamName, false);
         ClusterState newState = createIndexService.applyCreateIndexRequest(
-            currentState,
+            updatedWithLazyRolloverFalse,
             createIndexClusterStateRequest,
             silent,
             (builder, indexMetadata) -> {

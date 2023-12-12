@@ -143,6 +143,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         if (shouldRolloverLazily(rolloverRequest, isDataStream) && rolloverRequest.isDryRun() == false) {
             metadataDataStreamsService.setRolloverNeeded(
                 rolloverRequest.getRolloverTarget(),
+                true,
                 rolloverRequest.ackTimeout(),
                 rolloverRequest.masterNodeTimeout(),
                 listener.map(

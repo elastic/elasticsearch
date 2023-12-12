@@ -13,8 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -25,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.support.ApiKeyAggregationsBuilder;
 import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
 import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 
@@ -74,15 +73,7 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
         );
         searchSourceBuilder.query(apiKeyBoolQueryBuilder);
 
-        // copy all the aggregations without any verifications
-        if (request.getAggsBuilder() != null) {
-            for (AggregationBuilder aggregator : request.getAggsBuilder().getAggregatorFactories()) {
-                searchSourceBuilder.aggregation(aggregator);
-            }
-            for (PipelineAggregationBuilder pipelineAggregator : request.getAggsBuilder().getPipelineAggregatorFactories()) {
-                searchSourceBuilder.aggregation(pipelineAggregator);
-            }
-        }
+        ApiKeyAggregationsBuilder.verifyAggsBuilder(request.getAggsBuilder());
 
         if (request.getFieldSortBuilders() != null) {
             translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);

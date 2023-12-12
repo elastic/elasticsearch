@@ -40,7 +40,7 @@ public class ApiKeyFieldNameTranslators {
                 return translator.translate(fieldName);
             }
         }
-        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query");
+        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query or agg");
     }
 
     abstract static class FieldNameTranslator {

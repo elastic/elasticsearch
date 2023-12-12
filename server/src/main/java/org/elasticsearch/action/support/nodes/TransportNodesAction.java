@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -125,6 +126,23 @@ public abstract class TransportNodesAction<
 
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
+            {
+                addReleaseOnCancellationListener();
+            }
+
+            private void addReleaseOnCancellationListener() {
+                if (task instanceof CancellableTask cancellableTask) {
+                    cancellableTask.addListener(() -> {
+                        final List<NodeResponse> drainedResponses;
+                        synchronized (responses) {
+                            drainedResponses = List.copyOf(responses);
+                            responses.clear();
+                        }
+                        Releasables.wrap(Iterators.map(drainedResponses.iterator(), r -> r::decRef)).close();
+                    });
+                }
+            }
+
             @Override
             protected void sendItemRequest(DiscoveryNode discoveryNode, ActionListener<NodeResponse> listener) {
                 final var nodeRequest = newNodeRequest(request);
@@ -149,8 +167,12 @@ public abstract class TransportNodesAction<
             protected void onItemResponse(DiscoveryNode discoveryNode, NodeResponse nodeResponse) {
                 nodeResponse.mustIncRef();
                 synchronized (responses) {
-                    responses.add(nodeResponse);
+                    if ((task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) == false) {
+                        responses.add(nodeResponse);
+                        return;
+                    }
                 }
+                nodeResponse.decRef();
             }
 
             @Override

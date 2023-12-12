@@ -57,6 +57,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.function.ObjLongConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -180,7 +183,7 @@ public class TransportNodesActionTests extends ESTestCase {
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
         final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
         action.execute(cancellableTask, new TestNodesRequest(), listener.delegateResponse((l, e) -> {
-            assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.GENERIC + "]");
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             l.onFailure(e);
         }));
 
@@ -189,13 +192,31 @@ public class TransportNodesActionTests extends ESTestCase {
         );
         Randomness.shuffle(capturedRequests);
 
+        final AtomicInteger liveResponseCount = new AtomicInteger();
+        final Function<DiscoveryNode, TestNodeResponse> responseCreator = node -> {
+            liveResponseCount.incrementAndGet();
+            final var testNodeResponse = new TestNodeResponse(node);
+            testNodeResponse.addCloseListener(ActionListener.running(liveResponseCount::decrementAndGet));
+            return testNodeResponse;
+        };
+
+        final ObjLongConsumer<TestNodeResponse> responseSender = (response, requestId) -> {
+            try {
+                // transport.handleResponse may de/serialize the response, releasing it early, so send the response straight to the handler
+                transport.getTransportResponseHandler(requestId).handleResponse(response);
+            } finally {
+                response.decRef();
+            }
+        };
+
         final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
         final Runnable nextRequestProcessor = () -> {
             var capturedRequest = capturedRequests.remove(0);
             if (randomBoolean()) {
-                // transport.handleResponse may de/serialize the response, releasing it early, so send the response straight to the handler
-                transport.getTransportResponseHandler(capturedRequest.requestId())
-                    .handleResponse(reachabilityChecker.register(new TestNodeResponse(capturedRequest.node())));
+                responseSender.accept(
+                    reachabilityChecker.register(responseCreator.apply(capturedRequest.node())),
+                    capturedRequest.requestId()
+                );
             } else {
                 // handleRemoteError may de/serialize the exception, releasing it early, so just use handleLocalError
                 transport.handleLocalError(
@@ -216,12 +237,14 @@ public class TransportNodesActionTests extends ESTestCase {
 
         // responses captured before cancellation are now unreachable
         reachabilityChecker.ensureUnreachable();
+        assertEquals(0, liveResponseCount.get());
 
         while (capturedRequests.size() > 0) {
             // a response sent after cancellation is dropped immediately
             assertFalse(listener.isDone());
             nextRequestProcessor.run();
             reachabilityChecker.ensureUnreachable();
+            assertEquals(0, liveResponseCount.get());
         }
 
         expectThrows(TaskCancelledException.class, () -> listener.actionGet(10, TimeUnit.SECONDS));

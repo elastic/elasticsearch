@@ -197,6 +197,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
      * or if the field that is found at the provided path is not of the expected type.
      */
+    // 1 usage
     public <T> T getFieldValue(TemplateScript.Factory pathTemplate, Class<T> clazz) {
         return getFieldValue(renderTemplate(pathTemplate), clazz);
     }
@@ -245,6 +246,7 @@ public final class IngestDocument {
      * @return true if the document contains a value for the field, false otherwise
      * @throws IllegalArgumentException if the path is null, empty or invalid
      */
+    // 1 usage
     public boolean hasField(TemplateScript.Factory fieldPathTemplate) {
         return hasField(renderTemplate(fieldPathTemplate));
     }
@@ -334,6 +336,7 @@ public final class IngestDocument {
      * @param fieldPathTemplate Resolves to the path with dot-notation within the document
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
+    // 2 usages
     public void removeField(TemplateScript.Factory fieldPathTemplate) {
         removeField(renderTemplate(fieldPathTemplate));
     }
@@ -473,6 +476,7 @@ public final class IngestDocument {
      * @param allowDuplicates When false, any values that already exist in the field will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
+    // 1 usage
     public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean allowDuplicates) {
         appendFieldValue(
             fieldPathTemplate.newInstance(templateModel).execute(),
@@ -504,6 +508,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
+    // 9 test usages
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
         setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
     }
@@ -518,6 +523,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
+    // 1 usage
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
         Object value = valueSource.copyAndResolve(templateModel);
         if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
@@ -543,6 +549,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
+    // 1 usage
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
         if (ignoreEmptyValue) {
             if (value == null) {

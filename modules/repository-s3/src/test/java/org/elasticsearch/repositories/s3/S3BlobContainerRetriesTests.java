@@ -7,7 +7,9 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.DnsResolver;
 import com.amazonaws.SdkClientException;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.util.Base16;
 import com.sun.net.httpserver.HttpExchange;
@@ -50,12 +52,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -83,10 +87,25 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
 
     private S3Service service;
+    private AtomicBoolean shouldErrorOnDns;
 
     @Before
     public void setUp() throws Exception {
-        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY);
+        shouldErrorOnDns = new AtomicBoolean(false);
+        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY) {
+            @Override
+            protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
+                final AmazonS3ClientBuilder builder = super.buildClientBuilder(clientSettings);
+                final DnsResolver defaultDnsResolver = builder.getClientConfiguration().getDnsResolver();
+                builder.getClientConfiguration().setDnsResolver(host -> {
+                    if (shouldErrorOnDns.get() && randomBoolean() && randomBoolean()) {
+                        throw new UnknownHostException(host);
+                    }
+                    return defaultDnsResolver.resolve(host);
+                });
+                return builder;
+            }
+        };
         super.setUp();
     }
 
@@ -609,6 +628,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final byte[] bytes = randomBlobContent(512);
 
+        shouldErrorOnDns.set(true);
         final AtomicInteger failures = new AtomicInteger();
         @SuppressForbidden(reason = "use a http server")
         class FlakyReadHandler implements HttpHandler {
@@ -633,13 +653,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         length = (effectiveRangeEnd - rangeStart) + 1;
                         exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
                     }
-
-                    logger.info("--> [{}] success, [{}], [{}]", failures, rangeStart, length);
                     exchange.getResponseBody().write(bytes, rangeStart, length);
                 } else {
                     failures.incrementAndGet();
                     if (randomBoolean()) {
-                        logger.info("--> [{}] error", failures);
                         exchange.sendResponseHeaders(
                             randomFrom(
                                 HttpStatus.SC_INTERNAL_SERVER_ERROR,
@@ -649,16 +666,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                             ),
                             -1
                         );
-
                     } else {
                         if (randomBoolean()) {
                             final var bytesSent = sendIncompleteContent(exchange, bytes);
-                            logger.info("--> [{}] incomplete [{}] [{}]", failures, bytesSent, bytesSent >= meaningfulProgressBytes);
                             if (bytesSent >= meaningfulProgressBytes) {
                                 exchange.getResponseBody().flush();
                             }
-                        } else {
-                            logger.info("--> [{}] nothing", failures);
                         }
                     }
                 }

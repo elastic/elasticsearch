@@ -260,6 +260,10 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         TextExpansionQueryBuilder queryBuilder = createTestQueryBuilder();
         QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
-        assertTrue(rewrittenQueryBuilder instanceof BoolQueryBuilder);
+        if (queryBuilder.getTokenPruningConfig() == null) {
+            assertTrue(rewrittenQueryBuilder instanceof BoolQueryBuilder);
+        } else {
+            assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
+        }
     }
 }

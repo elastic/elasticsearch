@@ -113,6 +113,19 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
         return new RRFRetrieverBuilder(this);
     }
 
+    /*@Override
+    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            retrieverBuilder.doExtractToSearchSourceBuilder(searchSourceBuilder);
+        }
+
+        if (searchSourceBuilder.rankBuilder() == null) {
+            searchSourceBuilder.rankBuilder(new RRFRankBuilder(windowSize, rankConstant));
+        } else {
+            throw new IllegalStateException("[rank] cannot be declared as a retriever value and as a global value");
+        }
+    }*/
+
     @Override
     public QueryBuilder buildDfsQuery() {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
@@ -153,16 +166,14 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
         }
     }
 
-    /*@Override
-    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    @Override
+    public int doGetQueryCount() {
+        int total = 0;
+
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
-            retrieverBuilder.doExtractToSearchSourceBuilder(searchSourceBuilder);
+            total += retrieverBuilder.doGetQueryCount();
         }
 
-        if (searchSourceBuilder.rankBuilder() == null) {
-            searchSourceBuilder.rankBuilder(new RRFRankBuilder(windowSize, rankConstant));
-        } else {
-            throw new IllegalStateException("[rank] cannot be declared as a retriever value and as a global value");
-        }
-    }*/
+        return total;
+    }
 }

@@ -48,6 +48,7 @@ import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -792,6 +793,19 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
+        if (request.source() != null && request.source().getRetrieverBuilder() != null) {
+            RetrieverBuilder<?> retrieverBuilder = request.source().getRetrieverBuilder();
+            return new RetrieverQueryPhaseResultConsumer(
+                request,
+                executor,
+                circuitBreaker,
+                this,
+                isCanceled,
+                listener,
+                numShards * retrieverBuilder.getQueryCount(request.source()),
+                onPartialMergeFailure
+            );
+        }
         final int size = request.source() == null || request.source().size() == -1 ? SearchService.DEFAULT_SIZE : request.source().size();
         // Use CountOnlyQueryPhaseResultConsumer for requests without aggs, suggest, etc. things only wanting a total count and
         // returning no hits

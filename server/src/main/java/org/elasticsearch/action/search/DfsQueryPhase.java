@@ -21,6 +21,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
@@ -71,11 +72,14 @@ final class DfsQueryPhase extends SearchPhase {
 
     @Override
     public void run() {
+        SearchSourceBuilder searchSourceBuilder = context.getRequest().source();
+        RetrieverBuilder<?> retrieverBuilder = searchSourceBuilder == null ? null : context.getRequest().source().getRetrieverBuilder();
+
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
-            searchResults.size(),
+            searchResults.size() * (retrieverBuilder == null ? 1 : retrieverBuilder.getQueryCount(searchSourceBuilder)),
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)),
             context
         );

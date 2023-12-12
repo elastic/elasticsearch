@@ -110,6 +110,13 @@ public final class LinearCombinationRetrieverBuilder extends RetrieverBuilder<Li
         return new LinearCombinationRetrieverBuilder(this);
     }
 
+    /*@Override
+    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+        retrieverBuilder.doExtractToSearchSourceBuilder(searchSourceBuilder);
+    }
+    }*/
+
     @Override
     public QueryBuilder buildDfsQuery() {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
@@ -150,10 +157,14 @@ public final class LinearCombinationRetrieverBuilder extends RetrieverBuilder<Li
         }
     }
 
-    /*@Override
-    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    @Override
+    public int doGetQueryCount() {
+        int total = 0;
+
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
-            retrieverBuilder.doExtractToSearchSourceBuilder(searchSourceBuilder);
+            total += retrieverBuilder.doGetQueryCount();
         }
-    }*/
+
+        return total;
+    }
 }

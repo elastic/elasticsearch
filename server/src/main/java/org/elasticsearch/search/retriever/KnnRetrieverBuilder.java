@@ -264,6 +264,22 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
         );
     }
 
+    /*@Override
+    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    // TODO: add support for multiple knn retrievers per search request
+    if (searchSourceBuilder.knnSearch().size() == 0) {
+        KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(field, queryVector, queryVectorBuilder, k, numCands, similarity);
+        if (preFilterQueryBuilder != null) {
+            knnSearchBuilder.addFilterQuery(preFilterQueryBuilder);
+        }
+        this.preFilterQueryBuilder(null);
+        // TODO: add support for _name
+        searchSourceBuilder.knnSearch(List.of(knnSearchBuilder));
+    } else {
+        throw new IllegalStateException("[knn] cannot be declared as a retriever value and as a global value");
+    }
+    }*/
+
     @Override
     public QueryBuilder buildDfsQuery() {
         return null;
@@ -311,19 +327,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
         dfsKnnResults.add(new DfsKnnResults(nestedPath, mergedTopDocs.scoreDocs));
     }
 
-    /*@Override
-    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
-        // TODO: add support for multiple knn retrievers per search request
-        if (searchSourceBuilder.knnSearch().size() == 0) {
-            KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(field, queryVector, queryVectorBuilder, k, numCands, similarity);
-            if (preFilterQueryBuilder != null) {
-                knnSearchBuilder.addFilterQuery(preFilterQueryBuilder);
-            }
-            this.preFilterQueryBuilder(null);
-            // TODO: add support for _name
-            searchSourceBuilder.knnSearch(List.of(knnSearchBuilder));
-        } else {
-            throw new IllegalStateException("[knn] cannot be declared as a retriever value and as a global value");
-        }
-    }*/
+    @Override
+    public int doGetQueryCount() {
+        return 1;
+    }
 }

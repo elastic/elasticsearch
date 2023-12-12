@@ -310,6 +310,66 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         return this;
     }
 
+    /*public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+    if (queryBuilder != null) {
+        searchSourceBuilder.subSearches().add(new SubSearchSourceBuilder(queryBuilder));
+    }
+
+    if (searchSourceBuilder.searchAfter() == null) {
+        if (searchAfterBuilder != null) {
+            searchSourceBuilder.searchAfter(searchAfterBuilder.getSortValues());
+        }
+    } else {
+        throw new IllegalStateException("[search_after] cannot be declared as a retriever value and as a global value");
+    }
+
+    if (searchSourceBuilder.terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER) {
+        searchSourceBuilder.terminateAfter(terminateAfter);
+    } else {
+        throw new IllegalStateException("[terminate_after] cannot be declared as a retriever value and as a global value");
+    }
+
+    if (searchSourceBuilder.sorts() == null) {
+        if (sortBuilders != null) {
+            searchSourceBuilder.sort(sortBuilders);
+        }
+    } else {
+        throw new IllegalStateException("[sort] cannot be declared as a retriever value and as a global value");
+    }
+
+    if (searchSourceBuilder.minScore() == null) {
+        if (minScore != null) {
+            searchSourceBuilder.minScore(minScore);
+        }
+    } else {
+        throw new IllegalStateException("[min_score] cannot be declared as a retriever value and as a global value");
+    }
+
+    if (searchSourceBuilder.postFilter() == null) {
+        searchSourceBuilder.postFilter(postFilterQueryBuilder);
+    } else {
+        throw new IllegalStateException("[post_filter] cannot be declared as a retriever value and as a global value");
+    }
+
+    if (searchSourceBuilder.rescores() == null) {
+        if (rescorerBuilders != null) {
+            for (RescorerBuilder<?> rescorerBuilder : rescorerBuilders) {
+                searchSourceBuilder.addRescorer(rescorerBuilder);
+            }
+        }
+    } else {
+        throw new IllegalStateException("[rescore] cannot be declared as a retriever value and as a global value");
+    }
+
+    if (searchSourceBuilder.collapse() == null) {
+        if (collapseBuilder != null) {
+            searchSourceBuilder.collapse(collapseBuilder);
+        }
+    } else {
+        throw new IllegalStateException("[collapse] cannot be declared as a retriever value and as a global value");
+    }
+    }*/
+
     @Override
     public QueryBuilder buildDfsQuery() {
         return queryBuilder;
@@ -330,63 +390,8 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         // do nothing
     }
 
-    /*public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
-        if (queryBuilder != null) {
-            searchSourceBuilder.subSearches().add(new SubSearchSourceBuilder(queryBuilder));
-        }
-
-        if (searchSourceBuilder.searchAfter() == null) {
-            if (searchAfterBuilder != null) {
-                searchSourceBuilder.searchAfter(searchAfterBuilder.getSortValues());
-            }
-        } else {
-            throw new IllegalStateException("[search_after] cannot be declared as a retriever value and as a global value");
-        }
-
-        if (searchSourceBuilder.terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER) {
-            searchSourceBuilder.terminateAfter(terminateAfter);
-        } else {
-            throw new IllegalStateException("[terminate_after] cannot be declared as a retriever value and as a global value");
-        }
-
-        if (searchSourceBuilder.sorts() == null) {
-            if (sortBuilders != null) {
-                searchSourceBuilder.sort(sortBuilders);
-            }
-        } else {
-            throw new IllegalStateException("[sort] cannot be declared as a retriever value and as a global value");
-        }
-
-        if (searchSourceBuilder.minScore() == null) {
-            if (minScore != null) {
-                searchSourceBuilder.minScore(minScore);
-            }
-        } else {
-            throw new IllegalStateException("[min_score] cannot be declared as a retriever value and as a global value");
-        }
-
-        if (searchSourceBuilder.postFilter() == null) {
-            searchSourceBuilder.postFilter(postFilterQueryBuilder);
-        } else {
-            throw new IllegalStateException("[post_filter] cannot be declared as a retriever value and as a global value");
-        }
-
-        if (searchSourceBuilder.rescores() == null) {
-            if (rescorerBuilders != null) {
-                for (RescorerBuilder<?> rescorerBuilder : rescorerBuilders) {
-                    searchSourceBuilder.addRescorer(rescorerBuilder);
-                }
-            }
-        } else {
-            throw new IllegalStateException("[rescore] cannot be declared as a retriever value and as a global value");
-        }
-
-        if (searchSourceBuilder.collapse() == null) {
-            if (collapseBuilder != null) {
-                searchSourceBuilder.collapse(collapseBuilder);
-            }
-        } else {
-            throw new IllegalStateException("[collapse] cannot be declared as a retriever value and as a global value");
-        }
-    }*/
+    @Override
+    public int doGetQueryCount() {
+        return 1;
+    }
 }

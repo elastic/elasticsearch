@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
+
 public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     implements
         VersionedNamedWriteable,
@@ -292,4 +294,19 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     }
 
     public abstract void doProcessDfsSearchResults(List<DfsSearchResult> dfsSearchResults, List<DfsKnnResults> dfsKnnResults);
+
+    public final int getQueryCount(SearchSourceBuilder searchSourceBuilder) {
+        int count = 0;
+
+        if (searchSourceBuilder.aggregations() != null
+            || searchSourceBuilder.trackTotalHitsUpTo() != null && searchSourceBuilder.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) {
+            ++count;
+        }
+
+        count += doGetQueryCount();
+
+        return count;
+    }
+
+    public abstract int doGetQueryCount();
 }

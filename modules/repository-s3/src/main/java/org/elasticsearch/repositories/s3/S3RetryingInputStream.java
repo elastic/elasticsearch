@@ -108,12 +108,7 @@ class S3RetryingInputStream extends InputStream {
                     throw finalException;
                 }
 
-                attempt += 1;
-                // Log at info level every ~5 minutes
-                logForRetry(attempt % 30 == 0 ? Level.INFO : Level.DEBUG, "opening", e);
-                if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
-                    failures.add(e);
-                }
+                recordAndLogForRetry("opening", e);
                 maybeDelaySafely();
             }
         }
@@ -188,17 +183,21 @@ class S3RetryingInputStream extends InputStream {
             throw finalException;
         }
 
-        attempt += 1;
-        // Log at info level every ~5 minutes
-        logForRetry(attempt % 30 == 0 ? Level.INFO : Level.DEBUG, "reading", e);
-        if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
-            failures.add(e);
-        }
+        recordAndLogForRetry("reading", e);
         maybeAbort(currentStream);
         IOUtils.closeWhileHandlingException(currentStream);
 
         maybeDelaySafely();
         openStreamWithRetry();
+    }
+
+    private <T extends Exception> void recordAndLogForRetry(String action, T e) {
+        attempt += 1;
+        // Log at info level every ~5 minutes
+        logForRetry(attempt % 30 == 0 ? Level.INFO : Level.DEBUG, action, e);
+        if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
+            failures.add(e);
+        }
     }
 
     private void logForRetry(Level level, String action, Exception e) {

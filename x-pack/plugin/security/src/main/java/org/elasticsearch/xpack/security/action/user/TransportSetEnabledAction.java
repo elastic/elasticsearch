@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
  */
 public class TransportSetEnabledAction extends HandledTransportAction<SetEnabledRequest, ActionResponse.Empty> {
 
+    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("cluster:admin/xpack/security/user/set_enabled");
     private final Settings settings;
     private final SecurityContext securityContext;
     private final NativeUsersStore usersStore;
@@ -40,7 +41,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
         SecurityContext securityContext,
         NativeUsersStore usersStore
     ) {
-        super(SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(TYPE.name(), transportService, actionFilters, SetEnabledRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.securityContext = securityContext;
         this.usersStore = usersStore;

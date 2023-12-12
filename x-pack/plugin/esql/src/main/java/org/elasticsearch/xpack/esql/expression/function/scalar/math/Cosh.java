@@ -21,8 +21,15 @@ import java.util.List;
  * Cosine hyperbolic function.
  */
 public class Cosh extends AbstractTrigonometricFunction {
-    @FunctionInfo(returnType = "double")
-    public Cosh(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    @FunctionInfo(returnType = "double", description = "Returns the hyperbolic cosine of a number")
+    public Cosh(
+        Source source,
+        @Param(
+            name = "n",
+            type = { "integer", "long", "double", "unsigned_long" },
+            description = "The number who's hyperbolic cosine is to be returned"
+        ) Expression n
+    ) {
         super(source, n);
     }
 

@@ -13,7 +13,6 @@ import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -55,7 +54,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class ServerProcessTests extends ESTestCase {
 
@@ -279,46 +277,11 @@ public class ServerProcessTests extends ESTestCase {
         runForeground();
     }
 
-    public void testTempDir() throws Exception {
-        var tmpDir = ServerProcessUtils.setupTempDir(createProcessInfo());
-        assertThat(tmpDir.toString(), Files.exists(tmpDir), is(true));
-        assertThat(tmpDir.getFileName().toString(), startsWith("elasticsearch-"));
-    }
-
-    public void testTempDirWindows() throws Exception {
-        Path baseTmpDir = createTempDir();
-        sysprops.put("os.name", "Windows 10");
-        sysprops.put("java.io.tmpdir", baseTmpDir.toString());
-        var tmpDir = ServerProcessUtils.setupTempDir(createProcessInfo());
-        assertThat(tmpDir.toString(), Files.exists(tmpDir), is(true));
-        assertThat(tmpDir.getFileName().toString(), equalTo("elasticsearch"));
-        assertThat(tmpDir.getParent().toString(), equalTo(baseTmpDir.toString()));
-    }
-
-    public void testTempDirOverride() throws Exception {
+    public void testEnvClearedOfTempDirOverride() throws Exception {
         Path customTmpDir = createTempDir();
         envVars.put("ES_TMPDIR", customTmpDir.toString());
-        var tmpDir = ServerProcessUtils.setupTempDir(createProcessInfo());
-        assertThat(tmpDir.toString(), equalTo(customTmpDir.toString()));
-
         processValidator = pb -> assertThat(pb.environment(), not(hasKey("ES_TMPDIR")));
         runForeground();
-    }
-
-    public void testTempDirOverrideMissing() {
-        Path baseDir = createTempDir();
-        envVars.put("ES_TMPDIR", baseDir.resolve("dne").toString());
-        var e = expectThrows(UserException.class, () -> ServerProcessUtils.setupTempDir(createProcessInfo()));
-        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
-        assertThat(e.getMessage(), containsString("dne] does not exist"));
-    }
-
-    public void testTempDirOverrideNotADirectory() throws Exception {
-        Path tmpFile = createTempFile();
-        envVars.put("ES_TMPDIR", tmpFile.toString());
-        var e = expectThrows(UserException.class, () -> ServerProcessUtils.setupTempDir(createProcessInfo()));
-        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
-        assertThat(e.getMessage(), containsString("is not a directory"));
     }
 
     public void testCustomJvmOptions() throws Exception {
@@ -334,40 +297,17 @@ public class ServerProcessTests extends ESTestCase {
         }
 
         envVars.put("ES_JAVA_OPTS", "-Dmyoption=foo");
-
         var jvmOptions = JvmOptionsParser.determineJvmOptions(serverArgs, createProcessInfo(), Path.of(".'"));
-        assertThat(jvmOptions, hasItem("-Dmyoption=foo"));
-
-        processValidator = pb -> assertThat(pb.environment(), not(hasKey("ES_JAVA_OPTS")));
-        runForeground();
-    }
-
-    public void testCommandLineDistributionType() throws Exception {
-        String distroSysprop = "-Des.distribution.type=testdistro";
-        sysprops.put("es.distribution.type", "testdistro");
-
-        var serverArgs = createServerArgs(false, false);
-        var processInfo = createProcessInfo();
-        var jvmOptionsFile = serverArgs.configDir().resolve("jvm.options");
-        var esConfigFile = serverArgs.configDir().resolve("elasticsearch.yml");
-        try {
-            Files.createDirectories(serverArgs.configDir());
-            Files.createFile(jvmOptionsFile);
-            Files.createFile(esConfigFile);
-        } catch (IOException ex) {
-            // File or directory already exists
-        }
-
-        var jvmOptions = JvmOptionsParser.determineJvmOptions(serverArgs, processInfo, Path.of(".'"));
 
         ServerProcessBuilder.ProcessStarter starter = pb -> {
-            assertThat(pb.command(), hasItem(distroSysprop));
+            assertThat(pb.environment(), not(hasKey("ES_JAVA_OPTS")));
+            assertThat(pb.command(), hasItem("-Dmyoption=foo"));
             process = new MockElasticsearchProcess();
             return process;
         };
         var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
-            .withProcessInfo(processInfo)
-            .withServerArgs(serverArgs)
+            .withProcessInfo(createProcessInfo())
+            .withServerArgs(createServerArgs(false, false))
             .withJvmOptions(jvmOptions)
             .withTempDir(Path.of("."));
         serverProcessBuilder.start(starter).waitFor();

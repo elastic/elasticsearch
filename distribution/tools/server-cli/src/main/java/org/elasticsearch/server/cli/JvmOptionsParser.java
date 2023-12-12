@@ -88,10 +88,9 @@ public final class JvmOptionsParser {
         final String envOptions = processInfo.envVars().get("ES_JAVA_OPTS");
 
         try {
-            List<String> jvmOptions = parser.jvmOptions(args, args.configDir(), tmpDir, envOptions, substitutions);
-            // also pass through distribution type
-            jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
-            return Collections.unmodifiableList(jvmOptions);
+            return Collections.unmodifiableList(
+                parser.jvmOptions(args, args.configDir(), tmpDir, envOptions, substitutions, processInfo.sysprops())
+            );
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -129,7 +128,8 @@ public final class JvmOptionsParser {
         final Path config,
         Path tmpDir,
         final String esJavaOpts,
-        final Map<String, String> substitutions
+        final Map<String, String> substitutions,
+        final Map<String, String> sysprops
     ) throws InterruptedException, IOException, JvmOptionsFileParserException, UserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
@@ -144,7 +144,7 @@ public final class JvmOptionsParser {
         );
         substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(config, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
-        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings());
+        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), sysprops);
 
         final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
 

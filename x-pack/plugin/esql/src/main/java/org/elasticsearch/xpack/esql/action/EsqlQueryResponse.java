@@ -11,13 +11,16 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -37,17 +40,10 @@ import java.util.Optional;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContent, Releasable {
+public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContentObject, Releasable {
 
     private static final ParseField ID = new ParseField("id");
     private static final ParseField IS_RUNNING = new ParseField("is_running");
-
-    private final String asyncExecutionId;
-    private final boolean isRunning;
-    private final List<ColumnInfo> columns;
-    private final List<Page> pages;
-    private final boolean columnar;
-
     private static final InstantiatingObjectParser<EsqlQueryResponse, Void> PARSER;
     static {
         InstantiatingObjectParser.Builder<EsqlQueryResponse, Void> parser = InstantiatingObjectParser.builder(
@@ -62,36 +58,46 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         PARSER = parser.build();
     }
 
+    private final List<ColumnInfo> columns;
+    private final List<Page> pages;
+    private final Profile profile;
+    private final boolean columnar;
+    private final String asyncExecutionId;
+    private final boolean isRunning;
+
     public EsqlQueryResponse(
         List<ColumnInfo> columns,
         List<Page> pages,
+        @Nullable Profile profile,
         boolean columnar,
         @Nullable String asyncExecutionId,
         boolean isRunning
     ) {
         this.columns = columns;
         this.pages = pages;
+        this.profile = profile;
         this.columnar = columnar;
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
     }
 
-    public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, boolean columnar) {
-        this(columns, pages, columnar, null, false);
+    public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, @Nullable Profile profile, boolean columnar) {
+        this(columns, pages, profile, columnar, null, false);
     }
 
     public EsqlQueryResponse(
         List<ColumnInfo> columns,
         List<Page> pages,
+        @Nullable Profile profile,
         @Nullable String asyncExecutionId,
         boolean isRunning
     ) {
-        this(columns, pages, false, asyncExecutionId, isRunning);
+        this(columns, pages, profile, false, asyncExecutionId, isRunning);
     }
 
     // TODO: can remove now that REST deser goes through the 4-arg variant
     public EsqlQueryResponse(List<ColumnInfo> columns, List<List<Object>> values) {
-        this(columns, List.of(ResponseValueUtils.valuesToPage(columns, values)), false, null, false);
+        this(columns, List.of(ResponseValueUtils.valuesToPage(columns, values)), null, false, null, false);
     }
 
     /**
@@ -101,7 +107,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         return in -> new EsqlQueryResponse(new BlockStreamInput(in, blockFactory));
     }
 
-    public EsqlQueryResponse(BlockStreamInput in) throws IOException {
+    private EsqlQueryResponse(BlockStreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ASYNC_QUERY)) {
             this.asyncExecutionId = in.readOptionalString();
@@ -112,6 +118,11 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         }
         this.columns = in.readCollectionAsList(ColumnInfo::new);
         this.pages = in.readCollectionAsList(Page::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+            this.profile = in.readOptionalWriteable(Profile::new);
+        } else {
+            this.profile = null;
+        }
         this.columnar = in.readBoolean();
     }
 
@@ -123,6 +134,9 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         }
         out.writeCollection(columns);
         out.writeCollection(pages);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+            out.writeOptionalWriteable(profile);
+        }
         out.writeBoolean(columnar);
     }
 
@@ -137,6 +151,10 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     public Iterator<Iterator<Object>> values() {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         return ResponseValueUtils.pagesToValues(dataTypes, pages);
+    }
+
+    public Profile profile() {
+        return profile;
     }
 
     public boolean columnar() {
@@ -185,7 +203,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         // TODO: add new properties
         return Objects.equals(columns, that.columns)
             && columnar == that.columnar
-            && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals));
+            && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
+            && Objects.equals(profile, that.profile);
     }
 
     @Override
@@ -202,5 +221,52 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     @Override
     public void close() {
         Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks));
+    }
+
+    public static class Profile implements Writeable, ChunkedToXContentObject {
+        private final List<DriverProfile> drivers;
+
+        public Profile(List<DriverProfile> drivers) {
+            this.drivers = drivers;
+        }
+
+        public Profile(StreamInput in) throws IOException {
+            this.drivers = in.readCollectionAsImmutableList(DriverProfile::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(drivers);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Profile profile = (Profile) o;
+            return Objects.equals(drivers, profile.drivers);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(drivers);
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.array("drivers", drivers.iterator(), params),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
+
+        List<DriverProfile> drivers() {
+            return drivers;
+        }
     }
 }

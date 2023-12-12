@@ -12,7 +12,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -94,11 +93,4 @@ public class NamedComponentReaderTests extends ESTestCase {
         );
     }
 
-    private URL toURL(Path p) {
-        try {
-            return p.toUri().toURL();
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

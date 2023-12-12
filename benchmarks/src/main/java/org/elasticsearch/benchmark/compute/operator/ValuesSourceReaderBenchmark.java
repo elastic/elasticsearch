@@ -176,6 +176,11 @@ public class ValuesSourceReaderBenchmark {
                 public Set<String> sourcePaths(String name) {
                     return Set.of(name);
                 }
+
+                @Override
+                public String parentField(String field) {
+                    throw new UnsupportedOperationException();
+                }
             });
         }
         throw new IllegalArgumentException("can't read [" + name + "]");

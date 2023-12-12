@@ -34,14 +34,14 @@ public class EvalOperatorTests extends OperatorTestCase {
 
     record Addition(DriverContext driverContext, int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block.Ref eval(Page page) {
+        public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
             try (LongVector.FixedBuilder result = LongVector.newVectorFixedBuilder(page.getPositionCount(), driverContext.blockFactory())) {
                 for (int p = 0; p < page.getPositionCount(); p++) {
                     result.appendLong(lhsVector.getLong(p) + rhsVector.getLong(p));
                 }
-                return Block.Ref.floating(result.build().asBlock());
+                return result.build().asBlock();
             }
         }
 
@@ -56,8 +56,10 @@ public class EvalOperatorTests extends OperatorTestCase {
 
     record LoadFromPage(int channel) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block.Ref eval(Page page) {
-            return new Block.Ref(page.getBlock(channel), page);
+        public Block eval(Page page) {
+            Block block = page.getBlock(channel);
+            block.incRef();
+            return block;
         }
 
         @Override

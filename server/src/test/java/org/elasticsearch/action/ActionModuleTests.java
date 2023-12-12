@@ -121,6 +121,7 @@ public class ActionModuleTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
+            null,
             List.of(),
             RestExtension.allowAll()
         );
@@ -181,6 +182,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );
@@ -234,6 +236,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );
@@ -282,6 +285,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     null,
                     mock(ClusterService.class),
+                    null,
                     List.of(),
                     RestExtension.allowAll()
                 )
@@ -314,13 +318,14 @@ public class ActionModuleTests extends ESTestCase {
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
                     threadPool,
-                    Arrays.asList(secPlugin),
+                    List.of(secPlugin),
                     null,
                     null,
                     usageService,
                     null,
                     null,
                     mock(ClusterService.class),
+                    null,
                     List.of(),
                     RestExtension.allowAll()
                 )

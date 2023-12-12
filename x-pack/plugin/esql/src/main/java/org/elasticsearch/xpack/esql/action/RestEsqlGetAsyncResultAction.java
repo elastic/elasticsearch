@@ -32,16 +32,11 @@ public class RestEsqlGetAsyncResultAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         GetAsyncResultRequest get = new GetAsyncResultRequest(request.param("id"));
         if (request.hasParam("wait_for_completion_timeout")) {
-            get.setWaitForCompletionTimeout(
-                request.paramAsTime("wait_for_completion_timeout", get.getWaitForCompletionTimeout()));
+            get.setWaitForCompletionTimeout(request.paramAsTime("wait_for_completion_timeout", get.getWaitForCompletionTimeout()));
         }
         if (request.hasParam("keep_alive")) {
             get.setKeepAlive(request.paramAsTime("keep_alive", get.getKeepAlive()));
         }
-        return channel -> client.execute(
-            EsqlAsyncGetResultAction.INSTANCE,
-            get,
-            new RestChunkedToXContentListener<>(channel)
-        );
+        return channel -> client.execute(EsqlAsyncGetResultAction.INSTANCE, get, new RestChunkedToXContentListener<>(channel));
     }
 }

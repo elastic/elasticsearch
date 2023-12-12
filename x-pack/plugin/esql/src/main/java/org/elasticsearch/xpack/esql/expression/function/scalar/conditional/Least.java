@@ -110,16 +110,16 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
             .map(e -> toEvaluator.apply(new MvMin(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
         if (dataType == DataTypes.BOOLEAN) {
-            return new LeastBooleanEvaluator.Factory(factories);
+            return new LeastBooleanEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.DOUBLE) {
-            return new LeastDoubleEvaluator.Factory(factories);
+            return new LeastDoubleEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.INTEGER) {
-            return new LeastIntEvaluator.Factory(factories);
+            return new LeastIntEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.LONG) {
-            return new LeastLongEvaluator.Factory(factories);
+            return new LeastLongEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT
@@ -127,7 +127,7 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
             || dataType == DataTypes.VERSION
             || dataType == DataTypes.UNSUPPORTED) {
 
-            return new LeastBytesRefEvaluator.Factory(factories);
+            return new LeastBytesRefEvaluator.Factory(source(), factories);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }

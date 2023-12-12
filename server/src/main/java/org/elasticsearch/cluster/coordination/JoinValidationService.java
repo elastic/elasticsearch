@@ -363,8 +363,7 @@ public class JoinValidationService {
                 );
                 return;
             }
-            assert bytes.hasReferences() : "already closed";
-            bytes.incRef();
+            bytes.mustIncRef();
             transportService.sendRequest(
                 connection,
                 JOIN_VALIDATE_ACTION_NAME,

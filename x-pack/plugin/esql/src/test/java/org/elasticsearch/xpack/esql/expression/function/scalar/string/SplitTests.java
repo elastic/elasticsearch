@@ -96,8 +96,8 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
              */
             assert ':' == 58;
             assertThat(eval.toString(), equalTo("SplitSingleByteEvaluator[str=Attribute[channel=0], delim=58]"));
-            try (Block.Ref ref = eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1)))) {
-                assertThat(toJavaObject(ref.block(), 0), equalTo(List.of(new BytesRef("foo"), new BytesRef("bar"))));
+            try (Block block = eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1)))) {
+                assertThat(toJavaObject(block, 0), equalTo(List.of(new BytesRef("foo"), new BytesRef("bar"))));
             }
         }
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -69,6 +70,16 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                 Setting.timeSetting(
                     ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
                     TimeValue.timeValueSeconds(5),
+                    Setting.Property.NodeScope
+                ),
+                Setting.byteSizeSetting(
+                    BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING,
+                    ByteSizeValue.ofBytes(randomIntBetween(0, 4096)),
+                    Setting.Property.NodeScope
+                ),
+                Setting.byteSizeSetting(
+                    BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING,
+                    ByteSizeValue.ofBytes(randomIntBetween(0, 16 * 1024)),
                     Setting.Property.NodeScope
                 )
             );
@@ -149,8 +160,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     protected EsqlQueryResponse getAsyncResponse(String id) {
         try {
-            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(id)
-                .setWaitForCompletionTimeout(TimeValue.timeValueMinutes(1));
+            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(id).setWaitForCompletionTimeout(
+                TimeValue.timeValueMinutes(1)
+            );
             return client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).actionGet(30, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);

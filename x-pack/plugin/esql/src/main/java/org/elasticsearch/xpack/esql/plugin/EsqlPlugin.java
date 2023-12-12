@@ -136,8 +136,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestEsqlQueryAction(), new RestEsqlAsyncQueryAction(),
-          new RestEsqlGetAsyncResultAction() //,
+        return List.of(new RestEsqlQueryAction(), new RestEsqlAsyncQueryAction(), new RestEsqlGetAsyncResultAction() // ,
         // new RestEsqlGetAsyncStatusAction(),
         // new RestEsqlDeleteAsyncResultAction()
         );

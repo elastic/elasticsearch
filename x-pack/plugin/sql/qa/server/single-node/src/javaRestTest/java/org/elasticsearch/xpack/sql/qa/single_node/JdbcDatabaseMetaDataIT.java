@@ -12,10 +12,16 @@ import org.junit.ClassRule;
 
 public class JdbcDatabaseMetaDataIT extends DatabaseMetaDataTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected String clusterName() {
+        // `GET /` on Serverless returns a response with `cluster_name: <project_id>`, so we need to use a fixed string.
+        return SqlTestCluster.CLUSTER_NAME;
     }
 }

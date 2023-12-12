@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -133,13 +133,13 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().addAlias("test_1", "test_alias")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_only"
         );
 
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().addAlias("test_*", "test_alias")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_only"
         );
     }
@@ -154,7 +154,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationException(
             client(headers).admin().indices().prepareCreate("test_1").addAlias(new Alias("test_2"))::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_only"
         );
     }
@@ -169,19 +169,19 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().removeAlias("test_1", "alias_1")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_only"
         );
 
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().removeAlias("test_1", "alias_*")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_only"
         );
 
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().removeAlias("test_1", "_all")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_only"
         );
     }
@@ -308,7 +308,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().addAlias("test_1", "alias_1").addAlias("test_1", "test_alias")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_test_aliases_test"
         );
     }
@@ -328,7 +328,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(
             client.admin().indices().prepareCreate("test_2").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_2"))::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_test_aliases_test"
         );
     }
@@ -386,14 +386,14 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().removeAlias("test_1", "alias_1")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_test_aliases_test"
         );
 
         // fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().removeAlias("test_1", new String[] { "_all", "alias_1" })::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_test_aliases_test"
         );
 
@@ -471,14 +471,14 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // fails: user doesn't have manage_aliases aliases on test_1
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().addAlias("test_1", "test_alias")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_test_aliases_alias"
         );
 
         // fails: user doesn't have manage_aliases aliases on test_1
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().addAlias("test_1", "alias_1")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_test_aliases_alias"
         );
 
@@ -503,7 +503,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // fails: user doesn't have manage_aliases on test_1, create index is rejected as a whole
         assertThrowsAuthorizationException(
             client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias"))::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_test_aliases_alias"
         );
     }
@@ -521,7 +521,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // fails: user doesn't have manage_aliases on test_1
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().removeAlias("test_1", "test_alias")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_test_aliases_alias"
         );
 
@@ -642,7 +642,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // fails: user doesn't have manage_aliases privilege on non_authorized
         assertThrowsAuthorizationException(
             client.admin().indices().prepareAliases().removeAlias("test_1", "non_authorized").removeAlias("test_1", "test_alias")::get,
-            IndicesAliasesAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "create_test_aliases_test_alias"
         );
 

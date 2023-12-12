@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -103,7 +103,7 @@ public interface EstimatesRowSize {
     }
 
     static int estimateSize(DataType dataType) {
-        ElementType elementType = LocalExecutionPlanner.toElementType(dataType);
+        ElementType elementType = PlannerUtils.toElementType(dataType);
         return switch (elementType) {
             case BOOLEAN -> 1;
             case BYTES_REF -> {

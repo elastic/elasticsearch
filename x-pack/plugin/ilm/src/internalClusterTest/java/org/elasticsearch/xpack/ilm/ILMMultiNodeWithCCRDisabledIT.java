@@ -96,7 +96,7 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
             PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
-        client().prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
+        prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
             ExplainLifecycleResponse explain = client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*"))

@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -94,7 +94,7 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
                 executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,
-                    UpdateAction.INSTANCE,
+                    TransportUpdateAction.TYPE,
                     updateRequest,
                     ActionListener.wrap(updateResponse -> chainedListener.onResponse(null), chainedListener::onFailure)
                 );

@@ -196,8 +196,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";
 
         assertThat(
-            client().prepareIndex(indexName)
-                .setId("0")
+            prepareIndex(indexName).setId("0")
                 .setRefreshPolicy("true")
                 .setSource("{\"field\":\"value\"}", XContentType.JSON)
                 .get()

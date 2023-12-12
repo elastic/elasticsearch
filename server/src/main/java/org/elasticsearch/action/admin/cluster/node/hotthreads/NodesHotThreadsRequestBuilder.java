@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
@@ -19,8 +18,8 @@ public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<
     NodesHotThreadsResponse,
     NodesHotThreadsRequestBuilder> {
 
-    public NodesHotThreadsRequestBuilder(ElasticsearchClient client, ActionType<NodesHotThreadsResponse> action) {
-        super(client, action, new NodesHotThreadsRequest());
+    public NodesHotThreadsRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportNodesHotThreadsAction.TYPE, new NodesHotThreadsRequest());
     }
 
     public NodesHotThreadsRequestBuilder setThreads(int threads) {

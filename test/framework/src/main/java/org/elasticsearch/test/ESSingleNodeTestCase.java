@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
@@ -380,6 +381,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
+    }
+
+    protected IndexRequestBuilder prepareIndex(String index) {
+        return client().prepareIndex(index);
     }
 
     /**

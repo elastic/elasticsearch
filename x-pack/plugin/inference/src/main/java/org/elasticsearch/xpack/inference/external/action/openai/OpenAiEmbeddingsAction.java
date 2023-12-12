@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
@@ -55,13 +55,13 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
     }
 
     @Override
-    public void execute(List<String> input, ActionListener<List<? extends InferenceResults>> listener) {
+    public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
             OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(
                 account,
                 new OpenAiEmbeddingsRequestEntity(input, model.getTaskSettings().model(), model.getTaskSettings().user())
             );
-            ActionListener<List<? extends InferenceResults>> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
+            ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
             client.send(request, wrappedListener);
         } catch (ElasticsearchException e) {

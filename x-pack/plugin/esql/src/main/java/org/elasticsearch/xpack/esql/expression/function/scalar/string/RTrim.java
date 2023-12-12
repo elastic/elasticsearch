@@ -50,7 +50,7 @@ public class RTrim extends UnaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return new RTrimEvaluator.Factory(toEvaluator.apply(field()));
+        return new RTrimEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

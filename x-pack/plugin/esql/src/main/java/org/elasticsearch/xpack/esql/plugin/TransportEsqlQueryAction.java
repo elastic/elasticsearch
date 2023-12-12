@@ -91,6 +91,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             transportService,
             exchangeService,
             enrichLookupService,
+            clusterService,
             threadPool,
             bigArrays,
             blockFactory
@@ -133,7 +134,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         EsqlConfiguration configuration = new EsqlConfiguration(
-            request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
+            ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
             null,
@@ -141,7 +142,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.pragmas(),
             clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE),
             clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE),
-            request.query()
+            request.query(),
+            request.profile()
         );
         String sessionId = sessionID(task);
         planExecutor.esql(
@@ -155,12 +157,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     (CancellableTask) task,
                     physicalPlan,
                     configuration,
-                    delegate.map(pages -> {
+                    delegate.map(result -> {
                         List<ColumnInfo> columns = physicalPlan.output()
                             .stream()
                             .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
                             .toList();
-                        return new EsqlQueryResponse(columns, pages, request.columnar(), null, false);
+                        EsqlQueryResponse.Profile profile = configuration.profile()
+                            ? new EsqlQueryResponse.Profile(result.profiles())
+                            : null;
+                        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar());
                     })
                 )
             )
@@ -213,6 +218,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return new EsqlQueryResponse(
             List.of(),
             List.of(),
+            null, // TODO: is this ok?
             false,
             task.getExecutionId().getEncoded(),
             true // is_running

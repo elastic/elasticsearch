@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -257,11 +256,6 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
 
         @Override
-        public Version getVersion() {
-            return connection.getVersion();
-        }
-
-        @Override
         public TransportVersion getTransportVersion() {
             return connection.getTransportVersion();
         }
@@ -344,11 +338,6 @@ public class RemoteConnectionManager implements ConnectionManager {
         @Override
         public boolean isClosed() {
             return connection.isClosed();
-        }
-
-        @Override
-        public Version getVersion() {
-            return connection.getVersion();
         }
 
         @Override

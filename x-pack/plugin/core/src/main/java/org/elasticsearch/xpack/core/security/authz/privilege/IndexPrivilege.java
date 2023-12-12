@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
-import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -28,8 +28,8 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
-import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
@@ -78,7 +78,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         ClusterSearchShardsAction.NAME,
-        SearchShardsAction.NAME
+        TransportSearchShardsAction.TYPE.name()
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",
@@ -104,7 +104,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton MANAGE_AUTOMATON = unionAndMinimize(
         Arrays.asList(
             MONITOR_AUTOMATON,
-            patterns("indices:admin/*", FieldCapabilitiesAction.NAME + "*", GetRollupIndexCapsAction.NAME + "*")
+            patterns("indices:admin/*", TransportFieldCapabilitiesAction.NAME + "*", GetRollupIndexCapsAction.NAME + "*")
         )
     );
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(
@@ -119,7 +119,7 @@ public final class IndexPrivilege extends Privilege {
         GetFieldMappingsAction.NAME + "*",
         GetMappingsAction.NAME,
         ClusterSearchShardsAction.NAME,
-        SearchShardsAction.NAME,
+        TransportSearchShardsAction.TYPE.name(),
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME,
@@ -127,14 +127,14 @@ public final class IndexPrivilege extends Privilege {
         "indices:admin/data_stream/lifecycle/explain",
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,
-        FieldCapabilitiesAction.NAME + "*",
+        TransportFieldCapabilitiesAction.NAME + "*",
         GetRollupIndexCapsAction.NAME + "*",
         GetCheckpointAction.NAME + "*" // transform internal action
     );
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(
         PutFollowAction.NAME,
         UnfollowAction.NAME,
-        CloseIndexAction.NAME + "*",
+        TransportCloseIndexAction.NAME + "*",
         PromoteDataStreamAction.NAME,
         RolloverAction.NAME
     );

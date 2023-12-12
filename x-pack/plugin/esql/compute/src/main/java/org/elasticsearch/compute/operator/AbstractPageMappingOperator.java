@@ -95,7 +95,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
 
         private final int pagesProcessed;
 
-        protected Status(int pagesProcessed) {
+        public Status(int pagesProcessed) {
             this.pagesProcessed = pagesProcessed;
         }
 

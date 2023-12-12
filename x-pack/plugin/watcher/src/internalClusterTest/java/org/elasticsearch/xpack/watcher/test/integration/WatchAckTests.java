@@ -53,9 +53,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     @Before
     public void indexTestDocument() {
-        DocWriteResponse eventIndexResponse = client().prepareIndex()
-            .setIndex("events")
-            .setId(id)
+        DocWriteResponse eventIndexResponse = prepareIndex("events").setId(id)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setSource("level", "error")
             .get();

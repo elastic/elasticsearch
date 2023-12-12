@@ -11,13 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Function;
 
 /**

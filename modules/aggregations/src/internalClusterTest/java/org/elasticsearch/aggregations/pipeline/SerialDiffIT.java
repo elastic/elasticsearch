@@ -142,8 +142,9 @@ public class SerialDiffIT extends AggregationIntegTestCase {
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {
             for (double value : mockBucket.docValues) {
                 builders.add(
-                    client().prepareIndex("idx")
-                        .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, mockBucket.key).field(VALUE_FIELD, value).endObject())
+                    prepareIndex("idx").setSource(
+                        jsonBuilder().startObject().field(INTERVAL_FIELD, mockBucket.key).field(VALUE_FIELD, value).endObject()
+                    )
                 );
             }
         }

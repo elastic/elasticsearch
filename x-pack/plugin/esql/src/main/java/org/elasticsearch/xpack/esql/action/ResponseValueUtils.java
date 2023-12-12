@@ -26,7 +26,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -40,6 +40,8 @@ import java.util.Map;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 /**
@@ -98,6 +100,8 @@ public final class ResponseValueUtils {
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
+            case "geo_point" -> GEO.longAsPoint(((LongBlock) block).getLong(offset));
+            case "cartesian_point" -> CARTESIAN.longAsPoint(((LongBlock) block).getLong(offset));
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -121,7 +125,7 @@ public final class ResponseValueUtils {
     static Page valuesToPage(List<ColumnInfo> columns, List<List<Object>> values) {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         List<Block.Builder> results = dataTypes.stream()
-            .map(c -> LocalExecutionPlanner.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
+            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
             .toList();
 
         for (List<Object> row : values) {
@@ -155,6 +159,14 @@ public final class ResponseValueUtils {
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }
+                    }
+                    case "geo_point" -> {
+                        long longVal = GEO.pointAsLong(GEO.stringAsPoint(value.toString()));
+                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    }
+                    case "cartesian_point" -> {
+                        long longVal = CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(value.toString()));
+                        ((LongBlock.Builder) builder).appendLong(longVal);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }

@@ -213,7 +213,6 @@ public class IndexShardSnapshotStatus {
     public synchronized SnapshotsInProgress.ShardState moveToUnsuccessful(final Stage newStage, final String failure, final long endTime) {
         assert newStage == Stage.PAUSED || newStage == Stage.FAILURE : newStage;
         if (newStage == Stage.PAUSED && stage.compareAndSet(Stage.PAUSING, Stage.PAUSED)) {
-            abortListeners.onResponse(AbortStatus.NO_ABORT);
             this.totalTime = Math.max(0L, endTime - startTime);
             this.failure = failure;
             return SnapshotsInProgress.ShardState.WAITING;

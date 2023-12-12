@@ -34,7 +34,7 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
     public EsqlQueryResponse getCurrentResult() {  // TODO: what semantics we want here
         // for esql searches we never store a search response in the task (neither partial, nor final)
         // we kill the task on final response, so if the task is still present, it means the search is still running
-        System.out.println("HEGO: EsqlQueryTask:: getCurrentResult");
+        // System.out.println("HEGO: EsqlQueryTask:: getCurrentResult");
 
         return new EsqlQueryResponse(List.of(), List.of(), null, false, getExecutionId().getEncoded(), true);
     }

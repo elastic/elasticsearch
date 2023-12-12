@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.clone;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -29,6 +30,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public final class TransportCloneSnapshotAction extends AcknowledgedTransportMasterNodeAction<CloneSnapshotRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("cluster:admin/snapshot/clone");
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -41,7 +43,7 @@ public final class TransportCloneSnapshotAction extends AcknowledgedTransportMas
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            CloneSnapshotAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

@@ -20,12 +20,20 @@ setup:
           id: test-connector
           job_type: full
           trigger_method: on_demand
+
   - set: { id: sync-job-id-to-cancel }
+
   - do:
       connector_sync_job.cancel:
         connector_sync_job_id: $sync-job-id-to-cancel
 
   - match: { acknowledged: true }
+
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $sync-job-id-to-cancel
+
+  - match: { status: "canceling"}
 
 
 ---

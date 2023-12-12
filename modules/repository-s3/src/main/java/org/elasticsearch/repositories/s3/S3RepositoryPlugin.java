@@ -24,10 +24,10 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategyProvider;
 import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -63,7 +63,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
-    private final SetOnce<MeterRegistry> meterRegistry = new SetOnce<>();
     private S3StorageClassStrategyProvider storageClassStrategyProvider = null;
     private final Settings settings;
 
@@ -81,9 +80,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final RepositoriesMetrics repositoriesMetrics
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, meterRegistry.get());
+        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, repositoriesMetrics);
     }
 
     @Override
@@ -93,7 +93,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         }
         service.set(s3Service(services.environment(), services.clusterService().getSettings(), storageClassStrategyProvider));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
-        meterRegistry.set(services.telemetryProvider().getMeterRegistry());
         return List.of(service);
     }
 
@@ -120,11 +119,12 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         return Collections.singletonMap(
             S3Repository.TYPE,
-            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings)
+            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings, repositoriesMetrics)
         );
     }
 
@@ -165,9 +165,5 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     @Override
     public void close() throws IOException {
         getService().close();
-    }
-
-    protected MeterRegistry getMeterRegistry() {
-        return meterRegistry.get();
     }
 }

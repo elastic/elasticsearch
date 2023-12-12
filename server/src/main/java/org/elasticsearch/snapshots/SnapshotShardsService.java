@@ -392,7 +392,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 } else if (e instanceof PausedSnapshotException) {
                     nextStage = Stage.PAUSED;
                     failure = "paused for removal of node holding primary";
-                    logger.debug(() -> format("[%s][%s] pausing shard snapshot: [%s]", shardId, snapshot), e);
+                    logger.debug(() -> format("[%s][%s] pausing shard snapshot", shardId, snapshot), e);
                 } else {
                     nextStage = Stage.FAILURE;
                     failure = summarizeFailure(e);

@@ -254,8 +254,6 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var indexName = randomIdentifier();
         createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, nodeForRemoval).build());
 
-        final var replacementNode = internalCluster().startDataOnlyNode();
-
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, nodeForRemoval);
         final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName);
@@ -266,7 +264,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         safeAwait(snapshotPausedListener);
 
         // adjust the allocation filter so that the shard moves
-        updateIndexSettings(Settings.builder().put(REQUIRE_NODE_NAME_SETTING, replacementNode), indexName);
+        updateIndexSettings(Settings.builder().putNull(REQUIRE_NODE_NAME_SETTING), indexName);
 
         // wait for the target shard snapshot to succeed
         safeAwait(

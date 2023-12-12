@@ -138,7 +138,6 @@ public class DiskUsageTests extends ESTestCase {
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
         InternalClusterInfoService.buildShardLevelInfo(
-            RoutingTable.EMPTY_ROUTING_TABLE,
             stats,
             shardSizes,
             shardDataSetSizes,

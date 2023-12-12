@@ -22,63 +22,69 @@ public class TruncatorTests extends ESTestCase {
         var truncator = createTruncator();
         assertThat(
             truncator.truncate(List.of("123456", "awesome")),
-            is(new Truncator.TruncationResult(List.of("123", "awe"), List.of(true, true)))
+            is(new Truncator.TruncationResult(List.of("123", "awe"), new boolean[] { true, true }))
         );
     }
 
     public void testTruncate_Percentage_OnlyTruncatesTheFirstEntry() {
         var truncator = createTruncator();
-        assertThat(truncator.truncate(List.of("123456", "")), is(new Truncator.TruncationResult(List.of("123", ""), List.of(true, false))));
+        assertThat(
+            truncator.truncate(List.of("123456", "")),
+            is(new Truncator.TruncationResult(List.of("123", ""), new boolean[] { true, false }))
+        );
     }
 
     public void testTruncate_Percentage_ReducesLengthToZero() {
         var truncator = createTruncator();
-        assertThat(truncator.truncate(List.of("1")), is(new Truncator.TruncationResult(List.of(""), List.of(true))));
+        assertThat(truncator.truncate(List.of("1")), is(new Truncator.TruncationResult(List.of(""), new boolean[] { true })));
     }
 
     public void testTruncate_Percentage_ReturnsAnEmptyString_WhenItIsAnEmptyString() {
         var truncator = createTruncator();
-        assertThat(truncator.truncate(List.of("")), is(new Truncator.TruncationResult(List.of(""), List.of(false))));
+        assertThat(truncator.truncate(List.of("")), is(new Truncator.TruncationResult(List.of(""), new boolean[] { false })));
     }
 
     public void testTruncate_Percentage_ReturnsAnEmptyString_WhenPercentageIs0_01() {
         var truncator = createTruncator(0.01);
-        assertThat(truncator.truncate(List.of("abc")), is(new Truncator.TruncationResult(List.of(""), List.of(true))));
+        assertThat(truncator.truncate(List.of("abc")), is(new Truncator.TruncationResult(List.of(""), new boolean[] { true })));
     }
 
     public void testTruncate_Percentage_ReturnsStringWithTwoCharacters_IfPercentageIs0_99() {
         var truncator = createTruncator(0.99);
-        assertThat(truncator.truncate(List.of("abc")), is(new Truncator.TruncationResult(List.of("ab"), List.of(true))));
+        assertThat(truncator.truncate(List.of("abc")), is(new Truncator.TruncationResult(List.of("ab"), new boolean[] { true })));
     }
 
     public void testTruncate_Tokens_DoesNotTruncateWhenLimitIsNull() {
         assertThat(
             truncate(List.of("abcd", "123"), null),
-            is(new Truncator.TruncationResult(List.of("abcd", "123"), List.of(false, false)))
+            is(new Truncator.TruncationResult(List.of("abcd", "123"), new boolean[] { false, false }))
         );
     }
 
     public void testTruncate_Tokens_ReducesLengthTo3Characters() {
         assertThat(
             truncate(List.of("abcd", "123 abcd"), 1),
-            is(new Truncator.TruncationResult(List.of("abc", "123"), List.of(true, true)))
+            is(new Truncator.TruncationResult(List.of("abc", "123"), new boolean[] { true, true }))
         );
     }
 
     public void testTruncate_Tokens_OnlyTruncatesTheFirstEntry() {
-        assertThat(truncate(List.of("abcd", "123"), 1), is(new Truncator.TruncationResult(List.of("abc", "123"), List.of(true, false))));
+        assertThat(
+            truncate(List.of("abcd", "123"), 1),
+            is(new Truncator.TruncationResult(List.of("abc", "123"), new boolean[] { true, false }))
+        );
     }
 
     public void testTruncate_Tokens_ReturnsAnEmptyString_WhenItIsAnEmptyString() {
-        assertThat(truncate(List.of(""), 1), is(new Truncator.TruncationResult(List.of(""), List.of(false))));
+        assertThat(truncate(List.of(""), 1), is(new Truncator.TruncationResult(List.of(""), new boolean[] { false })));
     }
 
     public void testTruncate_Tokens_ReturnsAnEmptyString_WhenMaxTokensIs0() {
-        assertThat(truncate(List.of("abc"), 0), is(new Truncator.TruncationResult(List.of(""), List.of(true))));
+        assertThat(truncate(List.of("abc"), 0), is(new Truncator.TruncationResult(List.of(""), new boolean[] { true })));
     }
 
     public void testTruncate_Tokens_ReturnsTheSameValueStringIfTokensIsGreaterThanStringSize() {
-        assertThat(truncate(List.of("abc"), 2), is(new Truncator.TruncationResult(List.of("abc"), List.of(false))));
+        assertThat(truncate(List.of("abc"), 2), is(new Truncator.TruncationResult(List.of("abc"), new boolean[] { false })));
     }
 
     public void testTruncate_ThrowsIfPercentageIsGreaterThan0_99() {

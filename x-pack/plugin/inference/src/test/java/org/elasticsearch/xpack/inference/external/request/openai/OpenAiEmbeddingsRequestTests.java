@@ -104,10 +104,10 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
 
     public void testIsTruncated_ReturnsTrue() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "secret", "abcd", "model", null);
-        assertFalse(request.getTruncationInfo().get(0));
+        assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
-        assertTrue(truncatedRequest.getTruncationInfo().get(0));
+        assertTrue(truncatedRequest.getTruncationInfo()[0]);
     }
 
     public static OpenAiEmbeddingsRequest createRequest(
@@ -121,12 +121,11 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         var uri = url == null ? null : new URI(url);
 
         var account = new OpenAiAccount(uri, org, new SecureString(apiKey.toCharArray()));
-        var entity = new OpenAiEmbeddingsRequestEntity(List.of(input), model, user);
 
         return new OpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             account,
-            new Truncator.TruncationResult(List.of(input), List.of(false)),
+            new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             new OpenAiEmbeddingsTaskSettings(model, user)
         );
     }

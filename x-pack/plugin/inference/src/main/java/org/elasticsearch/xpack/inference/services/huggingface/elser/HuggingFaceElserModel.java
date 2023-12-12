@@ -73,6 +73,6 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
 
     @Override
     public Integer getTokenLimit() {
-        return null;
+        return getServiceSettings().maxInputTokens();
     }
 }

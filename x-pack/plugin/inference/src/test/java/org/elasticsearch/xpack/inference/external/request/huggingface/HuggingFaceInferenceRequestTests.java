@@ -62,10 +62,10 @@ public class HuggingFaceInferenceRequestTests extends ESTestCase {
 
     public void testIsTruncated_ReturnsTrue() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abcd");
-        assertFalse(huggingFaceRequest.getTruncationInfo().get(0));
+        assertFalse(huggingFaceRequest.getTruncationInfo()[0]);
 
         var truncatedRequest = huggingFaceRequest.truncate();
-        assertTrue(truncatedRequest.getTruncationInfo().get(0));
+        assertTrue(truncatedRequest.getTruncationInfo()[0]);
     }
 
     public static HuggingFaceInferenceRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {
@@ -74,7 +74,7 @@ public class HuggingFaceInferenceRequestTests extends ESTestCase {
         return new HuggingFaceInferenceRequest(
             TruncatorTests.createTruncator(),
             account,
-            new Truncator.TruncationResult(List.of(input), List.of(false))
+            new Truncator.TruncationResult(List.of(input), new boolean[] { false })
         );
     }
 }

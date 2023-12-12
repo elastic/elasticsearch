@@ -55,7 +55,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
 
     public void testFromResponse_CreatesTextExpansionResults_ThatAreTruncated() throws IOException {
         var request = mock(Request.class);
-        when(request.getTruncationInfo()).thenReturn(List.of(true));
+        when(request.getTruncationInfo()).thenReturn(new boolean[] { true });
 
         String responseJson = """
             [
@@ -80,7 +80,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         );
     }
 
-    public void testFromResponse_CreatesTextExpansionResultsForFirstItem() throws IOException {
+    public void testFromResponse_CreatesTextExpansionResultsForMultipleItems_TruncationIsNull() throws IOException {
         String responseJson = """
             [
                 {
@@ -92,6 +92,74 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
                     "super": 0.6747211217880249
                 }
             ]""";
+
+        SparseEmbeddingResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+            mock(Request.class),
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(
+            parsedResults.asMap(),
+            is(
+                buildExpectation(
+                    List.of(
+                        new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), false),
+                        new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hi", 0.13315596f, "super", 0.67472112f), false)
+                    )
+                )
+            )
+        );
+    }
+
+    public void testFromResponse_CreatesTextExpansionResults_WithTruncation() throws IOException {
+        String responseJson = """
+            [
+                {
+                    ".": 0.133155956864357,
+                    "the": 0.6747211217880249
+                },
+                {
+                    "hi": 0.133155956864357,
+                    "super": 0.6747211217880249
+                }
+            ]""";
+
+        var request = mock(Request.class);
+        when(request.getTruncationInfo()).thenReturn(new boolean[] { true, false });
+
+        SparseEmbeddingResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+            request,
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(
+            parsedResults.asMap(),
+            is(
+                buildExpectation(
+                    List.of(
+                        new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), true),
+                        new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hi", 0.13315596f, "super", 0.67472112f), false)
+                    )
+                )
+            )
+        );
+    }
+
+    public void testFromResponse_CreatesTextExpansionResults_WithTruncationLessArrayLessThanExpected() throws IOException {
+        String responseJson = """
+            [
+                {
+                    ".": 0.133155956864357,
+                    "the": 0.6747211217880249
+                },
+                {
+                    "hi": 0.133155956864357,
+                    "super": 0.6747211217880249
+                }
+            ]""";
+
+        var request = mock(Request.class);
+        when(request.getTruncationInfo()).thenReturn(new boolean[] {});
 
         SparseEmbeddingResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
             mock(Request.class),

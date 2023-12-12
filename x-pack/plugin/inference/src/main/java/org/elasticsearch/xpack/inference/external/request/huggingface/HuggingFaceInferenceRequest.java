@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
@@ -62,7 +60,7 @@ public class HuggingFaceInferenceRequest implements Request {
     }
 
     @Override
-    public List<Boolean> getTruncationInfo() {
-        return Collections.unmodifiableList(truncationResult.truncated());
+    public boolean[] getTruncationInfo() {
+        return truncationResult.truncated().clone();
     }
 }

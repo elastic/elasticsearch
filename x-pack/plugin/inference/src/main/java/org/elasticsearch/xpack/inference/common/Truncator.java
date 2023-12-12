@@ -13,8 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Provides truncation logic for inference requests
@@ -68,18 +69,19 @@ public class Truncator {
      */
     public static TruncationResult truncate(List<String> input, @Nullable Integer tokenLimit) {
         if (tokenLimit == null) {
-            var truncatedBooleanList = new ArrayList<>(Collections.nCopies(input.size(), false));
-            return new TruncationResult(input, truncatedBooleanList);
+            return new TruncationResult(input, new boolean[input.size()]);
         }
 
         var maxLength = maxLength(tokenLimit);
 
         var truncatedText = new ArrayList<String>(input.size());
-        var wasTruncated = new ArrayList<Boolean>(input.size());
-        for (var text : input) {
+        var wasTruncated = new boolean[input.size()];
+
+        for (int i = 0; i < input.size(); i++) {
+            var text = input.get(i);
             var truncateResult = truncate(text, maxLength);
             truncatedText.add(truncateResult.input);
-            wasTruncated.add(truncateResult.truncated);
+            wasTruncated[i] = truncateResult.truncated;
         }
 
         return new TruncationResult(truncatedText, wasTruncated);
@@ -107,11 +109,13 @@ public class Truncator {
      */
     public TruncationResult truncate(List<String> input) {
         var truncatedText = new ArrayList<String>(input.size());
-        var wasTruncated = new ArrayList<Boolean>(input.size());
-        for (var text : input) {
+        var wasTruncated = new boolean[input.size()];
+
+        for (int i = 0; i < input.size(); i++) {
+            var text = input.get(i);
             var truncateResult = truncate(text);
             truncatedText.add(truncateResult.input);
-            wasTruncated.add(truncateResult.truncated);
+            wasTruncated[i] = truncateResult.truncated;
         }
 
         return new TruncationResult(truncatedText, wasTruncated);
@@ -124,5 +128,19 @@ public class Truncator {
 
     private record TruncationEntry(String input, boolean truncated) {}
 
-    public record TruncationResult(List<String> input, List<Boolean> truncated) {}
+    public record TruncationResult(List<String> input, boolean[] truncated) {
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TruncationResult that = (TruncationResult) o;
+            return Objects.equals(input, that.input) && Arrays.equals(truncated, that.truncated);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(input, Arrays.hashCode(truncated));
+        }
+    }
 }

@@ -318,7 +318,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         if (block instanceof LongBlock longBlock) {
             return spatial.longAsPoint(longBlock.getLong(offset));
         } else if (block instanceof PointBlock pointBlock) {
-            return pointBlock.getPoint(offset);
+            return spatial.pointAsPoint(pointBlock.getPoint(offset));
         } else {
             throw new IllegalArgumentException("Unsupported block type for " + dataType + ": " + block.getWriteableName());
         }

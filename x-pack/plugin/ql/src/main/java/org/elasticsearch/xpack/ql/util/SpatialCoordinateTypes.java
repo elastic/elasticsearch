@@ -34,6 +34,10 @@ public enum SpatialCoordinateTypes {
         public SpatialPoint pointAsPoint(Point point) {
             return new GeoPoint(point.getY(), point.getX());
         }
+
+        public SpatialPoint pointAsPoint(SpatialPoint point) {
+            return new GeoPoint(point);
+        }
     },
     CARTESIAN {
         public SpatialPoint longAsPoint(long encoded) {
@@ -79,4 +83,11 @@ public enum SpatialCoordinateTypes {
     }
 
     public abstract SpatialPoint pointAsPoint(Point point);
+
+    /**
+     * Convert point to the correct class for the upper column type. For example, create a GeoPoint from a cartesian point.
+     */
+    public SpatialPoint pointAsPoint(SpatialPoint point) {
+        return point;
+    }
 }

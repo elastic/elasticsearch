@@ -17,6 +17,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Represents a response for update actions related to connectors and sync jobs.
+ * The response encapsulates the result of the update action, represented by a {@link DocWriteResponse.Result}.
+ */
 public class ConnectorUpdateActionResponse extends ActionResponse implements ToXContentObject {
     final DocWriteResponse.Result result;
 

@@ -275,8 +275,8 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
                     oldClusterVersion,
                     EXPECTED_TSDB_TSIDS_NODES_1,
                     closeTo(217.45, 0.005),
-                    closeTo(2391.95, 0.005),
-                    closeTo(-217.45, 0.005)
+                    closeTo(-217.45, 0.005),
+                    closeTo(2391.95, 0.005)
                 );
             } else {
                 assertTsdbAgg(
@@ -298,9 +298,9 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
                     oldClusterVersion,
                     EXPECTED_TSDB_TSIDS_NODES_2,
                     closeTo(218.95, 0.5),
-                    closeTo(21895.0, 0.005),
+                    closeTo(-218.95, 0.005),
                     closeTo(2408.45, 0.005),
-                    closeTo(-218.95, 0.005)
+                    closeTo(21895.0, 0.005)
                 );
             } else {
                 assertTsdbAgg(
@@ -324,10 +324,10 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
                     oldClusterVersion,
                     EXPECTED_TSDB_TSIDS_NODES_3,
                     closeTo(220.45, 0.005),
-                    closeTo(-11022.5, 0.5),
-                    closeTo(22045, 0.5),
+                    closeTo(-220.45, 0.005),
                     closeTo(2424.95, 0.005),
-                    closeTo(-220.45, 0.005)
+                    closeTo(22045, 0.5),
+                    closeTo(-11022.5, 0.5)
                 );
             } else {
                 assertTsdbAgg(
@@ -383,7 +383,7 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
 
     private void assertTsdbAgg(final Version oldClusterVersion, final List<String> expectedTsids, final Matcher<?>... expected)
         throws IOException {
-        boolean onOrAfterTsidHashingVersion = oldClusterVersion.onOrAfter(Version.V_8_12_0);
+        boolean onOrAfterTsidHashingVersion = oldClusterVersion.onOrAfter(Version.V_8_13_0);
         Request request = new Request("POST", "/tsdb/_search");
         request.addParameter("size", "0");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();

@@ -59,7 +59,7 @@ sourceSets.main.java {
   exclude 'generated/**'
 }
 
-tasks.getByName('test') {
+tasks.named("test").configure {
   if (BuildParams.isCi() == false) {
     systemProperty 'generateDocs', true
     doFirst {

@@ -1,0 +1,5 @@
+pr: 103307
+summary: Fix failing CI due to warning in Secure Settings Validation
+area: Security
+type: bug
+issues: []

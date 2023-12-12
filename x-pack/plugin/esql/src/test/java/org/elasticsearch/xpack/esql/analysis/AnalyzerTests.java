@@ -269,8 +269,44 @@ public class AnalyzerTests extends ESTestCase {
     public void testProjectOrder() {
         assertProjection("""
             from test
+            | keep first_name, first_name
+            """, "first_name");
+        assertProjection("""
+            from test
+            | keep first_name, first_name, last_name, first_name
+            """, "last_name", "first_name");
+        assertProjection("""
+            from test
             | keep first_name, *, last_name
             """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
+        assertProjection("""
+            from test
+            | keep *name, first*
+            """, "last_name", "first_name");
+        assertProjection("""
+            from test
+            | keep first_name, *name, first*
+            """, "first_name", "last_name");
+        assertProjection("""
+            from test
+            | keep *ob*, first_name, *name, first*
+            """, "job", "job.raw", "first_name", "last_name");
+        assertProjection("""
+            from test
+            | keep first_name, *, *name
+            """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
+        assertProjection("""
+            from test
+            | keep first*, *, last_name, first_name
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name", "first_name");
+        assertProjection("""
+            from test
+            | keep first*, *, last_name, fir*
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name", "first_name");
+        assertProjection("""
+            from test
+            | keep *, job*
+            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "long_noidx", "salary", "job", "job.raw");
     }
 
     public void testProjectThenDropName() {
@@ -1429,9 +1465,6 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnresolvedMvExpand() {
         var e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | mv_expand bar"));
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | keep foo, foo | mv_expand foo"));
-        assertThat(e.getMessage(), containsString("Reference [foo] is ambiguous (to disambiguate use quotes or qualifiers)"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

@@ -1253,9 +1253,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      *  However, for spatial types, the doc-values involve precision loss, and therefor it is preferable to read from source.
      *  And for text fields, doc values are not easily convertable to original values either, so special cases exist.
      */
-    protected boolean shouldUseColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
-        return ft.hasDocValues();
+    protected SupportedReaders getSupportedReaders(MapperService mapper, MappedFieldType ft) {
+        return new SupportedReaders(ft.hasDocValues(), true);
     }
+
+    /**
+     * @param columnAtATimeReader true if reading from doc-values is supported
+     * @param rowStrideReader true if reading from source is supported
+     */
+    protected record SupportedReaders(boolean columnAtATimeReader, boolean rowStrideReader) {}
 
     private void testBlockLoader(boolean columnReader) throws IOException {
         SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
@@ -1307,15 +1313,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext ctx = reader.leaves().get(0);
                 TestBlock block;
+                SupportedReaders supportedReaders = getSupportedReaders(mapper, mapper.fieldType(loaderFieldName));
                 if (columnReader) {
-                    if (shouldUseColumnAtATimeReader(mapper, mapper.fieldType(loaderFieldName))) {
+                    if (supportedReaders.columnAtATimeReader) {
                         block = (TestBlock) loader.columnAtATimeReader(ctx)
                             .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(0));
                     } else {
                         assertNull(loader.columnAtATimeReader(ctx));
                         return;
                     }
-                } else {
+                } else if (supportedReaders.rowStrideReader) {
                     BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
                         StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
                         loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
@@ -1324,6 +1331,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), 1);
                     loader.rowStrideReader(ctx).read(0, storedFieldsLoader, builder);
                     block = (TestBlock) builder.build();
+                } else {
+                    // TODO assert
+                    return;
                 }
                 Object inBlock = block.get(0);
                 if (inBlock != null) {

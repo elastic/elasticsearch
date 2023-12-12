@@ -14,12 +14,19 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 public class ApiKeyAggregationsBuilder {
 
-    public static void verifyAggsBuilder(@Nullable AggregatorFactories.Builder aggsBuilder) {
+    public static void verifyAggsBuilder(@Nullable AggregatorFactories.Builder aggsBuilder, @Nullable Authentication authentication) {
         if (aggsBuilder == null) {
             return;
         }
@@ -27,11 +34,11 @@ public class ApiKeyAggregationsBuilder {
             throw new IllegalArgumentException("Unsupported pipeline aggregation of type [" + pipelineAggregator.getType() + "]");
         }
         for (AggregationBuilder aggregator : aggsBuilder.getAggregatorFactories()) {
-            doVerifyAggsBuilder(aggregator);
+            doVerifyAggsBuilder(aggregator, authentication);
         }
     }
 
-    private static void doVerifyAggsBuilder(AggregationBuilder aggregationBuilder) {
+    private static void doVerifyAggsBuilder(AggregationBuilder aggregationBuilder, @Nullable Authentication authentication) {
         // Most of these can be supported without much hassle, but they're not useful for the identified use cases so far
         for (PipelineAggregationBuilder pipelineAggregator : aggregationBuilder.getPipelineAggregations()) {
             throw new IllegalArgumentException("Unsupported pipeline aggregation of type [" + pipelineAggregator.getType() + "]");
@@ -70,8 +77,25 @@ public class ApiKeyAggregationsBuilder {
             if (dateRangeAggregationBuilder.script() != null) {
                 throw new IllegalArgumentException("Unsupported script value source for [" + aggregationBuilder.getName() + "] agg");
             }
-            // the user-facing field names are different from the index mapping field names of API Key docs
             dateRangeAggregationBuilder.field(ApiKeyFieldNameTranslators.translate(dateRangeAggregationBuilder.field()));
+        } else if (aggregationBuilder instanceof RangeAggregationBuilder rangeAggregationBuilder) {
+            if (rangeAggregationBuilder.script() != null) {
+                throw new IllegalArgumentException("Unsupported script value source for [" + aggregationBuilder.getName() + "] agg");
+            }
+            rangeAggregationBuilder.field(ApiKeyFieldNameTranslators.translate(rangeAggregationBuilder.field()));
+        } else if (aggregationBuilder instanceof MissingAggregationBuilder missingAggregationBuilder) {
+            if (missingAggregationBuilder.script() != null) {
+                throw new IllegalArgumentException("Unsupported script value source for [" + aggregationBuilder.getName() + "] agg");
+            }
+            missingAggregationBuilder.field(ApiKeyFieldNameTranslators.translate(missingAggregationBuilder.field()));
+        } else if (aggregationBuilder instanceof GlobalAggregationBuilder) {
+            // nothing to verify here
+        } else if (aggregationBuilder instanceof FilterAggregationBuilder filterAggregationBuilder) {
+            filterAggregationBuilder.filter(ApiKeyBoolQueryBuilder.build(filterAggregationBuilder.getFilter(), authentication));
+        } else if (aggregationBuilder instanceof FiltersAggregationBuilder filtersAggregationBuilder) {
+            for (FiltersAggregator.KeyedFilter keyedFilter : filtersAggregationBuilder.filters()) {
+                keyedFilter.filter(ApiKeyBoolQueryBuilder.build(keyedFilter.filter(), authentication));
+            }
         } else {
             throw new IllegalArgumentException(
                 "Unsupported agg [" + aggregationBuilder.getName() + "] of type [" + aggregationBuilder.getType() + "]"
@@ -79,7 +103,7 @@ public class ApiKeyAggregationsBuilder {
         }
         // check sub-aggs recursively
         for (AggregationBuilder subAggregation : aggregationBuilder.getSubAggregations()) {
-            doVerifyAggsBuilder(subAggregation);
+            doVerifyAggsBuilder(subAggregation, authentication);
         }
     }
 }

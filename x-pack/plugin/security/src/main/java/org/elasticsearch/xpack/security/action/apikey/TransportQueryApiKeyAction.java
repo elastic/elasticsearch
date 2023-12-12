@@ -73,7 +73,9 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
         );
         searchSourceBuilder.query(apiKeyBoolQueryBuilder);
 
-        ApiKeyAggregationsBuilder.verifyAggsBuilder(request.getAggsBuilder());
+        // this modifies the {@code request.getAggsBuilder()} in-place
+        ApiKeyAggregationsBuilder.verifyAggsBuilder(request.getAggsBuilder(), request.isFilterForCurrentUser() ? authentication : null);
+        searchSourceBuilder.aggregationsBuilder(request.getAggsBuilder());
 
         if (request.getFieldSortBuilders() != null) {
             translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);

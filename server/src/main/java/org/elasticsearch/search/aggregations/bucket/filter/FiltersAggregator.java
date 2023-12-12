@@ -61,7 +61,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
     public static class KeyedFilter implements Writeable, ToXContentFragment {
         private final String key;
-        private final QueryBuilder filter;
+        private QueryBuilder filter;
 
         public KeyedFilter(String key, QueryBuilder filter) {
             if (key == null) {
@@ -90,6 +90,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         public String key() {
             return key;
+        }
+
+        public void filter(QueryBuilder filter) {
+            this.filter = filter;
         }
 
         public QueryBuilder filter() {

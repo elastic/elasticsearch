@@ -41,7 +41,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterAggregationBuilder> {
     public static final String NAME = "filter";
 
-    private final QueryBuilder filter;
+    private QueryBuilder filter;
 
     /**
      * @param name
@@ -57,6 +57,14 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
             throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
         }
         this.filter = filter;
+    }
+
+    public FilterAggregationBuilder filter(QueryBuilder filter) {
+        if (filter == null) {
+            throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
+        }
+        this.filter = filter;
+        return this;
     }
 
     protected FilterAggregationBuilder(

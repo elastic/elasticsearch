@@ -129,6 +129,7 @@ import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.ConcurrentSearchTestPlugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -1064,17 +1065,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    var resp = prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery()).get();
-                    try {
-                        long count = resp.getHits().getTotalHits().value;
-                        if (count == lastKnownCount) {
-                            // no progress - try to refresh for the next time
-                            indicesAdmin().prepareRefresh().get();
-                        }
-                        lastKnownCount = count;
-                    } finally {
-                        resp.decRef();
+                    long count = SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch().setTrackTotalHits(true).setSize(0).setQuery(matchAllQuery())
+                    );
+                    if (count == lastKnownCount) {
+                        // no progress - try to refresh for the next time
+                        indicesAdmin().prepareRefresh().get();
                     }
+                    lastKnownCount = count;
                 } catch (Exception e) { // count now acts like search and barfs if all shards failed...
                     logger.debug("failed to executed count", e);
                     throw e;
@@ -1882,7 +1880,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Clears the given scroll Ids
      */
-    public void clearScroll(String... scrollIds) {
+    public static void clearScroll(String... scrollIds) {
         ClearScrollResponse clearResponse = client().prepareClearScroll().setScrollIds(Arrays.asList(scrollIds)).get();
         assertThat(clearResponse.isSucceeded(), equalTo(true));
     }

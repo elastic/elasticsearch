@@ -28,8 +28,8 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
         SnapshotDeletionsInProgress sdip = SnapshotDeletionsInProgress.of(
             List.of(
                 new SnapshotDeletionsInProgress.Entry(
-                    Collections.emptyList(),
                     "repo",
+                    Collections.emptyList(),
                     736694267638L,
                     0,
                     SnapshotDeletionsInProgress.State.STARTED
@@ -65,8 +65,8 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
                 randomList(
                     10,
                     () -> new SnapshotDeletionsInProgress.Entry(
-                        Collections.emptyList(),
                         randomAlphaOfLength(10),
+                        Collections.emptyList(),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
                         randomFrom(SnapshotDeletionsInProgress.State.values())

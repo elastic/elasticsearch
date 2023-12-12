@@ -1,0 +1,37 @@
+[[connector-apis]]
+== Connector APIs
+
+preview::[]
+
+++++
+<titleabbrev>Connector APIs</titleabbrev>
+++++
+
+---
+
+The connector and sync jobs API provides a convenient way to create and manage Elastic connectors and sync jobs in an internal index.
+
+This API provides an alternative to relying solely on {kib} UI for connector and sync job management. The API comes with a set of
+validations and assertions to ensure that the state representation in the internal index remains valid.
+
+[discrete]
+[[elastic-connector-apis]]
+=== Connector APIs
+
+You can use these APIs to create, get, delete and update connectors.
+
+Use the following APIs to manage connectors:
+
+* <<create-connector-api>>
+
+
+[discrete]
+[[sync-job-apis]]
+=== Sync Job APIs
+
+You can use these APIs to create, cancel, delete and update sync jobs.
+
+Use the following APIs to manage sync jobs:
+
+
+include::create-connector-api.asciidoc[]

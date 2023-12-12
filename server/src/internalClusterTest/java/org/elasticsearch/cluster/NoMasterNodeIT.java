@@ -9,8 +9,8 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
@@ -326,7 +326,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             .toList();
 
         client().execute(
-            AddVotingConfigExclusionsAction.INSTANCE,
+            TransportAddVotingConfigExclusionsAction.TYPE,
             new AddVotingConfigExclusionsRequest(nodesWithShards.toArray(new String[0]))
         ).get();
         ensureGreen("test1");

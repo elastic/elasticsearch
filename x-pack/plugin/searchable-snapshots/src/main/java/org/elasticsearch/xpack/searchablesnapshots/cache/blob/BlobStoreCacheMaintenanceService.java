@@ -417,7 +417,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         private volatile Map<String, Set<String>> existingSnapshots;
         private volatile Set<String> existingRepositories;
-        private volatile SearchResponse searchResponse;
+        private final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
         private volatile Instant expirationTime;
         private volatile String pointIntTimeId;
         private volatile Object[] searchAfter;
@@ -458,153 +458,167 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final String pitId = pointIntTimeId;
                 assert Strings.hasLength(pitId);
 
-                if (searchResponse == null) {
-                    final SearchSourceBuilder searchSource = new SearchSourceBuilder();
-                    searchSource.fetchField(new FieldAndFormat(CachedBlob.CREATION_TIME_FIELD, "epoch_millis"));
-                    searchSource.fetchSource(false);
-                    searchSource.trackScores(false);
-                    searchSource.sort(ShardDocSortField.NAME);
-                    searchSource.size(batchSize);
-                    if (searchAfter != null) {
-                        searchSource.searchAfter(searchAfter);
-                        searchSource.trackTotalHits(false);
-                    } else {
-                        searchSource.trackTotalHits(true);
+                SearchResponse searchResponseRef;
+                do {
+                    searchResponseRef = searchResponse.get();
+                    if (searchResponseRef == null) {
+                        handleMissingSearchResponse(pitId);
+                        return;
                     }
-                    final PointInTimeBuilder pointInTime = new PointInTimeBuilder(pitId);
-                    pointInTime.setKeepAlive(keepAlive);
-                    searchSource.pointInTimeBuilder(pointInTime);
-                    final SearchRequest searchRequest = new SearchRequest();
-                    searchRequest.source(searchSource);
-                    clientWithOrigin.execute(TransportSearchAction.TYPE, searchRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(SearchResponse response) {
-                            if (searchAfter == null) {
-                                assert PeriodicMaintenanceTask.this.total.get() == 0L;
-                                PeriodicMaintenanceTask.this.total.set(response.getHits().getTotalHits().value);
-                            }
-                            PeriodicMaintenanceTask.this.searchResponse = response;
-                            PeriodicMaintenanceTask.this.searchAfter = null;
-                            executeNext(PeriodicMaintenanceTask.this);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            complete(e);
-                        }
-                    });
-                    return;
-                }
-
-                final SearchHit[] searchHits = searchResponse.getHits().getHits();
-                if (searchHits != null && searchHits.length > 0) {
-                    if (expirationTime == null) {
-                        final TimeValue retention = periodicTaskRetention;
-                        expirationTime = Instant.ofEpochMilli(threadPool.absoluteTimeInMillis())
-                            .minus(retention.duration(), retention.timeUnit().toChronoUnit());
-
-                        final ClusterState state = clusterService.state();
-                        // compute the list of existing searchable snapshots and repositories once
-                        existingSnapshots = listSearchableSnapshots(state);
-                        existingRepositories = RepositoriesMetadata.get(state)
-                            .repositories()
-                            .stream()
-                            .map(RepositoryMetadata::name)
-                            .collect(Collectors.toSet());
+                } while (searchResponseRef.tryIncRef() == false);
+                try {
+                    var searchHits = searchResponseRef.getHits().getHits();
+                    if (searchHits != null && searchHits.length > 0) {
+                        updateWithSearchHits(searchHits);
+                        return;
                     }
-
-                    Object[] lastSortValues = null;
-                    final BulkRequest bulkRequest = new BulkRequest();
-                    try {
-                        final Map<String, Set<String>> knownSnapshots = existingSnapshots;
-                        assert knownSnapshots != null;
-                        final Set<String> knownRepositories = existingRepositories;
-                        assert knownRepositories != null;
-                        final Instant expirationTimeCopy = this.expirationTime;
-                        assert expirationTimeCopy != null;
-                        for (SearchHit searchHit : searchHits) {
-                            lastSortValues = searchHit.getSortValues();
-                            assert searchHit.getId() != null;
-                            try {
-                                boolean delete = false;
-
-                                // See {@link BlobStoreCacheService#generateId}
-                                // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
-                                final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
-                                assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
-
-                                final String repositoryName = parts[0];
-                                if (knownRepositories.contains(repositoryName) == false) {
-                                    logger.trace(
-                                        "deleting blob store cache entry with id [{}]: repository does not exist",
-                                        searchHit.getId()
-                                    );
-                                    delete = true;
-                                } else {
-                                    final Set<String> knownIndexIds = knownSnapshots.get(parts[1]);
-                                    if (knownIndexIds == null || knownIndexIds.contains(parts[2]) == false) {
-                                        logger.trace("deleting blob store cache entry with id [{}]: not used", searchHit.getId());
-                                        delete = true;
-                                    }
-                                }
-                                if (delete) {
-                                    final Instant creationTime = getCreationTime(searchHit);
-                                    if (creationTime.isAfter(expirationTimeCopy)) {
-                                        logger.trace(
-                                            "blob store cache entry with id [{}] was created recently, skipping deletion",
-                                            searchHit.getId()
-                                        );
-                                        continue;
-                                    }
-                                    bulkRequest.add(new DeleteRequest().index(searchHit.getIndex()).id(searchHit.getId()));
-                                }
-                            } catch (Exception e) {
-                                logger.warn(
-                                    () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
-                                    e
-                                );
-                            }
-                        }
-                        assert lastSortValues != null;
-                        if (bulkRequest.numberOfActions() == 0) {
-                            this.searchResponse = null;
-                            this.searchAfter = lastSortValues;
-                            bulkRequest.close();
-                            executeNext(this);
-                            return;
-                        }
-                    } catch (Exception e) {
-                        bulkRequest.close();
-                        throw e;
-                    }
-
-                    final Object[] finalSearchAfter = lastSortValues;
-                    clientWithOrigin.execute(BulkAction.INSTANCE, bulkRequest, ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(BulkResponse response) {
-                            for (BulkItemResponse itemResponse : response.getItems()) {
-                                if (itemResponse.isFailed() == false) {
-                                    assert itemResponse.getResponse() instanceof DeleteResponse;
-                                    PeriodicMaintenanceTask.this.deletes.incrementAndGet();
-                                }
-                            }
-                            PeriodicMaintenanceTask.this.searchResponse = null;
-                            PeriodicMaintenanceTask.this.searchAfter = finalSearchAfter;
-                            executeNext(PeriodicMaintenanceTask.this);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            complete(e);
-                        }
-                    }, bulkRequest));
-                    return;
+                } finally {
+                    searchResponseRef.decRef();
                 }
                 // we're done, complete the task
                 complete(null);
             } catch (Exception e) {
                 complete(e);
             }
+        }
+
+        private void handleMissingSearchResponse(String pitId) {
+            final SearchSourceBuilder searchSource = new SearchSourceBuilder();
+            searchSource.fetchField(new FieldAndFormat(CachedBlob.CREATION_TIME_FIELD, "epoch_millis"));
+            searchSource.fetchSource(false);
+            searchSource.trackScores(false);
+            searchSource.sort(ShardDocSortField.NAME);
+            searchSource.size(batchSize);
+            if (searchAfter != null) {
+                searchSource.searchAfter(searchAfter);
+                searchSource.trackTotalHits(false);
+            } else {
+                searchSource.trackTotalHits(true);
+            }
+            final PointInTimeBuilder pointInTime = new PointInTimeBuilder(pitId);
+            pointInTime.setKeepAlive(keepAlive);
+            searchSource.pointInTimeBuilder(pointInTime);
+            final SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(searchSource);
+            clientWithOrigin.execute(TransportSearchAction.TYPE, searchRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse response) {
+                    if (searchAfter == null) {
+                        assert PeriodicMaintenanceTask.this.total.get() == 0L;
+                        PeriodicMaintenanceTask.this.total.set(response.getHits().getTotalHits().value);
+                    }
+                    PeriodicMaintenanceTask.this.setCurrentResponse(response);
+                    PeriodicMaintenanceTask.this.searchAfter = null;
+                    executeNext(PeriodicMaintenanceTask.this);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    complete(e);
+                }
+            });
+        }
+
+        private void updateWithSearchHits(SearchHit[] searchHits) {
+            if (expirationTime == null) {
+                final TimeValue retention = periodicTaskRetention;
+                expirationTime = Instant.ofEpochMilli(threadPool.absoluteTimeInMillis())
+                    .minus(retention.duration(), retention.timeUnit().toChronoUnit());
+
+                final ClusterState state = clusterService.state();
+                // compute the list of existing searchable snapshots and repositories once
+                existingSnapshots = listSearchableSnapshots(state);
+                existingRepositories = RepositoriesMetadata.get(state)
+                    .repositories()
+                    .stream()
+                    .map(RepositoryMetadata::name)
+                    .collect(Collectors.toSet());
+            }
+
+            Object[] lastSortValues = null;
+            final BulkRequest bulkRequest = new BulkRequest();
+            try {
+                final Map<String, Set<String>> knownSnapshots = existingSnapshots;
+                assert knownSnapshots != null;
+                final Set<String> knownRepositories = existingRepositories;
+                assert knownRepositories != null;
+                final Instant expirationTimeCopy = this.expirationTime;
+                assert expirationTimeCopy != null;
+
+                for (SearchHit searchHit : searchHits) {
+                    lastSortValues = searchHit.getSortValues();
+                    assert searchHit.getId() != null;
+                    try {
+                        boolean delete = false;
+
+                        // See {@link BlobStoreCacheService#generateId}
+                        // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
+                        final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
+                        assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
+
+                        final String repositoryName = parts[0];
+                        if (knownRepositories.contains(repositoryName) == false) {
+                            logger.trace("deleting blob store cache entry with id [{}]: repository does not exist", searchHit.getId());
+                            delete = true;
+                        } else {
+                            final Set<String> knownIndexIds = knownSnapshots.get(parts[1]);
+                            if (knownIndexIds == null || knownIndexIds.contains(parts[2]) == false) {
+                                logger.trace("deleting blob store cache entry with id [{}]: not used", searchHit.getId());
+                                delete = true;
+                            }
+                        }
+                        if (delete) {
+                            final Instant creationTime = getCreationTime(searchHit);
+                            if (creationTime.isAfter(expirationTimeCopy)) {
+                                logger.trace(
+                                    "blob store cache entry with id [{}] was created recently, skipping deletion",
+                                    searchHit.getId()
+                                );
+                                continue;
+                            }
+                            bulkRequest.add(new DeleteRequest().index(searchHit.getIndex()).id(searchHit.getId()));
+                        }
+                    } catch (Exception e) {
+                        logger.warn(
+                            () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
+                            e
+                        );
+                    }
+                }
+
+                assert lastSortValues != null;
+                if (bulkRequest.numberOfActions() == 0) {
+                    setCurrentResponse(null);
+                    this.searchAfter = lastSortValues;
+                    bulkRequest.close();
+                    executeNext(this);
+                    return;
+                }
+            } catch (Exception e) {
+                bulkRequest.close();
+                throw e;
+            }
+
+            final Object[] finalSearchAfter = lastSortValues;
+            clientWithOrigin.execute(BulkAction.INSTANCE, bulkRequest, ActionListener.releaseAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(BulkResponse response) {
+                    for (BulkItemResponse itemResponse : response.getItems()) {
+                        if (itemResponse.isFailed() == false) {
+                            assert itemResponse.getResponse() instanceof DeleteResponse;
+                            deletes.incrementAndGet();
+                        }
+                    }
+                    PeriodicMaintenanceTask.this.setCurrentResponse(null);
+                    PeriodicMaintenanceTask.this.searchAfter = finalSearchAfter;
+                    executeNext(PeriodicMaintenanceTask.this);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    complete(e);
+                }
+            }, bulkRequest));
         }
 
         public boolean isClosed() {
@@ -621,6 +635,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {
+                setCurrentResponse(null);
                 final Exception e = error.get();
                 if (e != null) {
                     logger.warn(
@@ -684,6 +699,16 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 if (waitForRelease == false) {
                     Releasables.close(releasable);
                 }
+            }
+        }
+
+        private void setCurrentResponse(SearchResponse response) {
+            if (response != null) {
+                response.mustIncRef();
+            }
+            var previous = searchResponse.getAndSet(response);
+            if (previous != null) {
+                previous.decRef();
             }
         }
     }

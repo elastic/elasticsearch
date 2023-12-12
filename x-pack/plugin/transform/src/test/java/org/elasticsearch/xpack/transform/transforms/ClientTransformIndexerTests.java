@@ -531,7 +531,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
                 if ((searchRequest.pointInTimeBuilder() != null
                     && searchRequest.pointInTimeBuilder().getEncodedId().equals("the_pit_id_essential-deleted-index"))
-                    || searchRequest.indices()[0].equals("essential-deleted-index")) {
+                    || (searchRequest.indices().length > 0 && searchRequest.indices()[0].equals("essential-deleted-index"))) {
                     listener.onFailure(new IndexNotFoundException("essential-deleted-index"));
                     return;
                 }

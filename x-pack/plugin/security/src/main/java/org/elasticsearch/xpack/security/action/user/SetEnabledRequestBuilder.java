@@ -4,12 +4,13 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.security.action.user;
+package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 
 /**
  * Request builder for setting a user as enabled or disabled
@@ -19,7 +20,7 @@ public class SetEnabledRequestBuilder extends ActionRequestBuilder<SetEnabledReq
         WriteRequestBuilder<SetEnabledRequestBuilder> {
 
     public SetEnabledRequestBuilder(ElasticsearchClient client) {
-        super(client, SetEnabledAction.INSTANCE, new SetEnabledRequest());
+        super(client, TransportSetEnabledAction.TYPE, new SetEnabledRequest());
     }
 
     /**

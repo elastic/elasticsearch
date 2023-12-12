@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
@@ -285,7 +285,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "synthetics-browser.network-*",
                         "synthetics-browser.screenshot-*"
                     )
-                    .privileges(DeleteIndexAction.NAME)
+                    .privileges(TransportDeleteIndexAction.TYPE.name())
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -326,7 +326,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices("logs-ti_*.*-*")
                     .privileges(
                         // Require "delete_index" to perform ILM policy actions
-                        DeleteIndexAction.NAME,
+                        TransportDeleteIndexAction.TYPE.name(),
                         // Require "read" and "view_index_metadata" for transform
                         "read",
                         "view_index_metadata"

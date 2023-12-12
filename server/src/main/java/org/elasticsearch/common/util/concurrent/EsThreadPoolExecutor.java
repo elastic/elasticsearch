@@ -133,7 +133,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
          * ThreadPoolExecutor has some nice information in its toString but we
          * can't get at it easily without just getting the toString.
          */
-        b.append(super.toString()).append(']');
+        b.append(']');
         return b.toString();
     }
 

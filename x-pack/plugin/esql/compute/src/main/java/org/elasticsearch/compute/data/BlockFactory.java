@@ -25,8 +25,8 @@ public class BlockFactory {
     public static final String LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING = "esql.block_factory.local_breaker.max_over_reserved";
     public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(16);
 
-    public static final String MAX_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_primitive_array_size";
-    public static final ByteSizeValue DEFAULT_MAX_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
+    public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
+    public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
 
     private static final BlockFactory NON_BREAKING = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop-esql-breaker"),
@@ -40,7 +40,7 @@ public class BlockFactory {
     private final BlockFactory parent;
 
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        this(breaker, bigArrays, DEFAULT_MAX_PRIMITIVE_ARRAY_SIZE);
+        this(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
     }
 
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
@@ -62,7 +62,7 @@ public class BlockFactory {
     }
 
     public static BlockFactory getInstance(CircuitBreaker breaker, BigArrays bigArrays) {
-        return new BlockFactory(breaker, bigArrays, DEFAULT_MAX_PRIMITIVE_ARRAY_SIZE, null);
+        return new BlockFactory(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, null);
     }
 
     // For testing
@@ -402,7 +402,7 @@ public class BlockFactory {
     }
 
     /**
-     * Retrieves the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
+     * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
      */
     public long maxPrimitiveArrayBytes() {
         return maxPrimitiveArrayBytes;

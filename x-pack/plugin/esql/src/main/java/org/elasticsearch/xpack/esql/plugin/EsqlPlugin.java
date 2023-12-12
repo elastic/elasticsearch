@@ -86,8 +86,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
         Settings settings = services.clusterService().getSettings();
         ByteSizeValue maxPrimitiveArrayBlockSize = settings.getAsBytesSize(
-            BlockFactory.MAX_PRIMITIVE_ARRAY_SIZE_SETTING,
-            BlockFactory.DEFAULT_MAX_PRIMITIVE_ARRAY_SIZE
+            BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
+            BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize, null);

@@ -334,7 +334,7 @@ public class CsvTests extends ESTestCase {
         BlockFactory blockFactory = new BlockFactory(
             bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
             bigArrays,
-            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
+            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
         );
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,

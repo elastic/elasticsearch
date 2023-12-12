@@ -64,7 +64,7 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        this(breaker, bigArrays, BlockFactory.DEFAULT_MAX_PRIMITIVE_ARRAY_SIZE);
+        this(breaker, bigArrays, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
     }
 
     public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {

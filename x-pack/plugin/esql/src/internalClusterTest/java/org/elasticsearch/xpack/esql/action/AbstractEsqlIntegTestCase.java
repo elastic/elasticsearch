@@ -82,8 +82,8 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                     Setting.Property.NodeScope
                 ),
                 Setting.byteSizeSetting(
-                    BlockFactory.MAX_PRIMITIVE_ARRAY_SIZE_SETTING,
-                    ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_PRIMITIVE_ARRAY_SIZE.getBytes())),
+                    BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
+                    ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes())),
                     Setting.Property.NodeScope
                 )
             );

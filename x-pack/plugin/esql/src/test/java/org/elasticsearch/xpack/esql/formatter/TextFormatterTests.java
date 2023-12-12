@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.PointArrayVector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -36,6 +38,7 @@ public class TextFormatterTests extends ESTestCase {
         new ColumnInfo("baz", "keyword"),
         new ColumnInfo("date", "date"),
         new ColumnInfo("location", "geo_point"),
+        new ColumnInfo("location2", "cartesian_point"),
         new ColumnInfo("null_field2", "keyword")
     );
     EsqlQueryResponse esqlResponse = new EsqlQueryResponse(
@@ -58,6 +61,7 @@ public class TextFormatterTests extends ESTestCase {
                     2
                 ).asBlock(),
                 new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
+                new PointArrayVector(new SpatialPoint[] { new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611) }, 2).asBlock(),
                 Block.constantNullBlock(2)
             )
         ),
@@ -80,22 +84,22 @@ public class TextFormatterTests extends ESTestCase {
         assertThat(result, arrayWithSize(4));
         assertEquals(
             "      foo      |      bar      |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
-                + "          date          |           location           |  null_field2  ",
+                + "          date          |          location          |           location2            |  null_field2  ",
             result[0]
         );
         assertEquals(
             "---------------+---------------+---------------+---------------+---------------------+---------------+"
-                + "------------------------+------------------------------+---------------",
+                + "------------------------+----------------------------+--------------------------------+---------------",
             result[1]
         );
         assertEquals(
             "15charwidedata!|1              |6.888          |null           |12.0                 |rabbit         |"
-                + "1953-09-02T00:00:00.000Z|POINT (12.0000000 56.0000000) |null           ",
+                + "1953-09-02T00:00:00.000Z|POINT (12.000000 56.000000) |POINT (1234.000000 5678.000000) |null           ",
             result[2]
         );
         assertEquals(
             "dog            |2              |123124.888     |null           |9912.0               |goat           |"
-                + "2000-03-15T21:34:37.443Z|POINT (-97.0000000 26.0000000)|null           ",
+                + "2000-03-15T21:34:37.443Z|POINT (-97.000000 26.000000)|POINT (-9753.000000 2611.000000)|null           ",
             result[3]
         );
     }
@@ -122,6 +126,7 @@ public class TextFormatterTests extends ESTestCase {
                         2
                     ).asBlock(),
                     new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
+                    new PointArrayVector(new SpatialPoint[] { new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611) }, 2).asBlock(),
                     Block.constantNullBlock(2)
                 )
             ),
@@ -134,12 +139,12 @@ public class TextFormatterTests extends ESTestCase {
         assertThat(result, arrayWithSize(2));
         assertEquals(
             "doggie         |4              |1.0            |null           |77.0                 |wombat         |"
-                + "1955-01-21T01:02:03.342Z|POINT (12.0000000 56.0000000) |null           ",
+                + "1955-01-21T01:02:03.342Z|POINT (12.000000 56.000000) |POINT (1234.000000 5678.000000) |null           ",
             result[0]
         );
         assertEquals(
             "dog            |2              |123124.888     |null           |9912.0               |goat           |"
-                + "2231-12-31T23:59:59.999Z|POINT (-97.0000000 26.0000000)|null           ",
+                + "2231-12-31T23:59:59.999Z|POINT (-97.000000 26.000000)|POINT (-9753.000000 2611.000000)|null           ",
             result[1]
         );
     }

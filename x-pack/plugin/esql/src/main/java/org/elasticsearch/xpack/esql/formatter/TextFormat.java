@@ -298,7 +298,8 @@ public enum TextFormat implements MediaType {
     private static String formatEsqlResultObject(Object obj) {
         // TODO: It would be nicer to override GeoPoint.toString() but that has consequences
         if (obj instanceof SpatialPoint point) {
-            return String.format(Locale.ROOT, "POINT (%.7f %.7f)", point.getX(), point.getY());
+            // TODO: For doc-values, it is better to display as (%.7f %.7f), so see if we can know if this comes from doc-values
+            return String.format(Locale.ROOT, "POINT (%f %f)", point.getX(), point.getY());
         }
         return Objects.toString(obj, StringUtils.EMPTY);
     }

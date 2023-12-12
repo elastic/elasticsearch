@@ -368,7 +368,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
     ) {
         queryIndex = searchSourceBuilders.size();
         SearchSourceBuilder copy = original.shallowCopy();
-        copy.query(queryBuilder);
+        copy.query(buildCompoundQuery(shardIndex, dfsKnnResults));
         searchSourceBuilders.add(copy);
     }
 }

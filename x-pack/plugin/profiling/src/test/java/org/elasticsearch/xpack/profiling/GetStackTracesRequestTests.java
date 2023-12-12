@@ -170,6 +170,23 @@ public class GetStackTracesRequestTests extends ESTestCase {
         assertTrue(validationErrors.get(0).contains("[sample_size] must be greater than 0,"));
     }
 
+    public void testValidateSampleSizeIsValidWithCustomIndices() {
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            10,
+            1.0d,
+            1.0d,
+            null,
+            randomAlphaOfLength(7),
+            randomAlphaOfLength(3),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        assertNull("Expecting no validation errors", request.validate());
+    }
+
     public void testValidateStacktraceWithoutIndices() {
         GetStackTracesRequest request = new GetStackTracesRequest(
             1,

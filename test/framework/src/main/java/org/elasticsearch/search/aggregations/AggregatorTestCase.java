@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedDocValues;
@@ -493,6 +494,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
+     * Create a RandomIndexWriter that uses the LogDocMergePolicy.
+     *
+     * The latest lucene upgrade adds a new merge policy that reverses the order of the documents and it is not compatible with some
+     * aggregation types. This writer avoids randomization by hardcoding the merge policy to LogDocMergePolicy.
+     */
+    protected static RandomIndexWriter newRandomIndexWriterWithLogDocMergePolicy(Directory directory) throws IOException {
+        final IndexWriterConfig conf = newIndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(new LogDocMergePolicy());
+        return new RandomIndexWriter(random(), directory, conf);
+    }
+
+    /**
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
      * <p>
@@ -718,6 +730,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean timeSeries = aggTestConfig.builder().isInSortOrderExecutionRequired();
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            if (aggTestConfig.useLogDocMergePolicy()) {
+                // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order for nested aggs.
+                config.setMergePolicy(new LogDocMergePolicy());
+            }
             if (timeSeries) {
                 Sort sort = new Sort(
                     new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
@@ -1529,11 +1545,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean splitLeavesIntoSeparateAggregators,
         boolean shouldBeCached,
         boolean incrementalReduce,
+
+        boolean useLogDocMergePolicy,
         MappedFieldType... fieldTypes
     ) {
 
         public AggTestConfig(AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, randomBoolean(), fieldTypes);
+            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, randomBoolean(), false, fieldTypes);
         }
 
         public AggTestConfig withQuery(Query query) {
@@ -1544,6 +1562,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
                 fieldTypes
             );
         }
@@ -1556,6 +1575,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
                 fieldTypes
             );
         }
@@ -1568,6 +1588,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
                 fieldTypes
             );
         }
@@ -1580,6 +1601,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
                 fieldTypes
             );
         }
@@ -1592,6 +1614,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
                 incrementalReduce,
+                useLogDocMergePolicy,
+                fieldTypes
+            );
+        }
+
+        public AggTestConfig withLogDocMergePolicy() {
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                true,
                 fieldTypes
             );
         }

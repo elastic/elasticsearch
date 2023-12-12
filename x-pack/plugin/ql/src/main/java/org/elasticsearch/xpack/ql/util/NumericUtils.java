@@ -132,4 +132,17 @@ public abstract class NumericUtils {
     private static long twosComplement(long l) {
         return l ^ TWOS_COMPLEMENT_BITMASK;
     }
+
+    /**
+     * Check if the provided double is both finite and a number (i.e. not Double.NaN).
+     * @param dbl The double to verify.
+     * @return The input value.
+     * @throws ArithmeticException if the provided double is either infinite or not a number.
+     */
+    public static double asFiniteNumber(double dbl) {
+        if (Double.isNaN(dbl) || Double.isInfinite(dbl)) {
+            throw new ArithmeticException("not a finite double number: " + dbl);
+        }
+        return dbl;
+    }
 }

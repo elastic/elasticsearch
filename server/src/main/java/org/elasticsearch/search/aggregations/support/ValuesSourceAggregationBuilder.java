@@ -192,7 +192,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
-    protected ValuesSourceConfig config;
 
     protected ValuesSourceAggregationBuilder(String name) {
         super(name);
@@ -209,7 +208,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         this.format = clone.format;
         this.missing = clone.missing;
         this.timeZone = clone.timeZone;
-        this.config = clone.config;
         this.script = clone.script;
     }
 

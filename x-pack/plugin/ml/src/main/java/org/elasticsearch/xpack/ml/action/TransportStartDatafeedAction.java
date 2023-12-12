@@ -269,28 +269,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         };
 
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
-            try {
-                Job job = jobBuilder.build();
-                validate(job, datafeedConfigHolder.get(), tasks, xContentRegistry);
-                auditDeprecations(datafeedConfigHolder.get(), job, auditor, xContentRegistry);
-                createDataExtractor.accept(job);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            Job job = jobBuilder.build();
+            validate(job, datafeedConfigHolder.get(), tasks, xContentRegistry);
+            auditDeprecations(datafeedConfigHolder.get(), job, auditor, xContentRegistry);
+            createDataExtractor.accept(job);
         }, listener::onFailure);
 
         ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(datafeedBuilder -> {
-            try {
-                DatafeedConfig datafeedConfig = datafeedBuilder.build();
-                params.setDatafeedIndices(datafeedConfig.getIndices());
-                params.setJobId(datafeedConfig.getJobId());
-                params.setIndicesOptions(datafeedConfig.getIndicesOptions());
-                datafeedConfigHolder.set(datafeedConfig);
+            DatafeedConfig datafeedConfig = datafeedBuilder.build();
+            params.setDatafeedIndices(datafeedConfig.getIndices());
+            params.setJobId(datafeedConfig.getJobId());
+            params.setIndicesOptions(datafeedConfig.getIndicesOptions());
+            datafeedConfigHolder.set(datafeedConfig);
 
-                jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
         }, listener::onFailure);
 
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);

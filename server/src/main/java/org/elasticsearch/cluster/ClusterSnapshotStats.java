@@ -106,9 +106,9 @@ public record ClusterSnapshotStats(
 
             for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
                 if (entry.repository().equals(repositoryName)) {
-                    firstStartTimeMillis = Math.min(firstStartTimeMillis, entry.getStartTime());
+                    firstStartTimeMillis = Math.min(firstStartTimeMillis, entry.startTime());
                     deletionsCount += 1;
-                    snapshotDeletionsCount += entry.getSnapshots().size();
+                    snapshotDeletionsCount += entry.snapshots().size();
                     if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
                         activeDeletionsCount += 1;
                     }

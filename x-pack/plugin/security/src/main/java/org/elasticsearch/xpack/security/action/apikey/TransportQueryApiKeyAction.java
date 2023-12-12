@@ -29,10 +29,17 @@ import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
 import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public final class TransportQueryApiKeyAction extends HandledTransportAction<QueryApiKeyRequest, QueryApiKeyResponse> {
+
+    public static final String API_KEY_TYPE_RUNTIME_MAPPING_FIELD = "runtime_key_type";
+    private static final Map<String, Object> API_KEY_TYPE_RUNTIME_MAPPING = Map.of(
+        API_KEY_TYPE_RUNTIME_MAPPING_FIELD,
+        Map.of("type", "keyword", "script", Map.of("source", "emit(doc['type'].value ?: \"rest\");"))
+    );
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
@@ -81,6 +88,8 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
         // this modifies the aggsBuilder in-place
         ApiKeyAggregationsBuilder.verifyRequested(aggsBuilder, filteringAuthentication);
         searchSourceBuilder.aggregationsBuilder(aggsBuilder);
+
+        searchSourceBuilder.runtimeMappings(API_KEY_TYPE_RUNTIME_MAPPING);
 
         if (request.getFieldSortBuilders() != null) {
             translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);

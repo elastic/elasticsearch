@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction;
+
 import java.util.List;
 import java.util.function.Function;
 
@@ -21,7 +23,7 @@ public class ApiKeyFieldNameTranslators {
             new ExactFieldNameTranslator(s -> "creator.principal", "username"),
             new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
             new ExactFieldNameTranslator(Function.identity(), "name"),
-            new ExactFieldNameTranslator(Function.identity(), "type"),
+            new ExactFieldNameTranslator(s -> TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD, "type"),
             new ExactFieldNameTranslator(s -> "creation_time", "creation"),
             new ExactFieldNameTranslator(s -> "expiration_time", "expiration"),
             new ExactFieldNameTranslator(s -> "api_key_invalidated", "invalidated"),

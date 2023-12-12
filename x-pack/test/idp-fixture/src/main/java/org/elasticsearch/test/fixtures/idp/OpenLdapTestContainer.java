@@ -14,14 +14,10 @@ import org.junit.rules.TestRule;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Objects;
+
+import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
 public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule, CacheableTestFixture {
 
@@ -94,50 +90,22 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
         try {
             temporaryFolder.create();
             certsPath = temporaryFolder.newFolder("certs").toPath();
-            copyResource(certsPath, "openldap/certs/ca.jks");
-            copyResource(certsPath, "openldap/certs/ca_server.key");
-            copyResource(certsPath, "openldap/certs/ca_server.pem");
-            copyResource(certsPath, "openldap/certs/dhparam.pem");
-            copyResource(certsPath, "openldap/certs/ldap_server.key");
-            copyResource(certsPath, "openldap/certs/ldap_server.pem");
+            copyResourceToFile(getClass(), certsPath, "openldap/certs/ca.jks");
+            copyResourceToFile(getClass(), certsPath, "openldap/certs/ca_server.key");
+            copyResourceToFile(getClass(), certsPath, "openldap/certs/ca_server.pem");
+            copyResourceToFile(getClass(), certsPath, "openldap/certs/dhparam.pem");
+            copyResourceToFile(getClass(), certsPath, "openldap/certs/ldap_server.key");
+            copyResourceToFile(getClass(), certsPath, "openldap/certs/ldap_server.pem");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public Path copyResource(Path targetFolder, String resourcePath) {
-        try {
-            ClassLoader classLoader = getClass().getClassLoader();
-            URL resourceUrl = classLoader.getResource(resourcePath);
-            if (resourceUrl == null) {
-                throw new RuntimeException("Failed to load " + resourcePath + " from classpath");
-            }
-            InputStream inputStream = resourceUrl.openStream();
-            File outputFile = new File(targetFolder.toFile(), resourcePath.substring(resourcePath.lastIndexOf("/")));
-            Files.copy(inputStream, outputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            return outputFile.toPath();
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to load ca.jks from classpath", e);
-        }
-    }
-
     public Path getJavaKeyStorePath() {
-        System.out.println("OpenLdapTestContainer.getJavaKeyStorePath");
-        System.out.println("certsPath = " + certsPath);
-        for (File f : Objects.requireNonNull(certsPath.toFile().listFiles())) {
-            System.out.println("f = " + f + " --- " + f.exists());
-        }
-        certsPath.toFile().listFiles();
-
         return certsPath.resolve("ca.jks");
     }
 
     public Path getCaCertPath() {
-        System.out.println("OpenLdapTestContainer.getCaCertPath");
-        System.out.println("certsPath = " + certsPath);
-        for (File f : Objects.requireNonNull(certsPath.toFile().listFiles())) {
-            System.out.println("f = " + f + " --- " + f.exists());
-        }
         return certsPath.resolve("ca_server.pem");
     }
 }

@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
-import org.junit.Rule;
 
 import java.util.List;
 import java.util.Map;
@@ -100,7 +99,6 @@ public class OpenLdapTests extends ESTestCase {
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
-        System.out.println("OpenLdapTests.initializeSslSocketFactory");
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
@@ -167,7 +165,6 @@ public class OpenLdapTests extends ESTestCase {
             }
         }
     }
-
 
     public void testCustomFilter() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";

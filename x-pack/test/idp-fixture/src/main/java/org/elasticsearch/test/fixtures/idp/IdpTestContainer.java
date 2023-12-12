@@ -9,15 +9,22 @@ package org.elasticsearch.test.fixtures.idp;
 
 import org.elasticsearch.test.fixtures.CacheableTestFixture;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 import org.testcontainers.containers.Network;
-import org.testcontainers.containers.output.Slf4jLogConsumer;
-import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+
+import java.io.IOException;
+import java.nio.file.Path;
+
+import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
 public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule, CacheableTestFixture {
 
     public static final String DOCKER_BASE_IMAGE = "openjdk:11.0.16-jre";
+
+    private final TemporaryFolder temporaryFolder = new TemporaryFolder();
+    private Path certsPath;
 
     public IdpTestContainer(Network network) {
         super(
@@ -113,9 +120,8 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
                     .run("chmod +x /opt/jetty-home/bin/jetty.sh")
                     // Opening 4443 (browser TLS), 8443 (mutual auth TLS)
                     .cmd("run-jetty.sh")
-//                    .expose(4443)
+                    // .expose(4443)
                     .build()
-
 
             )
                 .withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
@@ -124,14 +130,10 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
                 .withFileFromClasspath("idp/shibboleth-idp/", "/idp/shibboleth-idp/")
                 .withFileFromClasspath("idp/bin/", "/idp/bin/")
 
-
         );
-        //withLogConsumer(new Slf4jLogConsumer(logger()));
         withNetworkAliases("idp");
         withNetwork(network);
-        addExposedPorts(4443,8443);
-        //waitingFor(Wait.forHealthcheck());
-//        withWaitStrategy(Wait.forHealthCheck());
+        addExposedPorts(4443, 8443);
     }
 
     @Override
@@ -141,6 +143,16 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
             stop();
         } catch (RuntimeException e) {
             logger().warn("Error while caching container images.", e);
+        }
+    }
+
+    public Path getBrowserPem() {
+        try {
+            temporaryFolder.create();
+            certsPath = temporaryFolder.newFolder("certs").toPath();
+            return copyResourceToFile(getClass(), certsPath, "idp/shibboleth-idp/credentials/idp-browser.pem");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

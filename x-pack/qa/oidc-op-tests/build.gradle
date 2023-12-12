@@ -6,7 +6,6 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation project(":x-pack:test:idp-fixture")
-  javaRestTestImplementation project(":x-pack:test:idp-fixture")
 }
 
 tasks.named('javaRestTest') {

@@ -65,19 +65,15 @@ import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystemNotFoundException;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinTask;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -166,6 +162,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             throw new RuntimeException(e);
         }
     }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -554,23 +551,8 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         return HttpClients.custom().setSSLContext(getClientSslContext()).build();
     }
 
-    private FileSystem initFileSystem(URI uri) throws IOException {
-        try {
-            return FileSystems.getFileSystem(uri);
-        } catch (FileSystemNotFoundException e) {
-            return FileSystems.newFileSystem(uri, Collections.emptyMap());
-        } catch (IllegalArgumentException e) {
-            return FileSystems.getDefault();
-        }
-    }
-
     private SSLContext getClientSslContext() throws Exception {
-
-        URI uri = getClass().getResource("/idp/shibboleth-idp/credentials/idp-browser.pem").toURI();
-        initFileSystem(uri);
-        // final Path pem = Paths.get(uri);
-
-        final Path pem = getDataPath("/idp/shibboleth-idp/credentials/idp-browser.pem");
+        final Path pem = idpFixture.getBrowserPem();
         final X509ExtendedTrustManager trustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(pem));
         SSLContext context = SSLContext.getInstance("TLS");
         context.init(new KeyManager[0], new TrustManager[] { trustManager }, new SecureRandom());

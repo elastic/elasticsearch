@@ -23,11 +23,8 @@ public final class HttpProxyTestContainer extends DockerEnvironmentAwareTestCont
     public HttpProxyTestContainer(Network network) {
         super(
             new ImageFromDockerfile("es-http-proxy-fixture", false).withDockerfileFromBuilder(
-                    builder -> builder.from(DOCKER_BASE_IMAGE)
-                        .copy("oidc/nginx.conf", "/etc/nginx/nginx.conf")
-                        .build()
-                )
-                .withFileFromClasspath("oidc/nginx.conf", "/oidc/nginx.conf")
+                builder -> builder.from(DOCKER_BASE_IMAGE).copy("oidc/nginx.conf", "/etc/nginx/nginx.conf").build()
+            ).withFileFromClasspath("oidc/nginx.conf", "/oidc/nginx.conf")
         );
         waitingFor(Wait.forHttp("/"));
         withLogConsumer(new Slf4jLogConsumer(logger()));

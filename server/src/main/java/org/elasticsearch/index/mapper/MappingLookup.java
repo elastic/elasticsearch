@@ -140,7 +140,7 @@ public final class MappingLookup {
                 nestedMappers.add((NestedObjectMapper) mapper);
             }
         }
-        this.nestedLookup = NestedLookup.build(nestedMappers);
+        this.nestedLookup = NestedLookup.build(nestedMappers);  // TODO: Update to handle models in nested mappings
 
         final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
         final Set<String> completionFields = new HashSet<>();
@@ -497,5 +497,9 @@ public final class MappingLookup {
         if (shadowed.getMetricType() != null) {
             throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
         }
+    }
+
+    public Map<String, Set<String>> getFieldsForModels() {
+        return fieldTypeLookup.getFieldsForModels();
     }
 }

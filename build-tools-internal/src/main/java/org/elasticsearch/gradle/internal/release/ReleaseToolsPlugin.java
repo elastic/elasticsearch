@@ -47,6 +47,9 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         final Version version = VersionProperties.getElasticsearchVersion();
 
+        project.getTasks().register("addVersion", AddVersionTask.class);
+        project.getTasks().register("removeVersion", RemoveVersionTask.class);
+
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()
             .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));

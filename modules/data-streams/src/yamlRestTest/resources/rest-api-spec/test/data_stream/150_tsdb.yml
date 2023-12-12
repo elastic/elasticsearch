@@ -244,6 +244,24 @@ dynamic dimensions:
 
   - match: { hits.total.value: 4 }
 
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - length: { aggregations.tsids.buckets: 2 }
+  - match: { aggregations.tsids.buckets.0.key.dim: A }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+  - match: { aggregations.tsids.buckets.1.key.dim: B }
+  - match: { aggregations.tsids.buckets.1.doc_count: 2 }
+
 ---
 dynamic dimensions with routing path:
   - skip:
@@ -276,6 +294,8 @@ dynamic dimensions with routing path:
                 static_dim:
                   type: keyword
                   time_series_dimension: true
+                some_label:
+                  type: keyword
 
               dynamic_templates:
                 - keyword_dimension:
@@ -289,13 +309,13 @@ dynamic dimensions with routing path:
         refresh: true
         body:
           - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "dim": "A", "static_dim": "sA" }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "dim": "A", "static_dim": "sA", "some_label": "lA" }'
           - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "dim": "A", "static_dim": "sA" }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "dim": "A", "static_dim": "sA", "some_label": "lA" }'
           - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "dim": "B", "static_dim": "sB" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "dim": "B", "static_dim": "sB", "some_label": "lB" }'
           - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "dim": "B", "static_dim": "sB" }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "dim": "B", "static_dim": "sB", "some_label": "lB" }'
 
   - do:
       search:
@@ -305,13 +325,32 @@ dynamic dimensions with routing path:
 
   - match: { hits.total.value: 4 }
 
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - length: { aggregations.tsids.buckets: 2 }
+  - match: { aggregations.tsids.buckets.0.key.dim: A }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+  - match: { aggregations.tsids.buckets.1.key.dim: B }
+  - match: { aggregations.tsids.buckets.1.doc_count: 2 }
+
 ---
-dynamic dimensions with routing path matching:
+dynamic dimensions with dynamic template path_match:
   - skip:
       version: " - 8.12.99"
       features: "default_shards"
       reason: "Support for dynamic dimensions was added in 8.13"
   - do:
+      catch: /time-series indexes with \[time_series_dynamic_templates=true\] are only compatible with dynamic templates containing fields with no 'match' or 'path_match' or 'match_mapping_type' spec/
       indices.put_index_template:
         name: my-dynamic-template
         body:
@@ -341,30 +380,8 @@ dynamic dimensions with routing path matching:
                       type: keyword
                       time_series_dimension: true
 
-  - do:
-      bulk:
-        index: k9s
-        refresh: true
-        body:
-          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "dim": "A", "static_dim": "sA" }'
-          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "dim": "A", "static_dim": "sA" }'
-          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "dim": "B", "static_dim": "sB" }'
-          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "dim": "B", "static_dim": "sB" }'
-
-  - do:
-      search:
-        index: k9s
-        body:
-          size: 0
-
-  - match: { hits.total.value: 4 }
-
 ---
-dynamic dimensions with conflicting routing path matching:
+dynamic routing path with dynamic template path_match:
   - skip:
       version: " - 8.12.99"
       features: "default_shards"
@@ -380,7 +397,6 @@ dynamic dimensions with conflicting routing path matching:
               index:
                 number_of_shards: 1
                 mode: time_series
-                time_series_dynamic_templates: true
                 time_series:
                   start_time: 2023-08-31T13:03:08.138Z
 
@@ -388,30 +404,32 @@ dynamic dimensions with conflicting routing path matching:
               properties:
                 "@timestamp":
                   type: date
-                data:
-                  type: integer
-                  time_series_metric: counter
 
               dynamic_templates:
                 - keyword_dimension:
-                    match: dim
+                    path_match: labels.*
                     mapping:
                       type: keyword
                       time_series_dimension: true
+                - counter_metric:
+                    path_match: metrics.counters.*
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
 
   - do:
       bulk:
         index: k9s
         refresh: true
         body:
-          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "dim": "A", "static_dim": "sA" }'
-          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "dim": "A", "static_dim": "sA" }'
-          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "dim": "B", "static_dim": "sB" }'
-          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
-          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "dim": "B", "static_dim": "sB" }'
+          - '{ "create": {} }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","metrics.counters.data": "10", "labels.dim": "A" }'
+          - '{ "create": {} }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","metrics.counters.data": "20", "labels.dim": "A" }'
+          - '{ "create": {} }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","metrics.counters.data": "30", "labels.dim": "B" }'
+          - '{ "create": {} }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","metrics.counters.data": "40", "labels.dim": "B" }'
 
   - do:
       search:
@@ -420,3 +438,21 @@ dynamic dimensions with conflicting routing path matching:
           size: 0
 
   - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - length: { aggregations.tsids.buckets: 2 }
+  - match: { aggregations.tsids.buckets.0.key: { labels.dim: A } }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+  - match: { aggregations.tsids.buckets.1.key: { labels.dim: B } }
+  - match: { aggregations.tsids.buckets.1.doc_count: 2 }

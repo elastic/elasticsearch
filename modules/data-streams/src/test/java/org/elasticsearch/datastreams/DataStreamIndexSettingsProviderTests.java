@@ -745,7 +745,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("dim"));
     }
 
-    public void testGetDynamicDimensionsWithRoutingPathFromDynamicTemplate() throws Exception {
+    public void testGetDynamicDimensionsThrowsWithRoutingPathFromDynamicTemplate() throws Exception {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
 
@@ -777,20 +777,26 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        Settings result = provider.getAdditionalIndexSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            true,
-            metadata,
-            now,
-            settings,
-            List.of(new CompressedXContent(mapping))
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> provider.getAdditionalIndexSettings(
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                dataStreamName,
+                true,
+                metadata,
+                now,
+                settings,
+                List.of(new CompressedXContent(mapping))
+            )
         );
-        assertThat(result.size(), equalTo(4));
-        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
-        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        assertThat(IndexMetadata.DYNAMIC_DIMENSION_NAMES.get(result), contains("labels"));
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("prometheus.labels.*"));
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "time-series indexes with [time_series_dynamic_templates=true] are only compatible with dynamic templates containing "
+                    + "fields with no 'match' or 'path_match' or 'match_mapping_type' spec"
+            )
+        );
     }
 
     public void testGetDynamicDimensionsNoMatch() throws Exception {

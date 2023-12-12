@@ -231,6 +231,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     private static List<String> findDynamicDimensions(MapperService mapperService) {
         List<String> dynamicDimensions = new ArrayList<>();
         for (var template : mapperService.getAllDynamicTemplates()) {
+            if (template.match().isEmpty() == false
+                || template.pathMatch().isEmpty() == false
+                || template.getXContentFieldTypes().length > 0) {
+                throw new IllegalStateException(
+                    "time-series indexes with [time_series_dynamic_templates=true] are only compatible with"
+                        + " dynamic templates containing fields with no 'match' or 'path_match' or 'match_mapping_type' spec, got: "
+                        + mapperService.documentMapper().mappingSource().toString()
+                );
+            }
             var templateName = "__dynamic__" + template.name();
             var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
             String mappingSnippetType = (String) mappingSnippet.get("type");

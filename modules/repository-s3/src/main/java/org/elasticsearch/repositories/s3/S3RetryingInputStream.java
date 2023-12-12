@@ -238,7 +238,7 @@ class S3RetryingInputStream extends InputStream {
                 attempt - 1,
                 currentStreamProgress,
                 failuresAfterMeaningfulProgress,
-                attempt - 1 - failuresAfterMeaningfulProgress
+                maxRetriesForNoMeaningfulProgress()
             ),
             e
         );
@@ -253,6 +253,10 @@ class S3RetryingInputStream extends InputStream {
         }
         final int maxAttempts = blobStore.getMaxRetries() + 1;
         return attempt < maxAttempts + failuresAfterMeaningfulProgress;
+    }
+
+    private int maxRetriesForNoMeaningfulProgress() {
+        return purpose == OperationPurpose.INDICES ? Integer.MAX_VALUE : (blobStore.getMaxRetries() + 1);
     }
 
     private void maybeDelaySafely() {

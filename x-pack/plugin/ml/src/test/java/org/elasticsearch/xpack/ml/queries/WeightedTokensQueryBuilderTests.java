@@ -13,6 +13,7 @@ import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -183,6 +184,87 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
             }
         }
+    }
+
+    public void testPruningIsAppliedCorrectly() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            List<Document> documents = List.of(
+                createDocument(
+                    List.of("the", "quick", "brown", "fox", "jumped", "over", "lazy", "dog"),
+                    List.of(.2f, 1.8f, 1.75f, 5.9f, 1.6f, 1.4f, .4f, 4.8f)
+                ),
+                createDocument(
+                    List.of("the", "rains", "in", "spain", "fall", "mainly", "on", "plain"),
+                    List.of(.1f, 3.6f, .1f, 4.8f, .6f, .3f, .1f, 2.6f)
+                ),
+                createDocument(
+                    List.of("betty", "bought", "butter", "but", "the", "was", "bitter"),
+                    List.of(6.8f, 1.4f, .5f, 3.2f, .1f, 3.2f, .6f)
+                ),
+                createDocument(List.of("she", "sells", "seashells", "by", "the", "seashore"), List.of(.2f, 1.4f, 5.9f, .1f, .1f, 3.6f))
+            );
+            iw.addDocuments(documents);
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+
+                WeightedTokensQueryBuilder noPruningQuery = new WeightedTokensQueryBuilder(
+                    RANK_FEATURES_FIELD,
+                    List.of(new WeightedToken("the", .1f), new WeightedToken("dog", 2.5f), new WeightedToken("jumped", 4.5f)),
+                    null
+                );
+                Query query = noPruningQuery.doToQuery(context);
+                assertCorrectLuceneQuery("noPruningQuery", query, List.of("the", "dog", "jumped"));
+
+                WeightedTokensQueryBuilder queryThatShouldBePruned = new WeightedTokensQueryBuilder(
+                    RANK_FEATURES_FIELD,
+                    List.of(new WeightedToken("the", .1f), new WeightedToken("dog", 2.5f), new WeightedToken("jumped", 4.5f)),
+                    new TokenPruningConfig(1.5f, 0.5f, false)
+                );
+                query = queryThatShouldBePruned.doToQuery(context);
+                assertCorrectLuceneQuery("queryThatShouldBePruned", query, List.of("dog", "jumped"));
+
+                WeightedTokensQueryBuilder onlyScorePrunedTokensQuery = new WeightedTokensQueryBuilder(
+                    RANK_FEATURES_FIELD,
+                    List.of(new WeightedToken("the", .1f), new WeightedToken("dog", 2.5f), new WeightedToken("jumped", 4.5f)),
+                    new TokenPruningConfig(1.5f, 0.5f, true)
+                );
+                query = onlyScorePrunedTokensQuery.doToQuery(context);
+                assertCorrectLuceneQuery("onlyScorePrunedTokensQuery", query, List.of("the"));
+            }
+        }
+    }
+
+    private void assertCorrectLuceneQuery(String name, Query query, List<String> expectedFeatureFields) {
+        assertTrue(query instanceof BooleanQuery);
+        List<BooleanClause> booleanClauses = ((BooleanQuery) query).clauses();
+        assertEquals(
+            name + " had " + booleanClauses.size() + " clauses, expected " + expectedFeatureFields.size(),
+            expectedFeatureFields.size(),
+            booleanClauses.size()
+        );
+        for (int i = 0; i < booleanClauses.size(); i++) {
+            Query clauseQuery = booleanClauses.get(i).getQuery();
+            assertTrue(name + " query " + query + " expected to be a BoostQuery", clauseQuery instanceof BoostQuery);
+            // FeatureQuery is not visible so we check the String representation
+            assertTrue(name + " query " + query + " expected to be a FeatureQuery", clauseQuery.toString().contains("FeatureQuery"));
+            assertTrue(
+                name + " query " + query + " expected to have field " + expectedFeatureFields.get(i),
+                clauseQuery.toString().contains("feature=" + expectedFeatureFields.get(i))
+            );
+        }
+    }
+
+    private Document createDocument(List<String> tokens, List<Float> weights) {
+        if (tokens.size() != weights.size()) {
+            throw new IllegalArgumentException(
+                "tokens and weights must have the same size. Got " + tokens.size() + " and " + weights.size() + "."
+            );
+        }
+        Document document = new Document();
+        for (int i = 0; i < tokens.size(); i++) {
+            document.add(new FeatureField(RANK_FEATURES_FIELD, tokens.get(i), weights.get(i)));
+        }
+        return document;
     }
 
     /**

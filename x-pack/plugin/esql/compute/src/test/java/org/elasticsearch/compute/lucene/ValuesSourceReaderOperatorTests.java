@@ -78,6 +78,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -111,6 +112,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private Directory directory = newDirectory();
     private IndexReader reader;
+    private static final Map<Integer, String> keyToTags = new HashMap<>();
 
     @After
     public void closeIndex() throws IOException {
@@ -144,12 +146,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        // The test wants more than one segment. We shoot for 10.
-        int commitEvery = Math.max(1, (int) Math.ceil((double) size / 10));
-        return simpleInput(driverContext(), size, commitEvery);
+        return simpleInput(driverContext(), size, commitEvery(size), randomPageSize());
     }
 
-    private SourceOperator simpleInput(DriverContext context, int size, int commitEvery) {
+    private int commitEvery(int numDocs) {
+        return Math.max(1, (int) Math.ceil((double) numDocs / 10));
+    }
+
+    private SourceOperator simpleInput(DriverContext context, int size, int commitEvery, int pageSize) {
         try {
             initIndex(size, commitEvery);
         } catch (IOException e) {
@@ -160,13 +164,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             ctx -> new MatchAllDocsQuery(),
             DataPartitioning.SHARD,
             randomIntBetween(1, 10),
-            size,
+            pageSize,
             LuceneOperator.NO_LIMIT
         );
         return luceneFactory.get(context);
     }
 
     private void initIndex(int size, int commitEvery) throws IOException {
+        keyToTags.clear();
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
@@ -181,9 +186,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 doc.add(new SortedNumericDocValuesField("short", (short) d));
                 doc.add(new SortedNumericDocValuesField("byte", (byte) d));
                 doc.add(new SortedNumericDocValuesField("long", d));
-                doc.add(
-                    new KeywordFieldMapper.KeywordField("kwd", new BytesRef(Integer.toString(d)), KeywordFieldMapper.Defaults.FIELD_TYPE)
-                );
+                String tag = keyToTags.computeIfAbsent(d, k -> "tag-" + randomIntBetween(1, 5));
+                doc.add(new KeywordFieldMapper.KeywordField("kwd", new BytesRef(tag), KeywordFieldMapper.Defaults.FIELD_TYPE));
                 doc.add(new StoredField("stored_kwd", new BytesRef(Integer.toString(d))));
                 doc.add(new StoredField("stored_text", Integer.toString(d)));
                 doc.add(new SortedNumericDocValuesField("bool", d % 2 == 0 ? 1 : 0));
@@ -241,7 +245,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "ValuesSourceReaderOperator[field = long]";
+        return "ValuesSourceReaderOperator[fields = [long]]";
     }
 
     @Override
@@ -293,6 +297,37 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             ),
             Block.MvOrdering.UNORDERED
         );
+    }
+
+    public void testManySingleDocPages() {
+        DriverContext driverContext = driverContext();
+        int numDocs = between(10, 100);
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, between(1, numDocs), 1));
+        Randomness.shuffle(input);
+        List<Operator> operators = new ArrayList<>();
+        Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+        FieldCase testCase = new FieldCase(
+            new KeywordFieldMapper.KeywordFieldType("kwd"),
+            checks::tags,
+            StatusChecks::keywordsFromDocValues
+        );
+        operators.add(
+            new ValuesSourceReaderOperator.Factory(
+                List.of(testCase.info, fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER))),
+                List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+                0
+            ).get(driverContext)
+        );
+        List<Page> results = drive(operators, input.iterator(), driverContext);
+        assertThat(results, hasSize(input.size()));
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(3));
+            IntVector keys = page.<IntBlock>getBlock(2).asVector();
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                int key = keys.getInt(p);
+                testCase.checkResults.check(page.getBlock(1), p, key);
+            }
+        }
     }
 
     public void testEmpty() {
@@ -440,7 +475,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private void testLoadAllStatus(boolean allInOnePage) {
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)));
+        int numDocs = between(100, 5000);
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, commitEvery(numDocs), numDocs));
         assertThat(reader.leaves(), hasSize(10));
         assertThat(input, hasSize(10));
         List<FieldCase> cases = infoAndChecksForEachType(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
@@ -585,7 +621,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("bool"), checks::bools, StatusChecks::boolFromDocValues));
         r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("mv_bool"), checks::mvBools, StatusChecks::mvBoolFromDocValues));
         r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("missing_bool"), checks::constantNulls, StatusChecks::constantNulls));
-        r.add(new FieldCase(new KeywordFieldMapper.KeywordFieldType("kwd"), checks::strings, StatusChecks::keywordsFromDocValues));
+        r.add(new FieldCase(new KeywordFieldMapper.KeywordFieldType("kwd"), checks::tags, StatusChecks::keywordsFromDocValues));
         r.add(
             new FieldCase(
                 new KeywordFieldMapper.KeywordFieldType("mv_kwd"),
@@ -611,7 +647,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 textFieldWithDelegate("text_with_delegate", new KeywordFieldMapper.KeywordFieldType("kwd")),
-                checks::strings,
+                checks::tags,
                 StatusChecks::textWithDelegate
             )
         );
@@ -678,6 +714,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         void strings(Block block, int position, int key) {
             BytesRefVector keywords = ((BytesRefBlock) block).asVector();
             assertThat(keywords.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo(Integer.toString(key)));
+        }
+
+        void tags(Block block, int position, int key) {
+            BytesRefVector keywords = ((BytesRefBlock) block).asVector();
+            assertThat(keywords.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo(keyToTags.get(key)));
         }
 
         void bools(Block block, int position, int key) {
@@ -1285,7 +1326,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private void testSequentialStoredFields(boolean sequential, int docCount) {
         DriverContext driverContext = driverContext();
-        List<Page> source = CannedSourceOperator.collectPages(simpleInput(driverContext, docCount, docCount));
+        List<Page> source = CannedSourceOperator.collectPages(simpleInput(driverContext, docCount, docCount, docCount));
         assertThat(source, hasSize(1)); // We want one page for simpler assertions, and we want them all in one segment
         assertTrue(source.get(0).<DocBlock>getBlock(0).asVector().singleSegmentNonDecreasing());
         Operator op = new ValuesSourceReaderOperator.Factory(
@@ -1312,5 +1353,19 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 .entry("stored_fields[requires_source:false, fields:1, sequential: " + sequential + "]", 1)
         );
         assertDriverContext(driverContext);
+    }
+
+    public void testDescriptionOfMany() {
+        List<FieldCase> cases = infoAndChecksForEachType(randomFrom(Block.MvOrdering.values()));
+
+        ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
+            cases.stream().map(c -> c.info).toList(),
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+            0
+        );
+        assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
+        try (Operator op = factory.get(driverContext())) {
+            assertThat(op.toString(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
+        }
     }
 }

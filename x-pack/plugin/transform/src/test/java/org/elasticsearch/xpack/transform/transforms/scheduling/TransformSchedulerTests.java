@@ -327,7 +327,6 @@ public class TransformSchedulerTests extends ESTestCase {
         transformScheduler.stop();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95445")
     public void testScheduleNowWithSystemClock() throws Exception {
         String transformId = "test-schedule-now-with-system-clock";
         TimeValue frequency = TimeValue.timeValueHours(1);  // Very long pause between checkpoints
@@ -343,7 +342,11 @@ public class TransformSchedulerTests extends ESTestCase {
         Thread.sleep(5 * 1000L);
         transformScheduler.scheduleNow(transformId);
 
-        assertThat(events, hasSize(2));
+        // If we are unlucky, the scheduleNow call will trigger processing **exactly** in this small window of time in which processing is
+        // temporarily disallowed (as two concurrent invocations of the "TransformScheduler.processScheduledTasks" method are not allowed).
+        // Hence, we need to wait for the next processing cycle to happen (it will be TEST_SCHEDULER_FREQUENCY from now).
+        assertBusy(() -> assertThat(events, hasSize(2)), TEST_SCHEDULER_FREQUENCY.seconds() + 1, TimeUnit.SECONDS);
+
         assertThat(events.get(0).transformId(), is(equalTo(transformId)));
         assertThat(events.get(1).transformId(), is(equalTo(transformId)));
         assertThat(events.get(1).scheduledTime() - events.get(0).triggeredTime(), is(allOf(greaterThan(4 * 1000L), lessThan(6 * 1000L))));

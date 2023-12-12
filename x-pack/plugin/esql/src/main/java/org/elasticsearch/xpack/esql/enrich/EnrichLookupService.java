@@ -151,18 +151,18 @@ public class EnrichLookupService {
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         ActionListener<Page> listener = ContextPreservingActionListener.wrapPreservingContext(outListener, threadContext);
-        hasEnrichPrivilege(ActionListener.wrap(ignored -> {
+        hasEnrichPrivilege(listener.delegateFailureAndWrap((delegate, ignored) -> {
             ClusterState clusterState = clusterService.state();
             GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
                 .searchShards(clusterState, new String[] { index }, Map.of(), "_local");
             if (shardIterators.size() != 1) {
-                listener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", index));
+                delegate.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", index));
                 return;
             }
             ShardIterator shardIt = shardIterators.get(0);
             ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
-                listener.onFailure(new UnavailableShardsException(shardIt.shardId(), "enrich index is not available"));
+                delegate.onFailure(new UnavailableShardsException(shardIt.shardId(), "enrich index is not available"));
                 return;
             }
             DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
@@ -176,13 +176,13 @@ public class EnrichLookupService {
                     parentTask,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
-                        listener.map(LookupResponse::takePage),
+                        delegate.map(LookupResponse::takePage),
                         in -> new LookupResponse(in, blockFactory),
                         executor
                     )
                 );
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void hasEnrichPrivilege(ActionListener<Void> outListener) {

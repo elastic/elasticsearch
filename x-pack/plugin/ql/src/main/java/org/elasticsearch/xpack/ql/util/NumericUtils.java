@@ -134,6 +134,19 @@ public abstract class NumericUtils {
     }
 
     /**
+     * Check if the provided double is both finite and a number (i.e. not Double.NaN).
+     * @param dbl The double to verify.
+     * @return The input value.
+     * @throws ArithmeticException if the provided double is either infinite or not a number.
+     */
+    public static double asFiniteNumber(double dbl) {
+        if (Double.isNaN(dbl) || Double.isInfinite(dbl)) {
+            throw new ArithmeticException("not a finite double number: " + dbl);
+        }
+        return dbl;
+    }
+
+    /**
      * Converts a number to an integer, saturating that integer if the number doesn't fit naturally.  That is to say, values
      * greater than Integer.MAX_VALUE yield Integer.MAX_VALUE and values less than Integer.MIN_VALUE yield Integer.MIN_VALUE
      *

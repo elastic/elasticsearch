@@ -58,6 +58,9 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     @UpdateForV9
     public static final NodeFeature ML_ANALYTICS_MAPPINGS = new NodeFeature("ml.analytics_mappings");
 
+    // YAML
+    public static final NodeFeature REST_ELASTIC_PRODUCT_HEADER_PRESENT = new NodeFeature("action.rest.product_header_present");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.ofEntries(
@@ -75,7 +78,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(SEARCH_AGGREGATIONS_FORCE_INTERVAL_SELECTION_DATE_HISTOGRAM, Version.V_7_2_0),
             entry(TRANSFORM_NEW_API_ENDPOINT, Version.V_7_5_0),
             entry(ML_INDICES_HIDDEN, Version.V_7_7_0),
-            entry(ML_ANALYTICS_MAPPINGS, Version.V_7_3_0)
+            entry(ML_ANALYTICS_MAPPINGS, Version.V_7_3_0),
+            entry(REST_ELASTIC_PRODUCT_HEADER_PRESENT, Version.V_8_0_1)
         );
     }
 }

@@ -49,7 +49,6 @@ class S3RetryingInputStream extends InputStream {
     private final long start;
     private final long end;
     private final List<Exception> failures;
-    private final long maxAttempts;
 
     private S3ObjectInputStream currentStream;
     private long currentStreamFirstOffset;
@@ -78,7 +77,6 @@ class S3RetryingInputStream extends InputStream {
         this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
         this.start = start;
         this.end = end;
-        this.maxAttempts = blobStore.getMaxRetries() + 1;
         openStreamWithRetry();
     }
 
@@ -254,6 +252,7 @@ class S3RetryingInputStream extends InputStream {
         if (purpose == OperationPurpose.INDICES) {
             return true;
         }
+        final int maxAttempts = blobStore.getMaxRetries() + 1;
         return attempt < maxAttempts + failuresAfterMeaningfulProgress;
     }
 
@@ -261,6 +260,7 @@ class S3RetryingInputStream extends InputStream {
         final long delayInMillis = getRetryDelayInMillis();
         if (delayInMillis > 0) {
             try {
+                assert purpose == OperationPurpose.INDICES : "only retries for reading indices data should ever reach here";
                 Thread.sleep(delayInMillis);
             } catch (InterruptedException e) {
                 logger.info("delay interrupted", e);
@@ -271,6 +271,7 @@ class S3RetryingInputStream extends InputStream {
     // for testing
     protected long getRetryDelayInMillis() {
         final long initialDelayInMillis = 10L;
+        final int maxAttempts = blobStore.getMaxRetries() + 1;
         if (attempt > maxAttempts) {
             // Cap max delay at 10 * 1024 millis, i.e. it retries every ~10 seconds at a minimum
             return initialDelayInMillis << (Math.min(attempt - maxAttempts - 1, 10));

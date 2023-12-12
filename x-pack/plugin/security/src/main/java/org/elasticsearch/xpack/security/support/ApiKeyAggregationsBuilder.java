@@ -102,7 +102,7 @@ public class ApiKeyAggregationsBuilder {
             }
         } else {
             throw new IllegalArgumentException(
-                "Unsupported agg [" + aggregationBuilder.getName() + "] of type [" + aggregationBuilder.getType() + "]"
+                "Unsupported API Keys agg [" + aggregationBuilder.getName() + "] of type [" + aggregationBuilder.getType() + "]"
             );
         }
         // check sub-aggs recursively

@@ -180,7 +180,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
             .<RepositoryData>newForked(l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
 
             .<SLMGetExpiredSnapshotsAction.SnapshotDetailsByPolicy>andThen(
-                (l, rd) -> SLMGetExpiredSnapshotsAction.getSnapshotDetailsByPolicy(repository, rd, l)
+                (l, rd) -> SLMGetExpiredSnapshotsAction.getSnapshotDetailsByPolicy(EsExecutors.DIRECT_EXECUTOR_SERVICE, repository, rd, l)
             )
 
             .andThen((l, snapshotDetailsByPolicy) -> {

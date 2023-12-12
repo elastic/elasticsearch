@@ -14,12 +14,13 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -232,7 +233,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             String snapshotUpdate = "{ \"timestamp\": " + oneDayAgo + "}";
             UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + job.getId(), snapshotDocId);
             updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
-            client().execute(UpdateAction.INSTANCE, updateSnapshotRequest).get();
+            client().execute(TransportUpdateAction.TYPE, updateSnapshotRequest).get();
 
             // Now let's create some forecasts
             openJob(job.getId());
@@ -268,14 +269,13 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         retainAllSnapshots("snapshots-retention-with-retain");
 
-        long totalModelSizeStatsBeforeDelete = prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-            .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-            .get()
-            .getHits()
-            .getTotalHits().value;
-        long totalNotificationsCountBeforeDelete = prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get()
-            .getHits()
-            .getTotalHits().value;
+        long totalModelSizeStatsBeforeDelete = SearchResponseUtils.getTotalHitsValue(
+            prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
+        );
+        long totalNotificationsCountBeforeDelete = SearchResponseUtils.getTotalHitsValue(
+            prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+        );
         assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
         assertThat(totalNotificationsCountBeforeDelete, greaterThan(0L));
 
@@ -319,14 +319,13 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getRecords("results-and-snapshots-retention").size(), equalTo(0));
         assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
 
-        long totalModelSizeStatsAfterDelete = prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-            .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-            .get()
-            .getHits()
-            .getTotalHits().value;
-        long totalNotificationsCountAfterDelete = prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get()
-            .getHits()
-            .getTotalHits().value;
+        long totalModelSizeStatsAfterDelete = SearchResponseUtils.getTotalHitsValue(
+            prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
+        );
+        long totalNotificationsCountAfterDelete = SearchResponseUtils.getTotalHitsValue(
+            prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+        );
         assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
         assertThat(totalNotificationsCountAfterDelete, greaterThanOrEqualTo(totalNotificationsCountBeforeDelete));
 

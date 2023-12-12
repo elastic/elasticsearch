@@ -431,6 +431,16 @@ Specifies the attribute to examine on the user for group membership.
 If any `group_search` settings are specified, this setting is ignored. Defaults
 to `memberOf`.
 
+`user_full_name_attribute`::
+(<<static-cluster-setting,Static>>)
+Specifies the attribute to examine on the user for the full name of the user.
+Defaults to `cn`.
+
+`user_email_attribute`::
+(<<static-cluster-setting,Static>>)
+Specifies the attribute to examine on the user for the email address of the user.
+Defaults to `mail`.
+
 `user_search.base_dn`::
 (<<static-cluster-setting,Static>>)
 Specifies a container DN to search for users. Required
@@ -1212,7 +1222,7 @@ _Distinguished Name_.
 `attribute_patterns.principal` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 A Java regular expression that is matched against the SAML attribute specified
-by `attributes.pattern` before it is applied to the user's _principal_ property.
+by `attributes.principal` before it is applied to the user's _principal_ property.
 The attribute value must match the pattern and the value of the first
 _capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
 matches email addresses from the "example.com" domain and uses the local-part as
@@ -1242,6 +1252,20 @@ As per `attribute_patterns.principal`, but for the _mail_ property.
 (<<static-cluster-setting,Static>>)
 As per `attribute_patterns.principal`, but for the _dn_ property.
 // end::saml-attributes-patterns-dn-tag[]
+
+// tag::saml-attributes-delimiters-groups-tag[]
+`attribute_delimiters.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A plain string that is used as a delimiter to split a single-valued SAML
+attribute specified by `attributes.groups` before it is applied to the user's
+_groups_ property. For example, splitting the SAML attribute value
+`engineering,elasticsearch-admins,employees` on a delimiter value of `,` will
+result in `engineering`, `elasticsearch-admins`, and `employees` as the list of
+groups for the user. The delimiter will always be split on, regardless of
+escaping in the input string. This setting does not support multi-valued SAML
+attributes. It cannot be used together with the `attribute_patterns` setting.
+You can only configure this setting for the groups attribute.
+// end::saml-attributes-delimiters-groups-tag[]
 
 // tag::saml-nameid-format-tag[]
 `nameid_format` {ess-icon}::

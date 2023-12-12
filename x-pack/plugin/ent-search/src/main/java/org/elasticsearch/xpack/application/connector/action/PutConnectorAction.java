@@ -49,7 +49,6 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
 
         @Nullable
         private final String description;
-        @Nullable
         private final String indexName;
         @Nullable
         private final Boolean isNative;
@@ -82,7 +81,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
             super(in);
             this.connectorId = in.readString();
             this.description = in.readOptionalString();
-            this.indexName = in.readOptionalString();
+            this.indexName = in.readString();
             this.isNative = in.readOptionalBoolean();
             this.language = in.readOptionalString();
             this.name = in.readOptionalString();
@@ -131,9 +130,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
                 if (description != null) {
                     builder.field("description", description);
                 }
-                if (indexName != null) {
-                    builder.field("index_name", indexName);
-                }
+                builder.field("index_name", indexName);
                 if (isNative != null) {
                     builder.field("is_native", isNative);
                 }
@@ -168,7 +165,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
             super.writeTo(out);
             out.writeString(connectorId);
             out.writeOptionalString(description);
-            out.writeOptionalString(indexName);
+            out.writeString(indexName);
             out.writeOptionalBoolean(isNative);
             out.writeOptionalString(language);
             out.writeOptionalString(name);

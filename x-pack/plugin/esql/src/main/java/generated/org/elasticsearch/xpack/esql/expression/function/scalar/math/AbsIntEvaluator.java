@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -13,17 +14,23 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
  * This class is generated. Do not edit it.
  */
 public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator fieldVal;
 
   private final DriverContext driverContext;
 
-  public AbsIntEvaluator(EvalOperator.ExpressionEvaluator fieldVal, DriverContext driverContext) {
+  public AbsIntEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
+      DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
   }
@@ -42,7 +49,14 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public IntBlock eval(int positionCount, IntBlock fieldValBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+        if (fieldValBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (fieldValBlock.getValueCount(p) != 1) {
+          if (fieldValBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -72,15 +86,18 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+      this.source = source;
       this.fieldVal = fieldVal;
     }
 
     @Override
     public AbsIntEvaluator get(DriverContext context) {
-      return new AbsIntEvaluator(fieldVal.get(context), context);
+      return new AbsIntEvaluator(source, fieldVal.get(context), context);
     }
 
     @Override

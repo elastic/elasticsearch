@@ -86,7 +86,6 @@ public class JwtRestIT extends ESRestTestCase {
     private static final String VALID_SHARED_SECRET = "test-secret";
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider() {
         {
-            put("xpack.security.transport.ssl.secure_key_passphrase", "http-password");
             put("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", VALID_SHARED_SECRET);
         }
     };
@@ -106,7 +105,6 @@ public class JwtRestIT extends ESRestTestCase {
         .setting("xpack.security.transport.ssl.enabled", "false")
         .setting("xpack.security.authc.token.enabled", "true")
         .setting("xpack.security.authc.api_key.enabled", "true")
-
         .setting("xpack.security.http.ssl.enabled", "true")
         .setting("xpack.security.http.ssl.certificate", "http.crt")
         .setting("xpack.security.http.ssl.key", "http.key")
@@ -115,6 +113,7 @@ public class JwtRestIT extends ESRestTestCase {
         .settings(JwtRestIT::realmSettings)
         .keystore("xpack.security.authc.realms.jwt.jwt2.hmac_key", HMAC_PASSPHRASE)
         .keystore("xpack.security.authc.realms.jwt.jwt3.hmac_jwkset", HMAC_JWKSET)
+        .keystore("xpack.security.http.ssl.secure_key_passphrase", "http-password")
         .keystore("xpack.security.authc.realms.jwt.jwt3.client_authentication.shared_secret", VALID_SHARED_SECRET)
         .keystore(keystoreSettings)
         .user("admin_user", "admin-password")

@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
-import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +28,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -83,32 +81,6 @@ public abstract class TransportNodesAction<
         this.finalExecutor = executor;
         this.transportNodeAction = actionName + "[n]";
         transportService.registerRequestHandler(transportNodeAction, finalExecutor, nodeRequest, new NodeTransportHandler());
-    }
-
-    /**
-     * @deprecated Use the local-only constructor instead.
-     */
-    @Deprecated(forRemoval = true)
-    @SuppressWarnings("this-escape")
-    protected TransportNodesAction(
-        String actionName,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<NodesRequest> requestReader,
-        Writeable.Reader<NodeRequest> nodeRequest,
-        Executor executor
-    ) {
-        this(actionName, clusterService, transportService, actionFilters, nodeRequest, executor);
-        transportService.registerRequestHandler(
-            actionName,
-            executor,
-            false,
-            true,
-            requestReader,
-            (request, channel, task) -> execute(task, request, new ChannelActionListener<>(channel))
-        );
     }
 
     @Override

@@ -508,6 +508,7 @@ public class JwtRestIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103308")
     public void testReloadClientSecret() throws Exception {
         final String principal = SERVICE_SUBJECT.get();
         final String username = getUsernameFromPrincipal(principal);

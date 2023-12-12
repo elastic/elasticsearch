@@ -59,7 +59,7 @@ public class ValueSourceMustacheIT extends AbstractScriptTestCase {
         assertThat(ingestDocument.hasField("marvel"), is(false));
         ingestDocument.setFieldValue(compile("{{_index}}"), ValueSource.wrap("{{_index}}", scriptService));
         assertThat(ingestDocument.getFieldValue("marvel", String.class), equalTo("marvel"));
-        ingestDocument.removeField(compile("{{marvel}}"));
+        ingestDocument.removeField(ingestDocument.renderTemplate(compile("{{marvel}}")));
         assertThat(ingestDocument.hasField("index"), is(false));
     }
 

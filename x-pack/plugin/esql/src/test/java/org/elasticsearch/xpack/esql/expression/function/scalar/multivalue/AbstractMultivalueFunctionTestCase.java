@@ -395,7 +395,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         List<TestCaseSupplier> cases,
         String name,
         String evaluatorName,
-        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+        BiFunction<Integer, Stream<SpatialPoint>, Matcher<Object>> matcher
     ) {
         geoPoints(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, matcher);
     }
@@ -409,7 +409,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         String name,
         String evaluatorName,
         DataType expectedDataType,
-        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+        BiFunction<Integer, Stream<SpatialPoint>, Matcher<Object>> matcher
     ) {
         points(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, GEO, ESTestCase::randomGeoPoint, matcher);
     }
@@ -421,7 +421,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         List<TestCaseSupplier> cases,
         String name,
         String evaluatorName,
-        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+        BiFunction<Integer, Stream<SpatialPoint>, Matcher<Object>> matcher
     ) {
         cartesianPoints(cases, name, evaluatorName, EsqlDataTypes.CARTESIAN_POINT, matcher);
     }
@@ -435,7 +435,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         String name,
         String evaluatorName,
         DataType expectedDataType,
-        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+        BiFunction<Integer, Stream<SpatialPoint>, Matcher<Object>> matcher
     ) {
         points(
             cases,
@@ -460,27 +460,26 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         DataType expectedDataType,
         SpatialCoordinateTypes coordType,
         Supplier<SpatialPoint> randomPoint,
-        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+        BiFunction<Integer, Stream<SpatialPoint>, Matcher<Object>> matcher
     ) {
         cases.add(new TestCaseSupplier(name + "(" + dataType.typeName() + ")", List.of(dataType), () -> {
             SpatialPoint point = randomPoint.get();
-            long data = coordType.pointAsLong(point);
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(List.of(data), dataType, "field")),
+                List.of(new TestCaseSupplier.TypedData(List.of(point), dataType, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
                 expectedDataType,
-                matcher.apply(1, LongStream.of(data))
+                matcher.apply(1, Stream.of(point))
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
             cases.add(new TestCaseSupplier(name + "(<" + dataType.typeName() + "s>) " + ordering, List.of(dataType), () -> {
-                List<Long> mvData = randomList(1, 100, () -> coordType.pointAsLong(randomPoint.get()));
+                List<SpatialPoint> mvData = randomList(1, 100, randomPoint);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(mvData, dataType, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
-                    matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))
+                    matcher.apply(mvData.size(), mvData.stream())
                 );
             }));
         }

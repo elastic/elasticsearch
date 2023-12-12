@@ -889,7 +889,7 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RescorerSpec<?>> getRescorers() {
-        if (enabled && machineLearningExtension.get() != null && machineLearningExtension.get().isLearningToRankEnabled()) {
+        if (enabled && machineLearningExtension.get().isLearningToRankEnabled()) {
             return List.of(
                 new RescorerSpec<>(
                     LearningToRankRescorerBuilder.NAME,

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.profile;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +46,7 @@ import java.util.Map;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsString;
@@ -368,26 +368,31 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .get();
     }
 
-    private void assertAccessToken(CreateTokenResponse createTokenResponse) throws IOException {
+    private void assertAccessToken(CreateTokenResponse createTokenResponse) {
         client().filterWithHeader(Map.of("Authorization", "Bearer " + createTokenResponse.getTokenString()))
             .admin()
             .cluster()
             .prepareHealth()
             .get();
-        final SearchResponse searchResponse = prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).get();
-
-        final String encodedAuthentication = createTokenResponse.getAuthentication().encode();
-        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            final XContentTestUtils.JsonMapView responseView = XContentTestUtils.createJsonMapView(
-                new ByteArrayInputStream(searchHit.getSourceAsString().getBytes(StandardCharsets.UTF_8))
-            );
-            if (encodedAuthentication.equals(responseView.get("access_token.user_token.authentication"))) {
-                if (isOtherDomain) {
-                    assertThat(responseView.get("access_token.realm_domain"), equalTo(OTHER_DOMAIN_REALM_MAP));
-                } else {
-                    assertThat(responseView.get("access_token.realm_domain"), nullValue());
+        assertResponse(prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS), searchResponse -> {
+            final String encodedAuthentication;
+            try {
+                encodedAuthentication = createTokenResponse.getAuthentication().encode();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+            for (SearchHit searchHit : searchResponse.getHits().getHits()) {
+                final XContentTestUtils.JsonMapView responseView = XContentTestUtils.createJsonMapView(
+                    new ByteArrayInputStream(searchHit.getSourceAsString().getBytes(StandardCharsets.UTF_8))
+                );
+                if (encodedAuthentication.equals(responseView.get("access_token.user_token.authentication"))) {
+                    if (isOtherDomain) {
+                        assertThat(responseView.get("access_token.realm_domain"), equalTo(OTHER_DOMAIN_REALM_MAP));
+                    } else {
+                        assertThat(responseView.get("access_token.realm_domain"), nullValue());
+                    }
                 }
             }
-        }
+        });
     }
 }

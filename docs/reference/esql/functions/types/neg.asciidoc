@@ -1,0 +1,9 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v | result
+date_period | date_period
+double | double
+integer | integer
+long | long
+time_duration | time_duration
+|===

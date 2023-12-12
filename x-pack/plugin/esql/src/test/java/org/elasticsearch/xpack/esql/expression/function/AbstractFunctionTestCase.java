@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
@@ -92,6 +93,7 @@ import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -237,11 +239,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
-        // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
+        logger.info("Result type: " + expression.dataType());
+
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
             try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
-                result = toJavaObject(block, 0);
+                result = toJavaObjectUnsignedLongAware(block, 0);
             }
         }
         assertThat(result, not(equalTo(Double.NaN)));
@@ -253,6 +256,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());
         }
+    }
+
+    private Object toJavaObjectUnsignedLongAware(Block block, int position) {
+        Object result;
+        result = toJavaObject(block, position);
+        if (result != null && testCase.expectedType == DataTypes.UNSIGNED_LONG) {
+            assertThat(result, instanceOf(Long.class));
+            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+        }
+        return result;
     }
 
     /**
@@ -398,7 +411,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         assertThat(toJavaObject(block, p), allNullsMatcher());
                         continue;
                     }
-                    assertThat(toJavaObject(block, p), testCase.getMatcher());
+                    assertThat(toJavaObjectUnsignedLongAware(block, p), testCase.getMatcher());
                 }
                 assertThat(
                     "evaluates to tracked block",
@@ -472,7 +485,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
                             try (Block block = eval.eval(page)) {
-                                assertThat(toJavaObject(block, 0), testCase.getMatcher());
+                                assertThat(toJavaObjectUnsignedLongAware(block, 0), testCase.getMatcher());
                             }
                         }
                     }
@@ -513,7 +526,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         assertTrue(expression.foldable());
-        assertThat(expression.fold(), testCase.getMatcher());
+        Object result = expression.fold();
+        // Decode unsigned longs into BigIntegers
+        if (testCase.expectedType == DataTypes.UNSIGNED_LONG && result != null) {
+            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+        }
+        assertThat(result, testCase.getMatcher());
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());
         }
@@ -724,6 +742,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return suppliers;
     }
 
+    /**
+     * Validate that we know the types for all the test cases already created
+     * @param suppliers - list of suppliers before adding in the illegal type combinations
+     */
     private static void typesRequired(List<TestCaseSupplier> suppliers) {
         String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
         if (bad.equals("") == false) {
@@ -976,23 +998,33 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
-        String name = functionName(); // TODO types table for operators
-        FunctionDefinition definition = definition(name);
-        if (definition == null) {
-            LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");
+        String name = functionName();
+        if (binaryOperator(name) != null) {
+            renderTypesTable(List.of("lhs", "rhs"));
             return;
         }
+        if (unaryOperator(name) != null) {
+            renderTypesTable(List.of("v"));
+            return;
+        }
+        FunctionDefinition definition = definition(name);
+        if (definition != null) {
+            renderTypesTable(EsqlFunctionRegistry.description(definition).argNames());
+            return;
+        }
+        LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");
+    }
 
-        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
+    private static void renderTypesTable(List<String> argNames) throws IOException {
         StringBuilder header = new StringBuilder();
-        for (String arg : args) {
+        for (String arg : argNames) {
             header.append(arg).append(" | ");
         }
         header.append("result");
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures.entrySet()) {
-            if (sig.getKey().size() != args.size()) {
+            if (sig.getKey().size() != argNames.size()) {
                 continue;
             }
             StringBuilder b = new StringBuilder();
@@ -1035,9 +1067,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "div" -> "/";
             case "equals" -> "==";
             case "greater_than" -> ">";
-            case "greater_than_or_equal_to" -> ">=";
+            case "greater_than_or_equal" -> ">=";
             case "less_than" -> "<";
-            case "less_than_or_equal_to" -> "<=";
+            case "less_than_or_equal" -> "<=";
             case "mod" -> "%";
             case "mul" -> "*";
             case "not_equals" -> "!=";

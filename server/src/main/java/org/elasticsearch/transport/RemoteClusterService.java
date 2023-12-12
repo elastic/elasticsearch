@@ -147,14 +147,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
-    private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
+    private final Set<String> credentialsProtectedRemoteClusters;
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
-        this.remoteClusterCredentialsManager = new RemoteClusterCredentialsManager(settings);
+        this.credentialsProtectedRemoteClusters = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings).keySet();
+
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
@@ -304,14 +305,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
-    public void updateRemoteClusterCredentials(Settings settings) {
-        remoteClusterCredentialsManager.updateClusterCredentials(settings);
-    }
-
-    public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {
-        return remoteClusterCredentialsManager;
-    }
-
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
         CountDownLatch latch = new CountDownLatch(1);
@@ -370,7 +363,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (remote == null) {
             // this is a new cluster we have to add a new representation
             Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
+            remote = new RemoteClusterConnection(
+                finalSettings,
+                clusterAlias,
+                transportService,
+                credentialsProtectedRemoteClusters.contains(clusterAlias)
+            );
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
         } else if (remote.shouldRebuildConnection(newSettings)) {
@@ -382,7 +380,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
             remoteClusters.remove(clusterAlias);
             Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
+            remote = new RemoteClusterConnection(
+                finalSettings,
+                clusterAlias,
+                transportService,
+                credentialsProtectedRemoteClusters.contains(clusterAlias)
+            );
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else {

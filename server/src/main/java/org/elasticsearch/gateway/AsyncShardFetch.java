@@ -307,7 +307,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     // visible for testing
     void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
-        list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
+        list(shardId, customDataPath, nodes, new ActionListener<>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
                 assert assertSameNodes(response);

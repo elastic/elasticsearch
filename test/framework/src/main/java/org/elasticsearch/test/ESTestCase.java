@@ -140,11 +140,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.math.BigInteger;
 import java.net.InetAddress;
-import java.net.URI;
 import java.net.UnknownHostException;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystemNotFoundException;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -1357,25 +1353,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      * return URL encoded paths if the parent path contains spaces or other
      * non-standard characters.
      */
-    private FileSystem initFileSystem(URI uri) throws IOException {
-        try {
-            return FileSystems.getFileSystem(uri);
-        } catch (FileSystemNotFoundException e) {
-            return FileSystems.newFileSystem(uri, Collections.emptyMap());
-        } catch (IllegalArgumentException e) {
-            return FileSystems.getDefault();
-        }
-    }
-
     @Override
     public Path getDataPath(String relativePath) {
         // we override LTC behavior here: wrap even resources with mockfilesystems,
         // because some code is buggy when it comes to multiple nio.2 filesystems
         // (e.g. FileSystemUtils, and likely some tests)
         try {
-            URI uri = getClass().getResource(relativePath).toURI();
-            initFileSystem(uri);
-            return PathUtils.get(uri).toAbsolutePath().normalize();
+            return PathUtils.get(getClass().getResource(relativePath).toURI()).toAbsolutePath().normalize();
         } catch (Exception e) {
             throw new RuntimeException("resource not found: " + relativePath, e);
         }

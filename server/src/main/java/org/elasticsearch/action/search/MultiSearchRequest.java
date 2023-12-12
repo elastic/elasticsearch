@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.tasks.CancellableTask;
@@ -242,7 +243,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     InputStream stream = data.slice(from, nextMarker - from).streamInput();
                     XContentParser parser = xContent.createParser(parserConfig, stream)
                 ) {
-                    Map<String, Object> source = parser.map();
+                    RequestParams params = new RequestParams(parser.mapStrings());
+                    // HERE need to work on how to invoke RestSearchAction.parseSearchRequest, and handle extraParamParser
+                    RestSearchAction.parseSearchRequest();
+                    Map<String, Object> source = parser.mapStrings();
                     Object expandWildcards = null;
                     Object ignoreUnavailable = null;
                     Object ignoreThrottled = null;

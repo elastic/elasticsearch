@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
@@ -40,7 +39,7 @@ public class RestUpdateConnectorPipelineAction extends BaseRestHandler {
         return channel -> client.execute(
             UpdateConnectorPipelineAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, r -> RestStatus.OK)
+            new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
         );
     }
 }

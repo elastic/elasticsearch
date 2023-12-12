@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -44,6 +45,13 @@ public class ConnectorUpdateActionResponse extends ActionResponse implements ToX
         builder.field("result", this.result.getLowercase());
         builder.endObject();
         return builder;
+    }
+
+    public RestStatus status() {
+        return switch (result) {
+            case NOT_FOUND -> RestStatus.NOT_FOUND;
+            default -> RestStatus.OK;
+        };
     }
 
     @Override

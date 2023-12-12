@@ -221,6 +221,7 @@ sourceSets {
 
 tasks.withType(JavaCompile).configureEach {
   options.encoding = 'UTF-8'
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
 tasks.named('licenseHeaders').configure {

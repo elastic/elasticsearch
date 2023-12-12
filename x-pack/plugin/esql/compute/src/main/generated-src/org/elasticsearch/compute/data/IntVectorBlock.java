@@ -88,4 +88,9 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
     }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
 }

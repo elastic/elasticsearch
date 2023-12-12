@@ -128,41 +128,45 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY,
             null
         );
+        try {
 
-        SearchResponse mockResponse = mock(SearchResponse.class);
-        when(mockResponse.getHits()).thenReturn(prepareSearchHits());
+            SearchResponse mockResponse = mock(SearchResponse.class);
+            when(mockResponse.getHits()).thenReturn(prepareSearchHits());
 
-        GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2", "3*"));
-        AtomicReference<Exception> failure = new AtomicReference<>();
+            GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2", "3*"));
+            AtomicReference<Exception> failure = new AtomicReference<>();
 
-        // Set up an ActionListener for the actual test conditions
-        ActionListener<GetPipelineResponse> testActionListener = new ActionListener<>() {
-            @Override
-            public void onResponse(GetPipelineResponse getPipelineResponse) {
-                assertThat(getPipelineResponse, is(notNullValue()));
-                assertThat(getPipelineResponse.pipelines().size(), equalTo(3));
-                assertTrue(getPipelineResponse.pipelines().containsKey("1"));
-                assertTrue(getPipelineResponse.pipelines().containsKey("2"));
-                assertTrue(getPipelineResponse.pipelines().containsKey("3*"));
+            // Set up an ActionListener for the actual test conditions
+            ActionListener<GetPipelineResponse> testActionListener = new ActionListener<>() {
+                @Override
+                public void onResponse(GetPipelineResponse getPipelineResponse) {
+                    assertThat(getPipelineResponse, is(notNullValue()));
+                    assertThat(getPipelineResponse.pipelines().size(), equalTo(3));
+                    assertTrue(getPipelineResponse.pipelines().containsKey("1"));
+                    assertTrue(getPipelineResponse.pipelines().containsKey("2"));
+                    assertTrue(getPipelineResponse.pipelines().containsKey("3*"));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failure.set(e);
+                }
+            };
+
+            TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+            try (var threadPool = createThreadPool()) {
+                final var client = getMockClient(threadPool, searchResponse);
+                new TransportGetPipelineAction(transportService, mock(ActionFilters.class), client).doExecute(
+                    null,
+                    request,
+                    testActionListener
+                );
             }
 
-            @Override
-            public void onFailure(Exception e) {
-                failure.set(e);
-            }
-        };
-
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        try (var threadPool = createThreadPool()) {
-            final var client = getMockClient(threadPool, searchResponse);
-            new TransportGetPipelineAction(transportService, mock(ActionFilters.class), client).doExecute(
-                null,
-                request,
-                testActionListener
-            );
+            assertNull(failure.get());
+        } finally {
+            searchResponse.decRef();
         }
-
-        assertNull(failure.get());
     }
 
     public void testMissingIndexHandling() throws Exception {

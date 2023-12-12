@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.security.action.user;
+package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -36,7 +37,7 @@ public class ChangePasswordRequestBuilder extends ActionRequestBuilder<ChangePas
         WriteRequestBuilder<ChangePasswordRequestBuilder> {
 
     public ChangePasswordRequestBuilder(ElasticsearchClient client) {
-        super(client, ChangePasswordAction.INSTANCE, new ChangePasswordRequest());
+        super(client, TransportChangePasswordAction.TYPE, new ChangePasswordRequest());
     }
 
     public ChangePasswordRequestBuilder username(String username) {

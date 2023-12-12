@@ -11,7 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -277,7 +277,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         assertTrue(
             clusterAdmin().prepareListTasks()
-                .setActions(DeleteSnapshotAction.NAME)
+                .setActions(TransportDeleteSnapshotAction.TYPE.name())
                 .setDetailed(true)
                 .get()
                 .getTasks()

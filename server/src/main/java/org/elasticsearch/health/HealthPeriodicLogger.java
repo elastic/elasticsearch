@@ -34,9 +34,11 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -126,7 +128,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private volatile TimeValue pollInterval;
     private volatile boolean enabled;
-    private volatile List<OutputMode> outputModes;
+    private volatile Set<OutputMode> outputModes;
 
     private static final Logger logger = LogManager.getLogger(HealthPeriodicLogger.class);
 
@@ -196,7 +198,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         this.clock = Clock.systemUTC();
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = ENABLED_SETTING.get(settings);
-        this.outputModes = OUTPUT_MODE_SETTING.get(settings);
+        this.outputModes = new HashSet<>(OUTPUT_MODE_SETTING.get(settings));
         this.meterRegistry = meterRegistry;
         this.metricWriter = metricWriter == null ? LongGaugeMetric::set : metricWriter;
         this.logWriter = logWriter == null ? logger::info : logWriter;
@@ -343,7 +345,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
                 // handle metrics
                 if (metricsEnabled()) {
-                    handleMetrics(healthIndicatorResults);
+                    writeMetrics(healthIndicatorResults);
                 }
 
             } catch (Exception e) {
@@ -358,10 +360,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     };
 
     /**
-     * Handle the setting (and possible creation) of APM metrics
+     * Write (and possibly create) the APM metrics
      */
     // default visibility for testing purposes
-    void handleMetrics(List<HealthIndicatorResult> healthIndicatorResults) {
+    void writeMetrics(List<HealthIndicatorResult> healthIndicatorResults) {
         if (healthIndicatorResults != null) {
             for (HealthIndicatorResult result : healthIndicatorResults) {
                 String metricName = result.name();
@@ -375,29 +377,29 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                     );
                     this.redMetrics.put(metricName, metric);
                 }
-                metricWriter.accept(metric, (long) (result.status() == RED ? 1 : 0));
+                metricWriter.accept(metric, result.status() == RED ? 1L : 0L);
             }
 
-            metricWriter.accept(this.redMetrics.get("overall"), (long) (calculateOverallStatus(healthIndicatorResults) == RED ? 1 : 0));
+            metricWriter.accept(this.redMetrics.get("overall"), calculateOverallStatus(healthIndicatorResults) == RED ? 1L : 0L);
         }
     }
 
     private void updateOutputModes(List<OutputMode> newMode) {
-        this.outputModes = newMode;
+        this.outputModes = new HashSet<>(newMode);
     }
 
     /**
      * Returns true if any of the outputModes are set to logs
      */
     private boolean logsEnabled() {
-        return this.outputModes.stream().anyMatch(m -> m.toString().equals(OutputMode.LOGS.toString()));
+        return this.outputModes.contains(OutputMode.LOGS);
     }
 
     /**
      * Returns true if any of the outputModes are set to metrics
      */
     private boolean metricsEnabled() {
-        return this.outputModes.stream().anyMatch(m -> m.toString().equals(OutputMode.METRICS.toString()));
+        return this.outputModes.contains(OutputMode.METRICS);
     }
 
     /**

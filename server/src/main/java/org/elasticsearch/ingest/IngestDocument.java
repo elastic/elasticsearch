@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.CtxMap;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
@@ -689,6 +690,21 @@ public final class IngestDocument {
         );
     }
 
+    /**
+     * Renders a template into a string. This allows field access via both literal fields like {@code "foo.bar.baz"} and dynamic fields
+     * like {@code "{{other_field}}"} (that is, look up the value of the 'other_field' in the document and then use the resulting string as
+     * the field to operate on).
+     * <p>
+     * See {@link ConfigurationUtils#compileTemplate(String, String, String, String, ScriptService)} and associated methods, which
+     * create these {@link TemplateScript.Factory} instances.
+     * <p>
+     * Note: for clarity and efficiency reasons, it is advisable to invoke this method outside IngestDocument itself -- fields should be
+     * rendered by a caller (once), and then passed to an ingest document repeatedly. There are enough methods on IngestDocument that
+     * operate on String paths already, we don't want to mirror all of them with twin methods that accept a template.
+     *
+     * @param template the template or literal string to evaluate
+     * @return a literal string field path
+     */
     public String renderTemplate(TemplateScript.Factory template) {
         return template.newInstance(templateModel).execute();
     }

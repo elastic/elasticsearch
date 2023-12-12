@@ -27,11 +27,11 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -61,6 +61,11 @@ import java.util.concurrent.TimeUnit;
 public class EvalBenchmark {
     private static final int BLOCK_LENGTH = 8 * 1024;
 
+    static final DriverContext driverContext = new DriverContext(
+        BigArrays.NON_RECYCLING_INSTANCE,
+        BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE)
+    );
+
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
         try {
@@ -71,11 +76,6 @@ public class EvalBenchmark {
             throw new AssertionError();
         }
     }
-
-    static final DriverContext driverContext = new DriverContext(
-        BigArrays.NON_RECYCLING_INSTANCE,
-        BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE)
-    );
 
     @Param({ "abs", "add", "date_trunc", "equal_to_const", "long_equal_to_long", "long_equal_to_int", "mv_min", "mv_min_ascending" })
     public String operation;

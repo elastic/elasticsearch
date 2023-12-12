@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -163,7 +164,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
                 bucket.getEventCount()
             );
             // Confirm that it's possible to search for the same buckets by @timestamp - proves that @timestamp works as a field alias
-            assertThat(
+            assertHitCount(
                 prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(
                     QueryBuilders.boolQuery()
                         .filter(QueryBuilders.termQuery("job_id", jobId))
@@ -171,8 +172,8 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
                         .filter(
                             QueryBuilders.rangeQuery("@timestamp").gte(bucket.getTimestamp().getTime()).lte(bucket.getTimestamp().getTime())
                         )
-                ).setTrackTotalHits(true).get().getHits().getTotalHits().value,
-                equalTo(1L)
+                ).setTrackTotalHits(true),
+                1
             );
         }
     }

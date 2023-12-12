@@ -67,6 +67,19 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         assertTrue("Should reserve space for relocating shard", shouldReserveSpaceForInitializingShard(shard, allocation));
     }
 
+    public void testShouldReadExpectedSizeFromPrimaryWhenAddingNewReplica() {
+
+        var shardSize = randomLongBetween(100, 1000);
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+        var primary = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.STARTED);
+        var replica = newShardRouting("my-index", 0, randomIdentifier(), false, ShardRoutingState.INITIALIZING);
+
+        var clusterInfo = createClusterInfo(primary, shardSize);
+        var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
+
+        assertThat(getExpectedShardSize(replica, defaultValue, allocation), equalTo(shardSize));
+    }
+
     public void testShouldReadExpectedSizeWhenInitializingFromSnapshot() {
 
         var snapshotShardSize = randomLongBetween(100, 1000);

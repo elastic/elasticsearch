@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
@@ -275,7 +276,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 .writeBlob(randomPurpose(), "bar", new ByteArrayInputStream(new byte[3]), 3, false);
             for (String prefix : Arrays.asList("snap-", "meta-")) {
                 blobStore.blobContainer(repo.basePath())
-                    .writeBlob(randomPurpose(), prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
+                    .writeBlob(randomNonDataPurpose(), prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
             }
         }));
         future.get();
@@ -285,8 +286,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             final BlobStore blobStore = repo.blobStore();
             return blobStore.blobContainer(repo.basePath().add("indices")).children(randomPurpose()).containsKey("foo")
                 && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists(randomPurpose(), "bar")
-                && blobStore.blobContainer(repo.basePath()).blobExists(randomPurpose(), "meta-foo.dat")
-                && blobStore.blobContainer(repo.basePath()).blobExists(randomPurpose(), "snap-foo.dat");
+                && blobStore.blobContainer(repo.basePath()).blobExists(randomNonDataPurpose(), "meta-foo.dat")
+                && blobStore.blobContainer(repo.basePath()).blobExists(randomNonDataPurpose(), "snap-foo.dat");
         }));
         assertTrue(corruptionFuture.get());
     }

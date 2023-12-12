@@ -609,7 +609,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")));
         request.setBatchedReduceSize(bufferSize);
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -734,7 +734,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")));
         request.setBatchedReduceSize(bufferSize);
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -807,7 +807,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")).size(0));
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -869,7 +869,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             request.source(new SearchSourceBuilder().size(randomIntBetween(1, 10)));
         }
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -936,7 +936,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().size(5).from(5));
         request.setBatchedReduceSize(randomIntBetween(2, 4));
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -994,7 +994,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(1, 10);
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -1050,7 +1050,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(5, 10);
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -1109,7 +1109,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int bufferSize = randomIntBetween(2, 200);
         SearchRequest request = randomSearchRequest();
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -1256,7 +1256,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertEquals(numReduceListener.incrementAndGet(), reducePhase);
                 }
             };
-            QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
@@ -1347,7 +1347,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         if (shouldFailPartial) {
             circuitBreaker.shouldBreak.set(true);
         }
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             circuitBreaker,
             () -> false,
@@ -1419,7 +1419,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,

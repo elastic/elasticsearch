@@ -948,15 +948,13 @@ public class JobResultsProviderTests extends ESTestCase {
             queryBuilderConsumer.accept(multiSearchRequest.requests().get(0).source().query());
             @SuppressWarnings("unchecked")
             ActionListener<MultiSearchResponse> actionListener = (ActionListener<MultiSearchResponse>) invocationOnMock.getArguments()[1];
-            MultiSearchResponse mresponse = new MultiSearchResponse(
-                new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(response, null) },
-                randomNonNegativeLong()
+            ActionListener.respondAndRelease(
+                actionListener,
+                new MultiSearchResponse(
+                    new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(response, null) },
+                    randomNonNegativeLong()
+                )
             );
-            try {
-                actionListener.onResponse(mresponse);
-            } finally {
-                mresponse.decRef();
-            }
             return null;
         }).when(client).multiSearch(any(), any());
         doAnswer(invocationOnMock -> {

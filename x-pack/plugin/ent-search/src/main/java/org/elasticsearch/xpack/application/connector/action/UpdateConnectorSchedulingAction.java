@@ -75,6 +75,10 @@ public class UpdateConnectorSchedulingAction extends ActionType<UpdateConnectorS
                 validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
             }
 
+            if (Objects.isNull(scheduling)) {
+                validationException = addValidationError("[scheduling] cannot be null.", validationException);
+            }
+
             return validationException;
         }
 

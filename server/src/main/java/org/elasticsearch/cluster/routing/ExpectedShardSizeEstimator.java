@@ -58,11 +58,18 @@ public class ExpectedShardSizeEstimator {
         if (indexMetadata.getResizeSourceIndex() != null
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+            assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
             return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
-        } else if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+        } else if (shard.active() == false && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+            assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else {
-            return clusterInfo.getShardSize(shard, defaultValue);
+            var shardSize = clusterInfo.getShardSize(shard.shardId(), shard.primary());
+            if (shardSize == null && shard.primary() == false) {
+                // derive replica size from corresponding primary
+                shardSize = clusterInfo.getShardSize(shard.shardId(), true);
+            }
+            return shardSize == null ? defaultValue : shardSize;
         }
     }
 

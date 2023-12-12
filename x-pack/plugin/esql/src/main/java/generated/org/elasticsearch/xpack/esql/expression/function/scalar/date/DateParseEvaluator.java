@@ -66,11 +66,25 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
       BytesRef valScratch = new BytesRef();
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        if (valBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (formatterBlock.isNull(p) || formatterBlock.getValueCount(p) != 1) {
+        if (valBlock.getValueCount(p) != 1) {
+          if (valBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (formatterBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (formatterBlock.getValueCount(p) != 1) {
+          if (formatterBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

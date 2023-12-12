@@ -159,7 +159,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             boolean success = false;
             try {
                 // Sort by the string and numeric fields, to load them into field data
-                searchRequestBuilder.get();
+                searchRequestBuilder.get().decRef();
                 success = true;
             } catch (SearchPhaseExecutionException ex) {
                 logger.info("expected SearchPhaseException: [{}]", ex.getMessage());

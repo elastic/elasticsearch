@@ -324,9 +324,9 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentSer
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
-import org.elasticsearch.xpack.ml.inference.ltr.InferenceRescorerFeature;
-import org.elasticsearch.xpack.ml.inference.ltr.LearnToRankRescorerBuilder;
-import org.elasticsearch.xpack.ml.inference.ltr.LearnToRankService;
+import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
+import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerFeature;
+import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
@@ -762,7 +762,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlLifeCycleService> mlLifeCycleService = new SetOnce<>();
     private final SetOnce<CircuitBreaker> inferenceModelBreaker = new SetOnce<>();
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
-    private final SetOnce<LearnToRankService> learnToRankService = new SetOnce<>();
+    private final SetOnce<LearningToRankService> learningToRankService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
@@ -886,13 +886,12 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RescorerSpec<?>> getRescorers() {
-        if (enabled && InferenceRescorerFeature.isEnabled()) {
-            // Inference rescorer requires access to the model loading service
+        if (enabled && LearningToRankRescorerFeature.isEnabled()) {
             return List.of(
                 new RescorerSpec<>(
-                    LearnToRankRescorerBuilder.NAME,
-                    in -> new LearnToRankRescorerBuilder(in, learnToRankService.get()),
-                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, learnToRankService.get())
+                    LearningToRankRescorerBuilder.NAME,
+                    in -> new LearningToRankRescorerBuilder(in, learningToRankService.get()),
+                    parser -> LearningToRankRescorerBuilder.fromXContent(parser, learningToRankService.get())
                 )
             );
         }
@@ -1121,8 +1120,8 @@ public class MachineLearning extends Plugin
         );
         this.modelLoadingService.set(modelLoadingService);
 
-        this.learnToRankService.set(
-            new LearnToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
+        this.learningToRankService.set(
+            new LearningToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
         );
 
         this.deploymentManager.set(
@@ -1798,7 +1797,7 @@ public class MachineLearning extends Plugin
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
         // LTR Combine with Inference named content provider when feature flag is removed
-        if (InferenceRescorerFeature.isEnabled()) {
+        if (LearningToRankRescorerFeature.isEnabled()) {
             namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
         }
         return namedXContent;
@@ -1886,7 +1885,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
         // LTR Combine with Inference named content provider when feature flag is removed
-        if (InferenceRescorerFeature.isEnabled()) {
+        if (LearningToRankRescorerFeature.isEnabled()) {
             namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
         }
         return namedWriteables;

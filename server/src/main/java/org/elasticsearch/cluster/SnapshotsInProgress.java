@@ -274,12 +274,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     @Override
     public int hashCode() {
-        return entries.hashCode();
+        return Objects.hash(entries, nodesIdsForRemoval);
     }
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder("SnapshotsInProgress[");
+        StringBuilder builder = new StringBuilder("SnapshotsInProgress[entries=[");
         final Iterator<SnapshotsInProgress.Entry> entryList = asStream().iterator();
         boolean firstEntry = true;
         while (entryList.hasNext()) {
@@ -289,7 +289,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             builder.append(entryList.next().snapshot().getSnapshotId().getName());
             firstEntry = false;
         }
-        return builder.append("]").toString();
+        return builder.append("],nodeIdsForRemoval=").append(nodesIdsForRemoval).append("]").toString();
     }
 
     /**

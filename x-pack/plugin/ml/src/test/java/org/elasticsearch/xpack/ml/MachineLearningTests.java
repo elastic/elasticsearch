@@ -385,8 +385,6 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public static MachineLearning createTrialLicensedMachineLearning(Settings settings) {
-        MachineLearning plugin = new TrialLicensedMachineLearning(settings);
-        plugin.loadExtensions(null);
-        return plugin;
+        return new TrialLicensedMachineLearning(settings);
     }
 }

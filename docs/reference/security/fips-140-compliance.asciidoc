@@ -8,14 +8,11 @@ government computer security standard used to approve cryptographic modules.
 {es} offers a FIPS 140-2 compliant mode and as such can run in a FIPS 140-2
 configured JVM.
 
-IMPORTANT: The JVM bundled with {es} is not configured for FIPS 140-2. You must 
+IMPORTANT: The JVM bundled with {es} is not configured for FIPS 140-2. You must
 configure an external JDK with a FIPS 140-2 certified Java Security Provider.
 Refer to the {es}
 https://www.elastic.co/support/matrix#matrix_jvm[JVM support matrix] for
 supported JVM configurations.
-
-After configuring your JVM for FIPS 140-2, you can run {es} in FIPS 140-2 mode by
-setting the `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`.
 
 For {es}, adherence to FIPS 140-2 is ensured by:
 
@@ -23,8 +20,10 @@ For {es}, adherence to FIPS 140-2 is ensured by:
 - Delegating the implementation of these cryptographic algorithms to a NIST
   validated cryptographic module (available via the Java Security Provider
   in use in the JVM).
-- Allowing the configuration of {es} in a FIPS 140-2 compliant manner, as
-  documented below.
+- Ensuring the configuration of {es} is FIPS 140-2 compliant as documented below.
+
+After configuring your JVM for FIPS 140-2, you can run {es} in FIPS 140-2 mode by
+setting the `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`.
 
 [discrete]
 === Upgrade considerations
@@ -34,6 +33,13 @@ For {es}, adherence to FIPS 140-2 is ensured by:
 include::fips-java17.asciidoc[]
 ====
 
+[IMPORTANT]
+====
+Some encryption algorithms may no longer be available by default in updated FIPS 140-2 security providers.
+Notably, Triple DES and PKCS1.5 RSA are now discouraged and Bouncy Castle's
+https://www.bouncycastle.org/fips-java/RELEASE_NOTES.md[BC-FJA 1.0.2.4] now requires explicit configuration
+to continue using these algorithms.
+====
 
 If you plan to upgrade your existing cluster to a version that can be run in
 a FIPS 140-2 configured JVM, we recommend to first perform a rolling
@@ -61,6 +67,24 @@ starting each node.
 Apart from setting `xpack.security.fips_mode.enabled`, a number of security
 related settings need to be configured accordingly in order to be compliant
 and able to run {es} successfully in a FIPS 140-2 configured JVM.
+
+[discrete]
+==== Java security provider
+
+The installation and configuration
+of Java security provider for
+https://docs.oracle.com/en/java/javase/17/security/java-cryptography-architecture-jca-reference-guide.html[JCA] and
+https://docs.oracle.com/en/java/javase/17/security/java-secure-socket-extension-jsse-reference-guide.html[JSSE] is beyond
+the scope of this document. The exact steps are dependent on the Java installation and the requirements of the 3rd party security provider.
+At a high level, the general steps are:
+
+TODO: <still working on this>
+* Place the NIST certified security provider .jar file(s) where {es}
+* Configure the java.security file (conf/security or -Djava.security.properties)  to use the Java security provider
+* Configure {es} security manager's java.policy file (-Djava.security.policy) to allow an additional permissions needed by the security provider
+* Run: `java -XshowSettings:properties -version 2>&1 | grep 'security.provider'` and ensure the desired security provider(s) are listed first.
+
+
 
 [discrete]
 [[keystore-fips-password]]

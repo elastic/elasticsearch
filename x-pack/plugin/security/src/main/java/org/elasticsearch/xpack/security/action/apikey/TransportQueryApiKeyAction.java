@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -50,9 +51,12 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
 
     @Override
     protected void doExecute(Task task, QueryApiKeyRequest request, ActionListener<QueryApiKeyResponse> listener) {
-        final Authentication authentication = securityContext.getAuthentication();
-        if (authentication == null) {
+        Authentication filteringAuthentication = securityContext.getAuthentication();
+        if (filteringAuthentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
+        }
+        if (request.isFilterForCurrentUser() == false) {
+            filteringAuthentication = null;
         }
 
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource()
@@ -69,13 +73,14 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
 
         final ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder = ApiKeyBoolQueryBuilder.build(
             request.getQueryBuilder(),
-            request.isFilterForCurrentUser() ? authentication : null
+            filteringAuthentication
         );
         searchSourceBuilder.query(apiKeyBoolQueryBuilder);
 
-        // this modifies the {@code request.getAggsBuilder()} in-place
-        ApiKeyAggregationsBuilder.verifyAggsBuilder(request.getAggsBuilder(), request.isFilterForCurrentUser() ? authentication : null);
-        searchSourceBuilder.aggregationsBuilder(request.getAggsBuilder());
+        AggregatorFactories.Builder aggsBuilder = request.getAggsBuilder();
+        // this modifies the aggsBuilder in-place
+        ApiKeyAggregationsBuilder.verifyRequested(aggsBuilder, filteringAuthentication);
+        searchSourceBuilder.aggregationsBuilder(aggsBuilder);
 
         if (request.getFieldSortBuilders() != null) {
             translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -19,7 +18,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
-public class TransportUpdateConnectorNameAction extends HandledTransportAction<UpdateConnectorNameAction.Request, ActionResponse.Empty> {
+public class TransportUpdateConnectorNameAction extends HandledTransportAction<
+    UpdateConnectorNameAction.Request,
+    ConnectorUpdateActionResponse> {
 
     protected final ConnectorIndexService connectorIndexService;
 
@@ -41,7 +42,10 @@ public class TransportUpdateConnectorNameAction extends HandledTransportAction<U
     }
 
     @Override
-    protected void doExecute(Task task, UpdateConnectorNameAction.Request request, ActionListener<ActionResponse.Empty> listener) {
-        connectorIndexService.updateConnectorNameOrDescription(request, listener.map(r -> ActionResponse.Empty.INSTANCE));
+    protected void doExecute(Task task, UpdateConnectorNameAction.Request request, ActionListener<ConnectorUpdateActionResponse> listener) {
+        connectorIndexService.updateConnectorNameOrDescription(
+            request,
+            listener.map(r -> new ConnectorUpdateActionResponse(r.getResult()))
+        );
     }
 }

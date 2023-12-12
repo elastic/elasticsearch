@@ -238,7 +238,7 @@ public class LearningToRankServiceTests extends ESTestCase {
     }
 
     private LearningToRankService getTestLearningToRankService(TrainedModelProvider trainedModelProvider) {
-        return new LearningToRankService(mockModelLoadingService(), trainedModelProvider, getTestScriptService(), xContentRegistry());
+        return new LearningToRankService(mockModelLoadingService(), trainedModelProvider, getTestScriptService(), xContentRegistry(), Settings.EMPTY);
     }
 
     private ScriptService getTestScriptService() {

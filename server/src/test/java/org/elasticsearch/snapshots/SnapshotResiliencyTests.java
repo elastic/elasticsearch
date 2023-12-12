@@ -42,8 +42,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
@@ -1979,7 +1977,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool
                 );
                 actions.put(
-                    PutMappingAction.INSTANCE,
+                    TransportPutMappingAction.TYPE,
                     new TransportPutMappingAction(
                         transportService,
                         clusterService,
@@ -1992,7 +1990,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    AutoPutMappingAction.INSTANCE,
+                    TransportAutoPutMappingAction.TYPE,
                     new TransportAutoPutMappingAction(
                         transportService,
                         clusterService,

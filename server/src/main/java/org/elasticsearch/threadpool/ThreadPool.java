@@ -608,13 +608,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     try {
                         longasynccounter.close();
                     } catch (Exception e) {
-                        logger.warn(format("Failed to close LongAsyncCounter for %s. %s", executor.info.getName(), e.getMessage()));
+                        logger.warn(format("Failed to close LongAsyncCounter for %s. %s", executor.info.getName(), e.getMessage()), e);
                     }
                 } else if (instrument instanceof LongGauge longgauge) {
                     try {
                         longgauge.close();
                     } catch (Exception e) {
-                        logger.warn(format("Failed to close LongGauge for %s. %s", executor.info.getName(), e.getMessage()));
+                        logger.warn(format("Failed to close LongGauge for %s. %s", executor.info.getName(), e.getMessage()), e);
                     }
                 }
             });

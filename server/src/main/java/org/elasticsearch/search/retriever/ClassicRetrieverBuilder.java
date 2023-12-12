@@ -386,12 +386,36 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     }
 
     @Override
-    public void doProcessDfsSearchResults(List<DfsSearchResult> dfsSearchResults, List<DfsKnnResults> dfsKnnResults) {
+    public void doProcessDfsSearchResults(List<DfsSearchResult> dfsSearchResults, List<DfsKnnResults> dfsKnnResultsList) {
         // do nothing
     }
 
     @Override
     public int doGetQueryCount() {
         return 1;
+    }
+
+    @Override
+    public QueryBuilder buildCompoundQuery(int shardIndex, List<DfsKnnResults> dfsKnnResults) {
+        return queryBuilder;
+    }
+
+    @Override
+    public void doBuildQuerySearchSourceBuilders(
+        int shardIndex,
+        List<DfsKnnResults> dfsKnnResultsList,
+        SearchSourceBuilder original,
+        List<SearchSourceBuilder> searchSourceBuilders
+    ) {
+        queryIndex = searchSourceBuilders.size();
+        SearchSourceBuilder copy = original.shallowCopy();
+        copy.query(queryBuilder);
+        copy.searchAfter(searchAfterBuilder.getSortValues());
+        copy.terminateAfter(terminateAfter);
+        copy.sort(sortBuilders);
+        copy.minScore(minScore);
+        copy.postFilter(postFilterQueryBuilder);
+        copy.collapse(collapseBuilder);
+        searchSourceBuilders.add(copy);
     }
 }

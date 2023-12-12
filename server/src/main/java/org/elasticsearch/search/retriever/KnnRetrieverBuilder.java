@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -31,6 +32,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -102,6 +104,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
     private final int k;
     private final int numCands;
     private final Float similarity;
+
+    private QueryBuilder queryBuilder;
 
     public KnnRetrieverBuilder(
         String field,
@@ -330,5 +334,41 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
     @Override
     public int doGetQueryCount() {
         return 1;
+    }
+
+    @Override
+    public QueryBuilder buildCompoundQuery(int shardIndex, List<DfsKnnResults> dfsKnnResultsList) {
+        if (queryBuilder == null) {
+            for (DfsKnnResults dfsKnnResults : dfsKnnResultsList) {
+                List<ScoreDoc> scoreDocs = new ArrayList<>();
+                for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
+                    if (scoreDoc.shardIndex == shardIndex) {
+                        scoreDocs.add(scoreDoc);
+                    }
+                }
+                scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+                // TODO: handle nested path
+                // String nestedPath = dfsKnnResults.getNestedPath();
+                queryBuilder = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+                // if (nestedPath != null) {
+                // query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
+                // }
+            }
+        }
+
+        return queryBuilder;
+    }
+
+    @Override
+    public void doBuildQuerySearchSourceBuilders(
+        int shardIndex,
+        List<DfsKnnResults> dfsKnnResults,
+        SearchSourceBuilder original,
+        List<SearchSourceBuilder> searchSourceBuilders
+    ) {
+        queryIndex = searchSourceBuilders.size();
+        SearchSourceBuilder copy = original.shallowCopy();
+        copy.query(queryBuilder);
+        searchSourceBuilders.add(copy);
     }
 }

@@ -43,6 +43,9 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
         ToXContentObject,
         Rewriteable<RB> {
 
+    public static final int NO_QUERY_INDEX = -1;
+    public static final int COMPOUND_QUERY_INDEX = 0;
+
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
     public static final ParseField _NAME_FIELD = new ParseField("_name");
 
@@ -168,6 +171,8 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
 
     protected QueryBuilder preFilterQueryBuilder;
     protected String _name;
+
+    protected int queryIndex = NO_QUERY_INDEX;
 
     public RetrieverBuilder() {
 
@@ -309,4 +314,51 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     }
 
     public abstract int doGetQueryCount();
+
+    public abstract QueryBuilder buildCompoundQuery(int shardIndex, List<DfsKnnResults> dfsKnnResultsList);
+
+    public final List<SearchSourceBuilder> buildQuerySearchSourceBuilders(
+        int shardIndex,
+        List<DfsKnnResults> dfsKnnResultsList,
+        SearchSourceBuilder original
+    ) {
+        List<SearchSourceBuilder> queries = new ArrayList<>();
+
+        if (original.aggregations() != null
+            || original.trackTotalHitsUpTo() != null && original.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) {
+            queryIndex = COMPOUND_QUERY_INDEX;
+
+            SearchSourceBuilder copy = original.shallowCopy(
+                null,
+                original.postFilter(),
+                new ArrayList<>(),
+                original.aggregations(),
+                original.slice(),
+                null,
+                null,
+                null
+            );
+            copy.size(0);
+            copy.query(buildCompoundQuery(shardIndex, dfsKnnResultsList));
+            queries.add(copy);
+
+            original = original.shallowCopy(null, original.postFilter(), new ArrayList<>(), null, original.slice(), null, null, null);
+            original.trackTotalHits(false);
+        }
+
+        doBuildQuerySearchSourceBuilders(shardIndex, dfsKnnResultsList, original, queries);
+
+        return queries;
+    }
+
+    public abstract void doBuildQuerySearchSourceBuilders(
+        int shardIndex,
+        List<DfsKnnResults> dfsKnnResultsList,
+        SearchSourceBuilder original,
+        List<SearchSourceBuilder> queries
+    );
+
+    public int getQueryIndex() {
+        return queryIndex;
+    }
 }

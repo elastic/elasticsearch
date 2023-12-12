@@ -176,4 +176,33 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
 
         return total;
     }
+
+    @Override
+    public QueryBuilder buildCompoundQuery(int shardIndex, List<DfsKnnResults> dfsKnnResultsList) {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+
+        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            QueryBuilder queryBuilder = retrieverBuilder.buildCompoundQuery(shardIndex, dfsKnnResultsList);
+
+            if (queryBuilder != null) {
+                boolQueryBuilder.should(queryBuilder);
+            }
+        }
+
+        return boolQueryBuilder.should().isEmpty() ? null : boolQueryBuilder;
+    }
+
+    @Override
+    public void doBuildQuerySearchSourceBuilders(
+        int shardIndex,
+        List<DfsKnnResults> dfsKnnResultsList,
+        SearchSourceBuilder original,
+        List<SearchSourceBuilder> queries
+    ) {
+        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            original = new SearchSourceBuilder().shallowCopy();
+            original.size(windowSize);
+            retrieverBuilder.doBuildQuerySearchSourceBuilders(shardIndex, dfsKnnResultsList, original, queries);
+        }
+    }
 }

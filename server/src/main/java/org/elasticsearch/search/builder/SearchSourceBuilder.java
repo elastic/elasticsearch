@@ -1203,7 +1203,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Used by {@link #rewrite(QueryRewriteContext)}}.
      */
     @SuppressWarnings("rawtypes")
-    private SearchSourceBuilder shallowCopy(
+    public SearchSourceBuilder shallowCopy(
         List<SubSearchSourceBuilder> subSearchSourceBuilders,
         QueryBuilder postQueryBuilder,
         List<KnnSearchBuilder> knnSearch,

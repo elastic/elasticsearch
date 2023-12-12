@@ -129,7 +129,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.oidc.c2id-proxy.claims.mail", "email")
         .setting("xpack.security.authc.realms.oidc.c2id-proxy.claims.groups", "groups")
         .setting("xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.host", "127.0.0.1")
-        .setting("xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.port", () -> proxy.getMappedPort(8888).toString())
+        .setting("xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.port", () -> proxy.getProxyPort().toString())
         .setting("xpack.security.authc.realms.oidc.c2id-post.order", "5")
         .setting("xpack.security.authc.realms.oidc.c2id-post.op.issuer", () -> ci2d.getC2IssuerUrl())
         .setting("xpack.security.authc.realms.oidc.c2id-post.op.authorization_endpoint", () -> ci2d.getC2OPUrl() + "/c2id-login")

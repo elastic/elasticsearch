@@ -108,4 +108,8 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
     public Path getCaCertPath() {
         return certsPath.resolve("ca_server.pem");
     }
+
+    public Integer getDefaultPort() {
+        return getMappedPort(636);
+    }
 }

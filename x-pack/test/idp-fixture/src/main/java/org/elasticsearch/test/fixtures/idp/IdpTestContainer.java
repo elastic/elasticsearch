@@ -155,4 +155,8 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
             throw new RuntimeException(e);
         }
     }
+
+    public Integer getDefaultPort() {
+        return getMappedPort(4443);
+    }
 }

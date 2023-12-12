@@ -194,7 +194,7 @@ public class OpenLdapTests extends ESTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "vmode_full");
-        String openLdapEsIoURL = "ldaps://127.0.0.1.ip.es.io:" + openLdap.getMappedPort(636);
+        String openLdapEsIoURL = "ldaps://127.0.0.1.ip.es.io:" + openLdap.getDefaultPort();
         Settings settings = Settings.builder()
             // The certificate used in the vagrant box is valid for "localhost", but not for "*.ip.es.io"
             .put(buildLdapSettings(realmId, openLdapEsIoURL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))

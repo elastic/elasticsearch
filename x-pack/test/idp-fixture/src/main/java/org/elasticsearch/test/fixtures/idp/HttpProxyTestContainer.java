@@ -42,4 +42,8 @@ public final class HttpProxyTestContainer extends DockerEnvironmentAwareTestCont
             logger().warn("Error while caching container images.", e);
         }
     }
+
+    public Integer getProxyPort() {
+        return getMappedPort(PORT);
+    }
 }

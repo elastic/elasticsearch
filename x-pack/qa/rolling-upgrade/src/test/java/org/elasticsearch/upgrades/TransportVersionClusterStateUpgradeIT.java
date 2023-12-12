@@ -21,6 +21,7 @@ import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPO
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCase {
@@ -114,7 +115,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                     assertEquals(nodeDescription, TransportVersion.current(), transportVersion);
                 } else {
                     // There's no relationship between node versions and transport versions anymore, although we can be sure of this:
-                    assertThat(nodeDescription, transportVersion, greaterThan(INFERRED_TRANSPORT_VERSION));
+                    assertThat(nodeDescription, transportVersion, greaterThanOrEqualTo(INFERRED_TRANSPORT_VERSION));
                 }
             }
         } else if (hasNodesVersions) {

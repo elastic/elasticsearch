@@ -265,19 +265,21 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource()
             .query(QueryBuilders.matchQuery("metadata.xpack.cluster_uuid", clusterUUID));
         Set<String> watchIds = new HashSet<>(Arrays.asList(ClusterAlertsUtil.WATCH_IDS));
-        for (SearchHit hit : prepareSearch(".watches").setSource(searchSource).get().getHits().getHits()) {
-            String watchId = ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap());
-            assertNotNull("Missing watch ID", watchId);
-            assertTrue("found unexpected watch id", watchIds.contains(watchId));
+        assertResponse(prepareSearch(".watches").setSource(searchSource), response -> {
+            for (SearchHit hit : response.getHits().getHits()) {
+                String watchId = ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap());
+                assertNotNull("Missing watch ID", watchId);
+                assertTrue("found unexpected watch id", watchIds.contains(watchId));
 
-            String version = ObjectPath.eval("metadata.xpack.version_created", hit.getSourceAsMap());
-            assertNotNull("Missing version from returned watch [" + watchId + "]", version);
-            assertTrue(Version.fromId(Integer.parseInt(version)).onOrAfter(Version.fromId(ClusterAlertsUtil.LAST_UPDATED_VERSION)));
+                String version = ObjectPath.eval("metadata.xpack.version_created", hit.getSourceAsMap());
+                assertNotNull("Missing version from returned watch [" + watchId + "]", version);
+                assertTrue(Version.fromId(Integer.parseInt(version)).onOrAfter(Version.fromId(ClusterAlertsUtil.LAST_UPDATED_VERSION)));
 
-            String uuid = ObjectPath.eval("metadata.xpack.cluster_uuid", hit.getSourceAsMap());
-            assertNotNull("Missing cluster uuid", uuid);
-            assertEquals(clusterUUID, uuid);
-        }
+                String uuid = ObjectPath.eval("metadata.xpack.cluster_uuid", hit.getSourceAsMap());
+                assertNotNull("Missing cluster uuid", uuid);
+                assertEquals(clusterUUID, uuid);
+            }
+        });
     }
 
     private void assertNoWatchesExist() {

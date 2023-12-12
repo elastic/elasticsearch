@@ -92,21 +92,14 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
             false,
             1
         );
-        SearchResponse response = new SearchResponse(
-            internalResponse,
-            scrollId,
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
 
         Answer<?> returnResponse = invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            listener.onResponse(response);
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(internalResponse, scrollId, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
+            );
             return null;
         };
         doAnswer(returnResponse).when(client).search(eq(request), any());

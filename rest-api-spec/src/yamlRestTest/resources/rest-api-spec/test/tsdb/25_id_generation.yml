@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.1.99,8.7.00 - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.1.99,8.7.00 - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       indices.create:
@@ -136,8 +136,8 @@ generates a consistent id:
 ---
 index a new document on top of an old one:
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       search:
@@ -258,8 +258,8 @@ create operation on top of old document fails:
 ---
 create operation on top of old document fails over bulk:
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       bulk:
@@ -273,8 +273,8 @@ create operation on top of old document fails over bulk:
 ---
 ids query:
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       search:
@@ -304,8 +304,8 @@ ids query:
 ---
 get:
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       search:
@@ -363,8 +363,8 @@ get with routing:
 ---
 delete:
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       delete:
@@ -441,8 +441,8 @@ delete over _bulk:
 ---
 routing_path matches deep object:
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       indices.create:
@@ -486,8 +486,8 @@ routing_path matches deep object:
 ---
 routing_path matches object:
   - skip:
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       indices.create:

@@ -2,8 +2,8 @@
 keyword dimension:
   - skip:
       features: close_to
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
 
   - do:
@@ -76,8 +76,8 @@ keyword dimension:
 flattened dimension:
   - skip:
       features: close_to
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
 
   - do:
@@ -164,8 +164,8 @@ flattened dimension:
 flattened empty dimension:
   - skip:
       features: close_to
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
 
   - do:
@@ -245,8 +245,8 @@ flattened empty dimension:
 flattened field missing routing path field:
   - skip:
       features: close_to
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       indices.create:
@@ -340,8 +340,8 @@ flattened field missing routing path field:
 flattened field misspelled routing path field:
   - skip:
       features: close_to
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       indices.create:
@@ -432,8 +432,8 @@ flattened field misspelled routing path field:
 long dimension:
   - skip:
       features: close_to
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       indices.create:
@@ -507,8 +507,8 @@ long dimension:
 ip dimension:
   - skip:
       features: close_to
-      version: " - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: " - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       indices.create:

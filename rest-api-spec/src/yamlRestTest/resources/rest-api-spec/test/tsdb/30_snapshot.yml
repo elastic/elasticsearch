@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: "8.7.00 - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
+      version: "8.7.00 - 8.12.99"
+      reason: _tsid hasing introduced in 8.13
 
   - do:
       snapshot.create_repository:

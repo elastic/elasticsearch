@@ -224,7 +224,9 @@ public class MachineLearningTests extends ESTestCase {
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
             MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false));
             machineLearning.loadExtensions(loader);
-            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null);
+            ActionPlugin.RestHandlerParameters p = mock(ActionPlugin.RestHandlerParameters.class);
+            when(p.settings()).thenReturn(settings);
+            List<RestHandler> restHandlers = machineLearning.getRestHandlers(p);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, hasItem(instanceOf(RestGetJobsAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetTrainedModelsAction.class))));
@@ -245,7 +247,9 @@ public class MachineLearningTests extends ESTestCase {
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
             MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false));
             machineLearning.loadExtensions(loader);
-            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null);
+            ActionPlugin.RestHandlerParameters p = mock(ActionPlugin.RestHandlerParameters.class);
+            when(p.settings()).thenReturn(settings);
+            List<RestHandler> restHandlers = machineLearning.getRestHandlers(p);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
             assertThat(restHandlers, hasItem(instanceOf(RestGetTrainedModelsAction.class)));
@@ -266,7 +270,9 @@ public class MachineLearningTests extends ESTestCase {
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
             MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true));
             machineLearning.loadExtensions(loader);
-            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null);
+            ActionPlugin.RestHandlerParameters p = mock(ActionPlugin.RestHandlerParameters.class);
+            when(p.settings()).thenReturn(settings);
+            List<RestHandler> restHandlers = machineLearning.getRestHandlers(p);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
             assertThat(restHandlers, hasItem(instanceOf(RestGetTrainedModelsAction.class)));

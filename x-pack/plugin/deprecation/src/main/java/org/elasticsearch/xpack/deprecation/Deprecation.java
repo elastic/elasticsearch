@@ -8,18 +8,10 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.RateLimitingFilter;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationCacheResetAction;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent;
@@ -29,7 +21,6 @@ import org.elasticsearch.xpack.deprecation.logging.TransportDeprecationCacheRese
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.SKIP_DEPRECATIONS_SETTING;
 
@@ -62,16 +53,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
+    public List<RestHandler> getRestHandlers(RestHandlerParameters parameters) {
 
         return List.of(new RestDeprecationInfoAction(), new RestDeprecationCacheResetAction());
     }

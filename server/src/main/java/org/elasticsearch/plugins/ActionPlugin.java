@@ -60,19 +60,28 @@ public interface ActionPlugin {
         return Collections.emptyList();
     }
 
+    interface RestHandlerParameters {
+        Settings settings();
+
+        NamedWriteableRegistry namedWriteableRegistry();
+
+        RestController restController();
+
+        ClusterSettings clusterSettings();
+
+        IndexScopedSettings indexScopedSettings();
+
+        SettingsFilter settingsFilter();
+
+        IndexNameExpressionResolver indexNameExpressionResolver();
+
+        Supplier<DiscoveryNodes> nodesInCluster();
+    }
+
     /**
      * Rest handlers added by this plugin.
      */
-    default List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
+    default List<RestHandler> getRestHandlers(RestHandlerParameters parameters) {
         return Collections.emptyList();
     }
 

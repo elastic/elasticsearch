@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.cluster.local;
 
-import org.elasticsearch.test.cluster.ConfigFileProvider;
 import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
@@ -41,7 +40,6 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Map<String, Resource> extraConfigFiles = new HashMap<>();
     private final Map<String, String> systemProperties = new HashMap<>();
     private final List<SystemPropertyProvider> systemPropertyProviders = new ArrayList<>();
-    private final List<ConfigFileProvider> extraConfigFileProviders = new ArrayList<>();
     private final List<String> jvmArgs = new ArrayList<>();
     private DistributionType distributionType;
     private Version version;
@@ -198,18 +196,8 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return cast(this);
     }
 
-    @Override
-    public T configFile(String fileName, Supplier<Resource> supplier) {
-        this.extraConfigFileProviders.add(s -> Map.of(fileName, supplier.get()));
-        return cast(this);
-    }
-
     public Map<String, Resource> getExtraConfigFiles() {
         return inherit(() -> parent.getExtraConfigFiles(), extraConfigFiles);
-    }
-
-    public List<ConfigFileProvider> getExtraConfigFileProviders() {
-        return inherit(() -> parent.getExtraConfigFileProviders(), extraConfigFileProviders);
     }
 
     @Override

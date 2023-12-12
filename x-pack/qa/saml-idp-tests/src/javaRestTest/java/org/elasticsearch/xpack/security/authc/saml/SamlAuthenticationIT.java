@@ -145,7 +145,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         .setting("xpack.ml.enabled", "false")
         .setting("logger.org.elasticsearch.xpack.security", "TRACE")
         .configFile("sp-signing.key", Resource.fromClasspath("/idp/shibboleth-idp/credentials/sp-signing.key"))
-        .configFile("idp-metadata.xml", () -> Resource.fromString(calculateIdpMetaData()))
+        .configFile("idp-metadata.xml", Resource.fromString(SamlAuthenticationIT::calculateIdpMetaData))
         .configFile("sp-signing.crt", Resource.fromClasspath("/idp/shibboleth-idp/credentials/sp-signing.crt"))
         .user("test_admin", "x-pack-test-password")
         .build();

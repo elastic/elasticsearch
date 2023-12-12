@@ -429,7 +429,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void copyExtraConfigFiles() {
-            spec.resolveExtraConfigFiles().forEach((fileName, resource) -> {
+            spec.getExtraConfigFiles().forEach((fileName, resource) -> {
                 final Path target = configDir.resolve(fileName);
                 final Path directory = target.getParent();
                 if (Files.exists(directory) == false) {

@@ -78,7 +78,7 @@ public enum SpatialCoordinateTypes {
                 throw new IllegalArgumentException("Unsupported geometry type " + geometry.type());
             }
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse WKT: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
         }
     }
 

@@ -96,4 +96,9 @@ $endif$
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
     }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
 }

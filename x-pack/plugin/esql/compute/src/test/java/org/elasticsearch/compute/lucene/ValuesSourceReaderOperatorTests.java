@@ -245,7 +245,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "ValuesSourceReaderOperator[field = long]";
+        return "ValuesSourceReaderOperator[fields = [long]]";
     }
 
     @Override
@@ -1353,5 +1353,19 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 .entry("stored_fields[requires_source:false, fields:1, sequential: " + sequential + "]", 1)
         );
         assertDriverContext(driverContext);
+    }
+
+    public void testDescriptionOfMany() {
+        List<FieldCase> cases = infoAndChecksForEachType(randomFrom(Block.MvOrdering.values()));
+
+        ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
+            cases.stream().map(c -> c.info).toList(),
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+            0
+        );
+        assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
+        try (Operator op = factory.get(driverContext())) {
+            assertThat(op.toString(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
+        }
     }
 }

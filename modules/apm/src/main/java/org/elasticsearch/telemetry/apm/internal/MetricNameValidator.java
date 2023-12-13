@@ -18,6 +18,15 @@ public class MetricNameValidator {
         String[] elements = name.split("\\.");
         hasESPrefix(elements, name);
         hasOnlyAllowedCharacters(elements, name);
+        hasAtLeast3Elements(elements, name);
+    }
+
+    private void hasAtLeast3Elements(String[] elements, String name) {
+        if (elements.length < 3) {
+            throw new IllegalArgumentException(
+                "Metric name consist of at least 3 elements. An es. prefix, group and a name. The name was: " + name
+            );
+        }
     }
 
     private static void hasESPrefix(String[] elements, String name) {

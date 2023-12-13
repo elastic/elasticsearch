@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class MeterRegistryConcurrencyTests extends ESTestCase {
-    private final String name = "es.name";
+    private final String name = "es.test.name";
     private final String description = "desc";
     private final String unit = "kg";
     private final Meter noopMeter = OpenTelemetry.noop().getMeter("noop");

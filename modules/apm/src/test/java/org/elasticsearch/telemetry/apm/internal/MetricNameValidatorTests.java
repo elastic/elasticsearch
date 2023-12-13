@@ -34,4 +34,14 @@ public class MetricNameValidatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.some_#_name0.somemetric.count"));
         expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.some-name0.somemetric.count"));
     }
+
+    public void testNameHas3Elements() {
+        MetricNameValidator nameValidator = new MetricNameValidator();
+        nameValidator.validate("es.group.suffix");
+        nameValidator.validate("es.group.subgroup.suffix");
+
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es"));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es."));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.sth"));
+    }
 }

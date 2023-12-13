@@ -140,7 +140,20 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         MetadataRolloverService.validateIndexName(clusterState, trialRolloverIndexName);
 
         boolean isDataStream = metadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
-        if (shouldRolloverLazily(rolloverRequest, isDataStream) && rolloverRequest.isDryRun() == false) {
+        if (rolloverRequest.isLazy()) {
+            if (isDataStream == false || rolloverRequest.getConditions().hasConditions()) {
+                String message;
+                if (isDataStream) {
+                    message = "Lazy rollover can be used only without any conditions."
+                        + " Please remove the conditions from the request body or the query parameter 'lazy'.";
+                } else if (rolloverRequest.getConditions().hasConditions() == false) {
+                    message = "Lazy rollover can be applied only on a data stream." + " Please remove the query parameter 'lazy'.";
+                } else {
+                    message = "Lazy rollover can be applied only on a data stream with no conditions."
+                        + " Please remove the query parameter 'lazy'.";
+                }
+                listener.onFailure(new IllegalArgumentException(message));
+            }
             metadataDataStreamsService.setRolloverNeeded(
                 rolloverRequest.getRolloverTarget(),
                 true,
@@ -192,7 +205,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     false,
                     false,
-                    shouldRolloverLazily(rolloverRequest, isDataStream)
+                    rolloverRequest.isLazy()
                 );
 
                 // If this is a dry run, return with the results without invoking a cluster state update
@@ -264,10 +277,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 maxPrimaryShardDocs
             );
         }
-    }
-
-    static boolean shouldRolloverLazily(RolloverRequest rolloverRequest, boolean isDataStream) {
-        return rolloverRequest.isLazy() && isDataStream && rolloverRequest.getConditions().hasConditions() == false;
     }
 
     record RolloverTask(

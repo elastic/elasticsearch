@@ -18,10 +18,12 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -62,6 +65,8 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.nio.file.Path;
@@ -75,6 +80,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.buildStats;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,6 +92,30 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportRolloverActionTests extends ESTestCase {
+
+    final ClusterService mockClusterService = mock(ClusterService.class);
+    final DiscoveryNode mockNode = mock(DiscoveryNode.class);
+    final ThreadPool mockThreadPool = mock(ThreadPool.class);
+    final MetadataCreateIndexService mockCreateIndexService = mock(MetadataCreateIndexService.class);
+    final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+    final ActionFilters mockActionFilters = mock(ActionFilters.class);
+    final MetadataIndexAliasesService mdIndexAliasesService = mock(MetadataIndexAliasesService.class);
+    final MetadataDataStreamsService mockMetadataDataStreamService = mock(MetadataDataStreamsService.class);
+    final Client mockClient = mock(Client.class);
+    final AllocationService mockAllocationService = mock(AllocationService.class);
+    final MetadataRolloverService rolloverService = new MetadataRolloverService(
+        mockThreadPool,
+        mockCreateIndexService,
+        mdIndexAliasesService,
+        EmptySystemIndices.INSTANCE,
+        WriteLoadForecaster.DEFAULT
+    );
+
+    @Before
+    public void setUpMocks() {
+        when(mockNode.getId()).thenReturn("mocknode");
+        when(mockClusterService.localNode()).thenReturn(mockNode);
+    }
 
     public void testDocStatsSelectionFromPrimariesOnly() {
         long docsInPrimaryShards = 100;
@@ -301,20 +331,6 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
-        final ClusterService mockClusterService = mock(ClusterService.class);
-        final DiscoveryNode mockNode = mock(DiscoveryNode.class);
-        when(mockNode.getId()).thenReturn("mocknode");
-        when(mockClusterService.localNode()).thenReturn(mockNode);
-        final ThreadPool mockThreadPool = mock(ThreadPool.class);
-        final MetadataCreateIndexService mockCreateIndexService = mock(MetadataCreateIndexService.class);
-        final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        final ActionFilters mockActionFilters = mock(ActionFilters.class);
-        final MetadataIndexAliasesService mdIndexAliasesService = mock(MetadataIndexAliasesService.class);
-        final MetadataDataStreamsService mockMetadataDataStreamService = mock(MetadataDataStreamsService.class);
-
-        final Client mockClient = mock(Client.class);
-        final AllocationService mockAllocationService = mock(AllocationService.class);
-
         final Map<String, IndexStats> indexStats = new HashMap<>();
         int total = randomIntBetween(500, 1000);
         indexStats.put("logs-index-000001", createIndexStats(200L, total));
@@ -348,13 +364,6 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any())).thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
-        MetadataRolloverService rolloverService = new MetadataRolloverService(
-            mockThreadPool,
-            mockCreateIndexService,
-            mdIndexAliasesService,
-            EmptySystemIndices.INSTANCE,
-            WriteLoadForecaster.DEFAULT
-        );
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),
@@ -401,23 +410,134 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(response.getConditionStatus().get("[max_docs: 300]"), is(true));
     }
 
-    public void testLazyRolloverApplicable() {
-        RolloverRequest rolloverRequest = new RolloverRequest();
+    public void testLazyRollover() throws Exception {
+        final IndexMetadata backingIndexMetadata = IndexMetadata.builder(".ds-logs-ds-000001")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final DataStream dataStream = new DataStream(
+            "logs-ds",
+            List.of(backingIndexMetadata.getIndex()),
+            1,
+            Map.of(),
+            false,
+            false,
+            false,
+            false,
+            IndexMode.STANDARD
+        );
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(backingIndexMetadata, false).put(dataStream))
+            .build();
 
-        assertThat(TransportRolloverAction.shouldRolloverLazily(rolloverRequest, true), equalTo(false));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 5;
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[4];
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(mockMetadataDataStreamService).setRolloverNeeded(eq(dataStream.getName()), eq(true), any(), any(), anyActionListener());
 
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService
+        );
+        final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+        RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
         rolloverRequest.lazy(true);
-        // Should be lazy
-        assertThat(TransportRolloverAction.shouldRolloverLazily(rolloverRequest, true), equalTo(true));
-        rolloverRequest.setConditions(new RolloverConditions());
-        rolloverRequest.dryRun(true);
-        assertThat(TransportRolloverAction.shouldRolloverLazily(rolloverRequest, true), equalTo(true));
+        transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+        RolloverResponse rolloverResponse = future.actionGet();
+        assertThat(rolloverResponse.getOldIndex(), equalTo(".ds-logs-ds-000001"));
+        assertThat(rolloverResponse.getNewIndex(), Matchers.startsWith(".ds-logs-ds-"));
+        assertThat(rolloverResponse.getNewIndex(), Matchers.endsWith("-000002"));
+        assertThat(rolloverResponse.isLazy(), equalTo(true));
+        assertThat(rolloverResponse.isDryRun(), equalTo(false));
+        assertThat(rolloverResponse.isRolledOver(), equalTo(false));
+        assertThat(rolloverResponse.getConditionStatus().size(), equalTo(0));
+        assertThat(rolloverResponse.isAcknowledged(), is(true));
+    }
 
-        // Has conditions, so lazy is not applicable
-        rolloverRequest.setConditions(new RolloverConditions(Map.of(randomAlphaOfLength(10), createTestCondition())));
+    public void testLazyRolloverFails() throws Exception {
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build())
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        final IndexMetadata backingIndexMetadata = IndexMetadata.builder(".ds-logs-ds-000001")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final DataStream dataStream = new DataStream(
+            "logs-ds",
+            List.of(backingIndexMetadata.getIndex()),
+            randomIntBetween(1, 10),
+            Map.of(),
+            false,
+            false,
+            false,
+            false,
+            IndexMode.STANDARD
+        );
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
+            .build();
 
-        // Not a data stream, so lazy is not applicable
-        assertThat(TransportRolloverAction.shouldRolloverLazily(rolloverRequest, false), equalTo(false));
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService
+        );
+
+        // Lazy rollover fails on a concrete index
+        {
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", null);
+            rolloverRequest.lazy(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
+            assertThat(illegalArgumentException.getMessage(), containsString("Lazy rollover can be applied only on a data stream."));
+        }
+
+        // Lazy rollover fails when used with conditions
+        {
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
+            rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueDays(1)).build());
+            rolloverRequest.lazy(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
+            assertThat(illegalArgumentException.getMessage(), containsString("Lazy rollover can be used only without any conditions."));
+        }
+
+        // Lazy rollover fails on concrete index with conditions
+        {
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", null);
+            rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueDays(1)).build());
+            rolloverRequest.lazy(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
+            assertThat(
+                illegalArgumentException.getMessage(),
+                containsString("Lazy rollover can be applied only on a data stream with no conditions.")
+            );
+        }
     }
 
     private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {

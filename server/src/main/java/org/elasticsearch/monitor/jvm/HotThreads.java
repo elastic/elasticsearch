@@ -42,7 +42,9 @@ import java.util.function.ToLongFunction;
 public class HotThreads {
 
     private static final Semaphore permits = new Semaphore(1);
-    static final String ALREADY_RUNNING_MESSAGE = "hot threads already running";
+    static final String ALREADY_RUNNING_MESSAGE = """
+        Elasticsearch is already running the hot threads API, and cannot execute this API concurrently on multiple threads. Please wait for
+        the other invocation to finish and then try again.""";
 
     private static final StackTraceElement[] EMPTY = new StackTraceElement[0];
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time");

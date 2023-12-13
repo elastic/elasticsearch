@@ -39,7 +39,7 @@ public class RestUpdateConnectorErrorAction extends BaseRestHandler {
         return channel -> client.execute(
             UpdateConnectorErrorAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, UpdateConnectorErrorAction.Response::status, r -> null)
+            new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
         );
     }
 }

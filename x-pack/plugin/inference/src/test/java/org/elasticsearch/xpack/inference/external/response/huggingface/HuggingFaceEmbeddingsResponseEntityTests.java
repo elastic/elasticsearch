@@ -12,6 +12,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +33,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -51,6 +53,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -72,6 +75,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -103,6 +107,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -127,6 +132,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -152,6 +158,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -174,6 +181,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -196,6 +204,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -220,6 +229,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -240,6 +250,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -258,6 +269,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -274,6 +286,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -292,6 +305,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         TextEmbeddingResults parsedResults = HuggingFaceEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -312,6 +326,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -330,6 +345,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             ParsingException.class,
             () -> HuggingFaceEmbeddingsResponseEntity.fromResponse(
+                mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );

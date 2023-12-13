@@ -144,9 +144,9 @@ setup:
                 size: 3
 
   - length: { aggregations.ts.buckets: 3 }
-  - match: { aggregations.ts.buckets.0.key: { "key": "baz" } }
-  - match: { aggregations.ts.buckets.1.key: { "key": "foo" } }
-  - match: { aggregations.ts.buckets.2.key: { "key": "bar" } }
+  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
+  - match: { aggregations.ts.buckets.1.key: { "key": "baz" } }
+  - match: { aggregations.ts.buckets.2.key: { "key": "foo" } }
 
 ---
 "Score test filter some":
@@ -341,9 +341,9 @@ setup:
   - match: { hits.total.value: 2 }
   - length: { aggregations: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: { "key": "11" } }
+  - match: { aggregations.ts.buckets.0.key: { "key": "10" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
-  - match: { aggregations.ts.buckets.1.key: { "key": "10" } }
+  - match: { aggregations.ts.buckets.1.key: { "key": "11" } }
   - match: { aggregations.ts.buckets.1.doc_count: 1 }
 
 ---

@@ -270,13 +270,13 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
             tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[1], TSDB_TIMES[2], -0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[0], TSDB_TIMES[2], 1.1);
             bulk("tsdb", bulk.toString());
-            if (oldClusterVersion.onOrAfter(Version.V_8_12_0)) {
+            if (oldClusterVersion.onOrAfter(Version.V_8_13_0)) {
                 assertTsdbAgg(
                     oldClusterVersion,
                     EXPECTED_TSDB_TSIDS_NODES_1,
                     closeTo(217.45, 0.005),
-                    closeTo(-217.45, 0.005),
-                    closeTo(2391.95, 0.005)
+                    closeTo(2391.95, 0.005),
+                    closeTo(-217.45, 0.005)
                 );
             } else {
                 assertTsdbAgg(
@@ -293,14 +293,14 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
             tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[2], TSDB_TIMES[3], 1.1);
             tsdbBulk(bulk, TSDB_DIMS.get(3), TSDB_TIMES[0], TSDB_TIMES[3], 10);
             bulk("tsdb", bulk.toString());
-            if (oldClusterVersion.onOrAfter(Version.V_8_12_0)) {
+            if (oldClusterVersion.onOrAfter(Version.V_8_13_0)) {
                 assertTsdbAgg(
                     oldClusterVersion,
                     EXPECTED_TSDB_TSIDS_NODES_2,
                     closeTo(218.95, 0.5),
-                    closeTo(-218.95, 0.005),
+                    closeTo(21895.0, 0.005),
                     closeTo(2408.45, 0.005),
-                    closeTo(21895.0, 0.005)
+                    closeTo(-218.95, 0.005)
                 );
             } else {
                 assertTsdbAgg(
@@ -319,15 +319,15 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
             tsdbBulk(bulk, TSDB_DIMS.get(3), TSDB_TIMES[3], TSDB_TIMES[4], 10);
             tsdbBulk(bulk, TSDB_DIMS.get(4), TSDB_TIMES[0], TSDB_TIMES[4], -5);
             bulk("tsdb", bulk.toString());
-            if (oldClusterVersion.onOrAfter(Version.V_8_12_0)) {
+            if (oldClusterVersion.onOrAfter(Version.V_8_13_0)) {
                 assertTsdbAgg(
                     oldClusterVersion,
                     EXPECTED_TSDB_TSIDS_NODES_3,
                     closeTo(220.45, 0.005),
-                    closeTo(-220.45, 0.005),
-                    closeTo(2424.95, 0.005),
+                    closeTo(-11022.5, 0.5),
                     closeTo(22045, 0.5),
-                    closeTo(-11022.5, 0.5)
+                    closeTo(2424.95, 0.005),
+                    closeTo(-220.45, 0.005)
                 );
             } else {
                 assertTsdbAgg(

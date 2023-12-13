@@ -507,13 +507,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             test_2,
             other_0.getTargetRelocatingShard()
         );
-        if (other_0.primary()) {
-            assertEquals(10100L, sizeOfUnaccountedShards(allocation, node, false, "/dev/null"));
-            assertEquals(10090L, sizeOfUnaccountedShards(allocation, node, true, "/dev/null"));
-        } else {
-            assertEquals(100L, sizeOfUnaccountedShards(allocation, node, false, "/dev/null"));
-            assertEquals(90L, sizeOfUnaccountedShards(allocation, node, true, "/dev/null"));
-        }
+        assertEquals(10100L, sizeOfUnaccountedShards(allocation, node, false, "/dev/null"));
+        assertEquals(10090L, sizeOfUnaccountedShards(allocation, node, true, "/dev/null"));
     }
 
     public void testTakesIntoAccountExpectedSizeForInitializingSearchableSnapshots() {

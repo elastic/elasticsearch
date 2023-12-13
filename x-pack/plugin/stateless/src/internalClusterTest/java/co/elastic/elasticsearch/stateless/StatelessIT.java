@@ -38,6 +38,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -72,6 +73,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
+import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -85,6 +88,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
@@ -112,7 +116,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(MockRepository.Plugin.class), super.nodePlugins());
+        return CollectionUtils.concatLists(List.of(MockRepository.Plugin.class, ShutdownPlugin.class), super.nodePlugins());
     }
 
     public void testCompoundCommitHasNodeEphemeralId() throws Exception {
@@ -651,10 +655,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    public void testAutoExpandReplicasSettingsAreIgnored() {
+    public void testAutoExpandReplicasSettingsAreIgnored() throws Exception {
         startMasterOnlyNode();
-        startIndexNodes(2);
-        startSearchNodes(2);
+        var indexNodes = startIndexNodes(2);
+        var searchNodes = startSearchNodes(2);
         ensureStableCluster(5);
 
         final String indexName = randomIdentifier();
@@ -668,6 +672,22 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
 
         createIndex(indexName, indexSettings.build());
+
+        if (randomBoolean()) {
+            var shutdownNode = randomFrom(Stream.concat(indexNodes.stream(), searchNodes.stream()).toList());
+            var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(shutdownNode).getId();
+            client().execute(
+                PutShutdownNodeAction.INSTANCE,
+                new PutShutdownNodeAction.Request(
+                    shutdownNodeId,
+                    SingleNodeShutdownMetadata.Type.SIGTERM,
+                    "Shutdown for tests",
+                    null,
+                    null,
+                    TimeValue.timeValueMinutes(randomIntBetween(1, 5))
+                )
+            ).get();
+        }
 
         assertThat(
             indicesAdmin().prepareGetSettings(indexName)

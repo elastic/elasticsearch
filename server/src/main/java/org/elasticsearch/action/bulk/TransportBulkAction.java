@@ -25,6 +25,9 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
@@ -344,7 +347,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // Step 1: collect all the indices in the request
         final Map<String, Boolean> indices = bulkRequest.requests.stream()
             // delete requests should not attempt to create the index (if the index does not
-            // exists), unless an external versioning is used
+            // exist), unless an external versioning is used
             .filter(
                 request -> request.opType() != DocWriteRequest.OpType.DELETE
                     || request.versionType() == VersionType.EXTERNAL
@@ -365,13 +368,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
+        // Step 3: Collect all the data streams that need to be rolled over
+        Set<String> dataStreamsToBeRolledOver = bulkRequest.requests.stream().filter(request -> {
+            DataStream dataStream = state.metadata().dataStreams().get(request.index());
+            if (dataStream != null) {
+                return dataStream.isRolloverNeeded();
+            } else {
+                return false;
+            }
+        }).map(DocWriteRequest::index).collect(Collectors.toSet());
+
+        // Step 4: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
         createMissingIndicesAndIndexData(
             task,
             bulkRequest,
             executorName,
             listener,
             autoCreateIndices,
+            dataStreamsToBeRolledOver,
             indicesThatCannotBeCreated,
             startTime
         );
@@ -386,14 +400,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         String executorName,
         ActionListener<BulkResponse> listener,
         Set<String> autoCreateIndices,
+        Set<String> dataStreamsToBeRolledOver,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
-        if (autoCreateIndices.isEmpty()) {
+        if (autoCreateIndices.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
         } else {
-            final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
+            final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size() + dataStreamsToBeRolledOver.size());
             for (String index : autoCreateIndices) {
                 createIndex(index, bulkRequest.timeout(), new ActionListener<>() {
                     @Override
@@ -417,6 +432,42 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
                                     bulkRequest.requests.set(i, null);
                                 }
+                            }
+                        }
+                        if (counter.decrementAndGet() == 0) {
+                            forkExecuteBulk(ActionListener.wrap(listener::onResponse, inner -> {
+                                inner.addSuppressed(e);
+                                listener.onFailure(inner);
+                            }));
+                        }
+                    }
+
+                    private void forkExecuteBulk(ActionListener<BulkResponse> finalListener) {
+                        threadPool.executor(executorName).execute(new ActionRunnable<>(finalListener) {
+                            @Override
+                            protected void doRun() {
+                                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+                            }
+                        });
+                    }
+                });
+            }
+            for (String dataStream : dataStreamsToBeRolledOver) {
+                rolloverDataStream(dataStream, bulkRequest.timeout(), new ActionListener<>() {
+                    @Override
+                    public void onResponse(RolloverResponse result) {
+                        if (counter.decrementAndGet() == 0) {
+                            forkExecuteBulk(listener);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // fail all requests involving this index, if create didn't work
+                        for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                            DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                            if (request != null && setResponseFailureIfIndexMatches(responses, i, request, dataStream, e)) {
+                                bulkRequest.requests.set(i, null);
                             }
                         }
                         if (counter.decrementAndGet() == 0) {
@@ -536,6 +587,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.masterNodeTimeout(timeout);
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
+    }
+
+    void rolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
+        RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
+        rolloverRequest.masterNodeTimeout(timeout);
+        client.execute(RolloverAction.INSTANCE, rolloverRequest, listener);
     }
 
     private static boolean setResponseFailureIfIndexMatches(

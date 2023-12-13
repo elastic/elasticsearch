@@ -13,7 +13,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 public class HostMetadataTests extends ESTestCase {
-    public void testCreateFromRegularSource() {
+    public void testCreateFromSourceAWS() {
         final String hostID = "1440256254710195396";
         final String machine = "x86_64";
         final String provider = "aws";
@@ -25,9 +25,8 @@ public class HostMetadataTests extends ESTestCase {
             Map.of(
                 "host.id", hostID,
                 "profiling.host.machine", machine,
-                "profiling.host.tags", Arrays.asList(
-                    "cloud_provider:"+provider, "cloud_environment:qa", "cloud_region:"+region),
-                "ec2.instance_type", instanceType
+                "ec2.instance_type", instanceType,
+                "ec2.placement.region", region
             )
         );
         // end::noformat
@@ -37,5 +36,53 @@ public class HostMetadataTests extends ESTestCase {
         assertEquals(provider, host.instanceType.provider);
         assertEquals(region, host.instanceType.region);
         assertEquals(instanceType, host.instanceType.name);
+    }
+
+    public void testCreateFromSourceGCP() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+        final String provider = "gcp";
+        final String region = "europe-west1";
+        final String zone = "projects/123456789/zones/" + region + "-b";
+
+        // tag::noformat
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
+                "host.id", hostID,
+                "profiling.host.machine", machine,
+                "gce.instance.zone", zone
+            )
+        );
+        // end::noformat
+
+        assertEquals(hostID, host.hostID);
+        assertEquals(machine, host.profilingHostMachine);
+        assertEquals(provider, host.instanceType.provider);
+        assertEquals(region, host.instanceType.region);
+        assertEquals("", host.instanceType.name);
+    }
+
+    public void testCreateFromSourceECS() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+        final String provider = "any-provider";
+        final String region = "any-region";
+
+        // tag::noformat
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
+                "host.id", hostID,
+                "profiling.host.machine", machine,
+                "profiling.host.tags", Arrays.asList(
+                    "cloud_provider:"+provider, "cloud_environment:qa", "cloud_region:"+region)
+            )
+        );
+        // end::noformat
+
+        assertEquals(hostID, host.hostID);
+        assertEquals(machine, host.profilingHostMachine);
+        assertEquals(provider, host.instanceType.provider);
+        assertEquals(region, host.instanceType.region);
+        assertEquals("", host.instanceType.name);
     }
 }

@@ -45,6 +45,40 @@ final class InstanceType implements ToXContentObject {
      * @return the {@link InstanceType}
      */
     public static InstanceType fromHostSource(Map<String, Object> source) {
+        // Check and handle AWS.
+        String region = (String) source.get("ec2.placement.region");
+        if (region != null) {
+            String instanceType = (String) source.get("ec2.instance_type");
+            if (instanceType == null) {
+                instanceType = "";
+            }
+            return new InstanceType("aws", region, instanceType);
+        }
+
+        // Check and handle GCP.
+        String zone = (String) source.get("gce.instance.zone");
+        if (zone != null) {
+            // example: "gce.instance.zone": "projects/123456789/zones/europe-west1-b"
+            region = zone.substring(zone.lastIndexOf('/') + 1);
+            // region consist of the zone's first two tokens
+            String[] tokens = region.split("-", 3);
+            if (tokens.length > 2) {
+                region = tokens[0] + "-" + tokens[1];
+            }
+
+            // Support for instance type is planned for 8.13.
+            return new InstanceType("gcp", region, "");
+        }
+
+        // Check and handle Azure.
+        region = (String) source.get("azure.compute.location");
+        if (region != null) {
+            // example: "azure.compute.location": "eastus2"
+            // Support for instance type is planned for 8.13.
+            return new InstanceType("azure", region, "");
+        }
+
+        // Support for configured tags (ECS).
         // Example of tags:
         // "profiling.host.tags": [
         // "cloud_provider:aws",
@@ -52,9 +86,6 @@ final class InstanceType implements ToXContentObject {
         // "cloud_region:eu-west-1",
         // ],
         String provider = "";
-        String region = "";
-        String instanceType = "";
-
         List<String> tags = listOf(source.get("profiling.host.tags"));
         for (String tag : tags) {
             String[] kv = tag.toLowerCase(Locale.ROOT).split(":", 2);
@@ -72,6 +103,7 @@ final class InstanceType implements ToXContentObject {
         // We only support AWS for 8.12, but plan for GCP and Azure later.
         // "gcp": check 'gce.instance.name' or 'gce.instance.name' to extract the instanceType
         // "azure": extract the instanceType
+        String instanceType = "";
         if ("aws".equals(provider)) {
             instanceType = (String) source.get("ec2.instance_type");
         }

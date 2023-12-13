@@ -13,9 +13,9 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
@@ -80,7 +80,7 @@ public class InternalUsersTests extends ESTestCase {
         final List<String> sampleClusterActions = List.of(
             ClusterStateAction.NAME,
             PutComponentTemplateAction.NAME,
-            DeleteStoredScriptAction.NAME,
+            TransportDeleteStoredScriptAction.TYPE.name(),
             UpdateJobAction.NAME,
             CleanupRepositoryAction.NAME
         );
@@ -92,7 +92,7 @@ public class InternalUsersTests extends ESTestCase {
             RefreshAction.NAME,
             CreateIndexAction.NAME,
             PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(role, randomFrom(sampleIndexActions), randomAlphaOfLengthBetween(3, 12), true);
         checkIndexAccess(
@@ -115,7 +115,7 @@ public class InternalUsersTests extends ESTestCase {
         final List<String> sampleClusterActions = List.of(
             ClusterStateAction.NAME,
             PutComponentTemplateAction.NAME,
-            DeleteStoredScriptAction.NAME,
+            TransportDeleteStoredScriptAction.TYPE.name(),
             UpdateJobAction.NAME,
             CleanupRepositoryAction.NAME
         );
@@ -127,7 +127,7 @@ public class InternalUsersTests extends ESTestCase {
             RefreshAction.NAME,
             CreateIndexAction.NAME,
             PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(
             role,
@@ -154,7 +154,7 @@ public class InternalUsersTests extends ESTestCase {
             RefreshAction.NAME,
             CreateIndexAction.NAME,
             PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(role, randomFrom(sampleAllowedActions), ".security-profile", true);
         checkIndexAccess(role, randomFrom(sampleAllowedActions), ".security-profile-" + randomIntBetween(1, 9), true);
@@ -185,7 +185,7 @@ public class InternalUsersTests extends ESTestCase {
             RefreshAction.NAME,
             CreateIndexAction.NAME,
             PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(role, randomFrom(sampleAllowedActions), XPackPlugin.ASYNC_RESULTS_INDEX, true);
         checkIndexAccess(
@@ -216,7 +216,7 @@ public class InternalUsersTests extends ESTestCase {
             TransportGetAction.TYPE.name(),
             BulkAction.NAME,
             PutMappingAction.NAME,
-            DeleteIndexAction.NAME
+            TransportDeleteIndexAction.TYPE.name()
         );
         checkIndexAccess(role, randomFrom(sampleDeniedActions), randomAlphaOfLengthBetween(4, 8), false);
         checkIndexAccess(role, randomFrom(sampleDeniedActions), ".ds-" + randomAlphaOfLengthBetween(4, 8), false);
@@ -246,7 +246,7 @@ public class InternalUsersTests extends ESTestCase {
 
         final List<String> sampleIndexActions = List.of(
             RolloverAction.NAME,
-            DeleteIndexAction.NAME,
+            TransportDeleteIndexAction.TYPE.name(),
             ForceMergeAction.NAME,
             IndicesStatsAction.NAME,
             UpdateSettingsAction.NAME,
@@ -256,7 +256,7 @@ public class InternalUsersTests extends ESTestCase {
 
         final List<String> sampleSystemDataStreamActions = List.of(
             RolloverAction.NAME,
-            DeleteIndexAction.NAME,
+            TransportDeleteIndexAction.TYPE.name(),
             ForceMergeAction.NAME,
             IndicesStatsAction.NAME,
             UpdateSettingsAction.NAME,

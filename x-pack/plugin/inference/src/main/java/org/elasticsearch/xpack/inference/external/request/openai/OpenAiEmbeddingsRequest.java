@@ -16,8 +16,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -29,35 +31,68 @@ import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUt
 
 public class OpenAiEmbeddingsRequest implements Request {
 
+    private final Truncator truncator;
     private final OpenAiAccount account;
-    private final OpenAiEmbeddingsRequestEntity entity;
+    private final Truncator.TruncationResult truncationResult;
+    private final URI uri;
+    private final OpenAiEmbeddingsTaskSettings taskSettings;
 
-    public OpenAiEmbeddingsRequest(OpenAiAccount account, OpenAiEmbeddingsRequestEntity entity) {
+    public OpenAiEmbeddingsRequest(
+        Truncator truncator,
+        OpenAiAccount account,
+        Truncator.TruncationResult input,
+        OpenAiEmbeddingsTaskSettings taskSettings
+    ) {
+        this.truncator = Objects.requireNonNull(truncator);
         this.account = Objects.requireNonNull(account);
-        this.entity = Objects.requireNonNull(entity);
+        this.truncationResult = Objects.requireNonNull(input);
+        this.uri = buildUri(this.account.url());
+        this.taskSettings = Objects.requireNonNull(taskSettings);
     }
 
-    public HttpRequestBase createRequest() {
+    private static URI buildUri(URI accountUri) {
         try {
-            URI uriForRequest = account.url() == null ? buildDefaultUri() : account.url();
-
-            HttpPost httpPost = new HttpPost(uriForRequest);
-
-            ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(entity).getBytes(StandardCharsets.UTF_8));
-            httpPost.setEntity(byteEntity);
-
-            httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-            httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
-
-            var org = account.organizationId();
-            if (org != null) {
-                httpPost.setHeader(createOrgHeader(org));
-            }
-
-            return httpPost;
+            return accountUri == null ? buildDefaultUri() : accountUri;
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException("Failed to construct OpenAI URL", RestStatus.INTERNAL_SERVER_ERROR, e);
         }
+    }
+
+    public HttpRequestBase createRequest() {
+        HttpPost httpPost = new HttpPost(uri);
+
+        ByteArrayEntity byteEntity = new ByteArrayEntity(
+            Strings.toString(new OpenAiEmbeddingsRequestEntity(truncationResult.input(), taskSettings.model(), taskSettings.user()))
+                .getBytes(StandardCharsets.UTF_8)
+        );
+        httpPost.setEntity(byteEntity);
+
+        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+        httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
+
+        var org = account.organizationId();
+        if (org != null) {
+            httpPost.setHeader(createOrgHeader(org));
+        }
+
+        return httpPost;
+    }
+
+    @Override
+    public URI getURI() {
+        return uri;
+    }
+
+    @Override
+    public Request truncate() {
+        var truncatedInput = truncator.truncate(truncationResult.input());
+
+        return new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, taskSettings);
+    }
+
+    @Override
+    public boolean[] getTruncationInfo() {
+        return truncationResult.truncated().clone();
     }
 
     // default for testing

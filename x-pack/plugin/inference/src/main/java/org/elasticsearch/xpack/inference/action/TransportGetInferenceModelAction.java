@@ -76,10 +76,10 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     }
 
     private void getSingleModel(String modelId, TaskType requestedTaskType, ActionListener<GetInferenceModelAction.Response> listener) {
-        modelRegistry.getModel(modelId, ActionListener.wrap(unparsedModel -> {
+        modelRegistry.getModel(modelId, listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
-                listener.onFailure(
+                delegate.onFailure(
                     new ElasticsearchStatusException(
                         "Unknown service [{}] for model [{}]. ",
                         RestStatus.INTERNAL_SERVER_ERROR,
@@ -91,7 +91,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
             }
 
             if (requestedTaskType.isAnyOrSame(unparsedModel.taskType()) == false) {
-                listener.onFailure(
+                delegate.onFailure(
                     new ElasticsearchStatusException(
                         "Requested task type [{}] does not match the model's task type [{}]",
                         RestStatus.BAD_REQUEST,
@@ -103,20 +103,20 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
             }
 
             var model = service.get().parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
-            listener.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
-        }, listener::onFailure));
+            delegate.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
+        }));
     }
 
     private void getAllModels(ActionListener<GetInferenceModelAction.Response> listener) {
         modelRegistry.getAllModels(
-            ActionListener.wrap(models -> executor.execute(ActionRunnable.supply(listener, () -> parseModels(models))), listener::onFailure)
+            listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
         );
     }
 
     private void getModelsByTaskType(TaskType taskType, ActionListener<GetInferenceModelAction.Response> listener) {
         modelRegistry.getModelsByTaskType(
             taskType,
-            ActionListener.wrap(models -> executor.execute(ActionRunnable.supply(listener, () -> parseModels(models))), listener::onFailure)
+            listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
         );
     }
 

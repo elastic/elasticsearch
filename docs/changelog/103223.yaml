@@ -4,8 +4,7 @@ area: "Search, Application"
 type: docs
 issues: []
 highlight:
-  title: "[Synonyms] Mark Synonyms as GA"
+  title: "GA Release of Synonyms API"
   body: |-
-    Removes the beta flag from Synonyms docs and json definitions, marking
-    the synonyms API as GA.
+    Removes the beta label for the Synonyms API to make it GA.
   notable: true

@@ -7,7 +7,6 @@ for branch in "${branches[@]}"; do
   echo "Resolving dependencies for ${branch} branch"
   rm -rf "checkout/$branch"
   git clone /opt/git-mirrors/elastic-elasticsearch --branch "$branch" --single-branch "checkout/$branch"
-  git checkout buildkite-packer-cache # TODO remove before merge
 
   CHECKOUT_DIR=$(cd "./checkout/${branch}" && pwd)
   CI_DIR="$CHECKOUT_DIR/.ci"

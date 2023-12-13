@@ -267,24 +267,42 @@ public class Analysis {
         boolean removeComments,
         boolean checkDuplicate
     ) {
-        final List<String> wordList = getWordList(env, settings, settingPath, settingList, removeComments);
-        if (wordList != null && wordList.isEmpty() == false && checkDuplicate) {
-            Set<String> dup = new HashSet<>();
-            int lineNum = 0;
-            for (String line : wordList) {
-                // ignore comments
-                if (line.startsWith("#") == false) {
-                    String[] values = CSVUtil.parse(line);
-                    if (dup.add(values[0]) == false) {
-                        throw new IllegalArgumentException(
-                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
-                        );
-                    }
-                }
-                ++lineNum;
-            }
+        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
+        if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
+            checkDuplicateRules(ruleList);
         }
-        return wordList;
+        return ruleList;
+    }
+
+    /**
+     * This method checks for any duplicate rules in the provided ruleList. Each rule in the list is parsed with CSVUtil.parse
+     * to separate the rule into individual components, represented as a String array. Only the first component from each rule
+     * is considered in the duplication check.
+     *
+     * The method will ignore any line that starts with a '#' character, treating it as a comment.
+     *
+     * The check is performed by adding the first component of each rule into a HashSet (dup), which does not allow duplicates.
+     * If the addition to the HashSet returns false, it means that item was already present in the set, indicating a duplicate.
+     * In such a case, an IllegalArgumentException is thrown specifying the duplicate term and the line number in the original list.
+     *
+     * @param ruleList The list of rules to check for duplicates.
+     * @throws IllegalArgumentException If a duplicate rule is found.
+     */
+    private static void checkDuplicateRules(List<String> ruleList) {
+        Set<String> dup = new HashSet<>();
+        int lineNum = 0;
+        for (String line : ruleList) {
+            // ignore comments
+            if (line.startsWith("#") == false) {
+                String[] values = CSVUtil.parse(line);
+                if (dup.add(values[0]) == false) {
+                    throw new IllegalArgumentException(
+                        "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
+                    );
+                }
+            }
+            ++lineNum;
+        }
     }
 
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {

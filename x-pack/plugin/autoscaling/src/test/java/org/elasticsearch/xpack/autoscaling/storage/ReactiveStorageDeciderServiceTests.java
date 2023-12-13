@@ -491,7 +491,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103357")
+//    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103357")
     public void testUnmovableSize() {
         Settings.Builder settingsBuilder = Settings.builder();
         if (randomBoolean()) {
@@ -521,11 +521,11 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         stateBuilder.metadata(metaBuilder);
         ClusterState clusterState = stateBuilder.build();
 
-        Set<ShardRouting> shards = IntStream.range(0, between(1, 10))
+        var shards = IntStream.range(0, between(1, 10))
             .mapToObj(i -> Tuple.tuple(new ShardId(indexMetadata.getIndex(), randomInt(10)), randomBoolean()))
             .distinct()
             .map(t -> TestShardRouting.newShardRouting(t.v1(), nodeId, t.v2(), ShardRoutingState.STARTED))
-            .collect(Collectors.toSet());
+            .toList();
 
         long minShardSize = randomLongBetween(1, 10);
 
@@ -560,7 +560,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                 || info.getShardSize(clusterState.getRoutingNodes().activePrimary(missingShard.shardId())) == null)
             || minShardSize < 5) {
             // the diff between used and high watermark is 5 KB.
-            assertThat(result, equalTo(ByteSizeUnit.KB.toBytes(5)));
+            assertThat(shardSize.toString(), result, equalTo(ByteSizeUnit.KB.toBytes(5)));
         } else {
             assertThat(result, equalTo(ByteSizeUnit.KB.toBytes(minShardSize)));
         }

@@ -84,6 +84,8 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
+        // testImplementation project(path: ':modules:lang-painless')
+        // plugins.add(new PainlessPlugin());
         plugins.add(new Monitoring(settings) {
             @Override
             protected SSLService getSslService() {

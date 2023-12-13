@@ -27,6 +27,9 @@ dependencies {
   testImplementation project(path: xpackModule('wildcard'))
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:percolator')
+//  Conflict found for the following module:
+//  - org.ow2.asm:asm between versions 8.0.1 and 7.2
+//  testImplementation project(path: ':modules:lang-painless')
   testImplementation project(path: xpackModule('sql:sql-action'))
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:reindex')

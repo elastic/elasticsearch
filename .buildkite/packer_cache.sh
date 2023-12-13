@@ -26,6 +26,6 @@ for branch in "${branches[@]}"; do
   rm -rf "checkout/$branch"
   git clone /opt/git-mirrors/elastic-elasticsearch --branch "$branch" --single-branch "checkout/$branch"
   export JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
-  "checkout/${branch}/gradlew" --project-dir "./checkout/${branch}" --parallel clean -s resolveAllDependencies -Dorg.gradle.warning.mode=none
+  "checkout/${branch}/gradlew" --project-dir "./checkout/${branch}" --parallel clean -s resolveAllDependencies -Dorg.gradle.warning.mode=none -DisCI
   rm -rf "checkout/${branch}"
 done

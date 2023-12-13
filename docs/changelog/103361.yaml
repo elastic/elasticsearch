@@ -1,5 +1,5 @@
 pr: 103361
-summary: Fix a null pointer during node shutdowns
+summary: Prevent attempts to access non-existent node information during rebalancing
 area: Machine Learning
 type: bug
-issues: []
+issues: [ ]

@@ -28,6 +28,7 @@ dependencies {
     compileOnly(xpackModule("blob-cache"))
     compileOnly(project(":libs:serverless-shared-constants"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))
+    internalClusterTestImplementation(xpackModule("shutdown"))
     testImplementation(testArtifact(xpackModule("searchable-snapshots")))
     testImplementation("com.amazonaws:aws-java-sdk-core")
     testImplementation("org.elasticsearch.test:s3-fixture")

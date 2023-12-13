@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTriggerMethod;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
@@ -116,9 +117,9 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field("id", id);
-                builder.field("job_type", jobType);
-                builder.field("trigger_method", triggerMethod);
+                builder.field(Connector.ID_FIELD.getPreferredName(), id);
+                builder.field(ConnectorSyncJob.JOB_TYPE_FIELD.getPreferredName(), jobType);
+                builder.field(ConnectorSyncJob.TRIGGER_METHOD_FIELD.getPreferredName(), triggerMethod);
             }
             builder.endObject();
             return builder;
@@ -182,7 +183,7 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("id", id);
+            builder.field(ConnectorSyncJob.ID_FIELD.getPreferredName(), id);
             builder.endObject();
             return builder;
         }

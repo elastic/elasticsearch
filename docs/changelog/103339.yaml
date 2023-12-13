@@ -1,0 +1,6 @@
+pr: 103339
+summary: "ESQL: Fix resolution of MV_EXPAND after KEEP *"
+area: ES|QL
+type: bug
+issues:
+ - 103331

@@ -218,20 +218,20 @@ public class ServiceUtils {
     public static void getEmbeddingSize(Model model, InferenceService service, ActionListener<Integer> listener) {
         assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
 
-        service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), ActionListener.wrap(r -> {
+        service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), listener.delegateFailureAndWrap((delegate, r) -> {
             if (r instanceof TextEmbeddingResults embeddingResults) {
                 if (embeddingResults.embeddings().isEmpty()) {
-                    listener.onFailure(
+                    delegate.onFailure(
                         new ElasticsearchStatusException(
                             "Could not determine embedding size, no embeddings were returned in test call",
                             RestStatus.BAD_REQUEST
                         )
                     );
                 } else {
-                    listener.onResponse(embeddingResults.embeddings().get(0).values().size());
+                    delegate.onResponse(embeddingResults.embeddings().get(0).values().size());
                 }
             } else {
-                listener.onFailure(
+                delegate.onFailure(
                     new ElasticsearchStatusException(
                         "Could not determine embedding size. "
                             + "Expected a result of type ["
@@ -243,7 +243,7 @@ public class ServiceUtils {
                     )
                 );
             }
-        }, listener::onFailure));
+        }));
     }
 
     private static final String TEST_EMBEDDING_INPUT = "how big";

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Map;
 
@@ -146,7 +147,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     routing,
                     Math.max(routing.getExpectedShardSize(), 0L),
                     clusterInfo,
-                    null,
+                    SnapshotShardSizeInfo.EMPTY,
                     metadata,
                     routingTable
                 );
@@ -158,7 +159,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
-                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);
+                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, SnapshotShardSizeInfo.EMPTY, metadata, routingTable);
                 }
             }
         }

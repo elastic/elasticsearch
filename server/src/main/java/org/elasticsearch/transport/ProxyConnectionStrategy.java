@@ -179,7 +179,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
                     newConnection,
                     clusterAlias,
-                    connectionManager.getCredentialsManager()
+                    actualProfile.getTransportProfile()
                 ),
                 actualProfile.getHandshakeTimeout(),
                 cn -> true,

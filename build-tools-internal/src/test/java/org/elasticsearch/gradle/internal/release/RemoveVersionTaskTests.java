@@ -21,7 +21,6 @@ import java.io.StringWriter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,8 +92,6 @@ public class RemoveVersionTaskTests {
         assertThat(unit, hasToString(updatedVersionJava));
     }
 
-    private static final Pattern VERSION_FIELD = Pattern.compile("V_(\\d+)_(\\d+)_(\\d+)(?:_(\\w+))?");
-
     @Test
     public void updateVersionFile_updatesCorrectly() throws Exception {
         Path versionFile = Path.of("..", AddVersionTask.VERSION_FILE_PATH);
@@ -108,15 +105,8 @@ public class RemoveVersionTaskTests {
         );
         // remove the last-but-two static version field (skip CURRENT and the latest version)
         String constant = staticVersionFields.get(staticVersionFields.size() - 3).getVariable(0).getNameAsString();
-        var version = VERSION_FIELD.matcher(constant);
-        assertThat(version.find(), is(true));
 
-        Version versionToRemove = new Version(
-            Integer.parseInt(version.group(1)),
-            Integer.parseInt(version.group(2)),
-            Integer.parseInt(version.group(3)),
-            version.group(4)
-        );
+        Version versionToRemove = AbstractVersionTask.parseVersionField(constant).orElseThrow(AssertionError::new);
         var result = RemoveVersionTask.removeVersionConstant(unit, versionToRemove);
         assertThat(result.isPresent(), is(true));
 

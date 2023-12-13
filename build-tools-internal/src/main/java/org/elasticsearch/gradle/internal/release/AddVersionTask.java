@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.TreeMap;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -72,8 +71,6 @@ public class AddVersionTask extends AbstractVersionTask {
         }
     }
 
-    private static final Pattern VERSION_FIELD = Pattern.compile("V_(\\d+)_(\\d+)_(\\d+)(?:_(\\w+))?");
-
     @VisibleForTesting
     static Optional<CompilationUnit> addVersionConstant(CompilationUnit versionJava, Version version, boolean updateCurrent) {
         String newFieldName = String.format("V_%d_%d_%d", version.getMajor(), version.getMinor(), version.getRevision());
@@ -86,23 +83,11 @@ public class AddVersionTask extends AbstractVersionTask {
 
         NavigableMap<Version, FieldDeclaration> versions = versionClass.getFields()
             .stream()
-            .map(f -> Map.entry(f, VERSION_FIELD.matcher(f.getVariable(0).getNameAsString())))
-            .filter(e -> e.getValue().find())
-            .collect(
-                Collectors.toMap(
-                    e -> new Version(
-                        Integer.parseInt(e.getValue().group(1)),
-                        Integer.parseInt(e.getValue().group(2)),
-                        Integer.parseInt(e.getValue().group(3)),
-                        e.getValue().group(4)
-                    ),
-                    Map.Entry::getKey,
-                    (v1, v2) -> {
-                        throw new IllegalArgumentException("Duplicate version constants");
-                    },
-                    TreeMap::new
-                )
-            );
+            .map(f -> Map.entry(f, parseVersionField(f.getVariable(0).getNameAsString())))
+            .filter(e -> e.getValue().isPresent())
+            .collect(Collectors.toMap(e -> e.getValue().get(), Map.Entry::getKey, (v1, v2) -> {
+                throw new IllegalArgumentException("Duplicate version constants " + v1);
+            }, TreeMap::new));
 
         // find the version this should be inserted after
         var previousVersion = versions.lowerEntry(version);

@@ -9,9 +9,9 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.zstd.Zstd813StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.HashMap;
@@ -35,11 +35,14 @@ public class CodecService {
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays) {
         final var codecs = new HashMap<String, Codec>();
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene99Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene99Codec(Lucene99Codec.Mode.BEST_COMPRESSION));
+            codecs.put(DEFAULT_CODEC, new Elasticsearch813Codec(Zstd813StoredFieldsFormat.Mode.BEST_SPEED));
+            codecs.put(BEST_COMPRESSION_CODEC, new Elasticsearch813Codec(Zstd813StoredFieldsFormat.Mode.BEST_COMPRESSION));
         } else {
-            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Lucene99Codec.Mode.BEST_SPEED, mapperService, bigArrays));
-            codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMapperCodec(Lucene99Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays));
+            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
+            codecs.put(
+                BEST_COMPRESSION_CODEC,
+                new PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
+            );
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {

@@ -9,14 +9,6 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
@@ -44,35 +36,23 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene99Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Elasticsearch813Codec.class));
     }
 
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
-        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
+        assertEquals(
+            "Zstd813StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=16384, maxDocsPerChunk=128, blockShift=10)",
+            codec.storedFieldsFormat().toString()
+        );
     }
 
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService().codec("best_compression");
-        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
-    }
-
-    // write some docs with it, inspect .si to see this was the used compression
-    private void assertStoredFieldsCompressionEquals(Lucene99Codec.Mode expected, Codec actual) throws Exception {
-        Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(null);
-        iwc.setCodec(actual);
-        IndexWriter iw = new IndexWriter(dir, iwc);
-        iw.addDocument(new Document());
-        iw.commit();
-        iw.close();
-        DirectoryReader ir = DirectoryReader.open(dir);
-        SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
-        String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
-        assertNotNull(v);
-        assertEquals(expected, Lucene99Codec.Mode.valueOf(v));
-        ir.close();
-        dir.close();
+        assertEquals(
+            "Zstd813StoredFieldsFormat(compressionMode=ZSTD(level=9), chunkSize=524288, maxDocsPerChunk=4096, blockShift=10)",
+            codec.storedFieldsFormat().toString()
+        );
     }
 
     private CodecService createCodecService() throws IOException {

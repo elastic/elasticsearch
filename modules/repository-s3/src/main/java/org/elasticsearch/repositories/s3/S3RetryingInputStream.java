@@ -102,13 +102,7 @@ class S3RetryingInputStream extends InputStream {
                     );
                 }
 
-                if (shouldRetry() == false) {
-                    final var finalException = addSuppressedExceptions(e);
-                    logForRetry(Level.WARN, "opening", finalException);
-                    throw finalException;
-                }
-
-                recordAndLogForRetry("opening", e);
+                maybeRecordAndLogForRetry("opening", e);
                 maybeDelaySafely();
             }
         }
@@ -177,13 +171,7 @@ class S3RetryingInputStream extends InputStream {
     }
 
     private void reopenStreamOrFail(IOException e) throws IOException {
-        if (shouldRetry() == false) {
-            final var finalException = addSuppressedExceptions(e);
-            logForRetry(Level.WARN, "reading", finalException);
-            throw finalException;
-        }
-
-        recordAndLogForRetry("reading", e);
+        maybeRecordAndLogForRetry("reading", e);
         maybeAbort(currentStream);
         IOUtils.closeWhileHandlingException(currentStream);
 
@@ -191,7 +179,13 @@ class S3RetryingInputStream extends InputStream {
         openStreamWithRetry();
     }
 
-    private <T extends Exception> void recordAndLogForRetry(String action, T e) {
+    private <T extends Exception> void maybeRecordAndLogForRetry(String action, T e) throws T {
+        if (shouldRetry() == false) {
+            final var finalException = addSuppressedExceptions(e);
+            logForRetry(Level.WARN, action, finalException);
+            throw finalException;
+        }
+
         attempt += 1;
         // Log at info level every ~5 minutes
         logForRetry(attempt % 30 == 0 ? Level.INFO : Level.DEBUG, action, e);
@@ -271,7 +265,7 @@ class S3RetryingInputStream extends InputStream {
         }
     }
 
-    // for testing
+    // protected access for testing
     protected long getRetryDelayInMillis() {
         final long initialDelayInMillis = 10L;
         final int maxAttempts = blobStore.getMaxRetries() + 1;

@@ -140,7 +140,7 @@ public final class MappingLookup {
                 nestedMappers.add((NestedObjectMapper) mapper);
             }
         }
-        this.nestedLookup = NestedLookup.build(nestedMappers);  // TODO: Update to handle models in nested mappings
+        this.nestedLookup = NestedLookup.build(nestedMappers);
 
         final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
         final Set<String> completionFields = new HashSet<>();

@@ -2439,10 +2439,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.field(KEY_SHARD_SIZE_FORECAST, indexMetadata.shardSizeInBytesForecast);
             }
 
-            // TODO: Need null check?
-            Map<String, Set<String>> fieldsForModels = indexMetadata.getFieldsForModels();
-            if (fieldsForModels != null && fieldsForModels.isEmpty() == false) {
-                builder.field(KEY_FIELDS_FOR_MODELS, fieldsForModels);
+            if (indexMetadata.fieldsForModels.isEmpty() == false) {
+                builder.field(KEY_FIELDS_FOR_MODELS, indexMetadata.fieldsForModels);
             }
 
             builder.endObject();

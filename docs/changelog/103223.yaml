@@ -1,0 +1,11 @@
+pr: 103223
+summary: "[Synonyms] Mark Synonyms as GA"
+area: "Search, Application"
+type: docs
+issues: []
+highlight:
+  title: "[Synonyms] Mark Synonyms as GA"
+  body: |-
+    Removes the beta flag from Synonyms docs and json definitions, marking
+    the synonyms API as GA.
+  notable: true

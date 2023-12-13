@@ -1,5 +1,7 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+// Necessary to use tests in Serverless
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
@@ -7,11 +9,13 @@ tasks.named('javaRestTest') {
 
 dependencies {
   configurations.javaRestTestRuntimeClasspath {
-    resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+    resolutionStrategy.force "org.slf4j:slf4j-api:2.0.6"
   }
   configurations.javaRestTestRuntimeOnly {
     // This is also required to make resolveAllDependencies work
-    resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+    // TODO: this used to lead to conflicts when being run as part of Serverless tests.
+    //       Should this really keep pointing to a hard-coded version?
+    resolutionStrategy.force "org.slf4j:slf4j-api:2.0.6"
   }
 
   /* Since we're a standalone rest test we actually get transitive
@@ -24,7 +28,7 @@ dependencies {
   javaRestTestImplementation project(":test:framework")
   javaRestTestRuntimeOnly project(xpackModule('ql:test-fixtures'))
 
-  javaRestTestRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
+  javaRestTestRuntimeOnly "org.slf4j:slf4j-api:2.0.6"
   javaRestTestRuntimeOnly "net.sf.supercsv:super-csv:${versions.supercsv}"
 
   javaRestTestImplementation project(path: xpackModule('ql:test-fixtures'))

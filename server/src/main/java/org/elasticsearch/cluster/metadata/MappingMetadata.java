@@ -206,7 +206,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
             fieldsForModels = in.readMap(StreamInput::readString, i -> i.readCollectionAsImmutableSet(StreamInput::readString));
         } else {
-            fieldsForModels = Map.of();
+            fieldsForModels = null;
         }
     }
 

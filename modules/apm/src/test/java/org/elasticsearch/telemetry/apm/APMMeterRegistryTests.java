@@ -84,8 +84,8 @@ public class APMMeterRegistryTests extends ESTestCase {
     public void testLookupByName() {
         var apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel).getMeterRegistry();
 
-        DoubleCounter registeredCounter = apmMeter.registerDoubleCounter("name", "desc", "unit");
-        DoubleCounter lookedUpCounter = apmMeter.getDoubleCounter("name");
+        DoubleCounter registeredCounter = apmMeter.registerDoubleCounter("es.name.count", "desc", "unit");
+        DoubleCounter lookedUpCounter = apmMeter.getDoubleCounter("es.name.count");
 
         assertThat(lookedUpCounter, sameInstance(registeredCounter));
     }
@@ -125,11 +125,11 @@ public class APMMeterRegistryTests extends ESTestCase {
         APMMeterRegistry registry = apmMeter.getMeterRegistry();
 
         Supplier<DoubleWithAttributes> doubleObserver = () -> new DoubleWithAttributes(1.5, Collections.emptyMap());
-        DoubleCounter dc = registry.registerDoubleCounter("dc", "", "");
-        DoubleUpDownCounter dudc = registry.registerDoubleUpDownCounter("dudc", "", "");
-        DoubleHistogram dh = registry.registerDoubleHistogram("dh", "", "");
-        DoubleAsyncCounter dac = registry.registerDoubleAsyncCounter("dac", "", "", doubleObserver);
-        DoubleGauge dg = registry.registerDoubleGauge("dg", "", "", doubleObserver);
+        DoubleCounter dc = registry.registerDoubleCounter("es.dc.count", "", "");
+        DoubleUpDownCounter dudc = registry.registerDoubleUpDownCounter("es.dudc.count", "", "");
+        DoubleHistogram dh = registry.registerDoubleHistogram("es.dh.statistics", "", "");
+        DoubleAsyncCounter dac = registry.registerDoubleAsyncCounter("es.dac.count", "", "", doubleObserver);
+        DoubleGauge dg = registry.registerDoubleGauge("es.dg.", "", "", doubleObserver);
 
         Supplier<LongWithAttributes> longObserver = () -> new LongWithAttributes(100, Collections.emptyMap());
         LongCounter lc = registry.registerLongCounter("lc", "", "");

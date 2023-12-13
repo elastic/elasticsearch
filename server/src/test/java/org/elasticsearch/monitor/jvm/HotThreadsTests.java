@@ -16,13 +16,16 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 
 import java.io.StringWriter;
+import java.io.Writer;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
 
+import static org.elasticsearch.monitor.jvm.HotThreads.ALREADY_RUNNING_MESSAGE;
 import static org.elasticsearch.transport.Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -937,6 +940,55 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
+    }
+
+    public void testRejectConcurrentDetections() throws Exception {
+        ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
+
+        long[] threadIds = new long[] { 1, 2, 3, 4 }; // Adds up to 10, the intervalNanos for calculating time percentages
+        when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
+
+        List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, TEST_MOCK_TRANSPORT_THREAD_PREFIX, threadIds, 100_000);
+        List<ThreadInfo> cpuOrderedInfos = List.of(allInfos.get(0), allInfos.get(1), allInfos.get(2), allInfos.get(3));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+
+        final var barrier = new CyclicBarrier(2);
+        final var backgroundThread = new Thread(() -> {
+            try {
+                new HotThreads().detect(new Writer() {
+                    boolean firstWrite = true;
+
+                    @Override
+                    public void write(char[] cbuf, int off, int len) {
+                        if (firstWrite) {
+                            firstWrite = false;
+                            safeAwait(barrier);
+                            safeAwait(barrier);
+                        }
+                    }
+
+                    @Override
+                    public void flush() {}
+
+                    @Override
+                    public void close() {}
+                });
+            } catch (Exception e) {
+                fail(e);
+            }
+        });
+        backgroundThread.start();
+
+        safeAwait(barrier);
+        try (var stringWriter = new StringWriter()) {
+            new HotThreads().detect(stringWriter);
+            assertEquals(ALREADY_RUNNING_MESSAGE, stringWriter.toString());
+        } catch (Exception e) {
+            fail(e);
+        } finally {
+            safeAwait(barrier);
+            backgroundThread.join();
+        }
     }
 
     private static String innerDetect(

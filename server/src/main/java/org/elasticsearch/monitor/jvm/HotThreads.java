@@ -35,12 +35,14 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
 
 public class HotThreads {
 
-    private static final Object mutex = new Object();
+    private static final Semaphore permits = new Semaphore(1);
+    static final String ALREADY_RUNNING_MESSAGE = "hot threads already running";
 
     private static final StackTraceElement[] EMPTY = new StackTraceElement[0];
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time");
@@ -187,11 +189,17 @@ public class HotThreads {
     }
 
     public void detect(Writer writer) throws Exception {
-        synchronized (mutex) {
+        if (permits.tryAcquire() == false) {
+            writer.write(ALREADY_RUNNING_MESSAGE);
+            return;
+        }
+        try {
             innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), (interval) -> {
                 Thread.sleep(interval);
                 return null;
             }, writer);
+        } finally {
+            permits.release();
         }
     }
 

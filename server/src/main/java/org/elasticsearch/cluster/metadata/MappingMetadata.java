@@ -177,7 +177,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routingRequired);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED) && fieldsForModels != null) {
             out.writeMap(fieldsForModels, StreamOutput::writeStringCollection);
         }
     }

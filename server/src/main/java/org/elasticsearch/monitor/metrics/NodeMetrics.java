@@ -393,6 +393,15 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             )
         );
 
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.http.current_open",
+                "Current number of open HTTP connections for the node",
+                "connections",
+                () -> new LongWithAttributes(stats.getOrRefresh().getHttp().getServerOpen())
+            )
+        );
+
     }
 
     /**
@@ -434,7 +443,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             false,
             true,
             true,
-            false,
+            true,
             false,
             false,
             false,

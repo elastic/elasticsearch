@@ -145,28 +145,6 @@ public class TestShardRouting {
     }
 
     public static ShardRouting newShardRouting(
-        ShardId shardId,
-        String currentNodeId,
-        boolean primary,
-        ShardRoutingState state,
-        long expectedShardSize
-    ) {
-        return new ShardRouting(
-            shardId,
-            currentNodeId,
-            null,
-            primary,
-            state,
-            buildRecoveryTarget(primary, state),
-            buildUnassignedInfo(state),
-            buildRelocationFailureInfo(state),
-            buildAllocationId(state),
-            expectedShardSize,
-            ShardRouting.Role.DEFAULT
-        );
-    }
-
-    public static ShardRouting newShardRouting(
         String index,
         int shardId,
         String currentNodeId,

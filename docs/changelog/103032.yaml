@@ -1,0 +1,5 @@
+pr: 103032
+summary: "X-pack/plugin/apm-data: minor fixes & tests"
+area: Data streams
+type: enhancement
+issues: []

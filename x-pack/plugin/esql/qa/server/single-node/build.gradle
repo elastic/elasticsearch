@@ -1,10 +1,8 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
 
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.watcher.enabled', 'false'
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
 }
 
 dependencies {
@@ -42,11 +40,4 @@ restResources {
   restTests {
     includeXpack 'esql'
   }
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.monitoring.collection.enabled', 'true'
-  setting 'xpack.security.enabled', 'false'
 }

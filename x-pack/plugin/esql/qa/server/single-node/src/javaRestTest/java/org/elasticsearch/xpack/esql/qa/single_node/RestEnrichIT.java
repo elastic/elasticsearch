@@ -7,6 +7,16 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.RestEnrichTestCase;
+import org.junit.ClassRule;
 
-public class RestEnrichIT extends RestEnrichTestCase {}
+public class RestEnrichIT extends RestEnrichTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EsqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+}

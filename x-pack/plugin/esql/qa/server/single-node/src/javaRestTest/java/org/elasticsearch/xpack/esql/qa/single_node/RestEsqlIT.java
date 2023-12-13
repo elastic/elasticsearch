@@ -12,8 +12,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.Assert;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +26,13 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 public class RestEsqlIT extends RestEsqlTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EsqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public void testBasicEsql() throws IOException {
         StringBuilder b = new StringBuilder();

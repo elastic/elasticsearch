@@ -7,10 +7,20 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import org.junit.ClassRule;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EsqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
         super(fileName, groupName, testName, lineNumber, testCase);
     }

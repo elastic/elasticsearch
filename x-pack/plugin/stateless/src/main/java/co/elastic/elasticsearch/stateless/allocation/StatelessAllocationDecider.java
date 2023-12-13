@@ -60,17 +60,15 @@ public class StatelessAllocationDecider extends AllocationDecider {
         // This is a hack to bypass all auto-expand replicas configurations and force that only 1 replica is configured in such
         // cases, for that we only accept to expand to the "first" index or search node, that way we limit the number of replicas to 1.
         // This assumes that the cluster will have at least 1 index node and 1 search node.
-        for (DiscoveryNode discoveryNode : allocation.nodes()) {
-            if (discoveryNode.getRoles().contains(nodeRole)) {
-                if (discoveryNode.equals(node)) {
-                    return Decision.YES;
-                } else {
-                    break;
-                }
-            }
-        }
+        var isFirstNotShuttingDownNode = allocation.nodes()
+            .stream()
+            .filter(discoveryNode -> discoveryNode.getRoles().contains(nodeRole))
+            .filter(discoveryNode -> allocation.metadata().nodeShutdowns().contains(discoveryNode.getId()) == false)
+            .findFirst()
+            .map(discoveryNode -> discoveryNode.equals(node))
+            .orElse(false);
 
-        return Decision.NO;
+        return isFirstNotShuttingDownNode ? Decision.YES : Decision.NO;
     }
 
     private Decision decideCanAllocateShardToNode(ShardRouting shardRouting, RoutingNode routingNode, RoutingAllocation allocation) {

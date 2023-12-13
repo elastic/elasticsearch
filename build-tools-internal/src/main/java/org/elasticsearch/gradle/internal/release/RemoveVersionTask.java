@@ -37,7 +37,7 @@ public class RemoveVersionTask extends AbstractVersionTask {
         super(layout);
     }
 
-    @Option(option = "version", description = "Specifies the version to remove")
+    @Option(option = "remove-version", description = "Specifies the version to remove")
     public void version(String version) {
         this.version = Version.fromString(version);
     }

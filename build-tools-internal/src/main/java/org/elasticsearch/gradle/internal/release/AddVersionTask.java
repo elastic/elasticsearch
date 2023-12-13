@@ -46,7 +46,7 @@ public class AddVersionTask extends AbstractVersionTask {
         super(layout);
     }
 
-    @Option(option = "version", description = "Specifies the version to add")
+    @Option(option = "add-version", description = "Specifies the version to add")
     public void version(String version) {
         this.version = Version.fromString(version);
     }

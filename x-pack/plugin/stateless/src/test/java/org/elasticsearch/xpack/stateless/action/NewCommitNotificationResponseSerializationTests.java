@@ -42,12 +42,12 @@ public class NewCommitNotificationResponseSerializationTests extends AbstractWir
 
     @Override
     protected NewCommitNotificationResponse mutateInstance(NewCommitNotificationResponse instance) throws IOException {
-        if (instance.getUsedPrimaryTermAndGenerations().isEmpty()) {
+        if (instance.getPrimaryTermAndGenerationsInUse().isEmpty()) {
             return new NewCommitNotificationResponse(randomSet(1, 10, PrimaryTermAndGenerationTests::randomPrimaryTermAndGeneration));
         }
 
         return new NewCommitNotificationResponse(
-            instance.getUsedPrimaryTermAndGenerations()
+            instance.getPrimaryTermAndGenerationsInUse()
                 .stream()
                 .map(PrimaryTermAndGenerationTests::mutatePrimaryTermAndGeneration)
                 .collect(Collectors.toSet())

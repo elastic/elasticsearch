@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -37,7 +39,13 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     @Override
     protected List<Batch<LogicalPlan>> batches() {
-        var local = new Batch<>("Local rewrite", new ReplaceTopNWithLimitAndSort(), new ReplaceMissingFieldWithNull());
+        var local = new Batch<>(
+            "Local rewrite",
+            Limiter.ONCE,
+            new ReplaceTopNWithLimitAndSort(),
+            new ReplaceMissingFieldWithNull(),
+            new InferIsNotNull()
+        );
 
         var rules = new ArrayList<Batch<LogicalPlan>>();
         rules.add(local);
@@ -113,6 +121,14 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             }
 
             return plan;
+        }
+    }
+
+    static class InferIsNotNull extends OptimizerRules.InferIsNotNull {
+
+        @Override
+        protected boolean skipExpression(Expression e) {
+            return e instanceof Coalesce;
         }
     }
 

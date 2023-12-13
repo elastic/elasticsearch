@@ -101,7 +101,7 @@ public class NodeService implements Closeable {
         this.indexingPressure = indexingPressure;
         this.aggregationUsageService = aggregationUsageService;
         this.repositoriesService = repositoriesService;
-        this.componentVersions = findComponentVersions(pluginService)
+        this.componentVersions = findComponentVersions(pluginService);
         clusterService.addStateApplier(ingestService);
     }
 

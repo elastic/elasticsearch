@@ -322,13 +322,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 return null;
             })
         );
-        for (var aliasWithAddedCredentials : result.aliasesWithAddedCredentials()) {
-            logger.debug("Rebuilding connection for remote cluster [{}] with added credentials", aliasWithAddedCredentials);
-            updateRemoteCluster(aliasWithAddedCredentials, settings, true, groupedListener);
-        }
-        for (var aliasWithRemovedCredentials : result.aliasesWithRemovedCredentials()) {
-            logger.debug("Rebuilding connection for remote cluster [{}] with removed credentials", aliasWithRemovedCredentials);
-            updateRemoteCluster(aliasWithRemovedCredentials, settings, true, groupedListener);
+        for (var aliasWithChangedCredentials : result.allAliases()) {
+            logger.debug("Rebuilding connection for remote cluster [{}] because credentials changed", aliasWithChangedCredentials);
+            if (remoteClusters.containsKey(aliasWithChangedCredentials)) {
+                updateRemoteCluster(aliasWithChangedCredentials, settings, true, groupedListener);
+            } else {
+                // A credential was added before a remote connection was configured.
+                // Without an existing connection, there is nothing to rebuild.
+                groupedListener.onResponse(RemoteClusterConnectionStatus.UNCHANGED);
+            }
         }
     }
 
@@ -377,14 +379,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private synchronized void updateRemoteCluster(
         String clusterAlias,
         Settings newSettings,
-        boolean credentialsChanged,
+        boolean forceRebuild,
         ActionListener<RemoteClusterConnectionStatus> listener
     ) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
-
-        // TODO: short-circuit case when credentials change, but there is no other remote cluster configuration yet
 
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, newSettings) == false) {
@@ -404,7 +404,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
-        } else if (credentialsChanged || remote.shouldRebuildConnection(newSettings)) {
+        } else if (forceRebuild || remote.shouldRebuildConnection(newSettings)) {
             // Changes to connection configuration. Must tear down existing connection
             try {
                 IOUtils.close(remote);

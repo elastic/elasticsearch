@@ -4,7 +4,7 @@
 [.text-center]
 image::esql/functions/signature/tan.svg[Embedded,opts=inline]
 
-https://en.wikipedia.org/wiki/Sine_and_cosine[Tangent] trigonometric function.
+https://en.wikipedia.org/wiki/Sine_and_cosine[Tangent] trigonometric function. Input expected in radians.
 
 [source.merge.styled,esql]
 ----

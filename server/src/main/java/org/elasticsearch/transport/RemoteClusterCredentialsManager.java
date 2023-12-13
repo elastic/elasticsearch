@@ -71,6 +71,12 @@ public class RemoteClusterCredentialsManager {
         int totalSize() {
             return aliasesWithAddedCredentials.size() + aliasesWithRemovedCredentials.size();
         }
+
+        SortedSet<String> allAliases() {
+            final var set = new TreeSet<>(aliasesWithAddedCredentials);
+            set.addAll(aliasesWithRemovedCredentials);
+            return set;
+        }
     }
 
     @Nullable

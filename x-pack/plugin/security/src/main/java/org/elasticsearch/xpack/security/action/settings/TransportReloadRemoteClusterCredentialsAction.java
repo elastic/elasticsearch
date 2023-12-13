@@ -44,8 +44,8 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         ActionFilters actionFilters
     ) {
         super(ReloadRemoteClusterCredentialsAction.NAME, actionFilters, transportService.getTaskManager());
-        this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -55,7 +55,7 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         ActionListener<ActionResponse.Empty> listener
     ) {
         // TODO do we need to check cluster state block?
-        // Need this to construct a complete view of remote cluster settings
+        // Need this to construct a complete view of the current remote cluster settings
         final Settings persistentSettings = clusterService.state().metadata().persistentSettings();
         final Settings transientSettings = clusterService.state().metadata().transientSettings();
         final Settings combinedSettings = Settings.builder()

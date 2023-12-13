@@ -42,6 +42,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore(keystoreSettings)
             .rolesFile(Resource.fromClasspath("roles.yml"))
+            .user(REMOTE_SEARCH_USER, PASS.toString(), "read_remote_shared_logs", false)
             .build();
     }
 
@@ -50,26 +51,6 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testCredentialsReload() throws Exception {
-        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-        putRoleRequest.setJsonEntity("""
-            {
-              "remote_indices": [
-                {
-                  "names": ["*"],
-                  "privileges": ["read", "read_cross_cluster"],
-                  "clusters": ["my_remote_cluster"]
-                }
-              ]
-            }""");
-        assertOK(adminClient().performRequest(putRoleRequest));
-        final var putUserRequest = new Request("PUT", "/_security/user/" + REMOTE_SEARCH_USER);
-        putUserRequest.setJsonEntity("""
-            {
-              "password": "x-pack-test-password",
-              "roles" : ["remote_search"]
-            }""");
-        assertOK(adminClient().performRequest(putUserRequest));
-
         final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
             {
               "search": [

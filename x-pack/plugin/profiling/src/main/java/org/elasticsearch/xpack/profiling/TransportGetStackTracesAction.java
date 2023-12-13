@@ -401,9 +401,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             return;
         }
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
-        List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
         ClusterState clusterState = clusterService.state();
         List<Index> indices = resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
+        // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
+        int sliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, indices) ? 1 : desiredSlices;
+        log.trace("Using [{}] slice(s) to lookup stacktraces.", sliceCount);
+        List<List<String>> slicedEventIds = sliced(eventIds, sliceCount);
 
         // Build a set of unique host IDs.
         Set<String> uniqueHostIDs = new HashSet<>(responseBuilder.getHostEventCounts().size());
@@ -457,7 +460,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     // package private for testing
     static <T> List<List<T>> sliced(List<T> c, int slices) {
-        if (c.size() <= slices) {
+        if (c.size() <= slices || slices == 1) {
             return List.of(c);
         }
         List<List<T>> slicedList = new ArrayList<>();
@@ -523,7 +526,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
                             totalFrames.addAndGet(stacktrace.frameIds.size());
                             stackFrameIds.addAll(stacktrace.frameIds);
-                            executableIds.addAll(stacktrace.fileIds);
+                            stacktrace.forNativeAndKernelFrames(e -> executableIds.add(e));
                         }
                     }
                 }
@@ -621,9 +624,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         if (mayNotifyOfCancellation(submitTask, submitListener)) {
             return;
         }
-
-        List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, desiredDetailSlices);
-        List<List<String>> slicedExecutableIds = sliced(executableIds, desiredDetailSlices);
         List<Index> stackFrameIndices = resolver.resolve(
             clusterState,
             "profiling-stackframes",
@@ -636,6 +636,18 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             responseBuilder.getStart(),
             responseBuilder.getEnd()
         );
+        // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
+        int stackFrameSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, stackFrameIndices) ? 1 : desiredDetailSlices;
+        int executableSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, executableIndices) ? 1 : desiredDetailSlices;
+        log.trace(
+            "Using [{}] slice(s) to lookup stack frames and [{}] slice(s) to lookup executables.",
+            stackFrameSliceCount,
+            executableSliceCount
+        );
+
+        List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, stackFrameSliceCount);
+        List<List<String>> slicedExecutableIds = sliced(executableIds, executableSliceCount);
+
         DetailsHandler handler = new DetailsHandler(
             responseBuilder,
             submitListener,
@@ -676,6 +688,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
         private final AtomicInteger expectedSlices;
+        private final AtomicInteger totalInlineFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraceDetails");
 
         private DetailsHandler(
@@ -706,7 +719,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     if (stackFrames.containsKey(frame.getId()) == false) {
                         StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
                         if (stackFrame.isEmpty() == false) {
-                            stackFrames.putIfAbsent(frame.getId(), stackFrame);
+                            if (stackFrames.putIfAbsent(frame.getId(), stackFrame) == null) {
+                                totalInlineFrames.addAndGet(stackFrame.inlineFrameCount());
+                            }
                         } else {
                             log.trace("Stack frame with id [{}] has no properties.", frame.getId());
                         }
@@ -745,6 +760,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
+                builder.addTotalFrames(totalInlineFrames.get());
                 log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
                 log.debug(watch::report);
                 submitListener.onResponse(builder.build());

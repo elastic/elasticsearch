@@ -212,6 +212,187 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 () -> new LongWithAttributes(stats.getOrRefresh().getFs().getIoStats().getTotalIOTimeMillis())
             )
         );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.docs.total",
+                "Total number of indexed documents",
+                "documents",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCount())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.docs.current",
+                "Current number of indexing documents",
+                "documents",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCurrent())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.failed.total",
+                "Total number of failed indexing operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexFailedCount())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.deletion.docs.total",
+                "Total number of deleted documents",
+                "documents",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCount())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.deletion.docs.current",
+                "Current number of deleting documents",
+                "documents",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCurrent())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.time",
+                "Total indices indexing time",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexTime().millis())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.deletion.time",
+                "Total indices deletion time",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteTime().millis())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.throttle.time",
+                "Total indices throttle time",
+                "milliseconds",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getThrottleTime().millis())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.noop.total",
+                "Total number of noop shard operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getNoopUpdateCount())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.coordinating_operations.memory.size.total",
+                "Total number of memory bytes consumed by coordinating operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalCoordinatingBytes())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.coordinating_operations.count.total",
+                "Total number of coordinating operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalCoordinatingOps())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.coordinating_operations.memory.size.current",
+                "Current number of memory bytes consumed by coordinating operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentCoordinatingBytes())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.coordinating_operations.count.current",
+                "Current number of coordinating operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentCoordinatingOps())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.coordinating_operations.rejections.total",
+                "Total number of coordinating operations rejections",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCoordinatingRejections())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.primary_operations.memory.size.total",
+                "Total number of memory bytes consumed by primary operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalPrimaryBytes())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.primary_operations.count.total",
+                "Total number of primary operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalPrimaryOps())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.primary_operations.memory.size.current",
+                "Current number of memory bytes consumed by primary operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentPrimaryBytes())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.primary_operations.count.current",
+                "Current number of primary operations",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentPrimaryOps())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.indexing.primary_operations.rejections.total",
+                "Total number of primary operations rejections",
+                "operations",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getPrimaryRejections())
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "es.node.stats.indices.indexing.memory.limit.current",
+                "Current memory limit for primary and coordinating operations",
+                "bytes",
+                () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getMemoryLimit())
+            )
+        );
+
     }
 
     /**
@@ -238,6 +419,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      */
     private NodeStats getNodeStats() {
         CommonStatsFlags flags = new CommonStatsFlags(
+            CommonStatsFlags.Flag.Indexing,
             CommonStatsFlags.Flag.Get,
             CommonStatsFlags.Flag.Search,
             CommonStatsFlags.Flag.Merge,

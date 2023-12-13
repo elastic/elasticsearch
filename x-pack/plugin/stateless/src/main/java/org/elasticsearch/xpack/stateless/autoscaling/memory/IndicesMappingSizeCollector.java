@@ -67,6 +67,12 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    public static final Setting<TimeValue> RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
+        "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.retry_initial_delay",
+        TimeValue.timeValueSeconds(5),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private static final Logger logger = LogManager.getLogger(IndicesMappingSizeCollector.class);
     private static final org.apache.logging.log4j.Logger log4jLogger = org.apache.logging.log4j.LogManager.getLogger(
         IndicesMappingSizeCollector.class
@@ -78,6 +84,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     private final Executor executor;
     private final TimeValue publicationFrequency;
     private final TimeValue cutOffTimeout;
+    private final TimeValue retryInitialDelay;
     private final AtomicLong seqNo = new AtomicLong();
     private volatile PublishTask publishTask;
 
@@ -94,7 +101,8 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
             publisher,
             threadPool,
             PUBLISHING_FREQUENCY_SETTING.get(settings),
-            CUT_OFF_TIMEOUT_SETTING.get(settings)
+            CUT_OFF_TIMEOUT_SETTING.get(settings),
+            RETRY_INITIAL_DELAY_SETTING.get(settings)
         );
     }
 
@@ -104,7 +112,8 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         final IndicesMappingSizePublisher publisher,
         final ThreadPool threadPool,
         final TimeValue publicationFrequency,
-        final TimeValue cutOffTimeout
+        final TimeValue cutOffTimeout,
+        final TimeValue retryInitialDelay
     ) {
         this.isIndexNode = isIndexNode;
         this.indicesService = indicesService;
@@ -113,6 +122,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         this.executor = threadPool.generic();
         this.publicationFrequency = publicationFrequency;
         this.cutOffTimeout = cutOffTimeout;
+        this.retryInitialDelay = retryInitialDelay;
     }
 
     public static IndicesMappingSizeCollector create(
@@ -166,7 +176,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
 
         final HeapMemoryUsage heapMemoryUsage = new HeapMemoryUsage(seqNo.incrementAndGet(), indicesMappingSize);
 
-        new RetryableAction<>(log4jLogger, threadPool, TimeValue.timeValueMillis(50), cutOffTimeout, actionListener, threadPool.generic()) {
+        new RetryableAction<>(log4jLogger, threadPool, retryInitialDelay, cutOffTimeout, actionListener, threadPool.generic()) {
 
             @Override
             public void tryAction(ActionListener<ActionResponse.Empty> listener) {

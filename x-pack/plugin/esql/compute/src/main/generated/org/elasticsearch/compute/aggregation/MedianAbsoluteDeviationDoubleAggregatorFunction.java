@@ -99,8 +99,8 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override

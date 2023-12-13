@@ -81,6 +81,7 @@ public class IndexVersions {
     public static final IndexVersion V_8_9_0 = def(8_09_00_99, Version.LUCENE_9_7_0);
     public static final IndexVersion V_8_9_1 = def(8_09_01_99, Version.LUCENE_9_7_0);
     public static final IndexVersion V_8_10_0 = def(8_10_00_99, Version.LUCENE_9_7_0);
+    public static final IndexVersion V_8_13_0 = def(8_13_00_99, Version.LUCENE_9_9_0);
     /*
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.

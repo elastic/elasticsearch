@@ -48,7 +48,6 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -277,40 +276,16 @@ public class ServerProcessTests extends ESTestCase {
         runForeground();
     }
 
-    public void testEnvClearedOfTempDirOverride() throws Exception {
+    public void testEnvCleared() throws Exception {
         Path customTmpDir = createTempDir();
         envVars.put("ES_TMPDIR", customTmpDir.toString());
-        processValidator = pb -> assertThat(pb.environment(), not(hasKey("ES_TMPDIR")));
-        runForeground();
-    }
-
-    public void testCustomJvmOptions() throws Exception {
-        var serverArgs = createServerArgs(false, false);
-        var jvmOptionsFile = serverArgs.configDir().resolve("jvm.options");
-        var esConfigFile = serverArgs.configDir().resolve("elasticsearch.yml");
-        try {
-            Files.createDirectories(serverArgs.configDir());
-            Files.createFile(jvmOptionsFile);
-            Files.createFile(esConfigFile);
-        } catch (IOException ex) {
-            // File or directory already exists
-        }
-
         envVars.put("ES_JAVA_OPTS", "-Dmyoption=foo");
-        var jvmOptions = JvmOptionsParser.determineJvmOptions(serverArgs, createProcessInfo(), Path.of(".'"));
 
-        ServerProcessBuilder.ProcessStarter starter = pb -> {
+        processValidator = pb -> {
+            assertThat(pb.environment(), not(hasKey("ES_TMPDIR")));
             assertThat(pb.environment(), not(hasKey("ES_JAVA_OPTS")));
-            assertThat(pb.command(), hasItem("-Dmyoption=foo"));
-            process = new MockElasticsearchProcess();
-            return process;
         };
-        var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
-            .withProcessInfo(createProcessInfo())
-            .withServerArgs(createServerArgs(false, false))
-            .withJvmOptions(jvmOptions)
-            .withTempDir(Path.of("."));
-        serverProcessBuilder.start(starter).waitFor();
+        runForeground();
     }
 
     public void testCommandLineSysprops() throws Exception {

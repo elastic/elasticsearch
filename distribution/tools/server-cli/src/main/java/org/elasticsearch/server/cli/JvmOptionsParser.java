@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -71,14 +70,15 @@ public final class JvmOptionsParser {
      * variable.
      *
      * @param args            the start-up arguments
-     * @param processInfo     info to pass through to the new Java subprocess
+     * @param processInfo     information about the CLI process.
      * @param tmpDir          the directory that should be passed to {@code -Djava.io.tmpdir}
      * @return the list of options to put on the Java command line
-     * @throws RuntimeException     if the java subprocess is interrupted
-     * @throws UncheckedIOException if there is a problem reading any of the files
+     * @throws InterruptedException if the java subprocess is interrupted
+     * @throws IOException          if there is a problem reading any of the files
      * @throws UserException        if there is a problem parsing the `jvm.options` file or `jvm.options.d` files
      */
-    public static List<String> determineJvmOptions(ServerArgs args, ProcessInfo processInfo, Path tmpDir) throws UserException {
+    public static List<String> determineJvmOptions(ServerArgs args, ProcessInfo processInfo, Path tmpDir) throws InterruptedException,
+        IOException, UserException {
         final JvmOptionsParser parser = new JvmOptionsParser();
 
         final Map<String, String> substitutions = new HashMap<>();
@@ -116,10 +116,6 @@ public final class JvmOptionsParser {
                 msg.append(message);
             }
             throw new UserException(ExitCodes.CONFIG, msg.toString());
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 
@@ -129,7 +125,7 @@ public final class JvmOptionsParser {
         Path tmpDir,
         final String esJavaOpts,
         final Map<String, String> substitutions,
-        final Map<String, String> sysprops
+        final Map<String, String> cliSysprops
     ) throws InterruptedException, IOException, JvmOptionsFileParserException, UserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
@@ -144,7 +140,7 @@ public final class JvmOptionsParser {
         );
         substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(config, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
-        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), sysprops);
+        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
 
         final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
 

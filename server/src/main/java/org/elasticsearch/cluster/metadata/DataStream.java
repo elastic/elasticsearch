@@ -969,7 +969,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
     public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
     public static final ParseField FAILURE_INDICES_FIELD = new ParseField("failure_indices");
-    public static final ParseField ROLLOVER_NEEDED_FIELD = new ParseField("rollover_needed");
+    public static final ParseField ROLLOVER_ON_WRITE_FIELD = new ParseField("rollover_on_write");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
@@ -1010,7 +1010,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_NEEDED_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_ON_WRITE_FIELD);
         if (DataStream.isFailureStoreEnabled()) {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
             PARSER.declareObjectArray(
@@ -1063,7 +1063,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration);
         }
-        builder.field(ROLLOVER_NEEDED_FIELD.getPreferredName(), rolloverNeeded);
+        builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), rolloverNeeded);
         builder.endObject();
         return builder;
     }

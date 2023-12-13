@@ -987,7 +987,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (DataStreamLifecycle) args[9],
             DataStream.isFailureStoreEnabled() && args[11] != null && (boolean) args[11],
             DataStream.isFailureStoreEnabled() && args[12] != null ? (List<Index>) args[12] : List.of(),
-            (boolean) args[10]
+            args[10] != null && (boolean) args[10]
         )
     );
 

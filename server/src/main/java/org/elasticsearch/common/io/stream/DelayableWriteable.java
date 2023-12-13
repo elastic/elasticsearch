@@ -216,7 +216,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         try (CountingStreamOutput out = new CountingStreamOutput()) {
             out.setTransportVersion(TransportVersion.current());
             ref.writeTo(out);
-            return out.size;
+            return out.size();
         } catch (IOException exc) {
             throw new UncheckedIOException(exc);
         }
@@ -236,25 +236,5 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             in.setTransportVersion(serializedAtVersion);
             return reader.read(in);
         }
-    }
-
-    private static class CountingStreamOutput extends StreamOutput {
-        long size = 0;
-
-        @Override
-        public void writeByte(byte b) throws IOException {
-            ++size;
-        }
-
-        @Override
-        public void writeBytes(byte[] b, int offset, int length) throws IOException {
-            size += length;
-        }
-
-        @Override
-        public void flush() throws IOException {}
-
-        @Override
-        public void close() throws IOException {}
     }
 }

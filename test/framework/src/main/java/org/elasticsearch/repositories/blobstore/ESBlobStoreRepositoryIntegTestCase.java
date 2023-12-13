@@ -24,6 +24,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -62,6 +64,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_INDEX_NAME_FORMAT;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_NAME_FORMAT;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -228,7 +231,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         if (randomBoolean()) {
             container.writeBlob(randomPurpose(), blobName, bytesArray, failIfAlreadyExists);
         } else {
-            container.writeBlobAtomic(randomPurpose(), blobName, bytesArray, failIfAlreadyExists);
+            container.writeBlobAtomic(randomNonDataPurpose(), blobName, bytesArray, failIfAlreadyExists);
         }
     }
 
@@ -331,14 +334,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     logger.info("--> add random documents to {}", index);
                     addRandomDocuments(index, randomIntBetween(10, 1000));
                 } else {
-                    int docCount = (int) prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
-                    int deleteCount = randomIntBetween(1, docCount);
-                    logger.info("--> delete {} random documents from {}", deleteCount, index);
-                    for (int i = 0; i < deleteCount; i++) {
-                        int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(index, Integer.toString(doc)).get();
-                    }
-                    client().admin().indices().prepareRefresh(index).get();
+                    final int docCount = (int) SearchResponseUtils.getTotalHitsValue(prepareSearch(index).setSize(0));
+                    deleteRandomDocs(index, docCount);
                 }
             }
 
@@ -387,13 +384,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             if (randomBoolean() && i > 0) { // don't delete on the first iteration
                 int docCount = docCounts[i - 1];
                 if (docCount > 0) {
-                    int deleteCount = randomIntBetween(1, docCount);
-                    logger.info("--> delete {} random documents from {}", deleteCount, indexName);
-                    for (int j = 0; j < deleteCount; j++) {
-                        int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(indexName, Integer.toString(doc)).get();
-                    }
-                    client().admin().indices().prepareRefresh(indexName).get();
+                    deleteRandomDocs(indexName, docCount);
                 }
             } else {
                 int docCount = randomIntBetween(10, 1000);
@@ -401,7 +392,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 addRandomDocuments(indexName, docCount);
             }
             // Check number of documents in this iteration
-            docCounts[i] = (int) prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value;
+            docCounts[i] = (int) SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setSize(0));
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(
                 clusterAdmin().prepareCreateSnapshot(repoName, snapshotName + "-" + i).setWaitForCompletion(true).setIndices(indexName)
@@ -431,6 +422,16 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             logger.info("-->  delete snapshot {}:{}", repoName, snapshotName + "-" + i);
             assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName + "-" + i).get());
         }
+    }
+
+    private void deleteRandomDocs(String indexName, int existingDocCount) {
+        int deleteCount = randomIntBetween(1, existingDocCount);
+        logger.info("--> delete {} random documents from {}", deleteCount, indexName);
+        for (int j = 0; j < deleteCount; j++) {
+            int doc = randomIntBetween(0, existingDocCount - 1);
+            client().prepareDelete(indexName, Integer.toString(doc)).get();
+        }
+        client().admin().indices().prepareRefresh(indexName).get();
     }
 
     public void testIndicesDeletedFromRepository() throws Exception {
@@ -556,7 +557,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         // Create an extra dangling blob as if from an earlier snapshot that failed to clean up
         shardContainer.writeBlob(
-            randomPurpose(),
+            OperationPurpose.SNAPSHOT_DATA,
             BlobStoreRepository.UPLOADED_DATA_BLOB_PREFIX + UUIDs.randomBase64UUID(random()),
             BytesArray.EMPTY,
             true

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
@@ -26,7 +27,7 @@ import java.util.function.BiFunction;
 
 final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
-    private final QueryPhaseResultConsumer queryPhaseResultConsumer;
+    private final SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer;
     private final SearchProgressListener progressListener;
 
     SearchDfsQueryThenFetchAsyncAction(
@@ -36,7 +37,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final Map<String, AliasFilter> aliasFilter,
         final Map<String, Float> concreteIndexBoosts,
         final Executor executor,
-        final QueryPhaseResultConsumer queryPhaseResultConsumer,
+        final SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer,
         final SearchRequest request,
         final ActionListener<SearchResponse> listener,
         final GroupShardsIterator<SearchShardIterator> shardsIts,

@@ -120,6 +120,7 @@ import javax.net.ssl.SSLContext;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1744,8 +1745,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getIndexMappingAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexMapping(index);
-        return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("mappings");
+        Map<String, Object> indexMapping = getIndexMapping(index);
+        return (Map<String, Object>) ((Map<String, Object>) indexMapping.get(index)).get("mappings");
     }
 
     protected static boolean indexExists(String index) throws IOException {
@@ -2149,7 +2150,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             // In that case the transport_version field won't exist. Use version, but only for <8.8.0: after that versions diverge.
             var version = parseLegacyVersion(versionField);
             assert version.isPresent();
-            if (version.get().before(Version.V_8_8_0)) {
+            if (version.get().before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
                 return TransportVersion.fromId(version.get().id);
             }
         }

@@ -1292,8 +1292,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "boolean, cartesian_point, datetime, double, geo_point, integer, ip, keyword, long, text, "
-            + "unsigned_long or version";
+        final String supportedTypes = "boolean or cartesian_point or datetime or geo_point or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -1425,6 +1424,14 @@ public class AnalyzerTests extends ESTestCase {
             | keep x*
             """));
         assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
+    }
+
+    public void testUnresolvedMvExpand() {
+        var e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | mv_expand bar"));
+        assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | keep foo, foo | mv_expand foo"));
+        assertThat(e.getMessage(), containsString("Reference [foo] is ambiguous (to disambiguate use quotes or qualifiers)"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

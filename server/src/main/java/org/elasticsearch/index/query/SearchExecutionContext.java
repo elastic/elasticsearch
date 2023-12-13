@@ -97,8 +97,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
-
     private QueryBuilder aliasFilter;
+    private boolean rewriteToNamedQueries = false;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -295,6 +295,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public Map<String, Query> copyNamedQueries() {
         // This might be a good use case for CopyOnWriteHashMap
         return Map.copyOf(namedQueries);
+    }
+
+    public boolean hasNamedQueries() {
+        return (namedQueries.isEmpty() == false);
     }
 
     /**
@@ -618,5 +622,20 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public NestedDocuments getNestedDocuments() {
         return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
+    }
+
+    /**
+     * Instructs to rewrite Elasticsearch queries with _name to Lucene NamedQuery
+     */
+    public void setRewriteToNamedQueries() {
+        this.rewriteToNamedQueries = true;
+    }
+
+    /**
+     * Returns true if Elasticsearch queries with _name must be rewritten to Lucene NamedQuery
+     * @return
+     */
+    public boolean rewriteToNamedQuery() {
+        return rewriteToNamedQueries;
     }
 }

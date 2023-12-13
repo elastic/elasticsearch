@@ -47,8 +47,7 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
 
         Boolean isNative = Objects.requireNonNullElse(request.getIsNative(), false);
 
-        Connector connector = new Connector.Builder().setConnectorId(request.getConnectorId())
-            .setDescription(request.getDescription())
+        Connector connector = new Connector.Builder().setDescription(request.getDescription())
             .setIndexName(request.getIndexName())
             .setIsNative(isNative)
             .setLanguage(request.getLanguage())
@@ -56,6 +55,10 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
             .setServiceType(request.getServiceType())
             .build();
 
-        connectorIndexService.putConnector(connector, listener.map(r -> new PutConnectorAction.Response(r.getResult())));
+        connectorIndexService.putConnector(
+            request.getConnectorId(),
+            connector,
+            listener.map(r -> new PutConnectorAction.Response(r.getResult()))
+        );
     }
 }

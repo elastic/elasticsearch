@@ -267,6 +267,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ParsedQuery parsedQuery();
 
+    public abstract SearchContext queryIndex(int queryIndex);
+
+    public abstract int queryIndex();
+
     /**
      * The query to execute, not rewritten.
      */

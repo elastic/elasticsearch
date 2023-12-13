@@ -65,6 +65,7 @@ import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -130,6 +131,7 @@ final class DefaultSearchContext extends SearchContext {
     /**
      * The query to actually execute.
      */
+    private int queryIndex = RetrieverBuilder.NO_QUERY_INDEX;
     private Query query;
     private ParsedQuery postFilter;
     private Query aliasFilter;
@@ -733,6 +735,17 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ParsedQuery parsedQuery() {
         return this.originalQuery;
+    }
+
+    @Override
+    public SearchContext queryIndex(int queryIndex) {
+        this.queryIndex = queryIndex;
+        return this;
+    }
+
+    @Override
+    public int queryIndex() {
+        return queryIndex;
     }
 
     @Override

@@ -60,6 +60,7 @@ public class QueryPhase {
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.rankShardContext() == null) {
+            searchContext.queryResult().setQueryIndex(searchContext.queryIndex());
             executeQuery(searchContext);
         } else {
             executeRank(searchContext);

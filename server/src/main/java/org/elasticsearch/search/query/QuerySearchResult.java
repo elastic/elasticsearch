@@ -31,6 +31,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.LeakTracker;
 
@@ -42,6 +43,9 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
+
+    private int queryIndex = RetrieverBuilder.NO_QUERY_INDEX;
+
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -131,6 +135,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     public boolean isNull() {
         return isNull;
+    }
+
+    public void setQueryIndex(int queryIndex) {
+        this.queryIndex = queryIndex;
+    }
+
+    public int getQueryIndex() {
+        return queryIndex;
     }
 
     @Override
@@ -369,6 +381,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private void readFromWithId(ShardSearchContextId id, StreamInput in, boolean delayedAggregations) throws IOException {
         this.contextId = id;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RETRIEVERS_ADDED)) {
+            queryIndex = in.readVInt();
+        }
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -428,6 +443,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RETRIEVERS_ADDED)) {
+            out.writeVInt(queryIndex);
+        }
         out.writeVInt(from);
         out.writeVInt(size);
         if (sortValueFormats == null) {

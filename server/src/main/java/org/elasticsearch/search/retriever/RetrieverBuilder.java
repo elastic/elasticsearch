@@ -184,12 +184,14 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     }
 
     public RetrieverBuilder(StreamInput in) throws IOException {
+        queryIndex = in.readVInt();
         preFilterQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         _name = in.readOptionalString();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(queryIndex);
         out.writeOptionalNamedWriteable(preFilterQueryBuilder);
         out.writeOptionalString(_name);
         doWriteTo(out);

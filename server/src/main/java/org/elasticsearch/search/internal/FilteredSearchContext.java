@@ -295,6 +295,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public SearchContext queryIndex(int queryIndex) {
+        return in.queryIndex(queryIndex);
+    }
+
+    @Override
+    public int queryIndex() {
+        return in.queryIndex();
+    }
+
+    @Override
     public Query query() {
         return in.query();
     }

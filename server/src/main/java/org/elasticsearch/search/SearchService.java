@@ -1235,6 +1235,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.from(source.from());
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
+        if (source.getRetrieverBuilder() != null) {
+            context.queryIndex(source.getRetrieverBuilder().getQueryIndex());
+        }
         QueryBuilder query = source.query();
         if (query != null) {
             InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);

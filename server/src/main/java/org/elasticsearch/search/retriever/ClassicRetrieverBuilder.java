@@ -409,6 +409,7 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     ) {
         queryIndex = searchSourceBuilders.size();
         SearchSourceBuilder copy = original.shallowCopy();
+        copy.setRetrieverBuilder(this);
         copy.query(queryBuilder);
         if (searchAfterBuilder != null) {
             copy.searchAfter(searchAfterBuilder.getSortValues());

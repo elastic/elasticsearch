@@ -418,6 +418,16 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
+    public SearchContext queryIndex(int queryIndex) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int queryIndex() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public SearchContext from(int from) {
         throw new UnsupportedOperationException();
     }

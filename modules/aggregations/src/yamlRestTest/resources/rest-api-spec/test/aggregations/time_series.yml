@@ -353,6 +353,10 @@ setup:
 # collection and reduction order. Note that changing the hashing algorithm might require selecting proper values
 # for dimensions fields such that sort(_tsid, timestamp) != sort(_tsid hash, timestamp).
 
+  - skip:
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
+
   - do:
       indices.create:
         index: test-1

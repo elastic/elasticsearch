@@ -435,10 +435,7 @@ setup:
       search:
         index: test-1,test-2
         body:
-          fields:
-            - field: "_tsid"
-            - field: "@timestamp"
-          size: 10
+          size: 0
           aggs:
             ts:
               time_series:

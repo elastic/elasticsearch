@@ -11,6 +11,7 @@ module org.elasticsearch.rank.rrf {
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcore;
+    requires org.apache.logging.log4j;
 
     exports org.elasticsearch.xpack.rank.rrf;
 }

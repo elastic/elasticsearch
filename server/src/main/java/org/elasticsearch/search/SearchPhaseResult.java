@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -70,6 +71,23 @@ public abstract class SearchPhaseResult extends TransportResponse {
     }
 
     public void setShardIndex(int shardIndex) {
+        StringBuilder builder = new StringBuilder();
+        for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
+            builder.append(ste.toString());
+            builder.append("\n");
+        }
+        LogManager.getLogger(SearchPhaseResult.class)
+            .info(
+                "\n\nSET SHARD INDEX: "
+                    + System.identityHashCode(this)
+                    + " | "
+                    + this.shardIndex
+                    + " | "
+                    + shardIndex
+                    + " | "
+                    + builder.toString()
+                    + "\n\n"
+            );
         assert shardIndex >= 0 : "shardIndex must be >= 0 but was: " + shardIndex;
         this.shardIndex = shardIndex;
     }

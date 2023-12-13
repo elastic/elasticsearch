@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -162,6 +163,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     @Override
     public void doProcessDfsSearchResults(List<DfsSearchResult> dfsSearchResults, List<DfsKnnResults> dfsKnnResults) {
         for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            LogManager.getLogger(RRFRetrieverBuilder.class).info("PROCESSING: " + retrieverBuilder);
             retrieverBuilder.doProcessDfsSearchResults(dfsSearchResults, dfsKnnResults);
         }
     }

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -694,6 +695,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.setRescoreDocIds(rescoreDocIds);
                 // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                 context.queryResult().incRef();
+                StringBuilder builder = new StringBuilder();
+                for (ScoreDoc doc : context.queryResult().topDocs().topDocs.scoreDocs) {
+                    builder.append(" | ");
+                    builder.append(doc);
+                }
+                LogManager.getLogger(SearchService.class)
+                    .info(
+                        "ON SHARD: "
+                            + context.queryResult().getQueryIndex()
+                            + " | "
+                            + context.queryResult().getShardIndex()
+                            + builder.toString()
+                    );
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -1040,6 +1054,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }
+            LogManager.getLogger(SearchService.class).info("PARSING: " + resultsType.name() + " | " + request.source().query());
             parseSource(context, request.source(), includeAggregations);
 
             // if the from and size are still not set, default them

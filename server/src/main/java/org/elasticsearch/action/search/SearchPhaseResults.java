@@ -18,17 +18,17 @@ import java.util.stream.Stream;
  * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
  */
 abstract class SearchPhaseResults<Result extends SearchPhaseResult> implements RefCounted {
-    private final int numShards;
+    private final int numResults;
 
-    SearchPhaseResults(int numShards) {
-        this.numShards = numShards;
+    SearchPhaseResults(int numResults) {
+        this.numResults = numResults;
     }
 
     /**
      * Returns the number of expected results this class should collect
      */
-    final int getNumShards() {
-        return numShards;
+    final int getNumResults() {
+        return numResults;
     }
 
     /**

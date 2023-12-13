@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -84,6 +85,8 @@ final class DfsQueryPhase extends SearchPhase {
             context
         );
 
+        LogManager.getLogger(DfsQueryPhase.class).info("DFS QUERY START");
+
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
@@ -99,6 +102,9 @@ final class DfsQueryPhase extends SearchPhase {
                 );
             }
             for (SearchSourceBuilder queryPerShard : queriesPerShard) {
+                if (queriesPerShard.size() > 1) {
+                    shardRequest = new ShardSearchRequest(dfsResult.getShardSearchRequest());
+                }
                 shardRequest.source(queryPerShard);
                 QuerySearchRequest querySearchRequest = new QuerySearchRequest(
                     context.getOriginalIndices(dfsResult.getShardIndex()),
@@ -106,7 +112,9 @@ final class DfsQueryPhase extends SearchPhase {
                     shardRequest,
                     dfs
                 );
+                LogManager.getLogger(DfsQueryPhase.class).info("CONTEXT ID: " + querySearchRequest.contextId());
                 final int shardIndex = dfsResult.getShardIndex();
+                LogManager.getLogger(DfsQueryPhase.class).info("DFS QUERY: " + queryPerShard.query());
                 searchTransportService.sendExecuteQuery(
                     connection,
                     querySearchRequest,
@@ -116,6 +124,13 @@ final class DfsQueryPhase extends SearchPhase {
                         @Override
                         protected void innerOnResponse(QuerySearchResult response) {
                             try {
+                                StringBuilder builder = new StringBuilder();
+                                for (ScoreDoc doc : response.topDocs().topDocs.scoreDocs) {
+                                    builder.append(" | ");
+                                    builder.append(doc);
+                                }
+                                LogManager.getLogger(DfsQueryPhase.class)
+                                    .info("RESPONSE: " + response.getQueryIndex() + " | " + response.getShardIndex() + builder.toString());
                                 response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
                                 counter.onResult(response);
                             } catch (Exception e) {

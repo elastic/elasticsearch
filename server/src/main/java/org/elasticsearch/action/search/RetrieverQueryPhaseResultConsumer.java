@@ -60,6 +60,9 @@ public class RetrieverQueryPhaseResultConsumer extends ArraySearchPhaseResults<S
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
     private final RankCoordinatorContext rankCoordinatorContext;
 
+    private final int queryCount;
+    private final int numShards;
+
     private final int topNSize;
     private final boolean hasTopDocs;
     private final boolean hasAggs;
@@ -79,16 +82,21 @@ public class RetrieverQueryPhaseResultConsumer extends ArraySearchPhaseResults<S
         SearchPhaseController controller,
         Supplier<Boolean> isCanceled,
         SearchProgressListener progressListener,
-        int expectedResultSize,
+        int queryCount,
+        int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
-        super(expectedResultSize);
+        super(queryCount * numShards);
         this.executor = executor;
         this.circuitBreaker = circuitBreaker;
         this.progressListener = progressListener;
         this.topNSize = getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;
+
+        this.queryCount = queryCount;
+        this.numShards = numShards;
+        int expectedResultSize = queryCount*numShards;
 
         SearchSourceBuilder source = request.source();
         int size = source == null || source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
@@ -101,6 +109,7 @@ public class RetrieverQueryPhaseResultConsumer extends ArraySearchPhaseResults<S
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
+        LogManager.getLogger(RetrieverQueryPhaseResultConsumer.class).info("EXPECTED: " + expectedResultSize);
     }
 
     @Override
@@ -114,9 +123,12 @@ public class RetrieverQueryPhaseResultConsumer extends ArraySearchPhaseResults<S
 
     @Override
     public void consumeResult(SearchPhaseResult result, Runnable next) {
-        super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
+        int index = queryCount*querySearchResult.getQueryIndex() + result.getShardIndex();
+        results.set(index, querySearchResult);
+        querySearchResult.incRef();
         progressListener.notifyQueryResult(querySearchResult.getShardIndex(), querySearchResult);
+        LogManager.getLogger(RetrieverQueryPhaseResultConsumer.class).info("CONSUMED");
         pendingMerges.consume(querySearchResult, next);
     }
 

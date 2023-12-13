@@ -58,15 +58,17 @@ final class FetchSearchPhase extends SearchPhase {
         BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
         super("fetch");
-        if (context.getNumShards() != resultConsumer.getNumShards()) {
+        if ((context.getRequest().source() == null
+            || context.getRequest().source() != null && context.getRequest().source().getRetrieverBuilder() == null)
+            && context.getNumShards() != resultConsumer.getNumResults()) {
             throw new IllegalStateException(
                 "number of shards must match the length of the query results but doesn't:"
                     + context.getNumShards()
                     + "!="
-                    + resultConsumer.getNumShards()
+                    + resultConsumer.getNumResults()
             );
         }
-        this.fetchResults = new ArraySearchPhaseResults<>(resultConsumer.getNumShards());
+        this.fetchResults = new ArraySearchPhaseResults<>(resultConsumer.getNumResults());
         context.addReleasable(fetchResults::decRef);
         this.queryResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;

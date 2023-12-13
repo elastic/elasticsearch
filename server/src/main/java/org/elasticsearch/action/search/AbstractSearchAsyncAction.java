@@ -150,7 +150,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
         // we process hence we add one for the non active partition here.
-        this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty() * (request.source() != null
+        this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty() * (request.searchType() == SearchType.QUERY_THEN_FETCH
+            && request.source() != null
             && request.source().getRetrieverBuilder() != null ? request.source().getRetrieverBuilder().getQueryCount(request.source()) : 1);
         this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
@@ -622,7 +623,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final int getNumShards() {
-        return results.getNumShards();
+        return results.getNumResults();
     }
 
     @Override

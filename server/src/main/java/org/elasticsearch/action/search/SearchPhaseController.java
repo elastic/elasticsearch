@@ -795,6 +795,7 @@ public final class SearchPhaseController {
     ) {
         if (request.source() != null && request.source().getRetrieverBuilder() != null) {
             RetrieverBuilder<?> retrieverBuilder = request.source().getRetrieverBuilder();
+            int queryCount = retrieverBuilder.getQueryCount(request.source());
             return new RetrieverQueryPhaseResultConsumer(
                 request,
                 executor,
@@ -802,7 +803,8 @@ public final class SearchPhaseController {
                 this,
                 isCanceled,
                 listener,
-                numShards * retrieverBuilder.getQueryCount(request.source()),
+                queryCount,
+                numShards,
                 onPartialMergeFailure
             );
         }

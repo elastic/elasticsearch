@@ -363,7 +363,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
-                            for (int i = 0; i < results.getNumShards(); i++) {
+                            for (int i = 0; i < results.getNumResults(); i++) {
                                 TestSearchPhaseResult result = results.getAtomicArray().get(i);
                                 assertEquals(result.node.getId(), result.getSearchShardTarget().getNodeId());
                                 sendReleaseSearchContext(result.getContextId(), new MockConnection(result.node), OriginalIndices.NONE);

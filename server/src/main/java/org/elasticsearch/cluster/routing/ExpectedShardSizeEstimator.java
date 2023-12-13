@@ -37,9 +37,14 @@ public class ExpectedShardSizeEstimator {
 
     public static boolean shouldReserveSpaceForInitializingShard(ShardRouting shard, Metadata metadata) {
         assert shard.initializing() : "Expected initializing shard, got: " + shard;
-        return shard.recoverySource().getType() == RecoverySource.Type.PEER
-            || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
-            || metadata.getIndexSafe(shard.index()).isSearchableSnapshot();
+        return switch (shard.recoverySource().getType()) {
+            case EMPTY_STORE -> false;// initializing from scratch no data to reserve space for
+            case EXISTING_STORE -> false;// initializing from prior local data. It is already accounted for in disk usage
+            case PEER -> true;
+            // partial searchable snapshot does not copy all data on initialization
+            case SNAPSHOT -> metadata.getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false;
+            case LOCAL_SHARDS -> false;// shrink/split/clone uses hard-linking to copy existing shards
+        };
     }
 
     /**

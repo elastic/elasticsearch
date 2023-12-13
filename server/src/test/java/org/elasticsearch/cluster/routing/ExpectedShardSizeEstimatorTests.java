@@ -32,6 +32,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOUR
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
@@ -41,11 +44,21 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
     public void testShouldFallbackToDefaultExpectedShardSize() {
 
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
-        var shard = newShardRouting("my-index", 0, randomIdentifier(), randomIdentifier(), true, ShardRoutingState.INITIALIZING);
+        var shard = newShardRouting(
+            new ShardId("my-index", "_na_", 0),
+            randomIdentifier(),
+            true,
+            ShardRoutingState.INITIALIZING,
+            randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
+        );
 
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY);
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(defaultValue));
+        assertFalse(
+            "Should NOT reserve space for locally initializing primaries",
+            shouldReserveSpaceForInitializingShard(shard, allocation)
+        );
     }
 
     public void testShouldReadExpectedSizeFromClusterInfo() {
@@ -53,7 +66,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var shardSize = randomLongBetween(100, 1000);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
         var shard = newShardRouting(
-            new ShardId(state.metadata().index("my-index").getIndex(), 0),
+            new ShardId("my-index", "_na_", 0),
             randomIdentifier(),
             true,
             ShardRoutingState.INITIALIZING,
@@ -78,12 +91,30 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
 
         assertThat(getExpectedShardSize(replica, defaultValue, allocation), equalTo(shardSize));
+        assertTrue("Should reserve space for peer recovery", shouldReserveSpaceForInitializingShard(replica, allocation));
     }
 
     public void testShouldReadExpectedSizeWhenInitializingFromSnapshot() {
 
         var snapshotShardSize = randomLongBetween(100, 1000);
-        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+
+        var index = switch (randomIntBetween(0, 2)) {
+            // regular snapshot
+            case 0 -> index("my-index");
+            // searchable snapshot
+            case 1 -> index("my-index").settings(
+                indexSettings(IndexVersion.current(), 1, 0) //
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE) //
+            );
+            // partial searchable snapshot
+            case 2 -> index("my-index").settings(
+                indexSettings(IndexVersion.current(), 1, 0) //
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE) //
+                    .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true) //
+            );
+            default -> throw new AssertionError("unexpected index type");
+        };
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index)).build();
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
@@ -102,7 +133,14 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, snapshotShardSizeInfo);
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(snapshotShardSize));
-        assertTrue("Should reserve space for snapshot restore", shouldReserveSpaceForInitializingShard(shard, allocation));
+        if (state.metadata().index("my-index").isPartialSearchableSnapshot() == false) {
+            assertTrue("Should reserve space for snapshot restore", shouldReserveSpaceForInitializingShard(shard, allocation));
+        } else {
+            assertFalse(
+                "Should NOT reserve space for partial searchable snapshot restore as they do not download all data during initialization",
+                shouldReserveSpaceForInitializingShard(shard, allocation)
+            );
+        }
     }
 
     public void testShouldReadSizeFromClonedShard() {

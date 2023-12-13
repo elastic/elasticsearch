@@ -131,6 +131,8 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
         for (ShardRouting routing : node.initializing()) {
+            // Space needs to be reserved only when initializing shards that are going to use additional space
+            // that is not yet accounted for by `reservedSpace` in case of lengthy recoveries
             if (shouldReserveSpaceForInitializingShard(routing, metadata) && reservedSpace.containsShardId(routing.shardId()) == false) {
                 final String actualPath = clusterInfo.getDataPath(routing);
                 // if we don't yet know the actual path of the incoming shard then conservatively assume

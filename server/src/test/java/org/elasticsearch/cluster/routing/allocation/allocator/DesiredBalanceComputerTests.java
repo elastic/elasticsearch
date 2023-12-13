@@ -869,7 +869,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
     }
 
-    public void testAccountForSizeOfAllNewShardsDuringComputation() {
+    public void testAccountForSizeOfAllInitializingShardsDuringAllocation() {
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot", randomUUID()));
 

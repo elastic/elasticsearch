@@ -17,10 +17,7 @@ import org.elasticsearch.core.Releasables;
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$if(boolean)$Bit$else$$Type$$endif$Array;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 $endif$
@@ -44,88 +41,13 @@ $if(BytesRef)$
     }
 
 $else$
-    private interface $Type$Values extends Releasable {
-        void setValue(int index, $type$ value);
-    }
-
-    private static class Primitive$Type$Values implements $Type$Values {
-        $type$[] array;
-
-        Primitive$Type$Values($type$[] array) {
-            this.array = array;
-        }
-
-        @Override
-        public void setValue(int index, $type$ value) {
-            array[index] = value;
-        }
-
-        @Override
-        public void close() {
-
-        }
-    }
-
-    private static class Array$Type$Values implements $Type$Values {
-    $if(boolean)$
-        final BitArray array;
-
-        Array$Type$Values(BigArrays bigArrays, long size) {
-            this.array = new BitArray(size, bigArrays);
-        }
-
-        @Override
-        public void setValue(int index, boolean value) {
-            if (value) {
-                array.set(index);
-            }
-        }
-
-        void grow(int minSize) {
-
-        }
-
-    $else$
-        final BigArrays bigArrays;
-        $Type$Array array;
-
-        Array$Type$Values(BigArrays bigArrays, long size) {
-            this.bigArrays = bigArrays;
-            this.array = bigArrays.new$Type$Array(size, false);
-        }
-
-        @Override
-        public void setValue(int index, $type$ value) {
-            array.set(index, value);
-        }
-
-        void grow(int minSize) {
-            array = bigArrays.grow(array, minSize);
-        }
-    $endif$
-
-        @Override
-        public void close() {
-            array.close();
-        }
-
-        long ramBytesUsed() {
-            return array.ramBytesUsed();
-        }
-    }
-
-    private $Type$Values values;
+    private $type$[] values;
 
     $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        long initialBytes = estimateBytesFor$Type$Array(initialSize);
-        if (initialBytes <= blockFactory.maxPrimitiveArrayBytes()) {
-            adjustBreaker(initialBytes);
-            values = new Primitive$Type$Values(new $type$[initialSize]);
-        } else {
-            values = new Array$Type$Values(blockFactory.bigArrays(), initialSize);
-        }
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        values = new $type$[initialSize];
     }
 $endif$
 
@@ -135,12 +57,35 @@ $endif$
 $if(BytesRef)$
         values.append(value);
 $else$
-        values.setValue(valueCount, value);
+        values[valueCount] = value;
 $endif$
         hasNonNullValue = true;
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return $if(BytesRef)$-1$else$$BYTES$$endif$;
+    }
+
+    @Override
+    protected int valuesLength() {
+$if(BytesRef)$
+        return Integer.MAX_VALUE; // allow the BytesRefArray through its own append
+$else$
+        return values.length;
+$endif$
+    }
+
+    @Override
+    protected void growValuesArray(int newSize) {
+$if(BytesRef)$
+        throw new AssertionError("should not reach here");
+$else$
+        values = Arrays.copyOf(values, newSize);
+$endif$
     }
 
     @Override
@@ -338,13 +283,25 @@ $if(BytesRef)$
     }
 
 $else$
-    private $Type$Block buildFromBigArrays(Array$Type$Values values) {
-        assert estimatedBytes == 0 || firstValueIndexes != null;
+    private $Type$Block buildBigArraysBlock() {
         final $Type$Block theBlock;
+    $if(boolean)$
+        final BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
+        for (int i = 0; i < valueCount; i++) {
+            if (values[i]) {
+                array.set(i);
+            }
+        }
+    $else$
+        final $Type$Array array = blockFactory.bigArrays().new$Type$Array(valueCount, false);
+        for (int i = 0; i < valueCount; i++) {
+            array.set(i, values[i]);
+        }
+    $endif$
         if (isDense() && singleValued()) {
-            theBlock = new $Type$BigArrayVector(values.array, positionCount, blockFactory).asBlock();
+            theBlock = new $Type$BigArrayVector(array, positionCount, blockFactory).asBlock();
         } else {
-            theBlock = new $Type$BigArrayBlock(values.array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            theBlock = new $Type$BigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
         }
         /*
         * Update the breaker with the actual bytes used.
@@ -354,39 +311,36 @@ $else$
         * still technically be open, meaning the calling code should close it
         * which will return all used memory to the breaker.
         */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.ramBytesUsed(), false);
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed(), false);
         return theBlock;
     }
-
 $endif$
+
     @Override
     public $Type$Block build() {
         try {
             finish();
+            $Type$Block theBlock;
     $if(BytesRef)$
-            assert estimatedBytes == 0 || firstValueIndexes != null;
-            final $Type$Block theBlock = buildFromBytesArray();
+            theBlock = buildFromBytesArray();
+            values = null;
     $else$
-            final $Type$Block theBlock;
-            if (values instanceof Array$Type$Values arrayValues) {
-                theBlock = buildFromBigArrays(arrayValues);
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = blockFactory.newConstant$Type$BlockWith(values[0], 1, estimatedBytes);
             } else {
-                $type$[] array = ((Primitive$Type$Values) values).array;
-                if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-                    theBlock = blockFactory.newConstant$Type$BlockWith(array[0], 1, estimatedBytes);
+                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                    theBlock = buildBigArraysBlock();
                 } else {
-                    int currentLength = array.length;
-                    // TODO: should be ANDed instead?
-                    if (currentLength - valueCount > 1024 || valueCount < (currentLength / 2)) {
-                        adjustBreaker(estimateBytesFor$Type$Array(valueCount));
-                        array = Arrays.copyOf(array, valueCount);
-                        adjustBreaker(estimateBytesFor$Type$Array(currentLength));
+                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                        adjustBreaker(valueCount * elementSize());
+                        values = Arrays.copyOf(values, valueCount);
+                        adjustBreaker(-values.length * elementSize());
                     }
                     if (isDense() && singleValued()) {
-                        theBlock = blockFactory.new$Type$ArrayVector(array, positionCount, estimatedBytes).asBlock();
+                        theBlock = blockFactory.new$Type$ArrayVector(values, positionCount, estimatedBytes).asBlock();
                     } else {
                         theBlock = blockFactory.new$Type$ArrayBlock(
-                            array,
+                            values,
                             positionCount,
                             firstValueIndexes,
                             nullsMask,
@@ -397,7 +351,6 @@ $endif$
                 }
             }
     $endif$
-            values = null;
             built();
             return theBlock;
         } catch (CircuitBreakingException e) {
@@ -405,48 +358,11 @@ $endif$
             throw e;
         }
     }
-
-    @Override
-    $if(BytesRef)$
-    protected void ensureCapacity() {}
-
-    $else$
-    protected void ensureCapacity() {
-        if (values instanceof Array$Type$Values array) {
-            array.grow(valueCount + 1);
-            return;
-        }
-        final $type$[] array = ((Primitive$Type$Values) values).array;
-        final int currentLength = array.length;
-        if (valueCount < currentLength) {
-            return;
-        }
-        final int newSize = currentLength + (currentLength >> 1);  // trivially, grows array by 50%
-        final long newEstimatedBytes = estimateBytesFor$Type$Array(newSize);
-        if (newEstimatedBytes <= blockFactory.maxPrimitiveArrayBytes()) {
-            // extend the primitive array
-            adjustBreaker(newEstimatedBytes);
-            values = new Primitive$Type$Values(Arrays.copyOf(array, newSize));
-            adjustBreaker(-estimateBytesFor$Type$Array(currentLength));
-            return;
-        } else {
-            // switch to a big array
-            values = new Array$Type$Values(blockFactory.bigArrays(), valueCount + 1);
-            for (int i = 0; i < currentLength; i++) {
-                // TODO: bulk copy
-                values.setValue(i, array[i]);
-            }
-            adjustBreaker(-estimateBytesFor$Type$Array(currentLength));
-        }
-    }
-
-    static long estimateBytesFor$Type$Array(long arraySize) {
-        return RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + arraySize * (long) $BYTES$;
-    }
-    $endif$
+$if(BytesRef)$
 
     @Override
     public void extraClose() {
         Releasables.closeExpectNoException(values);
     }
+$endif$
 }

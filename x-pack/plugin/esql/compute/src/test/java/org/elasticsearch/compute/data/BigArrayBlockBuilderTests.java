@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
@@ -16,9 +17,14 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class BigArrayBlockBuilderTests extends SerializationTestCase {
 
+    static ByteSizeValue estimateArraySize(long elementSize, long numElements) {
+        long bytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.alignObjectSize(elementSize * numElements);
+        return ByteSizeValue.ofBytes(bytes);
+    }
+
     public void testLongVector() throws IOException {
         int maxPrimitiveElements = randomIntBetween(100, 1000);
-        var maxPrimitiveSize = ByteSizeValue.ofBytes(LongBlockBuilder.estimateBytesForLongArray(maxPrimitiveElements));
+        var maxPrimitiveSize = estimateArraySize(Long.BYTES, maxPrimitiveElements);
         blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newLongBlockBuilder(between(1, maxPrimitiveElements / 2))) {
@@ -74,7 +80,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
 
     public void testLongBlock() throws IOException {
         int maxPrimitiveElements = randomIntBetween(1000, 5000);
-        var maxPrimitiveSize = ByteSizeValue.ofBytes(LongBlockBuilder.estimateBytesForLongArray(maxPrimitiveElements));
+        var maxPrimitiveSize = estimateArraySize(Long.BYTES, maxPrimitiveElements);
         blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newLongBlockBuilder(between(1, maxPrimitiveElements / 2))) {
@@ -136,7 +142,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
 
     public void testBooleanVector() throws IOException {
         int maxPrimitiveElements = randomIntBetween(100, 1000);
-        var maxPrimitiveSize = ByteSizeValue.ofBytes(BooleanBlockBuilder.estimateBytesForBooleanArray(maxPrimitiveElements));
+        var maxPrimitiveSize = estimateArraySize(Byte.BYTES, maxPrimitiveElements);
         blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newBooleanBlockBuilder(between(1, maxPrimitiveElements / 2))) {
@@ -192,7 +198,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
 
     public void testBooleanBlock() throws IOException {
         int maxPrimitiveElements = randomIntBetween(1000, 5000);
-        var maxPrimitiveSize = ByteSizeValue.ofBytes(BooleanBlockBuilder.estimateBytesForBooleanArray(maxPrimitiveElements));
+        var maxPrimitiveSize = estimateArraySize(Byte.BYTES, maxPrimitiveElements);
         blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newBooleanBlockBuilder(between(1, maxPrimitiveElements / 2))) {

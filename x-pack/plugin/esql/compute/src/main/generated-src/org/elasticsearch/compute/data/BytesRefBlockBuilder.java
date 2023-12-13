@@ -41,6 +41,21 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     @Override
+    protected int elementSize() {
+        return -1;
+    }
+
+    @Override
+    protected int valuesLength() {
+        return Integer.MAX_VALUE; // allow the BytesRefArray through its own append
+    }
+
+    @Override
+    protected void growValuesArray(int newSize) {
+        throw new AssertionError("should not reach here");
+    }
+
+    @Override
     public BytesRefBlockBuilder appendNull() {
         super.appendNull();
         return this;
@@ -213,8 +228,8 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     public BytesRefBlock build() {
         try {
             finish();
-            assert estimatedBytes == 0 || firstValueIndexes != null;
-            final BytesRefBlock theBlock = buildFromBytesArray();
+            BytesRefBlock theBlock;
+            theBlock = buildFromBytesArray();
             values = null;
             built();
             return theBlock;
@@ -223,9 +238,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
             throw e;
         }
     }
-
-    @Override
-    protected void ensureCapacity() {}
 
     @Override
     public void extraClose() {

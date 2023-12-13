@@ -9,10 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
@@ -22,78 +19,38 @@ import java.util.Arrays;
  */
 final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlock.Builder {
 
-    private interface DoubleValues extends Releasable {
-        void setValue(int index, double value);
-    }
-
-    private static class PrimitiveDoubleValues implements DoubleValues {
-        double[] array;
-
-        PrimitiveDoubleValues(double[] array) {
-            this.array = array;
-        }
-
-        @Override
-        public void setValue(int index, double value) {
-            array[index] = value;
-        }
-
-        @Override
-        public void close() {
-
-        }
-    }
-
-    private static class ArrayDoubleValues implements DoubleValues {
-        final BigArrays bigArrays;
-        DoubleArray array;
-
-        ArrayDoubleValues(BigArrays bigArrays, long size) {
-            this.bigArrays = bigArrays;
-            this.array = bigArrays.newDoubleArray(size, false);
-        }
-
-        @Override
-        public void setValue(int index, double value) {
-            array.set(index, value);
-        }
-
-        void grow(int minSize) {
-            array = bigArrays.grow(array, minSize);
-        }
-
-        @Override
-        public void close() {
-            array.close();
-        }
-
-        long ramBytesUsed() {
-            return array.ramBytesUsed();
-        }
-    }
-
-    private DoubleValues values;
+    private double[] values;
 
     DoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        long initialBytes = estimateBytesForDoubleArray(initialSize);
-        if (initialBytes <= blockFactory.maxPrimitiveArrayBytes()) {
-            adjustBreaker(initialBytes);
-            values = new PrimitiveDoubleValues(new double[initialSize]);
-        } else {
-            values = new ArrayDoubleValues(blockFactory.bigArrays(), initialSize);
-        }
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        values = new double[initialSize];
     }
 
     @Override
     public DoubleBlockBuilder appendDouble(double value) {
         ensureCapacity();
-        values.setValue(valueCount, value);
+        values[valueCount] = value;
         hasNonNullValue = true;
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Double.BYTES;
+    }
+
+    @Override
+    protected int valuesLength() {
+        return values.length;
+    }
+
+    @Override
+    protected void growValuesArray(int newSize) {
+        values = Arrays.copyOf(values, newSize);
     }
 
     @Override
@@ -223,13 +180,16 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         return this;
     }
 
-    private DoubleBlock buildFromBigArrays(ArrayDoubleValues values) {
-        assert estimatedBytes == 0 || firstValueIndexes != null;
+    private DoubleBlock buildBigArraysBlock() {
         final DoubleBlock theBlock;
+        final DoubleArray array = blockFactory.bigArrays().newDoubleArray(valueCount, false);
+        for (int i = 0; i < valueCount; i++) {
+            array.set(i, values[i]);
+        }
         if (isDense() && singleValued()) {
-            theBlock = new DoubleBigArrayVector(values.array, positionCount, blockFactory).asBlock();
+            theBlock = new DoubleBigArrayVector(array, positionCount, blockFactory).asBlock();
         } else {
-            theBlock = new DoubleBigArrayBlock(values.array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            theBlock = new DoubleBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
         }
         /*
         * Update the breaker with the actual bytes used.
@@ -239,7 +199,7 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         * still technically be open, meaning the calling code should close it
         * which will return all used memory to the breaker.
         */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.ramBytesUsed(), false);
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed(), false);
         return theBlock;
     }
 
@@ -247,26 +207,23 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
     public DoubleBlock build() {
         try {
             finish();
-            final DoubleBlock theBlock;
-            if (values instanceof ArrayDoubleValues arrayValues) {
-                theBlock = buildFromBigArrays(arrayValues);
+            DoubleBlock theBlock;
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes);
             } else {
-                double[] array = ((PrimitiveDoubleValues) values).array;
-                if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-                    theBlock = blockFactory.newConstantDoubleBlockWith(array[0], 1, estimatedBytes);
+                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                    theBlock = buildBigArraysBlock();
                 } else {
-                    int currentLength = array.length;
-                    // TODO: should be ANDed instead?
-                    if (currentLength - valueCount > 1024 || valueCount < (currentLength / 2)) {
-                        adjustBreaker(estimateBytesForDoubleArray(valueCount));
-                        array = Arrays.copyOf(array, valueCount);
-                        adjustBreaker(estimateBytesForDoubleArray(currentLength));
+                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                        adjustBreaker(valueCount * elementSize());
+                        values = Arrays.copyOf(values, valueCount);
+                        adjustBreaker(-values.length * elementSize());
                     }
                     if (isDense() && singleValued()) {
-                        theBlock = blockFactory.newDoubleArrayVector(array, positionCount, estimatedBytes).asBlock();
+                        theBlock = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();
                     } else {
                         theBlock = blockFactory.newDoubleArrayBlock(
-                            array,
+                            values,
                             positionCount,
                             firstValueIndexes,
                             nullsMask,
@@ -276,51 +233,11 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
                     }
                 }
             }
-            values = null;
             built();
             return theBlock;
         } catch (CircuitBreakingException e) {
             close();
             throw e;
         }
-    }
-
-    @Override
-    protected void ensureCapacity() {
-        if (values instanceof ArrayDoubleValues array) {
-            array.grow(valueCount + 1);
-            return;
-        }
-        final double[] array = ((PrimitiveDoubleValues) values).array;
-        final int currentLength = array.length;
-        if (valueCount < currentLength) {
-            return;
-        }
-        final int newSize = currentLength + (currentLength >> 1);  // trivially, grows array by 50%
-        final long newEstimatedBytes = estimateBytesForDoubleArray(newSize);
-        if (newEstimatedBytes <= blockFactory.maxPrimitiveArrayBytes()) {
-            // extend the primitive array
-            adjustBreaker(newEstimatedBytes);
-            values = new PrimitiveDoubleValues(Arrays.copyOf(array, newSize));
-            adjustBreaker(-estimateBytesForDoubleArray(currentLength));
-            return;
-        } else {
-            // switch to a big array
-            values = new ArrayDoubleValues(blockFactory.bigArrays(), valueCount + 1);
-            for (int i = 0; i < currentLength; i++) {
-                // TODO: bulk copy
-                values.setValue(i, array[i]);
-            }
-            adjustBreaker(-estimateBytesForDoubleArray(currentLength));
-        }
-    }
-
-    static long estimateBytesForDoubleArray(long arraySize) {
-        return RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + arraySize * (long) Double.BYTES;
-    }
-
-    @Override
-    public void extraClose() {
-        Releasables.closeExpectNoException(values);
     }
 }

@@ -9,10 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
@@ -22,78 +19,38 @@ import java.util.Arrays;
  */
 final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.Builder {
 
-    private interface LongValues extends Releasable {
-        void setValue(int index, long value);
-    }
-
-    private static class PrimitiveLongValues implements LongValues {
-        long[] array;
-
-        PrimitiveLongValues(long[] array) {
-            this.array = array;
-        }
-
-        @Override
-        public void setValue(int index, long value) {
-            array[index] = value;
-        }
-
-        @Override
-        public void close() {
-
-        }
-    }
-
-    private static class ArrayLongValues implements LongValues {
-        final BigArrays bigArrays;
-        LongArray array;
-
-        ArrayLongValues(BigArrays bigArrays, long size) {
-            this.bigArrays = bigArrays;
-            this.array = bigArrays.newLongArray(size, false);
-        }
-
-        @Override
-        public void setValue(int index, long value) {
-            array.set(index, value);
-        }
-
-        void grow(int minSize) {
-            array = bigArrays.grow(array, minSize);
-        }
-
-        @Override
-        public void close() {
-            array.close();
-        }
-
-        long ramBytesUsed() {
-            return array.ramBytesUsed();
-        }
-    }
-
-    private LongValues values;
+    private long[] values;
 
     LongBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        long initialBytes = estimateBytesForLongArray(initialSize);
-        if (initialBytes <= blockFactory.maxPrimitiveArrayBytes()) {
-            adjustBreaker(initialBytes);
-            values = new PrimitiveLongValues(new long[initialSize]);
-        } else {
-            values = new ArrayLongValues(blockFactory.bigArrays(), initialSize);
-        }
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        values = new long[initialSize];
     }
 
     @Override
     public LongBlockBuilder appendLong(long value) {
         ensureCapacity();
-        values.setValue(valueCount, value);
+        values[valueCount] = value;
         hasNonNullValue = true;
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Long.BYTES;
+    }
+
+    @Override
+    protected int valuesLength() {
+        return values.length;
+    }
+
+    @Override
+    protected void growValuesArray(int newSize) {
+        values = Arrays.copyOf(values, newSize);
     }
 
     @Override
@@ -223,13 +180,16 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
         return this;
     }
 
-    private LongBlock buildFromBigArrays(ArrayLongValues values) {
-        assert estimatedBytes == 0 || firstValueIndexes != null;
+    private LongBlock buildBigArraysBlock() {
         final LongBlock theBlock;
+        final LongArray array = blockFactory.bigArrays().newLongArray(valueCount, false);
+        for (int i = 0; i < valueCount; i++) {
+            array.set(i, values[i]);
+        }
         if (isDense() && singleValued()) {
-            theBlock = new LongBigArrayVector(values.array, positionCount, blockFactory).asBlock();
+            theBlock = new LongBigArrayVector(array, positionCount, blockFactory).asBlock();
         } else {
-            theBlock = new LongBigArrayBlock(values.array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            theBlock = new LongBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
         }
         /*
         * Update the breaker with the actual bytes used.
@@ -239,7 +199,7 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
         * still technically be open, meaning the calling code should close it
         * which will return all used memory to the breaker.
         */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.ramBytesUsed(), false);
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed(), false);
         return theBlock;
     }
 
@@ -247,26 +207,23 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
     public LongBlock build() {
         try {
             finish();
-            final LongBlock theBlock;
-            if (values instanceof ArrayLongValues arrayValues) {
-                theBlock = buildFromBigArrays(arrayValues);
+            LongBlock theBlock;
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = blockFactory.newConstantLongBlockWith(values[0], 1, estimatedBytes);
             } else {
-                long[] array = ((PrimitiveLongValues) values).array;
-                if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-                    theBlock = blockFactory.newConstantLongBlockWith(array[0], 1, estimatedBytes);
+                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                    theBlock = buildBigArraysBlock();
                 } else {
-                    int currentLength = array.length;
-                    // TODO: should be ANDed instead?
-                    if (currentLength - valueCount > 1024 || valueCount < (currentLength / 2)) {
-                        adjustBreaker(estimateBytesForLongArray(valueCount));
-                        array = Arrays.copyOf(array, valueCount);
-                        adjustBreaker(estimateBytesForLongArray(currentLength));
+                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                        adjustBreaker(valueCount * elementSize());
+                        values = Arrays.copyOf(values, valueCount);
+                        adjustBreaker(-values.length * elementSize());
                     }
                     if (isDense() && singleValued()) {
-                        theBlock = blockFactory.newLongArrayVector(array, positionCount, estimatedBytes).asBlock();
+                        theBlock = blockFactory.newLongArrayVector(values, positionCount, estimatedBytes).asBlock();
                     } else {
                         theBlock = blockFactory.newLongArrayBlock(
-                            array,
+                            values,
                             positionCount,
                             firstValueIndexes,
                             nullsMask,
@@ -276,51 +233,11 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
                     }
                 }
             }
-            values = null;
             built();
             return theBlock;
         } catch (CircuitBreakingException e) {
             close();
             throw e;
         }
-    }
-
-    @Override
-    protected void ensureCapacity() {
-        if (values instanceof ArrayLongValues array) {
-            array.grow(valueCount + 1);
-            return;
-        }
-        final long[] array = ((PrimitiveLongValues) values).array;
-        final int currentLength = array.length;
-        if (valueCount < currentLength) {
-            return;
-        }
-        final int newSize = currentLength + (currentLength >> 1);  // trivially, grows array by 50%
-        final long newEstimatedBytes = estimateBytesForLongArray(newSize);
-        if (newEstimatedBytes <= blockFactory.maxPrimitiveArrayBytes()) {
-            // extend the primitive array
-            adjustBreaker(newEstimatedBytes);
-            values = new PrimitiveLongValues(Arrays.copyOf(array, newSize));
-            adjustBreaker(-estimateBytesForLongArray(currentLength));
-            return;
-        } else {
-            // switch to a big array
-            values = new ArrayLongValues(blockFactory.bigArrays(), valueCount + 1);
-            for (int i = 0; i < currentLength; i++) {
-                // TODO: bulk copy
-                values.setValue(i, array[i]);
-            }
-            adjustBreaker(-estimateBytesForLongArray(currentLength));
-        }
-    }
-
-    static long estimateBytesForLongArray(long arraySize) {
-        return RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + arraySize * (long) Long.BYTES;
-    }
-
-    @Override
-    public void extraClose() {
-        Releasables.closeExpectNoException(values);
     }
 }

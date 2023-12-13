@@ -64,7 +64,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -1103,21 +1102,18 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             // This is just to track the various log messages that happen in this function to help with debugging in the future
             // so that we can reasonably assume they're all related
             // If the log messages printed from this method get interlaced across nodes it can make debugging difficult
-            Supplier<String> eventIdentity = () -> Long.toHexString(System.nanoTime());
+            var eventIdentity = Long.toHexString(System.nanoTime());
 
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
 
-            Set<String> presentNodes = event.state().nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> removedNodes = nodesDelta.removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> addedNodes = nodesDelta.addedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
             logger.debug(
                 () -> format(
-                    "Initial node change info; identity: %s; present nodes: %s;"
-                        + " removed nodes: %s; added nodes: %s; shutting down nodes: %s",
-                    eventIdentity.get(),
-                    presentNodes,
+                    "Initial node change info; identity: %s; removed nodes: %s; added nodes: %s; shutting down nodes: %s",
+                    eventIdentity,
                     removedNodes,
                     addedNodes,
                     shuttingDownNodes
@@ -1127,6 +1123,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             Set<String> exitingShutDownNodes;
             if (nodesShutdownChanged) {
                 Set<String> previousShuttingDownNodes = nodesShuttingDown(event.previousState());
+                Set<String> presentNodes = event.state().nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
                 // Add nodes that where marked for shutdown in the previous state
                 // but are no longer marked as shutdown in the current state.
@@ -1144,7 +1141,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 logger.debug(
                     () -> format(
                         "Shutting down nodes were changed; identity: %s; previous shutting down nodes: %s; returning nodes: %s",
-                        eventIdentity.get(),
+                        eventIdentity,
                         previousShuttingDownNodes,
                         returningShutDownNodes
                     )
@@ -1156,7 +1153,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             logger.debug(
                 () -> format(
                     "identity: %s; added nodes %s; removed nodes %s; shutting down nodes %s; exiting shutdown nodes %s",
-                    eventIdentity.get(),
+                    eventIdentity,
                     addedNodes,
                     removedNodes,
                     shuttingDownNodes,

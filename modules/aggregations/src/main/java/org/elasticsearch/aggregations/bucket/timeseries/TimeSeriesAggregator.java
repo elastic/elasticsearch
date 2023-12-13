@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -85,6 +86,12 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     break;
                 }
             }
+            // NOTE: after introducing _tsid hashing time series are sorted by (_tsid hash, @timestamp) instead of (_tsid, timestamp).
+            // _tsid hash and _tsid might sort differently, and out of order data might result in incorrect buckets due to _tsid value
+            // changes not matching _tsid hash changes. Changes in _tsid hash are handled creating a new bucket as a result of making
+            // the assumption that sorting data results in new buckets whenever there is a change in _tsid hash. This is no true anymore
+            // because we collect data sorted on (_tsid hash, timestamp) but build aggregation results sorted by (_tsid, timestamp).
+            buckets.sort(Comparator.comparing(bucket -> bucket.key));
             allBucketsPerOrd[ordIdx] = buckets.toArray(new InternalTimeSeries.InternalBucket[0]);
         }
         buildSubAggsForAllBuckets(allBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);

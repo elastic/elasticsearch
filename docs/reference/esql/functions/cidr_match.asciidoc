@@ -15,7 +15,7 @@ CIDR_MATCH(ip, block1[, ..., blockN])
 IP address of type `ip` (both IPv4 and IPv6 are supported).
 
 `blockX`::
-CIDR blocks to test the IP against.
+CIDR block to test the IP against.
 
 *Description*
 

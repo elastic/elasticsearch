@@ -31,6 +31,12 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
     }
 
     @Override
+    public synchronized void onResponse(EsqlQueryResponse response) {
+        // TODO: maybe recount here, but we cannot be sure if asyncGet is already waiting!
+        super.onResponse(response);
+    }
+
+    @Override
     public EsqlQueryResponse getCurrentResult() {  // TODO: what semantics we want here
         // for esql searches we never store a search response in the task (neither partial, nor final)
         // we kill the task on final response, so if the task is still present, it means the search is still running

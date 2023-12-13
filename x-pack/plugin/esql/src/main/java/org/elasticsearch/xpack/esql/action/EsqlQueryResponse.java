@@ -95,35 +95,28 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         this(columns, pages, profile, false, asyncExecutionId, isRunning);
     }
 
-    // TODO: can remove now that REST deser goes through the 4-arg variant
-    public EsqlQueryResponse(List<ColumnInfo> columns, List<List<Object>> values) {
-        this(columns, List.of(ResponseValueUtils.valuesToPage(columns, values)), null, false, null, false);
-    }
-
     /**
      * Build a reader for the response.
      */
     public static Writeable.Reader<EsqlQueryResponse> reader(BlockFactory blockFactory) {
-        return in -> new EsqlQueryResponse(new BlockStreamInput(in, blockFactory));
+        return in -> deserialize(new BlockStreamInput(in, blockFactory));
     }
 
-    private EsqlQueryResponse(BlockStreamInput in) throws IOException {
-        super(in);
+    static EsqlQueryResponse deserialize(BlockStreamInput in) throws IOException {
+        String asyncExecutionId = null;
+        boolean isRunning = false;
+        Profile profile = null;
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ASYNC_QUERY)) {
-            this.asyncExecutionId = in.readOptionalString();
-            this.isRunning = in.readBoolean();
-        } else {
-            this.asyncExecutionId = null;
-            this.isRunning = false;
+            asyncExecutionId = in.readOptionalString();
+            isRunning = in.readBoolean();
         }
-        this.columns = in.readCollectionAsList(ColumnInfo::new);
-        this.pages = in.readCollectionAsList(Page::new);
+        List<ColumnInfo> columns = in.readCollectionAsList(ColumnInfo::new);
+        List<Page> pages = in.readCollectionAsList(Page::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
-            this.profile = in.readOptionalWriteable(Profile::new);
-        } else {
-            this.profile = null;
+            profile = in.readOptionalWriteable(Profile::new);
         }
-        this.columnar = in.readBoolean();
+        boolean columnar = in.readBoolean();
+        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning);
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -235,7 +236,15 @@ public class AsyncTaskManagementService<
                 }
             } else {
                 // We finished after timeout - saving results
-                storeResults(searchTask, new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()));
+                storeResults(
+                    searchTask,
+                    new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
+                    ActionListener.running(() -> {
+                        if (response instanceof Releasable releasable) {
+                            releasable.close();
+                        }
+                    }) // TODO: instanceof check is a bit of a hack
+                );
             }
         }, e -> {
             ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);

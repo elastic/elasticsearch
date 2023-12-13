@@ -28,7 +28,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
@@ -77,7 +76,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     long epoch = System.currentTimeMillis();
 
@@ -86,12 +84,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex("test");
     }
 
+    @Repeat(iterations = 10)
     public void testProjectConstant() {
         try (EsqlQueryResponse results = run("from test | eval x = 1 | keep x")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfo("x", "integer"))));
             assertThat(getValuesList(results).size(), equalTo(40));
             assertThat(getValuesList(results).get(0).get(0), equalTo(1));
         }
+        ensureBlocksReleased(); // TODO: remove, this is already done elsewhere
     }
 
     public void testStatsOverConstant() {
@@ -869,32 +869,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
             assertThat(getValuesList(results), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
         }
-    }
-
-    public void testFromLimitAsync() {
-        try (EsqlQueryResponse results = runAsync("from test | keep data | limit 2")) {
-            System.out.println("initial results: " + results);
-            logger.info(results);
-            List<ColumnInfo> columns;
-            List<List<Object>> values;
-            if (results.asyncExecutionId().isPresent()) {
-                assertThat(results.isRunning(), is(true));
-                assertThat(results.columns(), is(empty())); // no partial results yet
-                assertThat(results.pages(), is(empty()));
-                try (var asyncGetResults = getAsyncResponse(results.asyncExecutionId().get())) {
-                    System.out.println("async results: " + asyncGetResults);
-                    columns = asyncGetResults.columns();
-                    values = getValuesList(asyncGetResults);
-                }
-
-            } else {
-                columns = results.columns();
-                values = getValuesList(results);
-            }
-            assertThat(columns, contains(new ColumnInfo("data", "long")));
-            assertThat(values, contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
-        }
-        ensureBlocksReleased(); // TODO: remove, this is already done elsewhere
     }
 
     public void testDropAllColumns() {

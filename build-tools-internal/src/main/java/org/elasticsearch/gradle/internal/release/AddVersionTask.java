@@ -51,7 +51,7 @@ public class AddVersionTask extends AbstractVersionTask {
         this.version = Version.fromString(version);
     }
 
-    @Option(option = "update-current", description = "Update the 'current' constant to the new version")
+    @Option(option = "set-current", description = "Set the 'current' constant to the new version")
     public void setCurrent(boolean setCurrent) {
         this.setCurrent = setCurrent;
     }

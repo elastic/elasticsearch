@@ -7,7 +7,6 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -16,6 +15,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.junit.Before;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -47,15 +47,19 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
     }
 
     public void testThatTermsFilterQueryDoesntLeakData() {
-        SearchResponse response = prepareSearch("data").setQuery(
-            QueryBuilders.constantScoreQuery(QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "1", "tokens")))
-        ).get();
-        assertThat(response.isTimedOut(), is(false));
-        assertThat(response.getHits().getHits().length, is(1));
+        assertResponse(
+            prepareSearch("data").setQuery(
+                QueryBuilders.constantScoreQuery(QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "1", "tokens")))
+            ),
+            response -> {
+                assertThat(response.isTimedOut(), is(false));
+                assertThat(response.getHits().getHits().length, is(1));
+            }
+        );
 
         // Repeat with unauthorized user!!!!
         try {
-            response = client().filterWithHeader(
+            var response = client().filterWithHeader(
                 singletonMap(
                     "Authorization",
                     basicAuthHeaderValue(READ_ONE_IDX_USER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)

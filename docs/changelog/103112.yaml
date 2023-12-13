@@ -1,0 +1,5 @@
+pr: 103112
+summary: Add JIT compiler excludes for `computeCommonPrefixLengthAndBuildHistogram`
+area: Search
+type: bug
+issues: []

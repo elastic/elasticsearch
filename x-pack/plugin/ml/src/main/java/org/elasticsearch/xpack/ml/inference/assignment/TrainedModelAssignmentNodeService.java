@@ -369,9 +369,14 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
 
                     if (shouldLoadModel(routingInfo, trainedModelAssignment.getDeploymentId(), isResetMode)) {
-                        prepareModelToLoad(
-                            createStartTrainedModelDeploymentTaskParams(trainedModelAssignment, routingInfo.getCurrentAllocations())
+                        StartTrainedModelDeploymentAction.TaskParams params = createStartTrainedModelDeploymentTaskParams(
+                            trainedModelAssignment,
+                            routingInfo.getCurrentAllocations()
                         );
+                        // Loading the model is done by a separate task, so needs a new trace context
+                        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                            prepareModelToLoad(params);
+                        }
                     }
                 }
 

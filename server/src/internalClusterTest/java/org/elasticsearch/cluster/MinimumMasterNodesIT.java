@@ -8,10 +8,10 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -105,16 +105,13 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify we get the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(
-                prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
-                equalTo(100L)
-            );
+            assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
         }
 
         String masterNode = internalCluster().getMasterName();
         String otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for non-master node, to be sure it's not elected");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(otherNode)).get();
+        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(otherNode)).get();
         logger.info("--> stop master node, no master block should appear");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
         internalCluster().stopNode(masterNode);
@@ -159,12 +156,12 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.info("--> clearing voting config exclusions");
         ClearVotingConfigExclusionsRequest clearRequest = new ClearVotingConfigExclusionsRequest();
         clearRequest.setWaitForRemoval(false);
-        client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearRequest).get();
+        client().execute(TransportClearVotingConfigExclusionsAction.TYPE, clearRequest).get();
 
         masterNode = internalCluster().getMasterName();
         otherNode = node1Name.equals(masterNode) ? node2Name : node1Name;
         logger.info("--> add voting config exclusion for master node, to be sure it's not elected");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNode)).get();
+        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(masterNode)).get();
         logger.info("--> stop non-master node, no master block should appear");
         Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
         internalCluster().stopNode(otherNode);

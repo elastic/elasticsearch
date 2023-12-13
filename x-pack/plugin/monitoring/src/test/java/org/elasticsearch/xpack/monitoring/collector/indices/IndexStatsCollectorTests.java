@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -117,9 +116,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
         when(metadata.getConcreteAllIndices()).thenReturn(indexNames);
 
-        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(
-            new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE)
-        );
+        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class)));
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -196,9 +193,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
                 ) }
         );
 
-        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(
-            new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE)
-        );
+        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class)));
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);

@@ -21,7 +21,7 @@ abstract class AbstractBlock implements Block {
     @Nullable
     protected final BitSet nullsMask;
 
-    protected final BlockFactory blockFactory;
+    private BlockFactory blockFactory;
 
     /**
      * @param positionCount the number of values in this block
@@ -93,6 +93,11 @@ abstract class AbstractBlock implements Block {
     @Override
     public BlockFactory blockFactory() {
         return blockFactory;
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        blockFactory = blockFactory.parent();
     }
 
     @Override

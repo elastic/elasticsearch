@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.shards;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -22,8 +21,8 @@ public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequ
     IndicesShardStoresResponse,
     IndicesShardStoreRequestBuilder> {
 
-    public IndicesShardStoreRequestBuilder(ElasticsearchClient client, ActionType<IndicesShardStoresResponse> action, String... indices) {
-        super(client, action, new IndicesShardStoresRequest(indices));
+    public IndicesShardStoreRequestBuilder(ElasticsearchClient client, String... indices) {
+        super(client, IndicesShardStoresAction.INSTANCE, new IndicesShardStoresRequest(indices));
     }
 
     /**

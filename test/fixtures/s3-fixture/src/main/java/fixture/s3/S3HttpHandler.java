@@ -21,6 +21,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
@@ -52,6 +54,8 @@ import static org.w3c.dom.Node.ELEMENT_NODE;
  */
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 public class S3HttpHandler implements HttpHandler {
+
+    private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
 
     private final String bucket;
     private final String path;
@@ -382,12 +386,13 @@ public class S3HttpHandler implements HttpHandler {
             }
             return Tuple.tuple(MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5())), bytesReference);
         } catch (Exception e) {
+            logger.error("exception in parseRequestBody", e);
             exchange.sendResponseHeaders(500, 0);
             try (PrintStream printStream = new PrintStream(exchange.getResponseBody())) {
-                printStream.println(e.toString());
+                printStream.println(e);
                 e.printStackTrace(printStream);
             }
-            throw new AssertionError("parseRequestBody failed", e);
+            throw e;
         }
     }
 

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -28,6 +28,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -270,8 +271,9 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(
-                        new ElasticsearchException(
+                        new ElasticsearchStatusException(
                             "snapshot upgrader request [{}] [{}] timed out after [{}]",
+                            RestStatus.REQUEST_TIMEOUT,
                             params.getJobId(),
                             params.getSnapshotId(),
                             timeout

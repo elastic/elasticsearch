@@ -125,7 +125,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -138,7 +138,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(response.results);
+                    responseRef.set(((QueryPhaseResultConsumer) response).results);
                 }
             }, mockSearchPhaseContext);
             assertEquals("dfs_query", phase.getName());
@@ -211,7 +211,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -224,7 +224,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(response.results);
+                    responseRef.set(((QueryPhaseResultConsumer) response).results);
                 }
             }, mockSearchPhaseContext);
             assertEquals("dfs_query", phase.getName());
@@ -299,7 +299,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -312,7 +312,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(response.results);
+                    responseRef.set(((QueryPhaseResultConsumer) response).results);
                 }
             }, mockSearchPhaseContext);
             assertEquals("dfs_query", phase.getName());

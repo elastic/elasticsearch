@@ -1,0 +1,5 @@
+pr: 102735
+summary: "[Profiling] Report in status API if docs exist"
+area: Application
+type: enhancement
+issues: []

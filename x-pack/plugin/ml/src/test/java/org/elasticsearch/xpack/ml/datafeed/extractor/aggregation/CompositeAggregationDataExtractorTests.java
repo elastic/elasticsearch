@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -122,8 +121,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             .subAggregation(AggregationBuilders.avg("responsetime").field("responsetime"));
         runtimeMappings = Collections.emptyMap();
         timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
-        aggregatedSearchRequestBuilder = (searchSourceBuilder) -> new SearchRequestBuilder(testClient, TransportSearchAction.TYPE)
-            .setSource(searchSourceBuilder)
+        aggregatedSearchRequestBuilder = (searchSourceBuilder) -> new SearchRequestBuilder(testClient).setSource(searchSourceBuilder)
             .setAllowPartialSearchResults(false)
             .setIndices(indices.toArray(String[]::new));
     }

@@ -19,8 +19,8 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
     ClusterStateResponse,
     ClusterStateRequestBuilder> {
 
-    public ClusterStateRequestBuilder(ElasticsearchClient client, ClusterStateAction action) {
-        super(client, action, new ClusterStateRequest());
+    public ClusterStateRequestBuilder(ElasticsearchClient client) {
+        super(client, ClusterStateAction.INSTANCE, new ClusterStateRequest());
     }
 
     /**

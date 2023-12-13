@@ -7,16 +7,24 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ConnectorIngestPipelineTests extends ESTestCase {
@@ -36,6 +44,26 @@ public class ConnectorIngestPipelineTests extends ESTestCase {
             ConnectorIngestPipeline testInstance = ConnectorTestUtils.getRandomConnectorIngestPipeline();
             assertTransportSerialization(testInstance);
         }
+    }
+
+    public void testToXContent() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+                {
+                    "extract_binary_content": true,
+                    "name": "ent-search-generic-ingestion",
+                    "reduce_whitespace": true,
+                    "run_ml_inference": false
+                }
+            """);
+
+        ConnectorIngestPipeline pipeline = ConnectorIngestPipeline.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(pipeline, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        ConnectorIngestPipeline parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = ConnectorIngestPipeline.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
     private void assertTransportSerialization(ConnectorIngestPipeline testInstance) throws IOException {

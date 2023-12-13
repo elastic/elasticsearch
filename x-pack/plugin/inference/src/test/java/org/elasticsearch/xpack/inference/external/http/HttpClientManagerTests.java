@@ -25,10 +25,10 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterService;
-import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;

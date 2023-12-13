@@ -1,0 +1,26 @@
+[[get-started]]
+= Get started with {es}
+++++
+<titleabbrev>Get started</titleabbrev>
+++++
+
+This section is aimed at developers who are just getting started with {es}, for evaluation or development purposes.
+
+The first thing you need to try out {es} is a running instance of the service.
+There are many ways to run {es}, but here we're focused on two options: {ecloud} and Docker.
+If you're looking to deploy {es} in production, or use an alternative installation method, refer to <<setup>>.
+
+[TIP]
+====
+If you get started with {es} in {ecloud}, you'll be ready to go to production from day one.
+====
+
+Learn how to:
+
+* <<get-started-elasticsearch-cloud, Get started with {es} in {ecloud}>>
+* <<get-started-elasticsearch-local-dev, Get started with {es} locally (Docker)>>
+* <<endpoints-keys, Connect to your endpoints>>
+
+include::get-started-cloud.asciidoc[]
+include::get-started-local-dev.asciidoc[]
+include::endpoints-keys.asciidoc[]

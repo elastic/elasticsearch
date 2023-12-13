@@ -1,6 +1,6 @@
 [chapter]
 [[getting-started]]
-= Quick start
+== Quick start
 
 This guide helps you learn how to:
 

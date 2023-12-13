@@ -19,6 +19,8 @@ include::release-notes/highlights.asciidoc[]
 
 include::getting-started.asciidoc[]
 
+include::get-started/index.asciidoc[]
+
 include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]

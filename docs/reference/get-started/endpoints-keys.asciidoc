@@ -1,0 +1,76 @@
+[[endpoints-keys]]
+== Endpoints and API keys
+
+This section contains all the essential information you need to connect to your {es} instance.
+
+For {ecloud} users this information is available in your https://cloud.elastic.co/deployments[deployments overview] page:
+
+[.screenshot]
+image::images/deployments-overview.png[Deployments overview page]
+
+[discrete]
+[[endpoints-keys-elasticsearch]]
+=== Find {es} endpoint
+
+The {es} endpoint is the URL you use to access your {es} instance.
+
+To find this URL on {ecloud}:
+
+. Go to your https://cloud.elastic.co/deployments[{ecloud} deployments] page.
+. Select your deployment.
+. Select *Copy endpoint* beside {es}.
+
+If you're using a self-managed {es} instance, your URL will look something like this:
+`https://localhost:9200`.
+
+[discrete]
+[[endpoints-keys-cloud-id]]
+=== Find Cloud ID
+
+[NOTE]
+====
+Cloud IDs do not apply to self-managed {es} instances.
+You'll need your <<endpoints-keys-elasticsearch, {es} endpoint>> instead.
+====
+
+Your Cloud ID simplifies sending data to your cluster on Elastic Cloud.
+It's the recommended option for connecting to Elasticsearch for many of our programming language clients and connectors.
+
+To find the Cloud ID for your deployment:
+
+. Go to your https://cloud.elastic.co/deployments[{ecloud} deployments] page.
+. Select your deployment.
+. Select *Manage*.
+. Copy the Cloud ID on that screen.
+
+[TIP]
+====
+If you want to jump straight into your deployment's UI from the *Deployments* overview, select the *Open Kibana* button.
+====
+
+[discrete]
+[[endpoints-keys-api-keys]]
+=== API keys
+
+We recommend using API keys to connect to your {es} instance using a programming language client or cURL. 
+
+[discrete]
+[[endpoints-keys-api-keys-create-ui]]
+==== Create API keys in UI
+
+In your deployment's UI ({kib}), go to *Stack Management > Security > API Keys*.
+Alternatively, simply search for *API Keys* in the global search bar in your UI.
+Select *Create API key*.
+
+[.screenshot]
+image::images/find-api-keys.png[Search for API keys]
+
+[discrete]
+[[endpoints-keys-api-keys-create-api-key-api]]
+==== Create API keys using the API
+
+Once you've connected to {es}, you can create API keys using {es}'s <<security-api-create-api-key, Create API key API>>.
+
+
+
+

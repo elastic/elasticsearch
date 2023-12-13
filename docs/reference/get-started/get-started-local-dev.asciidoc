@@ -1,0 +1,73 @@
+[[get-started-elasticsearch-local-dev]]
+== Get started with {es} in local development
+++++
+<titleabbrev>Local dev (Docker)</titleabbrev>
+++++
+
+We present two options to get started by running {es} in Docker:
+
+* <<get-started-elasticsearch-local-dev-elasticsearch, Run {es} in Docker with security disabled>>
+* <<get-started-elasticsearch-local-dev-kibana, Run {es} and {kib} in Docker with security enabled>>
+
+[discrete]
+[[get-started-elasticsearch-local-dev-elasticsearch]]
+== Run {es} in Docker with security disabled
+
+[WARNING]
+====
+Running {es} without security enabled is only suitable for development and testing.
+When running {es} in production, you must enable security.
+Refer to <<setup>> for details on running self-managed deployments in production.
+====
+
+This is the fastest way to get started with {es} in local development.
+Take this approach if you don't need to run {kib} alongside {es}.
+Otherwise see <<get-started-elasticsearch-local-dev-kibana>>.
+
+To run a single-node {es} cluster in Docker, with security disabled, run the following command:
+
+[source,sh,subs="attributes"]
+----
+docker run -p 9200:9200 -d --name elasticsearch \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  -e "xpack.security.http.ssl.enabled=false" \
+  -e "xpack.license.self_generated.type=trial" \
+  {docker-image}
+----
+
+Within a few seconds, the Elasticsearch service should be running on http://localhost:9200.
+Open this link on your browser to confirm that the service is up and running.
+
+.*License and subscription*
+[%collapsible]
+====
+The service is started with a trial license.
+The trial license enables all features of Elasticsearch, for a trial period of 30 days.
+When the trial period expires, the license is downgraded to a basic license, which is free forever.
+If you prefer to skip the trial and use the basic license, set the value of the `xpack.license.self_generated.type` variable to basic instead.
+For a detailed feature comparison between the different licenses, refer to our https://www.elastic.co/subscriptions[subscriptions] page.
+====
+
+[discrete]
+[[get-started-elasticsearch-local-dev-kibana]]
+== Run {es} and {kib} in Docker with security enabled
+
+{kib} is the official Elastic UI for {es}.
+You might want to use {kib} to manage your indices in the UI, run API requests in Console, or visualize your data in Dashboards.
+
+{kibana-ref}/console-kibana.html[Console] is the easiest way to run API requests, because it doesn't require configuration and authentication.
+It is available in {kib} by default.
+
+To run both {es} and {kib} in Docker, with security enabled, refer to <<docker,run Elasticsearch in Docker>>.
+See our <<getting-started, quickstart>> for a guided walkthrough of this approach, which includes a sample dataset and some basic {es} queries.
+
+[discrete]
+[[get-started-elasticsearch-local-dev-next-steps]]
+== Next steps
+
+* Now that you have {es} running, follow our <<getting-started, quickstart>> to learn how to index and search data, using Console or cURL.
+* If you'd like to call the {es} APIs using your preferred programming language, refer to our https://www.elastic.co/guide/en/elasticsearch/client/index.html[programming language client] documentation.
+* If you're a Python developer, check out Elastic Search Labs:
+** The https://www.elastic.co/search-labs[Elastic Search Labs] webpage has a range of examples that use the {es} Python client. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
+** The companion https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs` repo] contains a range of executable Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].

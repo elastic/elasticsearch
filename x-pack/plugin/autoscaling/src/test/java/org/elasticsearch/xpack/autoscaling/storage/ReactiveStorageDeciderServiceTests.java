@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -529,19 +528,18 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         long minShardSize = randomLongBetween(1, 10);
 
-        Map<String, DiskUsage> diskUsages = new HashMap<>();
-        diskUsages.put(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
-
-        Map<String, Long> shardSize = new HashMap<>();
         ShardRouting missingShard = randomBoolean() ? randomFrom(shards) : null;
-        Collection<ShardRouting> shardsWithSizes = shards.stream().filter(s -> s != missingShard).collect(Collectors.toSet());
-        for (ShardRouting shard : shardsWithSizes) {
-            shardSize.put(shardIdentifier(shard), ByteSizeUnit.KB.toBytes(randomLongBetween(minShardSize, 100)));
+        Map<String, Long> shardSize = new HashMap<>();
+        for (ShardRouting shard : shards) {
+            if (shard != missingShard) {
+                shardSize.put(shardIdentifier(shard), ByteSizeUnit.KB.toBytes(randomLongBetween(minShardSize, 100)));
+            }
         }
-        if (shardsWithSizes.isEmpty() == false) {
-            shardSize.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
+        if (shardSize.isEmpty() == false) {
+            shardSize.put(randomFrom(shardSize.keySet()), ByteSizeUnit.KB.toBytes(minShardSize));
         }
 
+        var diskUsages = Map.of(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
         ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, Map.of(), Map.of(), Map.of());
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(

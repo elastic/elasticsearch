@@ -302,6 +302,16 @@ public class ServerProcessTests extends ESTestCase {
         serverProcessBuilder.start(starter).waitFor();
     }
 
+    public void testServerProcessBuilderMissingArgumentError() throws Exception {
+        ServerProcessBuilder.ProcessStarter starter = pb -> new MockElasticsearchProcess();
+        var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
+            .withProcessInfo(createProcessInfo())
+            .withServerArgs(createServerArgs(false, false))
+            .withTempDir(Path.of("."));
+        var ex = expectThrows(IllegalStateException.class, () -> serverProcessBuilder.start(starter).waitFor());
+        assertThat(ex.getMessage(), equalTo("'jvmOptions' is a required argument and needs to be specified before calling start()"));
+    }
+
     public void testCommandLine() throws Exception {
         String mainClass = "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch";
         String modulePath = esHomeDir.resolve("lib").toString();

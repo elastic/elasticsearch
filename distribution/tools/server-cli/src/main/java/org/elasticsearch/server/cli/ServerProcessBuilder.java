@@ -12,6 +12,7 @@ import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.core.PathUtils;
 
@@ -131,14 +132,28 @@ public class ServerProcessBuilder {
         return start(ProcessBuilder::start);
     }
 
+    private static void checkRequiredArgument(Object argument, String argumentName) {
+        if (argument == null) {
+            throw new IllegalStateException(
+                Strings.format("'%s' is a required argument and needs to be specified before calling start()", argumentName)
+            );
+        }
+    }
+
     // package private for testing
     ServerProcess start(ProcessStarter processStarter) throws UserException {
+        checkRequiredArgument(tempDir, "tempDir");
+        checkRequiredArgument(serverArgs, "serverArgs");
+        checkRequiredArgument(processInfo, "processInfo");
+        checkRequiredArgument(jvmOptions, "jvmOptions");
+        checkRequiredArgument(terminal, "terminal");
+
         Process jvmProcess = null;
         ErrorPumpThread errorPump;
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(getCommand(), getJvmArgs(), getEnvironment(), processStarter);
+            jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), processStarter);
             errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());
@@ -163,8 +178,13 @@ public class ServerProcessBuilder {
         return new ServerProcess(jvmProcess, errorPump);
     }
 
-    private Process createProcess(String command, List<String> jvmArgs, Map<String, String> environment, ProcessStarter processStarter)
-        throws InterruptedException, IOException {
+    private static Process createProcess(
+        String command,
+        List<String> jvmArgs,
+        List<String> jvmOptions,
+        Map<String, String> environment,
+        ProcessStarter processStarter
+    ) throws InterruptedException, IOException {
 
         var builder = new ProcessBuilder(Stream.concat(Stream.of(command), Stream.concat(jvmOptions.stream(), jvmArgs.stream())).toList());
         builder.environment().putAll(environment);

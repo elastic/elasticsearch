@@ -162,7 +162,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                     assertBusy(remoteClusterConnection::assertNoRunningConnections);
                     ConnectionManager connectionManager = remoteClusterConnection.getConnectionManager();
                     Transport.Connection connection = connectionManager.getConnection(remoteNode);
-                    PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> closeFuture = new PlainActionFuture<>();
                     connection.addCloseListener(closeFuture);
                     connectionManager.disconnectFromNode(remoteNode);
                     closeFuture.get();

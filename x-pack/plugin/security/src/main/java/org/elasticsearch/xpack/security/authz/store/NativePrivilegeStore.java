@@ -11,7 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -57,6 +60,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -366,52 +370,79 @@ public class NativePrivilegeStore {
     public void putPrivileges(
         Collection<ApplicationPrivilegeDescriptor> privileges,
         WriteRequest.RefreshPolicy refreshPolicy,
-        ActionListener<Map<String, List<String>>> listener
+        ActionListener<Map<String, Map<String, DocWriteResponse.Result>>> listener
     ) {
-        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            ActionListener<DocWriteResponse> groupListener = new GroupedActionListener<>(
-                privileges.size(),
-                ActionListener.wrap((Collection<DocWriteResponse> responses) -> {
-                    final Map<String, List<String>> createdNames = responses.stream()
-                        .filter(r -> r.getResult() == DocWriteResponse.Result.CREATED)
-                        .map(r -> r.getId())
-                        .map(NativePrivilegeStore::nameFromDocId)
-                        .collect(TUPLES_TO_MAP);
-                    clearCaches(
-                        listener,
-                        privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toUnmodifiableSet()),
-                        createdNames
-                    );
-                }, listener::onFailure)
-            );
-            for (ApplicationPrivilegeDescriptor privilege : privileges) {
-                innerPutPrivilege(privilege, refreshPolicy, groupListener);
-            }
-        });
-    }
+        if (privileges.isEmpty()) {
+            listener.onResponse(Map.of());
+            return;
+        }
 
-    private void innerPutPrivilege(
-        ApplicationPrivilegeDescriptor privilege,
-        WriteRequest.RefreshPolicy refreshPolicy,
-        ActionListener<DocWriteResponse> listener
-    ) {
+        final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(refreshPolicy);
+
         try {
-            final String name = privilege.getName();
-            final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
+            for (ApplicationPrivilegeDescriptor privilege : privileges) {
+                bulkRequestBuilder.add(preparePutPrivilege(privilege));
+            }
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+
+        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ClientHelper.executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
-                client.prepareIndex(SECURITY_MAIN_ALIAS)
-                    .setId(toDocId(privilege.getApplication(), name))
-                    .setSource(xContentBuilder)
-                    .setRefreshPolicy(refreshPolicy)
-                    .request(),
-                listener,
-                client::index
+                bulkRequestBuilder.request(),
+                ActionListener.<BulkResponse>wrap(bulkResponse -> handleBulkResponse(bulkResponse, listener), ex -> {
+                    logger.warn(Strings.format("Failed to write application privileges to %s", securityIndexManager.aliasName()), ex);
+                    listener.onFailure(ex);
+                }),
+                client::bulk
             );
-        } catch (Exception e) {
-            logger.warn("Failed to put privilege {} - {}", Strings.toString(privilege), e.toString());
-            listener.onFailure(e);
+        });
+    }
+
+    private IndexRequest preparePutPrivilege(ApplicationPrivilegeDescriptor privilege) throws IOException {
+        try {
+            final String name = privilege.getName();
+            final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
+            return client.prepareIndex(SECURITY_MAIN_ALIAS)
+                .setId(toDocId(privilege.getApplication(), name))
+                .setSource(xContentBuilder)
+                .request();
+        } catch (IOException e) {
+            logger.warn("Failed to build application privilege {} - {}", Strings.toString(privilege), e.toString());
+            throw e;
+        }
+    }
+
+    private void handleBulkResponse(BulkResponse bulkResponse, ActionListener<Map<String, Map<String, DocWriteResponse.Result>>> listener) {
+        ElasticsearchException failure = null;
+        final Map<String, Map<String, DocWriteResponse.Result>> privilegeResultByAppName = new HashMap<>();
+        for (var item : bulkResponse.getItems()) {
+            if (item.isFailed()) {
+                if (failure == null) {
+                    failure = new ElasticsearchException("Failed to put application privileges", item.getFailure().getCause());
+                } else {
+                    failure.addSuppressed(item.getFailure().getCause());
+                }
+            } else {
+                final Tuple<String, String> name = nameFromDocId(item.getId());
+                final String appName = name.v1();
+                final String privilegeName = name.v2();
+
+                var privileges = privilegeResultByAppName.get(appName);
+                if (privileges == null) {
+                    privileges = new HashMap<>();
+                    privilegeResultByAppName.put(appName, privileges);
+                }
+                privileges.put(privilegeName, item.getResponse().getResult());
+            }
+        }
+        if (failure != null) {
+            listener.onFailure(failure);
+        } else {
+            clearCaches(listener, privilegeResultByAppName.keySet(), privilegeResultByAppName);
         }
     }
 
@@ -465,7 +496,7 @@ public class NativePrivilegeStore {
                 logger.error("unable to clear application privileges and role cache", e);
                 listener.onFailure(
                     new ElasticsearchException(
-                        "clearing the application privileges and role cache failed. " + "please clear the caches manually",
+                        "clearing the application privileges and role cache failed, please clear the caches manually",
                         e
                     )
                 );
@@ -473,6 +504,9 @@ public class NativePrivilegeStore {
         });
     }
 
+    /**
+     * @return A Tuple of (application-name, privilege-name)
+     */
     private static Tuple<String, String> nameFromDocId(String docId) {
         final String name = docId.substring(DOC_TYPE_VALUE.length() + 1);
         assert name != null && name.length() > 0 : "Invalid name '" + name + "'";

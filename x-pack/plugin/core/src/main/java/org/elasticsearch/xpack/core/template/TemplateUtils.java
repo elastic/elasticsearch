@@ -98,7 +98,7 @@ public class TemplateUtils {
         }
     }
 
-    private static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
+    public static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
         String template = replaceVariable(input, versionProperty, version);
         for (Map.Entry<String, String> variable : variables.entrySet()) {
             template = replaceVariable(template, variable.getKey(), variable.getValue());
@@ -134,25 +134,10 @@ public class TemplateUtils {
      * @param templateName Name of the index template
      * @param state Cluster state
      * @param logger Logger
-     * @param versionComposableTemplateExpected In which version of Elasticsearch did this template switch to being a composable template?
-     *                                          <code>null</code> means the template hasn't been switched yet.
      */
-    public static boolean checkTemplateExistsAndIsUpToDate(
-        String templateName,
-        String versionKey,
-        ClusterState state,
-        Logger logger,
-        Version versionComposableTemplateExpected
-    ) {
+    public static boolean checkTemplateExistsAndIsUpToDate(String templateName, String versionKey, ClusterState state, Logger logger) {
 
-        return checkTemplateExistsAndVersionMatches(
-            templateName,
-            versionKey,
-            state,
-            logger,
-            Version.CURRENT::equals,
-            versionComposableTemplateExpected
-        );
+        return checkTemplateExistsAndVersionMatches(templateName, versionKey, state, logger, Version.CURRENT::equals);
     }
 
     /**
@@ -162,32 +147,20 @@ public class TemplateUtils {
      * @param state Cluster state
      * @param logger Logger
      * @param predicate Predicate to execute on version check
-     * @param versionComposableTemplateExpected In which version of Elasticsearch did this template switch to being a composable template?
-     *                                          <code>null</code> means the template hasn't been switched yet.
      */
     public static boolean checkTemplateExistsAndVersionMatches(
         String templateName,
         String versionKey,
         ClusterState state,
         Logger logger,
-        Predicate<Version> predicate,
-        Version versionComposableTemplateExpected
+        Predicate<Version> predicate
     ) {
 
-        CompressedXContent mappings;
-        if (versionComposableTemplateExpected != null && state.nodes().getMinNodeVersion().onOrAfter(versionComposableTemplateExpected)) {
-            ComposableIndexTemplate templateMeta = state.metadata().templatesV2().get(templateName);
-            if (templateMeta == null) {
-                return false;
-            }
-            mappings = templateMeta.template().mappings();
-        } else {
-            IndexTemplateMetadata templateMeta = state.metadata().templates().get(templateName);
-            if (templateMeta == null) {
-                return false;
-            }
-            mappings = templateMeta.getMappings();
+        IndexTemplateMetadata templateMeta = state.metadata().templates().get(templateName);
+        if (templateMeta == null) {
+            return false;
         }
+        CompressedXContent mappings = templateMeta.getMappings();
 
         // check all mappings contain correct version in _meta
         // we have to parse the source here which is annoying

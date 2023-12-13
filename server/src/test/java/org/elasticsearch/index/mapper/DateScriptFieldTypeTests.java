@@ -477,8 +477,11 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 DateScriptFieldType fieldType = build("add_days", Map.of("days", 1), OnScriptError.FAIL);
-                assertThat(blockLoaderReadValues(reader, fieldType), equalTo(List.of(1595518581354L, 1595518581355L)));
-                assertThat(blockLoaderReadValuesFromSingleDoc(reader, fieldType), equalTo(List.of(1595518581354L, 1595518581355L)));
+                assertThat(
+                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType),
+                    equalTo(List.of(1595518581354L, 1595518581355L))
+                );
+                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(1595518581354L, 1595518581355L)));
             }
         }
     }

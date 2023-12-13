@@ -98,8 +98,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
                 .addAlias(new Alias("my_alias"))
                 .addAlias(new Alias("an_alias"))
         );
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource("field1", "value1", "field2", "value2", "field3", "value3")
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -130,8 +129,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
                 .addAlias(new Alias("my_alias"))
                 .addAlias(new Alias("an_alias"))
         );
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource("field1", "value1", "field2", "value2", "field3", "value3")
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -197,8 +195,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
         assertAcked(indicesAdmin().aliases(aliasesRequest).actionGet());
 
         String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-        client().prepareIndex("test")
-            .setCreate(true)
+        prepareIndex("test").setCreate(true)
             .setId("1")
             .setSource(DEFAULT_TIMESTAMP_FIELD, value, "field1", "value1", "field2", "value2", "field3", "value3")
             .setRefreshPolicy(IMMEDIATE)
@@ -255,16 +252,11 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
     private void putComposableIndexTemplate(String id, List<String> patterns) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(null, null, null),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(null, null, null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

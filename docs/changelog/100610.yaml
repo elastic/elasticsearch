@@ -1,7 +1,0 @@
-pr: 100610
-summary: Fix interruption of `markAllocationIdAsInSync`
-area: Recovery
-type: bug
-issues:
- - 96578
- - 100589

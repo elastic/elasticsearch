@@ -90,7 +90,7 @@ public class TransportGetTrainedModelPackageConfigAction extends TransportMaster
 
                     if (packagedModelId.equals(packageConfig.getPackagedModelId()) == false) {
                         // the package is somehow broken
-                        listener.onFailure(new ElasticsearchStatusException("Invalid package", RestStatus.INTERNAL_SERVER_ERROR));
+                        listener.onFailure(new ElasticsearchStatusException("Invalid package name", RestStatus.INTERNAL_SERVER_ERROR));
                         return;
                     }
 

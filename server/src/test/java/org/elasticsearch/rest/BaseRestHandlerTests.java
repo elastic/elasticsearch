@@ -47,7 +47,6 @@ public class BaseRestHandlerTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         threadPool.shutdown();
-        mockClient.close();
     }
 
     public void testOneUnconsumedParameters() throws Exception {

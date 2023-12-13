@@ -541,7 +541,7 @@ public class JobResultsPersister {
         }
 
         BulkResponse persist(Supplier<Boolean> shouldRetry, boolean requireAlias) {
-            final PlainActionFuture<BulkResponse> getResponseFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
             persist(shouldRetry, requireAlias, getResponseFuture);
             return getResponseFuture.actionGet();
         }

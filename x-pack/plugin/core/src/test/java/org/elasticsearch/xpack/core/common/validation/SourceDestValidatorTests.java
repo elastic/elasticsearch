@@ -95,6 +95,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         REMOTE_SOURCE_VALIDATION
     );
 
+    private TestThreadPool clientThreadPool;
     private Client clientWithBasicLicense;
     private Client clientWithExpiredBasicLicense;
     private Client clientWithPlatinumLicense;
@@ -154,8 +155,8 @@ public class SourceDestValidatorTests extends ESTestCase {
         private final String license;
         private final LicenseStatus licenseStatus;
 
-        MockClientLicenseCheck(String testName, String license, LicenseStatus licenseStatus) {
-            super(testName);
+        MockClientLicenseCheck(ThreadPool threadPool, String license, LicenseStatus licenseStatus) {
+            super(threadPool);
             this.license = license;
             this.licenseStatus = licenseStatus;
         }
@@ -187,21 +188,19 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     @Before
     public void setupComponents() {
-        clientWithBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.ACTIVE);
-        clientWithExpiredBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.EXPIRED);
+        clientThreadPool = createThreadPool();
+        clientWithBasicLicense = new MockClientLicenseCheck(clientThreadPool, "basic", LicenseStatus.ACTIVE);
+        clientWithExpiredBasicLicense = new MockClientLicenseCheck(clientThreadPool, "basic", LicenseStatus.EXPIRED);
         LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.BASIC);
         platinumFeature = LicensedFeature.momentary(null, "platinum-feature", License.OperationMode.PLATINUM);
         remoteClusterLicenseCheckerBasic = new RemoteClusterLicenseChecker(clientWithBasicLicense, feature);
-        clientWithPlatinumLicense = new MockClientLicenseCheck(getTestName(), "platinum", LicenseStatus.ACTIVE);
-        clientWithTrialLicense = new MockClientLicenseCheck(getTestName(), "trial", LicenseStatus.ACTIVE);
+        clientWithPlatinumLicense = new MockClientLicenseCheck(clientThreadPool, "platinum", LicenseStatus.ACTIVE);
+        clientWithTrialLicense = new MockClientLicenseCheck(clientThreadPool, "trial", LicenseStatus.ACTIVE);
     }
 
     @After
     public void closeComponents() throws Exception {
-        clientWithBasicLicense.close();
-        clientWithExpiredBasicLicense.close();
-        clientWithPlatinumLicense.close();
-        clientWithTrialLicense.close();
+        clientThreadPool.close();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 

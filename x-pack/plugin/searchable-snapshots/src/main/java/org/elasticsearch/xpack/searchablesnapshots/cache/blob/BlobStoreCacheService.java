@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -124,7 +123,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false
             : "must not block [" + Thread.currentThread().getName() + "] for a cache read";
 
-        final PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<CachedBlob> future = new PlainActionFuture<>();
         getAsync(repository, snapshotId, indexId, shardId, name, range, future);
         try {
             return future.actionGet(5, TimeUnit.SECONDS);
@@ -245,7 +244,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         try {
             final CachedBlob cachedBlob = new CachedBlob(
                 Instant.ofEpochMilli(timeInEpochMillis),
-                Version.CURRENT,
                 repository,
                 name,
                 generatePath(snapshotId, indexId, shardId),

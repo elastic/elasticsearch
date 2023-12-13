@@ -1,5 +1,0 @@
-pr: 99827
-summary: "ESQL: Fix NPE when aggregating literals"
-area: ES|QL
-type: bug
-issues: []

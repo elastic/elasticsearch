@@ -49,6 +49,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -104,6 +106,8 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -142,6 +146,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -159,8 +164,10 @@ import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -246,6 +253,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
 
+        final List<Appender> testAppenders = new ArrayList<>(3);
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
             Logger leakLogger = LogManager.getLogger(leakLoggerName);
             Appender leakAppender = new AbstractAppender(leakLoggerName, null, PatternLayout.newBuilder().withPattern("%m").build()) {
@@ -261,13 +269,34 @@ public abstract class ESTestCase extends LuceneTestCase {
             };
             leakAppender.start();
             Loggers.addAppender(leakLogger, leakAppender);
-            // shutdown hook so that when the test JVM exits, logging is shutdown too
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                leakAppender.stop();
-                LoggerContext context = (LoggerContext) LogManager.getContext(false);
-                Configurator.shutdown(context);
-            }));
+            testAppenders.add(leakAppender);
         }
+        Logger promiseUncaughtLogger = LogManager.getLogger("io.netty.util.concurrent.DefaultPromise");
+        final Appender uncaughtAppender = new AbstractAppender(
+            promiseUncaughtLogger.getName(),
+            null,
+            PatternLayout.newBuilder().withPattern("%m").build()
+        ) {
+            @Override
+            public void append(LogEvent event) {
+                if (Level.WARN.equals(event.getLevel())) {
+                    synchronized (loggedLeaks) {
+                        loggedLeaks.add(event.getMessage().getFormattedMessage());
+                    }
+                }
+            }
+        };
+        uncaughtAppender.start();
+        Loggers.addAppender(promiseUncaughtLogger, uncaughtAppender);
+        testAppenders.add(uncaughtAppender);
+        // shutdown hook so that when the test JVM exits, logging is shutdown too
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            for (Appender testAppender : testAppenders) {
+                testAppender.stop();
+            }
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+        }));
 
         BootstrapForTesting.ensureInitialized();
 
@@ -760,6 +789,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * @return a random instant between a min and a max value with a random nanosecond precision
+     */
+    public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
+        return Instant.ofEpochSecond(
+            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
+            randomLongBetween(0, 999999999)
+        );
+    }
+
+    /**
      * The maximum value that can be represented as an unsigned long.
      */
     public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
@@ -1153,6 +1192,32 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Generate a random valid point constrained to geographic ranges (lat, lon ranges).
+     */
+    public static SpatialPoint randomGeoPoint() {
+        return new GeoPoint(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true));
+    }
+
+    /**
+     * Generate a random valid point constrained to cartesian ranges.
+     */
+    public static SpatialPoint randomCartesianPoint() {
+        double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        return new SpatialPoint() {
+            @Override
+            public double getX() {
+                return x;
+            }
+
+            @Override
+            public double getY() {
+                return y;
+            }
+        };
+    }
+
+    /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */
     public static <T> void maybeSet(Consumer<T> consumer, T value) {
@@ -1261,6 +1326,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
         return breakSupplier.getAsBoolean();
+    }
+
+    protected TestThreadPool createThreadPool(ExecutorBuilder<?>... executorBuilders) {
+        return new TestThreadPool(getTestName(), executorBuilders);
     }
 
     public static boolean terminate(ExecutorService... services) {
@@ -2040,7 +2109,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        return PlainActionFuture.get(listener::addListener, 10, TimeUnit.SECONDS);
+        final var future = new PlainActionFuture<T>();
+        listener.addListener(future);
+        try {
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("safeAwait: interrupted", e);
+        } catch (ExecutionException e) {
+            throw new AssertionError("safeAwait: listener was completed exceptionally", e);
+        } catch (TimeoutException e) {
+            throw new AssertionError("safeAwait: listener was not completed within the timeout", e);
+        }
     }
 
     public static void safeSleep(long millis) {

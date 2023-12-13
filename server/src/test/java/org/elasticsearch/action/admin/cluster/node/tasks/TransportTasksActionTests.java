@@ -67,7 +67,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -286,7 +285,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request) throws Exception {
-        PlainActionFuture<NodesResponse> future = newFuture();
+        PlainActionFuture<NodesResponse> future = new PlainActionFuture<>();
         startBlockingTestNodesAction(checkLatch, request, future);
         return future;
     }
@@ -677,7 +676,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestTasksRequest testTasksRequest = new TestTasksRequest();
         testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
         testTasksRequest.setNodes(testNodes[0].getNodeId(), testNodes[1].getNodeId()); // only first two nodes
-        PlainActionFuture<TestTasksResponse> taskFuture = newFuture();
+        PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
         CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
             .registerAndExecute(
                 "direct",
@@ -690,7 +689,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         taskExecutesLatch.await();
         logger.info("All test tasks are now executing");
 
-        PlainActionFuture<Void> cancellationFuture = newFuture();
+        PlainActionFuture<Void> cancellationFuture = new PlainActionFuture<>();
         logger.info("Cancelling tasks");
 
         testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test case", false, cancellationFuture);
@@ -734,7 +733,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         TestTasksRequest testTasksRequest = new TestTasksRequest();
         testTasksRequest.setNodes(testNodes[0].getNodeId()); // only local node
-        PlainActionFuture<TestTasksResponse> taskFuture = newFuture();
+        PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
         CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
             .registerAndExecute(
                 "direct",
@@ -808,7 +807,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         TestTasksRequest testTasksRequest = new TestTasksRequest();
         testTasksRequest.setActions("internal:testTasksAction[n]");
-        PlainActionFuture<TestTasksResponse> taskFuture = newFuture();
+        PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
         CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
             .registerAndExecute(
                 "direct",

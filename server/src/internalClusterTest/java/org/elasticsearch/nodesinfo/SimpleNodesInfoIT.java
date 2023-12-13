@@ -41,7 +41,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().getLocalNodeId();
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
-        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().execute().actionGet();
+        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().get();
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
@@ -80,7 +80,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().getLocalNodeId();
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
-        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().execute().actionGet();
+        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().get();
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertNotNull(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer());
@@ -91,7 +91,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         assertThat(response.getNodesMap().get(server2NodeId).getTotalIndexingBuffer().getBytes(), greaterThan(0L));
 
         // again, using only the indices flag
-        response = clusterAdmin().prepareNodesInfo().clear().setIndices(true).execute().actionGet();
+        response = clusterAdmin().prepareNodesInfo().clear().setIndices(true).get();
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertNotNull(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer());
@@ -118,7 +118,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().getLocalNodeId();
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
-        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().execute().actionGet();
+        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().get();
 
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());

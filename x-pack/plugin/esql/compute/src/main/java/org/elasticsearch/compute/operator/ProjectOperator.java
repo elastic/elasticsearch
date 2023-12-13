@@ -67,8 +67,13 @@ public class ProjectOperator extends AbstractPageMappingOperator {
             }
             var block = page.getBlock(source);
             blocks[b++] = block;
+            block.incRef();
         }
-        return page.newPageAndRelease(blocks);
+        int positionCount = page.getPositionCount();
+        page.releaseBlocks();
+        // Use positionCount explicitly to avoid re-computing - also, if the projection is empty, there may be
+        // no more blocks left to determine the positionCount from.
+        return new Page(positionCount, blocks);
     }
 
     @Override

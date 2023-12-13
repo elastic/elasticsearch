@@ -143,7 +143,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
             public void restoreShard(

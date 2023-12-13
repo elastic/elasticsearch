@@ -22,9 +22,9 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -389,7 +389,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             client,
             TRANSFORM_ORIGIN,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
@@ -426,7 +426,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             client,
             TRANSFORM_ORIGIN,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
@@ -470,7 +470,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             client,
             TRANSFORM_ORIGIN,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
@@ -503,7 +503,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .seqNoAndPrimaryTerm(true)
             .request();
 
-        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
             if (searchResponse.getHits().getHits().length == 0) {
                 configAndVersionListener.onFailure(
                     new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
@@ -637,7 +637,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     .query(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
                     .trackTotalHitsUpTo(1)
             );
-        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
             if (searchResponse.getHits().getTotalHits().value == 0) {
                 listener.onFailure(
                     new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
@@ -762,7 +762,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             client,
             TRANSFORM_ORIGIN,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {

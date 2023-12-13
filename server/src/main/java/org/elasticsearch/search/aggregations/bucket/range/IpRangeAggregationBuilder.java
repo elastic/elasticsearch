@@ -226,18 +226,9 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     public IpRangeAggregationBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
-    }
-
-    public boolean keyed() {
-        return keyed;
     }
 
     /** Add a new {@link Range} to this aggregation. */

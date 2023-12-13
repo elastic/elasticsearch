@@ -1,6 +1,0 @@
-pr: 101358
-summary: Make DISSECT parameter `append_separator` case insensitive
-area: ES|QL
-type: bug
-issues:
- - 101138

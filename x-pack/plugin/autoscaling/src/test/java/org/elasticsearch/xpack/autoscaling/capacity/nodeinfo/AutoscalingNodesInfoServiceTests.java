@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -42,6 +41,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -73,6 +74,7 @@ import static org.mockito.Mockito.when;
 
 public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
 
+    private TestThreadPool threadPool;
     private NodeStatsClient client;
     private AutoscalingNodeInfoService service;
     private TimeValue fetchTimeout;
@@ -83,7 +85,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        client = new NodeStatsClient();
+        threadPool = createThreadPool();
+        client = new NodeStatsClient(threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         Settings settings;
         if (randomBoolean()) {
@@ -105,8 +108,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     @After
     @Override
     public void tearDown() throws Exception {
+        threadPool.close();
         super.tearDown();
-        client.close();
     }
 
     public void testAddRemoveNode() {
@@ -445,7 +448,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     private static org.elasticsearch.action.admin.cluster.node.info.NodeInfo infoForNode(DiscoveryNode node, int processors) {
         OsInfo osInfo = new OsInfo(randomLong(), processors, Processors.of((double) processors), null, null, null, null);
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
-            Version.CURRENT,
+            Build.current().version(),
             TransportVersion.current(),
             IndexVersion.current(),
             Map.of(),
@@ -470,8 +473,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         private BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderStats;
         private BiConsumer<NodesInfoRequest, ActionListener<NodesInfoResponse>> responderInfo;
 
-        private NodeStatsClient() {
-            super(getTestName());
+        private NodeStatsClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         public void respondInfo(NodesInfoResponse response, Runnable whileFetching) {

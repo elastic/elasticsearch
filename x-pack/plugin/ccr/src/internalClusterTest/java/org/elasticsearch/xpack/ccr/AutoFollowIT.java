@@ -137,7 +137,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         putAutoFollowPatterns("my-pattern", new String[] { ".*", "logs-*" });
 
         // Trigger system index creation
-        leaderClient().prepareIndex(FakeSystemIndex.SYSTEM_INDEX_NAME).setSource(Map.of("a", "b")).execute().actionGet();
+        leaderClient().prepareIndex(FakeSystemIndex.SYSTEM_INDEX_NAME).setSource(Map.of("a", "b")).get();
 
         Settings leaderIndexSettings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -638,23 +638,20 @@ public class AutoFollowIT extends CcrIntegTestCase {
         final String datastream = "logs-1";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("template-id");
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("logs-*"),
-                new Template(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build(),
-                    null,
-                    null
-                ),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("logs-*"))
+                .template(
+                    new Template(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .build(),
+                        null,
+                        null
+                    )
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         assertAcked(leaderClient().execute(PutComposableIndexTemplateAction.INSTANCE, request).get());
 

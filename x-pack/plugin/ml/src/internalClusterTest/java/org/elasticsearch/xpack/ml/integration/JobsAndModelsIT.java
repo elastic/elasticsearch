@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
@@ -36,6 +37,8 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 
@@ -230,6 +233,8 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
 
             assertThat(jobStats.getNode(), is(not(equalTo(modelStats.getDeploymentStats().getNodeStats().get(0).getNode()))));
         });
+
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(jobId), Duration.of(10, ChronoUnit.SECONDS), null);
 
         // Clean up
         client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();

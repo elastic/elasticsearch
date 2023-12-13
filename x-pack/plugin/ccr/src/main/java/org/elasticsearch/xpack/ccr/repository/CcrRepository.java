@@ -229,7 +229,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             .actionGet(ccrSettings.getRecoveryActionTimeout());
 
         // Validates whether the leader cluster has been configured properly:
-        PlainActionFuture<String[]> future = PlainActionFuture.newFuture();
+        PlainActionFuture<String[]> future = new PlainActionFuture<>();
         IndexMetadata leaderIndexMetadata = clusterState.getState().metadata().index(leaderIndex);
         CcrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, future::onFailure, future::onResponse);
         String[] leaderHistoryUUIDs = future.actionGet(ccrSettings.getRecoveryActionTimeout());

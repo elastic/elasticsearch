@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -219,17 +220,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         }
 
         when(desiredBalanceShardsAllocator.getDesiredBalance()).thenReturn(new DesiredBalance(randomInt(1024), shardAssignments));
-        DesiredBalanceStats desiredBalanceStats = new DesiredBalanceStats(
-            randomInt(Integer.MAX_VALUE),
-            randomBoolean(),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE)
-        );
+        DesiredBalanceStats desiredBalanceStats = randomDesiredBalanceStats();
         when(desiredBalanceShardsAllocator.getStats()).thenReturn(desiredBalanceStats);
         ClusterInfo clusterInfo = ClusterInfo.EMPTY;
         when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);

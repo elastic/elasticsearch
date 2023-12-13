@@ -37,7 +37,7 @@ public class IndexResponse extends DocWriteResponse {
      * information about the pipelines executed. An empty list means that there were no pipelines executed.
      */
     @Nullable
-    private final List<String> executedPipelines;
+    protected final List<String> executedPipelines;
 
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);

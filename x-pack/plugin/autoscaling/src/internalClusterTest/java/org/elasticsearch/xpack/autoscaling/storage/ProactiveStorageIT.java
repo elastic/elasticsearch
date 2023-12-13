@@ -53,8 +53,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 false,
                 IntStream.range(1, 100)
                     .mapToObj(
-                        unused -> client().prepareIndex(dsName)
-                            .setCreate(true)
+                        unused -> prepareIndex(dsName).setCreate(true)
                             .setSource("@timestamp", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999()))
                     )
                     .toArray(IndexRequestBuilder[]::new)
@@ -123,16 +122,11 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
-                new ComposableIndexTemplate(
-                    Collections.singletonList(dataStreamName),
-                    new Template(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(Collections.singletonList(dataStreamName))
+                    .template(new Template(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
             )
         ).actionGet();
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();

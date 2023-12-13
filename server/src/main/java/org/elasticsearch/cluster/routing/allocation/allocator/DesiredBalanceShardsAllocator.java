@@ -29,6 +29,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -77,14 +78,16 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
         ClusterService clusterService,
-        DesiredBalanceReconcilerAction reconciler
+        DesiredBalanceReconcilerAction reconciler,
+        TelemetryProvider telemetryProvider
     ) {
         this(
             delegateAllocator,
             threadPool,
             clusterService,
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
-            reconciler
+            reconciler,
+            telemetryProvider
         );
     }
 
@@ -93,14 +96,19 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ThreadPool threadPool,
         ClusterService clusterService,
         DesiredBalanceComputer desiredBalanceComputer,
-        DesiredBalanceReconcilerAction reconciler
+        DesiredBalanceReconcilerAction reconciler,
+        TelemetryProvider telemetryProvider
     ) {
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
-        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool);
-        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool) {
+        this.desiredBalanceReconciler = new DesiredBalanceReconciler(
+            clusterService.getClusterSettings(),
+            threadPool,
+            telemetryProvider.getMeterRegistry()
+        );
+        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
@@ -141,7 +149,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
             @Override
             public String toString() {
-                return "DesiredBalanceShardsAllocator#updateDesiredBalanceAndReroute";
+                return "DesiredBalanceShardsAllocator#allocate";
             }
         };
         this.queue = new PendingListenersQueue();
@@ -264,7 +272,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     public DesiredBalanceStats getStats() {
         return new DesiredBalanceStats(
-            currentDesiredBalance.lastConvergedIndex(),
+            Math.max(currentDesiredBalance.lastConvergedIndex(), 0L),
             desiredBalanceComputation.isActive(),
             computationsSubmitted.count(),
             computationsExecuted.count(),
@@ -272,7 +280,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             desiredBalanceComputer.iterations.sum(),
             computedShardMovements.sum(),
             cumulativeComputationTime.count(),
-            cumulativeReconciliationTime.count()
+            cumulativeReconciliationTime.count(),
+            desiredBalanceReconciler.unassignedShards.get(),
+            desiredBalanceReconciler.totalAllocations.get(),
+            desiredBalanceReconciler.undesiredAllocations.get()
         );
     }
 
@@ -282,6 +293,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
             desiredBalanceReconciler.clear();
+
+            desiredBalanceReconciler.unassignedShards.set(0);
+            desiredBalanceReconciler.totalAllocations.set(0);
+            desiredBalanceReconciler.undesiredAllocations.set(0);
         }
     }
 

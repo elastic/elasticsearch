@@ -351,13 +351,12 @@ public class TransformIndexerStateTests extends ESTestCase {
     public void setUpMocks() {
         auditor = MockTransformAuditor.createMockAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
-        client = new NoOpClient(getTestName());
         threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);
+        client = new NoOpClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 

@@ -99,7 +99,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
         }
 
-        PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
 
         ActionTestUtils.execute(transportAction, null, new TestRequest(), future);
         try {

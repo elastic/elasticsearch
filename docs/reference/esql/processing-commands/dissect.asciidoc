@@ -6,7 +6,7 @@
 
 [source,esql]
 ----
-DISSECT input "pattern" [ APPEND_SEPARATOR="<separator>"]
+DISSECT input "pattern" [APPEND_SEPARATOR="<separator>"]
 ----
 
 *Parameters*

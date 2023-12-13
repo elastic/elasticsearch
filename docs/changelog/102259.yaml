@@ -1,0 +1,5 @@
+pr: 102259
+summary: "[Usage API] Count all the data streams that have lifecycle"
+area: Data streams
+type: bug
+issues: []

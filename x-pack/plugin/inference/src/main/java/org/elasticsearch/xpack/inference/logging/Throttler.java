@@ -87,25 +87,22 @@ public class Throttler implements Closeable {
         this.durationToWait = Duration.ofMillis(durationToWait.millis());
     }
 
-    public void warn(Logger logger, String message, Throwable e) {
-        Objects.requireNonNull(message);
-        Objects.requireNonNull(e);
-
-        if (isRunning.get()) {
-            logHelper(message, msgToAppend -> logger.warn(message.concat(msgToAppend), e));
+    public void execute(String message, Consumer<String> consumer) {
+        if (isRunning.get() == false) {
+            return;
         }
-    }
 
-    private void logHelper(String message, Consumer<String> executor) {
         LogExecutor logExecutor = logExecutors.compute(message, (key, value) -> {
             if (value == null) {
-                return new LogExecutor(clock, executor);
+                return new LogExecutor(clock, consumer);
             }
 
-            return value.compute(executor, durationToWait);
+            return value.compute(consumer, durationToWait);
         });
 
-        logExecutor.log();
+        // This executes an internal consumer that wraps the passed in one, it will either log the message passed here
+        // unchanged, do nothing if it is in the throttled period, or log this message + some text saying how many times it was repeated
+        logExecutor.log(message);
     }
 
     @Override
@@ -119,41 +116,38 @@ public class Throttler implements Closeable {
         private final long skippedLogCalls;
         private final Instant timeOfLastLogCall;
         private final Clock clock;
-        private final Runnable logRunner;
+        private final Consumer<String> consumer;
 
-        LogExecutor(Clock clock, Consumer<String> logAppendedMessage) {
-            skippedLogCalls = 0;
-            timeOfLastLogCall = Instant.now(clock);
-            this.clock = clock;
-            // The first log message can log the original message without waiting
-            this.logRunner = () -> logAppendedMessage.accept("");
+        LogExecutor(Clock clock, Consumer<String> throttledConsumer) {
+            this(clock, 0, throttledConsumer);
         }
 
-        LogExecutor(Clock clock, long skippedLogCalls, Runnable logRunner) {
+        LogExecutor(Clock clock, long skippedLogCalls, Consumer<String> consumer) {
             this.skippedLogCalls = skippedLogCalls;
-            timeOfLastLogCall = Instant.now(clock);
-            this.clock = clock;
-            this.logRunner = logRunner;
+            this.clock = Objects.requireNonNull(clock);
+            timeOfLastLogCall = Instant.now(this.clock);
+            this.consumer = Objects.requireNonNull(consumer);
         }
 
-        void log() {
-            this.logRunner.run();
+        void log(String message) {
+            this.consumer.accept(message);
         }
 
         LogExecutor compute(Consumer<String> executor, Duration durationToWait) {
             if (hasDurationExpired(durationToWait)) {
-                String msg = "";
+                String messageToAppend = "";
                 if (this.skippedLogCalls == 1) {
-                    msg = ", repeated 1 time";
+                    messageToAppend = ", repeated 1 time";
                 } else if (this.skippedLogCalls > 1) {
-                    msg = format(", repeated %s times", this.skippedLogCalls);
+                    messageToAppend = format(", repeated %s times", this.skippedLogCalls);
                 }
 
-                String finalMsg = msg;
-                return new LogExecutor(this.clock, 0, () -> executor.accept(finalMsg));
+                final String stringToAppend = messageToAppend;
+                return new LogExecutor(this.clock, 0, (message) -> executor.accept(message.concat(stringToAppend)));
             }
 
-            return new LogExecutor(this.clock, this.skippedLogCalls + 1, () -> {});
+            // This creates a consumer that won't do anything because the original consumer is being throttled
+            return new LogExecutor(this.clock, this.skippedLogCalls + 1, (message) -> {});
         }
 
         private boolean hasDurationExpired(Duration durationToWait) {

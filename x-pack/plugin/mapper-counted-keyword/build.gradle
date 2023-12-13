@@ -1,0 +1,22 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name 'counted-keyword'
+  description 'Module for the counted-keyword field type, which allows to consider duplicates in an array of values of that type.'
+  classname 'org.elasticsearch.xpack.countedkeyword.CountedKeywordMapperPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+base {
+  archivesName = 'x-pack-counted-keyword'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+}

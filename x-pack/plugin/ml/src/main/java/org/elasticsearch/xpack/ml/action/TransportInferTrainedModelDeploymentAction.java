@@ -107,6 +107,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
                 request.getUpdate(),
                 request.isHighPriority(),
                 request.getInferenceTimeout(),
+                request.getPrefixType(),
                 actionTask,
                 orderedListener(count, results, slot++, nlpInputs.size(), listener)
             );

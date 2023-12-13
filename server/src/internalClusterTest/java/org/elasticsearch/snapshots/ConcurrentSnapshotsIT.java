@@ -39,6 +39,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -54,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -768,7 +770,18 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        expectThrows(RepositoryException.class, deleteFuture::actionGet);
+        var innerException = expectThrows(ExecutionException.class, RuntimeException.class, deleteFuture::get);
+
+        // There may be many layers of RTE to unwrap here, see https://github.com/elastic/elasticsearch/issues/102351.
+        // ExceptionsHelper#unwrapCause gives up at 10 layers of wrapping so we must unwrap more tenaciously by hand here:
+        while (true) {
+            if (innerException instanceof RemoteTransportException remoteTransportException) {
+                innerException = asInstanceOf(RuntimeException.class, remoteTransportException.getCause());
+            } else {
+                assertThat(innerException, instanceOf(RepositoryException.class));
+                break;
+            }
+        }
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver() throws Exception {
@@ -941,14 +954,14 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             indexDoc(testIndex, Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(prepareSearch(testIndex).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(prepareSearch(testIndex).setSize(0), 100);
 
         logger.info("--> start relocations");
         allowNodes(testIndex, 1);
 
         logger.info("--> wait for relocations to start");
         assertBusy(
-            () -> assertThat(clusterAdmin().prepareHealth(testIndex).execute().actionGet().getRelocatingShards(), greaterThan(0)),
+            () -> assertThat(clusterAdmin().prepareHealth(testIndex).get().getRelocatingShards(), greaterThan(0)),
             1L,
             TimeUnit.MINUTES
         );
@@ -1304,7 +1317,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final ConcurrentSnapshotExecutionException cse = expectThrows(
             ConcurrentSnapshotExecutionException.class,
-            () -> clusterAdmin().prepareCreateSnapshot(repoName, "expected-to-fail").execute().actionGet()
+            () -> clusterAdmin().prepareCreateSnapshot(repoName, "expected-to-fail").get()
         );
         assertThat(
             cse.getMessage(),

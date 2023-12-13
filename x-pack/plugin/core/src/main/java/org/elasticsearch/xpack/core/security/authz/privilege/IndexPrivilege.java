@@ -29,7 +29,7 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
-import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
@@ -78,19 +78,25 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         ClusterSearchShardsAction.NAME,
-        SearchShardsAction.NAME
+        TransportSearchShardsAction.TYPE.name()
     );
-    private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*");
+    private static final Automaton CREATE_AUTOMATON = patterns(
+        "indices:data/write/index*",
+        "indices:data/write/bulk*",
+        "indices:data/write/simulate/bulk*"
+    );
     private static final Automaton CREATE_DOC_AUTOMATON = patterns(
         "indices:data/write/index",
         "indices:data/write/index[*",
         "indices:data/write/index:op_type/create",
-        "indices:data/write/bulk*"
+        "indices:data/write/bulk*",
+        "indices:data/write/simulate/bulk*"
     );
     private static final Automaton INDEX_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
-        "indices:data/write/update*"
+        "indices:data/write/update*",
+        "indices:data/write/simulate/bulk*"
     );
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", AutoPutMappingAction.NAME);
@@ -113,7 +119,7 @@ public final class IndexPrivilege extends Privilege {
         GetFieldMappingsAction.NAME + "*",
         GetMappingsAction.NAME,
         ClusterSearchShardsAction.NAME,
-        SearchShardsAction.NAME,
+        TransportSearchShardsAction.TYPE.name(),
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME,

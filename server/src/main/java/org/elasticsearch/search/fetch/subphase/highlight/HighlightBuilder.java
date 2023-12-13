@@ -45,8 +45,6 @@ import static org.elasticsearch.xcontent.ObjectParser.fromList;
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
 public final class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> {
-    /** default for whether to highlight fields based on the source even if stored separately */
-    public static final boolean DEFAULT_FORCE_SOURCE = false;
     /** default for whether a field should be highlighted only if a query matches that field */
     public static final boolean DEFAULT_REQUIRE_FIELD_MATCH = true;
     /** default for whether to stop highlighting at the defined max_analyzed_offset to avoid exceptions for longer texts */
@@ -147,17 +145,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
      */
     public HighlightBuilder field(String name) {
         return field(new Field(name));
-    }
-
-    /**
-     * Adds a field to be highlighted with a provided fragment size (in characters), and
-     * default number of fragments of 5.
-     *
-     * @param name         The field to highlight
-     * @param fragmentSize The size of a fragment in characters
-     */
-    public HighlightBuilder field(String name, int fragmentSize) {
-        return field(new Field(name).fragmentSize(fragmentSize));
     }
 
     /**

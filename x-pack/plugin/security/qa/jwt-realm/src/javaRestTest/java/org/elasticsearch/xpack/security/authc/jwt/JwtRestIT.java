@@ -149,7 +149,15 @@ public class JwtRestIT extends ESRestTestCase {
         settings.put("xpack.security.authc.realms.jwt.jwt2.fallback_claims.sub", "email");
         settings.put("xpack.security.authc.realms.jwt.jwt2.fallback_claims.aud", "scope");
         settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_issuer", "my-issuer");
-        settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subjects", SERVICE_SUBJECT.get());
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subjects", SERVICE_SUBJECT.get());
+            } else {
+                settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subject_patterns", SERVICE_SUBJECT.get());
+            }
+        } else {
+            settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subject_patterns", "service_*@app?.example.com");
+        }
         settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_audiences", "es01,es02,es03");
         settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_signature_algorithms", "HS256,HS384");
         // Both email or sub works because of fallback
@@ -709,11 +717,11 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     // JWT construction
-    private JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime) {
+    static JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime) {
         return buildJwt(claims, issueTime, true, true);
     }
 
-    private JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime, boolean includeSub, boolean includeAud) {
+    static JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime, boolean includeSub, boolean includeAud) {
         final JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder();
         builder.issuer(randomAlphaOfLengthBetween(4, 24));
         if (includeSub) {
@@ -743,7 +751,7 @@ public class JwtRestIT extends ESRestTestCase {
         return builder.build();
     }
 
-    private SignedJWT signJWT(JWSSigner signer, String algorithm, JWTClaimsSet claimsSet) throws JOSEException {
+    static SignedJWT signJWT(JWSSigner signer, String algorithm, JWTClaimsSet claimsSet) throws JOSEException {
         final JWSHeader.Builder builder = new JWSHeader.Builder(JWSAlgorithm.parse(algorithm));
         if (randomBoolean()) {
             builder.type(JOSEObjectType.JWT);
@@ -775,13 +783,13 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     // Utility methods
-    private Map<?, ?> assertMap(Map<String, ?> response, ParseField field) {
+    static Map<?, ?> assertMap(Map<String, ?> response, ParseField field) {
         assertThat(response, hasKey(field.getPreferredName()));
         assertThat(response, hasEntry(is(field.getPreferredName()), instanceOf(Map.class)));
         return (Map<?, ?>) response.get(field.getPreferredName());
     }
 
-    private List<?> assertList(Map<String, ?> response, ParseField field) {
+    static List<?> assertList(Map<String, ?> response, ParseField field) {
         assertThat(response, hasKey(field.getPreferredName()));
         assertThat(response, hasEntry(is(field.getPreferredName()), instanceOf(List.class)));
         return (List<?>) response.get(field.getPreferredName());

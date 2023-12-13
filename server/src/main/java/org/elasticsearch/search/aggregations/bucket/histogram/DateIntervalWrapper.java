@@ -79,7 +79,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             return preferredName;
         }
 
-        private String preferredName;
+        private final String preferredName;
 
         IntervalTypeEnum(String preferredName) {
             this.preferredName = preferredName;

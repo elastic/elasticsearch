@@ -197,8 +197,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         }, false);
     }
 
-    private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, Exception e) {
-        logAndWriteNotificationAtError(client, modelId, e.toString());
+    private static void recordError(Client client, String modelId, AtomicReference<Exception> exceptionRef, ElasticsearchException e) {
+        logAndWriteNotificationAtError(client, modelId, e.getDetailedMessage());
         exceptionRef.set(e);
     }
 

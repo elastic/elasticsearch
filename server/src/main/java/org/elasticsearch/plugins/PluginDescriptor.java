@@ -399,8 +399,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      *
      * @return an Elasticsearch version
      */
-    public Version getElasticsearchVersion() {
-        return Version.fromString(elasticsearchVersion);
+    public String getElasticsearchVersion() {
+        return elasticsearchVersion;
     }
 
     /**

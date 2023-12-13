@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -265,13 +264,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public Version getVersion() {
-            // TODO: this should be the below, but in some cases the node version does not match the passed-in version.
-            // return node.getVersion();
-            return Version.fromId(version.id());
-        }
-
-        @Override
         public TransportVersion getTransportVersion() {
             return version;
         }
@@ -362,23 +354,24 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
-
-        Objects.requireNonNull(profile, "connection profile cannot be null");
-        if (node == null) {
-            throw new ConnectTransportException(null, "can't open connection to a null node");
-        }
-        ConnectionProfile finalProfile = maybeOverrideConnectionProfile(profile);
-        if (closeLock.readLock().tryLock() == false) {
-            ensureOpen();
-            assert false : "should not get here ever because close-write-lock should only be held on shutdown";
-            throw new ConnectTransportException(node, "failed to acquire close-read-lock");
-        }
-        try {
-            ensureOpen();
-            initiateConnection(node, finalProfile, listener);
-        } finally {
-            closeLock.readLock().unlock();
-        }
+        ActionListener.run(listener, l -> {
+            Objects.requireNonNull(profile, "connection profile cannot be null");
+            if (node == null) {
+                throw new ConnectTransportException(null, "can't open connection to a null node");
+            }
+            final var finalProfile = maybeOverrideConnectionProfile(profile);
+            if (closeLock.readLock().tryLock() == false) {
+                ensureOpen();
+                assert false : "should not get here ever because close-write-lock should only be held on shutdown";
+                throw new ConnectTransportException(node, "failed to acquire close-read-lock");
+            }
+            try {
+                ensureOpen();
+                initiateConnection(node, finalProfile, l);
+            } finally {
+                closeLock.readLock().unlock();
+            }
+        });
     }
 
     private void initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener) {

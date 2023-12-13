@@ -42,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -338,9 +339,9 @@ public class AggregatorFactories {
          * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query
          * phase.
          */
-        public boolean supportsParallelCollection() {
+        public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
             for (AggregationBuilder builder : aggregationBuilders) {
-                if (builder.supportsParallelCollection() == false) {
+                if (builder.supportsParallelCollection(fieldCardinalityResolver) == false) {
                     return false;
                 }
             }
@@ -366,7 +367,6 @@ public class AggregatorFactories {
         public ActionRequestValidationException validate(ActionRequestValidationException e) {
             PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
                 aggregationBuilders,
-                pipelineAggregatorBuilders,
                 e
             );
             validatePipelines(context);

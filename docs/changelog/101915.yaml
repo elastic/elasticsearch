@@ -1,0 +1,5 @@
+pr: 101915
+summary: Add inference counts by model to the machine learning usage stats
+area: Machine Learning
+type: enhancement
+issues: []

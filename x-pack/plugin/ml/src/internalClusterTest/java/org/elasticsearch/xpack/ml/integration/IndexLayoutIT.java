@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -44,6 +47,7 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
                 .actionGet();
             assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
         });
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(jobId), Duration.of(10, ChronoUnit.SECONDS), null);
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse = client().execute(
                 GetJobsStatsAction.INSTANCE,
@@ -51,6 +55,7 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
             ).actionGet();
             assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
         });
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(jobId2), Duration.of(10, ChronoUnit.SECONDS), null);
 
         OriginSettingClient client = new OriginSettingClient(client(), ML_ORIGIN);
         assertThat(

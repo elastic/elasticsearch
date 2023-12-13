@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Iterator;
@@ -1000,7 +1001,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     void setJobState(JobTask jobTask, JobState state, String reason) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
         jobTask.updatePersistentTaskState(
             jobTaskState,
             ActionListener.wrap(
@@ -1019,7 +1020,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
         jobTask.updatePersistentTaskState(jobTaskState, ActionListener.wrap(persistentTask -> {
             try {
                 handler.accept(null);

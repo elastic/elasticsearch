@@ -84,14 +84,13 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(
-                client().prepareIndex("test")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field("val", fieldValue)
-                            .field("event_type", "my_event")
-                            .field("@timestamp", "2020-04-09T12:35:48Z")
-                            .endObject()
-                    )
+                prepareIndex("test").setSource(
+                    jsonBuilder().startObject()
+                        .field("val", fieldValue)
+                        .field("event_type", "my_event")
+                        .field("@timestamp", "2020-04-09T12:35:48Z")
+                        .endObject()
+                )
             );
         }
 
@@ -183,8 +182,4 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         return out.bytes().utf8ToString();
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 }

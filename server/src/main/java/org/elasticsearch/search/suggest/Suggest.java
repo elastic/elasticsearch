@@ -206,7 +206,6 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
     @SuppressWarnings("rawtypes")
     public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
-        public static final int TYPE = 0;
         protected final String name;
         protected final int size;
         protected final List<T> entries = new ArrayList<>(5);
@@ -633,10 +632,6 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
                  */
                 public boolean collateMatch() {
                     return (collateMatch != null) ? collateMatch : true;
-                }
-
-                protected void setScore(float score) {
-                    this.score = score;
                 }
 
                 @Override

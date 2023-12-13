@@ -1,0 +1,6 @@
+pr: 102250
+summary: "[ILM] Fix downsample to skip already downsampled indices"
+area: ILM+SLM
+type: bug
+issues:
+ - 102249

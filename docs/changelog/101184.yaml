@@ -1,6 +1,0 @@
-pr: 101184
-summary: More robust timeout for repo analysis
-area: Snapshot/Restore
-type: bug
-issues:
- - 101182

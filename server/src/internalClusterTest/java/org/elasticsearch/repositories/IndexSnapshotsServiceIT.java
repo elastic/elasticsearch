@@ -137,7 +137,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             final SnapshotInfo snapshotInfo = createSnapshot(repoName, Strings.format("snap-%03d", i), snapshotIndices);
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
-                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
+                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().get();
                 IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
                 expectedIndexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
             }
@@ -338,7 +338,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         boolean useAllRepositoriesRequest
     ) {
         ShardId shardId = new ShardId(new Index(indexName, "__na__"), shard);
-        PlainActionFuture<GetShardSnapshotResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<GetShardSnapshotResponse> future = new PlainActionFuture<>();
         final GetShardSnapshotRequest request;
         if (useAllRepositoriesRequest && randomBoolean()) {
             request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);

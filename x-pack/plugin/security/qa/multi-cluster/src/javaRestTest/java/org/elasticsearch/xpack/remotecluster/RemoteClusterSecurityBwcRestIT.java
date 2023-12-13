@@ -190,13 +190,17 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 : performRequestWithApiKey(searchRequest, apiKeyEncoded);
             assertOK(response);
             final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-                .map(SearchHit::getIndex)
-                .collect(Collectors.toList());
-            if (alsoSearchLocally) {
-                assertThat(actualIndices, containsInAnyOrder("remote_index1", "local_index"));
-            } else {
-                assertThat(actualIndices, containsInAnyOrder("remote_index1"));
+            try {
+                final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                    .map(SearchHit::getIndex)
+                    .collect(Collectors.toList());
+                if (alsoSearchLocally) {
+                    assertThat(actualIndices, containsInAnyOrder("remote_index1", "local_index"));
+                } else {
+                    assertThat(actualIndices, containsInAnyOrder("remote_index1"));
+                }
+            } finally {
+                searchResponse.decRef();
             }
         }
     }

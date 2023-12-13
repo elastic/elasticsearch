@@ -1,0 +1,5 @@
+pr: 102281
+summary: Improve failure handling in `ContinuousComputation`
+area: Allocation
+type: bug
+issues: []

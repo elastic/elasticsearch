@@ -109,9 +109,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the
 <<search-after,`search_after`>> parameter.
 
-`ignore_throttled`::
-(Optional, Boolean) If `true`, concrete, expanded or aliased indices will be
-ignored when frozen. Defaults to `true`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

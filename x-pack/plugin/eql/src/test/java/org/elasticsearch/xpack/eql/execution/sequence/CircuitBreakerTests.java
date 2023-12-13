@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -36,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -50,6 +52,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
@@ -81,7 +84,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -201,16 +203,21 @@ public class CircuitBreakerTests extends ESTestCase {
         assertMemoryCleared(stages, FailureESMockClient::new);
     }
 
-    private void assertMemoryCleared(int sequenceFiltersCount, BiFunction<CircuitBreaker, Integer, ESMockClient> esClientSupplier) {
+    private void assertMemoryCleared(
+        int sequenceFiltersCount,
+        TriFunction<ThreadPool, CircuitBreaker, Integer, ESMockClient> esClientSupplier
+    ) {
         final int searchRequestsExpectedCount = 2;
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 breakerSettings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
-            ESMockClient esClient = esClientSupplier.apply(service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
+            var threadPool = createThreadPool()
         ) {
+            final var esClient = esClientSupplier.apply(threadPool, service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
             List<SequenceCriterion> criteria = buildCriteria(sequenceFiltersCount);
@@ -241,12 +248,19 @@ public class CircuitBreakerTests extends ESTestCase {
 
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 settings,
                 breakerSettings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
-            ESMockClient esClient = new SuccessfulESMockClient(service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
+            var threadPool = createThreadPool()
         ) {
+            final var esClient = new SuccessfulESMockClient(
+                threadPool,
+                service.getBreaker(CIRCUIT_BREAKER_NAME),
+                searchRequestsExpectedCount
+            );
+
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
             List<SequenceCriterion> criteria = buildCriteria(sequenceFiltersCount);
@@ -359,8 +373,8 @@ public class CircuitBreakerTests extends ESTestCase {
         private int searchRequestsRemainingCount;
         private final String pitId = "test_pit_id";
 
-        ESMockClient(CircuitBreaker circuitBreaker, int searchRequestsRemainingCount) {
-            super(getTestName());
+        ESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker, int searchRequestsRemainingCount) {
+            super(threadPool);
             this.circuitBreaker = circuitBreaker;
             this.searchRequestsRemainingCount = searchRequestsRemainingCount;
         }
@@ -404,8 +418,8 @@ public class CircuitBreakerTests extends ESTestCase {
      */
     private class SuccessfulESMockClient extends ESMockClient {
 
-        SuccessfulESMockClient(CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
-            super(circuitBreaker, expectedSearchRequestsCount);
+        SuccessfulESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
+            super(threadPool, circuitBreaker, expectedSearchRequestsCount);
         }
 
         @SuppressWarnings("unchecked")
@@ -447,8 +461,8 @@ public class CircuitBreakerTests extends ESTestCase {
      */
     private class FailureESMockClient extends ESMockClient {
 
-        FailureESMockClient(CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
-            super(circuitBreaker, expectedSearchRequestsCount);
+        FailureESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
+            super(threadPool, circuitBreaker, expectedSearchRequestsCount);
         }
 
         @SuppressWarnings("unchecked")

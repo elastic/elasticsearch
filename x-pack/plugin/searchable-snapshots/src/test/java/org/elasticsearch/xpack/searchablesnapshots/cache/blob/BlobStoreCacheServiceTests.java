@@ -103,13 +103,13 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
         BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
 
-        PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
+        PlainActionFuture<CachedBlob> future = new PlainActionFuture<>();
         blobCacheService.getAsync(repository, snapshotId, indexId, shardId, fileName, range, future);
         assertThat(future.actionGet(), equalTo(CachedBlob.CACHE_MISS));
 
         blobCacheService.stop();
 
-        future = PlainActionFuture.newFuture();
+        future = new PlainActionFuture<>();
         blobCacheService.getAsync(repository, snapshotId, indexId, shardId, fileName, range, future);
         assertThat(future.actionGet(), equalTo(CachedBlob.CACHE_NOT_READY));
     }
@@ -135,13 +135,13 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
         BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, future);
         assertThat(future.actionGet(), nullValue());
 
         blobCacheService.stop();
 
-        future = PlainActionFuture.newFuture();
+        future = new PlainActionFuture<>();
         blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, future);
         IllegalStateException exception = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(exception.getMessage(), containsString("Blob cache service is closed"));
@@ -177,7 +177,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
 
         final List<PlainActionFuture<Void>> futures = new ArrayList<>(nbThreads);
         for (int i = 0; i < nbThreads; i++) {
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             threadPool.generic()
                 .execute(
                     () -> blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, future)

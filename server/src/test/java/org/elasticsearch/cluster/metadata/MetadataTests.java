@@ -2279,30 +2279,23 @@ public class MetadataTests extends ESTestCase {
         // Settings in component template:
         {
             var componentTemplate = new ComponentTemplate(template, null, null);
-            var indexTemplate = new ComposableIndexTemplate(
-                List.of("test-*"),
-                null,
-                List.of("component_template_1"),
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate()
-            );
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
             assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
         }
         // Settings in composable index template:
         {
             var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
-            var indexTemplate = new ComposableIndexTemplate(
-                List.of("test-*"),
-                template,
-                List.of("component_template_1"),
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate()
-            );
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(template)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
             assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
         }

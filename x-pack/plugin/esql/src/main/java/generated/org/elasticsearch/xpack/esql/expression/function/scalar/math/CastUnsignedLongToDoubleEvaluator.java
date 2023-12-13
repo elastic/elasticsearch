@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -15,38 +16,49 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cast}.
  * This class is generated. Do not edit it.
  */
 public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator v;
 
   private final DriverContext driverContext;
 
-  public CastUnsignedLongToDoubleEvaluator(EvalOperator.ExpressionEvaluator v,
+  public CastUnsignedLongToDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref vRef = v.eval(page)) {
-      LongBlock vBlock = (LongBlock) vRef.block();
+  public Block eval(Page page) {
+    try (LongBlock vBlock = (LongBlock) v.eval(page)) {
       LongVector vVector = vBlock.asVector();
       if (vVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+        return eval(page.getPositionCount(), vBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   public DoubleBlock eval(int positionCount, LongBlock vBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+        if (vBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (vBlock.getValueCount(p) != 1) {
+          if (vBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -76,15 +88,18 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final EvalOperator.ExpressionEvaluator.Factory v;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+      this.source = source;
       this.v = v;
     }
 
     @Override
     public CastUnsignedLongToDoubleEvaluator get(DriverContext context) {
-      return new CastUnsignedLongToDoubleEvaluator(v.get(context), context);
+      return new CastUnsignedLongToDoubleEvaluator(source, v.get(context), context);
     }
 
     @Override

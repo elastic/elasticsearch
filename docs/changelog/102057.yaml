@@ -1,0 +1,6 @@
+pr: 102057
+summary: Simplify `BlobStoreRepository` idle check
+area: Snapshot/Restore
+type: bug
+issues:
+ - 101948

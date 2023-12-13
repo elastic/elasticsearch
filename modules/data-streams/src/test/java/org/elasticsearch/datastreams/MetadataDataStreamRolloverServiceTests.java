@@ -71,7 +71,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             IndexMode.TIME_SERIES
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -176,7 +177,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             dsIndexMode
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -262,7 +264,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             IndexMode.TIME_SERIES
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -477,7 +480,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             null
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )

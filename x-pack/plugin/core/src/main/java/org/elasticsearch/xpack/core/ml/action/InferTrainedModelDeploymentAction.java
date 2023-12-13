@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -102,6 +103,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
         private final List<String> textInput;
+        private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
 
         public static Request forDocs(String id, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             return new Request(
@@ -156,6 +158,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             } else {
                 textInput = null;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+                prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
+            } else {
+                prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+            }
         }
 
         public String getId() {
@@ -200,6 +207,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return highPriority;
         }
 
+        public void setPrefixType(TrainedModelPrefixStrings.PrefixType prefixType) {
+            this.prefixType = prefixType;
+        }
+
+        public TrainedModelPrefixStrings.PrefixType getPrefixType() {
+            return prefixType;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = super.validate();
@@ -226,6 +241,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+                out.writeEnum(prefixType);
+            }
         }
 
         @Override
@@ -243,12 +261,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 && Objects.equals(update, that.update)
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
                 && Objects.equals(highPriority, that.highPriority)
-                && Objects.equals(textInput, that.textInput);
+                && Objects.equals(textInput, that.textInput)
+                && (prefixType == that.prefixType);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, update, docs, inferenceTimeout, highPriority, textInput);
+            return Objects.hash(id, update, docs, inferenceTimeout, highPriority, textInput, prefixType);
         }
 
         @Override

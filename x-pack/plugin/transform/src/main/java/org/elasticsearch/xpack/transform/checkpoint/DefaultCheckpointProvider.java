@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -134,14 +135,16 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     timeout,
                     transformConfig.getHeaders(),
                     resolvedIndexes.getLocalIndices().toArray(new String[0]),
+                    transformConfig.getSource().getQueryConfig().getQuery(),
                     RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                     groupedListener
                 );
             }
 
             for (Map.Entry<String, List<String>> remoteIndex : resolvedIndexes.getRemoteIndicesPerClusterAlias().entrySet()) {
+                String cluster = remoteIndex.getKey();
                 ParentTaskAssigningClient remoteClient = new ParentTaskAssigningClient(
-                    client.getRemoteClusterClient(remoteIndex.getKey(), EsExecutors.DIRECT_EXECUTOR_SERVICE),
+                    client.getRemoteClusterClient(cluster, EsExecutors.DIRECT_EXECUTOR_SERVICE),
                     client.getParentTask()
                 );
                 getCheckpointsFromOneCluster(
@@ -149,7 +152,8 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     timeout,
                     transformConfig.getHeaders(),
                     remoteIndex.getValue().toArray(new String[0]),
-                    remoteIndex.getKey(),
+                    transformConfig.getSource().getQueryConfig().getQuery(),
+                    cluster,
                     groupedListener
                 );
             }
@@ -163,13 +167,14 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         TimeValue timeout,
         Map<String, String> headers,
         String[] indices,
+        QueryBuilder query,
         String cluster,
         ActionListener<Map<String, long[]>> listener
     ) {
         if (fallbackToBWC.contains(cluster)) {
             getCheckpointsFromOneClusterBWC(client, timeout, headers, indices, cluster, listener);
         } else {
-            getCheckpointsFromOneClusterV2(client, timeout, headers, indices, cluster, ActionListener.wrap(response -> {
+            getCheckpointsFromOneClusterV2(client, timeout, headers, indices, query, cluster, ActionListener.wrap(response -> {
                 logger.debug(
                     "[{}] Successfully retrieved checkpoints from cluster [{}] using transform checkpoint API",
                     transformConfig.getId(),
@@ -200,12 +205,15 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         TimeValue timeout,
         Map<String, String> headers,
         String[] indices,
+        QueryBuilder query,
         String cluster,
         ActionListener<Map<String, long[]>> listener
     ) {
         GetCheckpointAction.Request getCheckpointRequest = new GetCheckpointAction.Request(
             indices,
             IndicesOptions.LENIENT_EXPAND_OPEN,
+            query,
+            cluster,
             timeout
         );
         ActionListener<GetCheckpointAction.Response> checkpointListener;
@@ -239,7 +247,6 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             getCheckpointRequest,
             checkpointListener
         );
-
     }
 
     /**

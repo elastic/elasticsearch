@@ -141,6 +141,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         assertEquals(packageConfig.getDescription(), trainedModelConfig.getDescription());
         assertEquals(packageConfig.getMetadata(), trainedModelConfig.getMetadata());
         assertEquals(packageConfig.getTags(), trainedModelConfig.getTags());
+        assertEquals(packageConfig.getPrefixStrings(), trainedModelConfig.getPrefixStrings());
 
         // fully tested in {@link #testParseInferenceConfigFromModelPackage}
         assertNotNull(trainedModelConfig.getInferenceConfig());

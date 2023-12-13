@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchPhaseResult;
 
 import java.util.stream.Stream;
@@ -16,7 +17,7 @@ import java.util.stream.Stream;
 /**
  * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
  */
-abstract class SearchPhaseResults<Result extends SearchPhaseResult> {
+abstract class SearchPhaseResults<Result extends SearchPhaseResult> implements RefCounted {
     private final int numShards;
 
     SearchPhaseResults(int numShards) {

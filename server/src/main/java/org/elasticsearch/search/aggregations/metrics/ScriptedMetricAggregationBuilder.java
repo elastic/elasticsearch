@@ -128,13 +128,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Get the {@code init} script.
-     */
-    public Script initScript() {
-        return initScript;
-    }
-
-    /**
      * Set the {@code map} script.
      */
     public ScriptedMetricAggregationBuilder mapScript(Script mapScript) {
@@ -143,13 +136,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         }
         this.mapScript = mapScript;
         return this;
-    }
-
-    /**
-     * Get the {@code map} script.
-     */
-    public Script mapScript() {
-        return mapScript;
     }
 
     /**
@@ -164,13 +150,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Get the {@code combine} script.
-     */
-    public Script combineScript() {
-        return combineScript;
-    }
-
-    /**
      * Set the {@code reduce} script.
      */
     public ScriptedMetricAggregationBuilder reduceScript(Script reduceScript) {
@@ -179,13 +158,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         }
         this.reduceScript = reduceScript;
         return this;
-    }
-
-    /**
-     * Get the {@code reduce} script.
-     */
-    public Script reduceScript() {
-        return reduceScript;
     }
 
     /**
@@ -198,14 +170,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         }
         this.params = params;
         return this;
-    }
-
-    /**
-     * Get parameters that will be available in the {@code init},
-     * {@code map} and {@code combine} phases.
-     */
-    public Map<String, Object> params() {
-        return params;
     }
 
     @Override
@@ -319,10 +283,5 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             && Objects.equals(combineScript, other.combineScript)
             && Objects.equals(reduceScript, other.reduceScript)
             && Objects.equals(params, other.params);
-    }
-
-    @Override
-    public boolean supportsParallelCollection() {
-        return false;
     }
 }

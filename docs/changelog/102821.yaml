@@ -1,0 +1,5 @@
+pr: 102821
+summary: Better processor stat merge
+area: Ingest Node
+type: bug
+issues: []

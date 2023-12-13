@@ -480,7 +480,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         "cluster_1",
                         Collections.singletonList(cluster1Seed.getAddress().toString())
                     );
-                    PlainActionFuture<Void> clusterAdded = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> clusterAdded = new PlainActionFuture<>();
                     // Add the cluster on a different thread to test that we wait for a new cluster to
                     // connect before returning.
                     new Thread(() -> {

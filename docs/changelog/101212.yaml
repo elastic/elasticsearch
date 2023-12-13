@@ -1,6 +1,0 @@
-pr: 101212
-summary: Fix painless execute api and tsdb issue
-area: TSDB
-type: bug
-issues:
- - 101072

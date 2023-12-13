@@ -53,6 +53,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -625,6 +626,7 @@ public class Security extends Plugin
                 services.client(),
                 services.threadPool(),
                 services.clusterService(),
+                services.featureService(),
                 services.resourceWatcherService(),
                 services.scriptService(),
                 services.xContentRegistry(),
@@ -642,6 +644,7 @@ public class Security extends Plugin
         Client client,
         ThreadPool threadPool,
         ClusterService clusterService,
+        FeatureService featureService,
         ResourceWatcherService resourceWatcherService,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
@@ -868,8 +871,8 @@ public class Security extends Plugin
             client,
             systemIndices.getProfileIndexManager(),
             clusterService,
-            realms::getDomainConfig,
-            threadPool
+            featureService,
+            realms::getDomainConfig
         );
         components.add(profileService);
 
@@ -1198,6 +1201,7 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
+        settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));

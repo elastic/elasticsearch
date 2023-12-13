@@ -114,16 +114,19 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
 
         SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
         SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+        try {
+            collector.processSearchResponse(response);
 
-        collector.processSearchResponse(response);
-
-        QueryBuilder queryBuilder = collector.buildFilterQuery(
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L),
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L)
-        );
-        assertNotNull(queryBuilder);
-        assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
-        assertThat(((TermsQueryBuilder) queryBuilder).values(), containsInAnyOrder("id1", "id2", "id3"));
+            QueryBuilder queryBuilder = collector.buildFilterQuery(
+                new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L),
+                new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L)
+            );
+            assertNotNull(queryBuilder);
+            assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
+            assertThat(((TermsQueryBuilder) queryBuilder).values(), containsInAnyOrder("id1", "id2", "id3"));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testNoTermsFieldCollectorForScripts() throws IOException {

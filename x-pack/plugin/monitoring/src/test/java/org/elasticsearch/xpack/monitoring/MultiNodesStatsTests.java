@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -20,6 +19,7 @@ import org.junit.After;
 
 import static org.elasticsearch.test.NodeRoles.noRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,24 +78,27 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
             flush(ALL_MONITORING_INDICES);
             refresh();
 
-            SearchResponse response = prepareSearch(ALL_MONITORING_INDICES).setQuery(
-                QueryBuilders.termQuery("type", NodeStatsMonitoringDoc.TYPE)
-            ).setSize(0).addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id")).get();
+            assertResponse(
+                prepareSearch(ALL_MONITORING_INDICES).setQuery(QueryBuilders.termQuery("type", NodeStatsMonitoringDoc.TYPE))
+                    .setSize(0)
+                    .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id")),
+                response -> {
+                    for (Aggregation aggregation : response.getAggregations()) {
+                        assertThat(aggregation, instanceOf(StringTerms.class));
+                        assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
 
-            for (Aggregation aggregation : response.getAggregations()) {
-                assertThat(aggregation, instanceOf(StringTerms.class));
-                assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
-
-                for (String nodeName : internalCluster().getNodeNames()) {
-                    StringTerms.Bucket bucket = ((StringTerms) aggregation).getBucketByKey(
-                        internalCluster().clusterService(nodeName).localNode().getId()
-                    );
-                    // At least 1 doc must exist per node, but it can be more than 1
-                    // because the first node may have already collected many node stats documents
-                    // whereas the last node just started to collect node stats.
-                    assertThat(bucket.getDocCount(), greaterThanOrEqualTo(1L));
+                        for (String nodeName : internalCluster().getNodeNames()) {
+                            StringTerms.Bucket bucket = ((StringTerms) aggregation).getBucketByKey(
+                                internalCluster().clusterService(nodeName).localNode().getId()
+                            );
+                            // At least 1 doc must exist per node, but it can be more than 1
+                            // because the first node may have already collected many node stats documents
+                            // whereas the last node just started to collect node stats.
+                            assertThat(bucket.getDocCount(), greaterThanOrEqualTo(1L));
+                        }
+                    }
                 }
-            }
+            );
         });
     }
 }

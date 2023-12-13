@@ -25,9 +25,9 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -400,7 +400,7 @@ public class TrainedModelProvider {
         if (parentTaskId != null) {
             searchRequest.setParentTask(parentTaskId);
         }
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
             if (searchResponse.getHits().getHits().length == 0) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelIds)));
                 return;
@@ -691,7 +691,7 @@ public class TrainedModelProvider {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                SearchAction.INSTANCE,
+                TransportSearchAction.TYPE,
                 ChunkedTrainedModelRestorer.buildSearch(
                     client,
                     modelId,
@@ -731,7 +731,7 @@ public class TrainedModelProvider {
                 }, getTrainedModelListener::onFailure)
             );
         }, getTrainedModelListener::onFailure);
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, trainedModelConfigSearch, trainedModelSearchHandler);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, trainedModelConfigSearch, trainedModelSearchHandler);
     }
 
     public void getTrainedModels(
@@ -872,7 +872,7 @@ public class TrainedModelProvider {
             getTrainedModelListener.onResponse(configs);
         }, getTrainedModelListener::onFailure);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, configSearchHandler);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, configSearchHandler);
     }
 
     public void deleteTrainedModel(String modelId, ActionListener<Boolean> listener) {

@@ -31,6 +31,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -41,6 +42,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
@@ -75,7 +77,13 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new AnalyticsTemplateRegistry(clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new AnalyticsTemplateRegistry(
+            clusterService,
+            new FeatureService(List.of(new EnterpriseSearchFeatures())),
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        );
     }
 
     @After

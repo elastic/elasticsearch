@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1406,7 +1407,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         if (jobState != null) {
             builder.updateTaskState(
                 MlTasks.dataFrameAnalyticsTaskId(jobId),
-                new DataFrameAnalyticsTaskState(jobState, builder.getLastAllocationId(), null)
+                new DataFrameAnalyticsTaskState(jobState, builder.getLastAllocationId(), null, Instant.now())
             );
         }
     }
@@ -1419,7 +1420,10 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {
-            builder.updateTaskState(MlTasks.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId(), null));
+            builder.updateTaskState(
+                MlTasks.jobTaskId(jobId),
+                new JobTaskState(jobState, builder.getLastAllocationId(), null, Instant.now())
+            );
         }
     }
 

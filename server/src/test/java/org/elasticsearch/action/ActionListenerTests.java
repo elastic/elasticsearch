@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -579,6 +580,9 @@ public class ActionListenerTests extends ESTestCase {
                 l.onResponse(null);
             } catch (Exception e) {
                 // ok
+            } catch (AssertionError e) {
+                // ensure this was only thrown by ActionListener#assertOnce
+                assertThat(e.getMessage(), endsWith("must handle its own exceptions"));
             }
         } else {
             l.onFailure(new RuntimeException("supplied"));

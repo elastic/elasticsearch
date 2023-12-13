@@ -68,7 +68,6 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         clusterService.stop();
-        client.close();
         threadPool.shutdownNow();
     }
 

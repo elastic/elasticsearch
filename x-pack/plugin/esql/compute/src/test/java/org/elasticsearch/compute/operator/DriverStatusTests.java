@@ -16,6 +16,8 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperatorStatusTests;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorStatusTests;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperatorStatusTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,21 +36,18 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             List.of(
                 new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
                 new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
-            )
+            ),
+            List.of(new DriverStatus.OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple()))
         );
-        assertThat(
-            Strings.toString(status),
-            equalTo(
-                """
-                    {"sessionId":"ABC:123","last_updated":"1973-11-29T09:27:23.214Z","status":"running","active_operators":["""
-                    + """
-                        {"operator":"LuceneSource","status":"""
-                    + LuceneSourceOperatorStatusTests.simpleToJson()
-                    + "},{\"operator\":\"ValuesSourceReader\",\"status\":"
-                    + ValuesSourceReaderOperatorStatusTests.simpleToJson()
-                    + "}]}"
-            )
-        );
+        assertThat(Strings.toString(status), equalTo("""
+            {"sessionId":"ABC:123","last_updated":"1973-11-29T09:27:23.214Z","status":"running",
+            """.trim() + """
+            "completed_operators":[{"operator":"LuceneSource","status":
+            """.trim() + LuceneSourceOperatorStatusTests.simpleToJson() + """
+            },{"operator":"ValuesSourceReader","status":
+            """.trim() + ValuesSourceReaderOperatorStatusTests.simpleToJson() + """
+            }],"active_operators":[{"operator":"ExchangeSink","status":
+            """.trim() + ExchangeSinkOperatorStatusTests.simpleToJson() + "}]}"));
     }
 
     @Override
@@ -58,7 +57,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
 
     @Override
     protected DriverStatus createTestInstance() {
-        return new DriverStatus(randomSessionId(), randomLong(), randomStatus(), randomActiveOperators());
+        return new DriverStatus(randomSessionId(), randomLong(), randomStatus(), randomOperatorStatuses(), randomOperatorStatuses());
     }
 
     private String randomSessionId() {
@@ -69,14 +68,15 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         return randomFrom(DriverStatus.Status.values());
     }
 
-    private List<DriverStatus.OperatorStatus> randomActiveOperators() {
-        return randomList(0, 5, this::randomOperatorStatus);
+    static List<DriverStatus.OperatorStatus> randomOperatorStatuses() {
+        return randomList(0, 5, DriverStatusTests::randomOperatorStatus);
     }
 
-    private DriverStatus.OperatorStatus randomOperatorStatus() {
+    private static DriverStatus.OperatorStatus randomOperatorStatus() {
         Supplier<Operator.Status> status = randomFrom(
             new LuceneSourceOperatorStatusTests()::createTestInstance,
             new ValuesSourceReaderOperatorStatusTests()::createTestInstance,
+            new ExchangeSinkOperatorStatusTests()::createTestInstance,
             () -> null
         );
         return new DriverStatus.OperatorStatus(randomAlphaOfLength(3), status.get());
@@ -87,8 +87,9 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         var sessionId = instance.sessionId();
         long lastUpdated = instance.lastUpdated();
         var status = instance.status();
-        var operators = instance.activeOperators();
-        switch (between(0, 3)) {
+        var completedOperators = instance.completedOperators();
+        var activeOperators = instance.activeOperators();
+        switch (between(0, 4)) {
             case 0:
                 sessionId = randomValueOtherThan(sessionId, this::randomSessionId);
                 break;
@@ -99,16 +100,21 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
                 status = randomValueOtherThan(status, this::randomStatus);
                 break;
             case 3:
-                operators = randomValueOtherThan(operators, this::randomActiveOperators);
+                completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
+                break;
+            case 4:
+                activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
                 break;
             default:
                 throw new UnsupportedOperationException();
         }
-        return new DriverStatus(sessionId, lastUpdated, status, operators);
+        return new DriverStatus(sessionId, lastUpdated, status, completedOperators, activeOperators);
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(List.of(LuceneSourceOperator.Status.ENTRY, ValuesSourceReaderOperator.Status.ENTRY));
+        return new NamedWriteableRegistry(
+            List.of(LuceneSourceOperator.Status.ENTRY, ValuesSourceReaderOperator.Status.ENTRY, ExchangeSinkOperator.Status.ENTRY)
+        );
     }
 }

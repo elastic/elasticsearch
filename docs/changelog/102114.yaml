@@ -1,0 +1,6 @@
+pr: 102114
+summary: Fix double-completion in `SecurityUsageTransportAction`
+area: Security
+type: bug
+issues:
+ - 102111

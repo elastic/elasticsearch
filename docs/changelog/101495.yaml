@@ -1,5 +1,0 @@
-pr: 101495
-summary: "[DSL] skip deleting indices that have in-progress downsampling operations"
-area: Data streams
-type: bug
-issues: []

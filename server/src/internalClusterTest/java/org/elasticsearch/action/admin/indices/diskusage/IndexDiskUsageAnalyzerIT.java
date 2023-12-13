@@ -115,7 +115,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            client().prepareIndex(index).setId("id-" + i).setSource(doc).get();
+            prepareIndex(index).setId("id-" + i).setSource(doc).get();
         }
         final boolean forceNorms = randomBoolean();
         if (forceNorms) {
@@ -123,11 +123,11 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .startObject()
                 .field("english_text", "A long sentence to make sure that norms is non-zero")
                 .endObject();
-            client().prepareIndex(index).setId("id").setSource(doc).get();
+            prepareIndex(index).setId("id").setSource(doc).get();
         }
         // Force merge to ensure that there are more than one numeric value to justify doc value.
         client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
-        PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = new PlainActionFuture<>();
         client().execute(
             AnalyzeIndexDiskUsageAction.INSTANCE,
             new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true),
@@ -167,7 +167,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+            prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
         }
         Index index = clusterService().state().metadata().index(indexName).getIndex();
         List<ShardId> failedShards = randomSubsetOf(
@@ -203,7 +203,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                     .field("english_text", English.intToEnglish(value))
                     .field("value", value)
                     .endObject();
-                client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+                prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
             }
         }
 
@@ -237,7 +237,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            client().prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+            prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
         }
         final Index index = resolveIndex(indexName);
         final List<ShardId> failingShards = randomSubsetOf(

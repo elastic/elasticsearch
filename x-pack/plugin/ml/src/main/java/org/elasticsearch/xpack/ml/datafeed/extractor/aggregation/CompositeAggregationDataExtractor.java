@@ -91,6 +91,11 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     @Override
+    public void destroy() {
+        cancel();
+    }
+
+    @Override
     public long getEndTime() {
         return context.end;
     }

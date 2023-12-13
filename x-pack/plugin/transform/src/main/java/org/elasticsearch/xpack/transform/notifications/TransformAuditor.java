@@ -42,7 +42,8 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
             () -> {
                 try {
                     return new PutComposableIndexTemplateAction.Request(TransformInternalIndexConstants.AUDIT_INDEX).indexTemplate(
-                        new ComposableIndexTemplate.Builder().template(TransformInternalIndex.getAuditIndexTemplate())
+                        ComposableIndexTemplate.builder()
+                            .template(TransformInternalIndex.getAuditIndexTemplate())
                             .version((long) TransformConfigVersion.CURRENT.id())
                             .indexPatterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
                             .priority(Long.MAX_VALUE)

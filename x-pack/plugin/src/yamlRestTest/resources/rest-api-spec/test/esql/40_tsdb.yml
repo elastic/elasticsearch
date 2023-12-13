@@ -1,0 +1,263 @@
+setup:
+  - skip:
+      version: " - 8.10.99"
+      reason: "ESQL is available in 8.11+"
+      features: allowed_warnings_regex
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset, k8s.pod.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                              time_series_metric: counter
+                            rx:
+                              type: long
+                              time_series_metric: counter
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ dim ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
+              agg_metric:
+                type: aggregate_metric_double
+                metrics:
+                  - max
+                default_metric: max
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: long
+  - do:
+      bulk:
+        refresh: true
+        index: test2
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20}}'
+
+---
+load everything:
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test [metadata _id]'
+
+  - match: {columns.0.name: "@timestamp"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "k8s.pod.ip"}
+  - match: {columns.1.type: "ip"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "k8s.pod.network.rx"}
+  - match: {columns.3.type: "unsupported"}
+  - match: {columns.4.name: "k8s.pod.network.tx"}
+  - match: {columns.4.type: "unsupported"}
+  - match: {columns.5.name: "k8s.pod.uid"}
+  - match: {columns.5.type: "keyword"}
+  - match: {columns.6.name: "metricset"}
+  - match: {columns.6.type: "keyword"}
+  - length: {values: 8}
+
+---
+load a document:
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where @timestamp == "2021-04-28T18:50:23.142Z"'
+
+  - length: {values: 1}
+  - length: {values.0: 7}
+  - match: {values.0.0: "2021-04-28T18:50:23.142Z"}
+  - match: {values.0.1: "10.10.55.3"}
+  - match: {values.0.2: "dog"}
+  - match: {values.0.3: null }
+  - match: {values.0.4: null }
+  - match: {values.0.5: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
+  - match: {values.0.6: "pod"}
+
+---
+filter on counter:
+  - do:
+      catch: /Cannot use field \[k8s.pod.network.tx\] with unsupported type \[counter\]/
+      esql.query:
+        body:
+          query: 'from test | where k8s.pod.network.tx == 1434577921'
+
+---
+from doc with aggregate_metric_double:
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test2'
+
+  - match: {columns.0.name: "@timestamp"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "agg_metric"}
+  - match: {columns.1.type: "unsupported"}
+  - match: {columns.2.name: "dim"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "k8s.pod.ip"}
+  - match: {columns.3.type: "ip"}
+  - match: {columns.4.name: "k8s.pod.network.tx"}
+  - match: {columns.4.type: "long"}
+  - length: {values: 2}
+
+---
+stats on aggregate_metric_double:
+  - do:
+      catch: /Cannot use field \[agg_metric\] with unsupported type \[aggregate_metric_double\]/
+      esql.query:
+        body:
+          query: 'FROM test2 | STATS max(agg_metric) BY dim'
+
+---
+from index pattern unsupported counter:
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test*'
+
+  - match: {columns.0.name: "@timestamp"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "agg_metric"}
+  - match: {columns.1.type: "unsupported"}
+  - match: {columns.2.name: "dim"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "k8s.pod.ip"}
+  - match: {columns.3.type: "ip"}
+  - match: {columns.4.name: "k8s.pod.name"}
+  - match: {columns.4.type: "keyword"}
+  - match: {columns.5.name: "k8s.pod.network.rx"}
+  - match: {columns.5.type: "unsupported"}
+  - match: {columns.6.name: "k8s.pod.network.tx"}
+  - match: {columns.6.type: "unsupported"}
+  - match: {columns.7.name: "k8s.pod.uid"}
+  - match: {columns.7.type: "keyword"}
+  - match: {columns.8.name: "metricset"}
+  - match: {columns.8.type: "keyword"}
+  - length: {values: 10}
+
+---
+from index pattern explicit counter use:
+  - do:
+      catch: '/Cannot use field \[k8s.pod.network.tx\] due to ambiguities being mapped as different metric types in indices: \[test, test2\]/'
+      esql.query:
+        body:
+          query: 'FROM test* | keep *.tx'
+
+
+---
+_source:
+  - skip:
+      version: " - 8.11.99"
+      reason: "_source is available in 8.12+"
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index" : { "_index" : "test", "_id" : "id-1" } }
+          - { "wow": 1, "such": "_source", "you'd": "never", "expect": ["amazing", "source"] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test [METADATA _source] | WHERE @timestamp == "2021-04-28T18:50:23.142Z" | KEEP _source | LIMIT 1'
+  - match: { columns.0.name: _source }
+  - match: { columns.0.type: _source }
+  - length: { values: 1 }
+  - match:
+      values.0.0:
+        "@timestamp": "2021-04-28T18:50:23.142Z"
+        metricset: pod
+        k8s:
+          pod:
+            ip: 10.10.55.3
+            name: dog
+            network:
+              rx: 530600088
+              tx: 1434577921
+            uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9

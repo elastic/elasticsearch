@@ -105,6 +105,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
             creation,
             expiration,
             false,
+            null,
             username,
             realm_name,
             metadata,

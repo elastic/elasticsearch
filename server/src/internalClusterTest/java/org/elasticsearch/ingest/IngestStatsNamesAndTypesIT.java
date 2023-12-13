@@ -45,11 +45,6 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         return List.of(CustomIngestTestPlugin.class, CustomScriptPlugin.class);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     @SuppressWarnings("unchecked")
     public void testIngestStatsNamesAndTypes() throws IOException {
         String pipeline1 = org.elasticsearch.core.Strings.format("""

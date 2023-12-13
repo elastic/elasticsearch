@@ -85,7 +85,7 @@ public class ClearScrollResponse extends ActionResponse implements ToXContentObj
     /**
      * Parse the clear scroll response body into a new {@link ClearScrollResponse} object
      */
-    public static ClosePointInTimeResponse fromXContent(XContentParser parser) throws IOException {
+    public static ClosePointInTimeResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

@@ -8,14 +8,31 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.DoubleFieldScript;
+
+import java.io.IOException;
 
 /**
  * {@link BlockDocValuesReader} implementation for {@code double} scripts.
  */
 public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static BlockLoader blockLoader(DoubleFieldScript.LeafFactory factory) {
-        return context -> new DoubleScriptBlockDocValuesReader(factory.newInstance(context));
+    static class DoubleScriptBlockLoader extends DocValuesBlockLoader {
+        private final DoubleFieldScript.LeafFactory factory;
+
+        DoubleScriptBlockLoader(DoubleFieldScript.LeafFactory factory) {
+            this.factory = factory;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            return new DoubleScriptBlockDocValuesReader(factory.newInstance(context));
+        }
     }
 
     private final DoubleFieldScript script;
@@ -26,18 +43,14 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public int docID() {
+    public int docId() {
         return docId;
     }
 
     @Override
-    public BlockLoader.DoubleBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
-        return factory.doubles(expectedCount);  // Note that we don't pre-sort our output so we can't use doublesFromDocValues
-    }
-
-    @Override
-    public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
-        try (BlockLoader.DoubleBuilder builder = builder(factory, docs.count())) {
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
+        // Note that we don't sort the values sort, so we can't use factory.doublesFromDocValues
+        try (BlockLoader.DoubleBuilder builder = factory.doubles(docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }
@@ -46,7 +59,7 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public void readValuesFromSingleDoc(int docId, BlockLoader.Builder builder) {
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
         this.docId = docId;
         read(docId, (BlockLoader.DoubleBuilder) builder);
     }

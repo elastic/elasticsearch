@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
@@ -26,8 +25,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,15 +56,18 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client().search(
-                    new SearchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz")))
-                ).actionGet();
-                assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
-                assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
-                assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
-                fail("search should fail");
-            } catch (ElasticsearchException e) {
-                assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
+                assertResponse(
+                    client().search(new SearchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz")))),
+                    response -> {
+                        assertThat(response.getTotalShards(), equalTo(test.numPrimaries));
+                        assertThat(response.getSuccessfulShards(), equalTo(0));
+                        assertThat(response.getFailedShards(), equalTo(test.numPrimaries));
+                        fail("search should fail");
+                    }
+                );
+            } catch (ExecutionException e) {
+                assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+                assertThat(((ElasticsearchException) e.getCause()).unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
                 // all is well
             }
         }
@@ -93,15 +97,18 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client().search(
-                    new SearchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz")))
-                ).actionGet();
-                assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
-                assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
-                assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
-                fail("search should fail");
-            } catch (ElasticsearchException e) {
-                assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
+                assertResponse(
+                    client().search(new SearchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz")))),
+                    response -> {
+                        assertThat(response.getTotalShards(), equalTo(test.numPrimaries));
+                        assertThat(response.getSuccessfulShards(), equalTo(0));
+                        assertThat(response.getFailedShards(), equalTo(test.numPrimaries));
+                        fail("search should fail");
+                    }
+                );
+            } catch (ExecutionException e) {
+                assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+                assertThat(((ElasticsearchException) e.getCause()).unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
                 // all is well
             }
         }

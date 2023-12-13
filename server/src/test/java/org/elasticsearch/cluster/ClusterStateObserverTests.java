@@ -72,7 +72,7 @@ public class ClusterStateObserverTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(DiscoveryNodes.builder()).build();
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        final PlainActionFuture<ClusterState> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<ClusterState> future = new PlainActionFuture<>();
         ClusterStateObserver.waitForState(clusterService, new ThreadContext(Settings.EMPTY), new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {

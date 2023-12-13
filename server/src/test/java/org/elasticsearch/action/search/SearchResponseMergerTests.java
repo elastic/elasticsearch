@@ -77,7 +77,14 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     private void addResponse(SearchResponseMerger searchResponseMerger, SearchResponse searchResponse) {
         if (randomBoolean()) {
-            executorService.submit(() -> searchResponseMerger.add(searchResponse));
+            searchResponse.incRef();
+            executorService.submit(() -> {
+                try {
+                    searchResponseMerger.add(searchResponse);
+                } finally {
+                    searchResponse.decRef();
+                }
+            });
         } else {
             searchResponseMerger.add(searchResponse);
         }

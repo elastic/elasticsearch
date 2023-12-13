@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,12 +73,12 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     public void testSearchReturnsTokenCount() throws IOException {
         init();
 
-        assertSearchReturns(searchById("single"), "single");
-        assertSearchReturns(searchById("bulk1"), "bulk1");
-        assertSearchReturns(searchById("bulk2"), "bulk2");
-        assertSearchReturns(searchById("multi"), "multi");
-        assertSearchReturns(searchById("multibulk1"), "multibulk1");
-        assertSearchReturns(searchById("multibulk2"), "multibulk2");
+        assertResponse(searchById("single"), resp -> assertSearchReturns(resp, "single"));
+        assertResponse(searchById("bulk1"), resp -> assertSearchReturns(resp, "bulk1"));
+        assertResponse(searchById("bulk2"), resp -> assertSearchReturns(resp, "bulk2"));
+        assertResponse(searchById("multi"), resp -> assertSearchReturns(resp, "multi"));
+        assertResponse(searchById("multibulk1"), resp -> assertSearchReturns(resp, "multibulk1"));
+        assertResponse(searchById("multibulk2"), resp -> assertSearchReturns(resp, "multibulk2"));
     }
 
     /**
@@ -86,11 +87,14 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     public void testSearchByTokenCount() throws IOException {
         init();
 
-        assertSearchReturns(searchByNumericRange(4, 4).get(), "single");
-        assertSearchReturns(searchByNumericRange(10, 10).get(), "multibulk2");
-        assertSearchReturns(searchByNumericRange(7, 10).get(), "multi", "multibulk1", "multibulk2");
-        assertSearchReturns(searchByNumericRange(1, 10).get(), "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
-        assertSearchReturns(searchByNumericRange(12, 12).get());
+        assertResponse(searchByNumericRange(4, 4), response -> assertSearchReturns(response, "single"));
+        assertResponse(searchByNumericRange(10, 10), response -> assertSearchReturns(response, "multibulk2"));
+        assertResponse(searchByNumericRange(7, 10), response -> assertSearchReturns(response, "multi", "multibulk1", "multibulk2"));
+        assertResponse(
+            searchByNumericRange(1, 10),
+            response -> assertSearchReturns(response, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2")
+        );
+        assertResponse(searchByNumericRange(12, 12), this::assertSearchReturns);
     }
 
     /**
@@ -100,11 +104,12 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         init();
 
         String facetField = randomFrom(Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
-        SearchResponse result = searchByNumericRange(1, 10).addAggregation(AggregationBuilders.terms("facet").field(facetField)).get();
-        assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
-        assertThat(result.getAggregations().asList().size(), equalTo(1));
-        Terms terms = (Terms) result.getAggregations().asList().get(0);
-        assertThat(terms.getBuckets().size(), equalTo(9));
+        assertResponse(searchByNumericRange(1, 10).addAggregation(AggregationBuilders.terms("facet").field(facetField)), result -> {
+            assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
+            assertThat(result.getAggregations().asList().size(), equalTo(1));
+            Terms terms = (Terms) result.getAggregations().asList().get(0);
+            assertThat(terms.getBuckets().size(), equalTo(9));
+        });
     }
 
     private void init() throws IOException {
@@ -171,11 +176,11 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     }
 
     private IndexRequestBuilder prepareIndex(String id, String... texts) throws IOException {
-        return client().prepareIndex("test").setId(id).setSource("foo", texts);
+        return prepareIndex("test").setId(id).setSource("foo", texts);
     }
 
-    private SearchResponse searchById(String id) {
-        return prepareTokenCountFieldMapperSearch().setQuery(QueryBuilders.termQuery("_id", id)).get();
+    private SearchRequestBuilder searchById(String id) {
+        return prepareTokenCountFieldMapperSearch().setQuery(QueryBuilders.termQuery("_id", id));
     }
 
     private SearchRequestBuilder searchByNumericRange(int low, int high) {

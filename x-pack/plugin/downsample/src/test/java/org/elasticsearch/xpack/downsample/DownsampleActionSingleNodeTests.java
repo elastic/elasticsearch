@@ -1434,16 +1434,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             null
         );
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
-            indexTemplate,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false),
-            null
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(indexTemplate)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+            .build();
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
             .indexTemplate(template);
         assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet());

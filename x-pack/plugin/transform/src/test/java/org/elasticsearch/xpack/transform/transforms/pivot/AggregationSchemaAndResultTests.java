@@ -18,6 +18,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -25,6 +26,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
@@ -48,25 +51,27 @@ import static org.mockito.Mockito.when;
 
 public class AggregationSchemaAndResultTests extends ESTestCase {
 
+    private TestThreadPool threadPool;
     private Client client;
 
     @Before
     public void setupClient() {
-        if (client != null) {
-            client.close();
+        if (threadPool != null) {
+            threadPool.close();
         }
-        client = new MyMockClient(getTestName());
+        threadPool = createThreadPool();
+        client = new MyMockClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
+        threadPool.close();
     }
 
     private class MyMockClient extends NoOpClient {
 
-        MyMockClient(String testName) {
-            super(testName);
+        MyMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")
@@ -143,7 +148,15 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, emptyMap(), pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
+            listener -> SchemaUtil.deduceMappings(
+                client,
+                emptyMap(),
+                pivotConfig,
+                new String[] { "source-index" },
+                QueryBuilders.matchAllQuery(),
+                emptyMap(),
+                listener
+            ),
             mappings -> {
                 assertEquals("Mappings were: " + mappings, numGroupsWithoutScripts + 15, mappings.size());
                 assertEquals("long", mappings.get("max_rating"));
@@ -215,7 +228,15 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, emptyMap(), pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
+            listener -> SchemaUtil.deduceMappings(
+                client,
+                emptyMap(),
+                pivotConfig,
+                new String[] { "source-index" },
+                QueryBuilders.matchAllQuery(),
+                emptyMap(),
+                listener
+            ),
             mappings -> {
                 assertEquals(numGroupsWithoutScripts + 12, mappings.size());
                 assertEquals("long", mappings.get("filter_1"));

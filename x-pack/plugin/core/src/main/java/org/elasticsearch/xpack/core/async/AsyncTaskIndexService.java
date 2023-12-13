@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -63,7 +64,6 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.util.Base64;
@@ -215,54 +215,15 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
     public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener) {
-        try {
-            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
-            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-            listener = ActionListener.runBefore(listener, buffer::close);
-            source.startObject()
-                .field(HEADERS_FIELD, headers)
-                .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
-                .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
-                .endObject();
-
-            // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
-            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
-            source.flush();
-            final IndexRequest indexRequest = new IndexRequest(index).create(true).id(docId).source(buffer.bytes(), source.contentType());
-            clientWithOrigin.index(indexRequest, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        indexResponse(docId, headers, response, false, listener);
     }
 
     /**
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
      */
-    public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener)
-        throws IOException {
-        try {
-            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutputWithLimit(
-                0,
-                bigArrays.withCircuitBreaking(),
-                maxResponseSize
-            );
-            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-            listener = ActionListener.runBefore(listener, buffer::close);
-            source.startObject()
-                .field(HEADERS_FIELD, headers)
-                .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
-                .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
-                .endObject();
-
-            // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
-            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
-            source.flush();
-            final IndexRequest indexRequest = new IndexRequest(index).create(true).id(docId).source(buffer.bytes(), source.contentType());
-            clientWithOrigin.index(indexRequest, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+    public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener) {
+        indexResponse(docId, headers, response, true, listener);
     }
 
     public void updateResponse(
@@ -272,6 +233,27 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         ActionListener<UpdateResponse> listener
     ) {
         updateResponse(docId, responseHeaders, response, listener, false);
+    }
+
+    private void indexResponse(
+        String docId,
+        Map<String, String> headers,
+        R response,
+        boolean limitToMaxResponseSize,
+        ActionListener<DocWriteResponse> listener
+    ) {
+        try {
+            var buffer = allocateBuffer(limitToMaxResponseSize);
+            listener = ActionListener.runBefore(listener, buffer::close);
+            final XContentBuilder source = XContentFactory.jsonBuilder(buffer)
+                .startObject()
+                .field(HEADERS_FIELD, headers)
+                .field(EXPIRATION_TIME_FIELD, response.getExpirationTime());
+            addResultFieldAndFinish(response, source);
+            clientWithOrigin.index(new IndexRequest(index).create(true).id(docId).source(buffer.bytes(), source.contentType()), listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -284,25 +266,18 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         ActionListener<UpdateResponse> listener,
         boolean isFailure
     ) {
+        ReleasableBytesStreamOutput buffer = null;
         try {
-            final ReleasableBytesStreamOutput buffer = isFailure
-                ? new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())
-                : new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize);
-            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-            listener = ActionListener.runBefore(listener, buffer::close);
-            source.startObject()
-                .field(RESPONSE_HEADERS_FIELD, responseHeaders)
-                .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
-                .endObject();
-            // do not close the buffer or the XContentBuilder until the UpdateRequest is completed (i.e., listener is notified);
-            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
-            source.flush();
-            final UpdateRequest request = new UpdateRequest().index(index)
-                .id(docId)
-                .doc(buffer.bytes(), source.contentType())
-                .retryOnConflict(5);
-            clientWithOrigin.update(request, listener);
+            buffer = allocateBuffer(isFailure == false);
+            final XContentBuilder source = XContentFactory.jsonBuilder(buffer).startObject().field(RESPONSE_HEADERS_FIELD, responseHeaders);
+            addResultFieldAndFinish(response, source);
+            clientWithOrigin.update(
+                new UpdateRequest().index(index).id(docId).doc(buffer.bytes(), source.contentType()).retryOnConflict(5),
+                ActionListener.runBefore(listener, buffer::close)
+            );
         } catch (Exception e) {
+            // release buffer right away to save memory, particularly in case the exception came from the circuit breaker
+            Releasables.close(buffer);
             // even if we expect updating with a failure always succeed
             // this is just an extra precaution not to create infinite loops
             if (isFailure) {
@@ -311,14 +286,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
                     logger.error(() -> "failed to store async-search [" + docId + "]", e);
-                    ActionListener<UpdateResponse> newListener = listener;
-                    updateStoredResponseWithFailure(
+                    // at end, we should report a failure to the listener
+                    updateResponse(
                         docId,
                         responseHeaders,
-                        response,
-                        e,
-                        // at end, we should report a failure to the listener
-                        ActionListener.running(() -> newListener.onFailure(e))
+                        response.convertToFailure(e),
+                        ActionListener.running(() -> listener.onFailure(e)),
+                        true
                     );
                 } else {
                     listener.onFailure(e);
@@ -327,18 +301,29 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
     }
 
-    /**
-     * Update the initial stored response with a failure
-     */
-    private void updateStoredResponseWithFailure(
-        String docId,
-        Map<String, List<String>> responseHeaders,
-        R response,
-        Exception updateException,
-        ActionListener<UpdateResponse> listener
-    ) {
-        R failureResponse = response.convertToFailure(updateException);
-        updateResponse(docId, responseHeaders, failureResponse, listener, true);
+    private ReleasableBytesStreamOutput allocateBuffer(boolean limitToMaxResponseSize) {
+        return limitToMaxResponseSize
+            ? new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize)
+            : new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+    }
+
+    private void addResultFieldAndFinish(Writeable response, XContentBuilder source) throws IOException {
+        source.directFieldAsBase64(RESULT_FIELD, os -> {
+            // do not close the output
+            os = Streams.noCloseStream(os);
+            TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
+            TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
+            if (minNodeVersion.onOrAfter(TransportVersions.V_7_15_0)) {
+                os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
+            }
+            try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
+                out.setTransportVersion(minNodeVersion);
+                response.writeTo(out);
+            }
+        }).endObject();
+        // do not close the buffer or the XContentBuilder until the request is completed (i.e., listener is notified);
+        // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
+        source.flush();
     }
 
     /**
@@ -563,20 +548,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
             }
         }, exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
-    }
-
-    private void writeResponse(R response, OutputStream os) throws IOException {
-        // do not close the output
-        os = Streams.noCloseStream(os);
-        TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
-        TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-        if (minNodeVersion.onOrAfter(TransportVersions.V_7_15_0)) {
-            os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
-        }
-        try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setTransportVersion(minNodeVersion);
-            response.writeTo(out);
-        }
     }
 
     /**

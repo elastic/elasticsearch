@@ -14,7 +14,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,6 +68,7 @@ import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -250,35 +250,43 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         state.getDatabases().keySet()
                     );
                     GeoIpTaskState.Metadata metadata = state.get(id);
-                    BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
-                        .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true));
                     int size = metadata.lastChunk() - metadata.firstChunk() + 1;
-                    SearchResponse res = prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)
-                        .setQuery(queryBuilder)
-                        .addSort("chunk", SortOrder.ASC)
-                        .get();
-                    TotalHits totalHits = res.getHits().getTotalHits();
-                    assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
-                    assertEquals(size, totalHits.value);
-                    assertEquals(size, res.getHits().getHits().length);
+                    assertResponse(
+                        prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)
+                            .setQuery(
+                                new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
+                                    .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true))
+                            )
+                            .addSort("chunk", SortOrder.ASC),
+                        res -> {
+                            try {
+                                TotalHits totalHits = res.getHits().getTotalHits();
+                                assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
+                                assertEquals(size, totalHits.value);
+                                assertEquals(size, res.getHits().getHits().length);
 
-                    List<byte[]> data = new ArrayList<>();
+                                List<byte[]> data = new ArrayList<>();
 
-                    for (SearchHit hit : res.getHits().getHits()) {
-                        data.add((byte[]) hit.getSourceAsMap().get("data"));
-                    }
+                                for (SearchHit hit : res.getHits().getHits()) {
+                                    data.add((byte[]) hit.getSourceAsMap().get("data"));
+                                }
 
-                    TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
-                    TarInputStream.TarEntry entry;
-                    while ((entry = stream.getNextEntry()) != null) {
-                        if (entry.name().endsWith(".mmdb")) {
-                            break;
+                                TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
+                                TarInputStream.TarEntry entry;
+                                while ((entry = stream.getNextEntry()) != null) {
+                                    if (entry.name().endsWith(".mmdb")) {
+                                        break;
+                                    }
+                                }
+
+                                Path tempFile = createTempFile();
+                                Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                                parseDatabase(tempFile);
+                            } catch (Exception e) {
+                                fail(e);
+                            }
                         }
-                    }
-
-                    Path tempFile = createTempFile();
-                    Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
-                    parseDatabase(tempFile);
+                    );
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }

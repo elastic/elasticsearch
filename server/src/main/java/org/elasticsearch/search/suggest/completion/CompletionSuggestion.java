@@ -56,7 +56,7 @@ import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    private boolean skipDuplicates;
+    private final boolean skipDuplicates;
 
     /**
      * Creates a completion suggestion given its name, size and whether it should skip duplicates

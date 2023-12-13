@@ -1,5 +1,0 @@
-pr: 101713
-summary: Disable `weight_matches` when kNN query is present
-area: Highlighting
-type: bug
-issues: []

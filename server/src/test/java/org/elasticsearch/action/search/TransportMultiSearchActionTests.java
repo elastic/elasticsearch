@@ -35,11 +35,11 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -83,7 +83,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                     assertEquals(task.getId(), request.getParentTask().getId());
                     assertEquals(localNodeId, request.getParentTask().getNodeId());
                     counter.incrementAndGet();
-                    listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+                    var response = SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY);
+                    try {
+                        listener.onResponse(response);
+                    } finally {
+                        response.decRef();
+                    }
                 }
 
                 @Override
@@ -101,7 +106,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 client
             );
 
-            PlainActionFuture<MultiSearchResponse> future = newFuture();
+            PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
             action.execute(task, multiSearchRequest, future);
             future.get();
             assertEquals(numSearchRequests, counter.get());
@@ -110,7 +115,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testBatchExecute() {
+    public void testBatchExecute() throws ExecutionException, InterruptedException {
         // Initialize dependencies of TransportMultiSearchAction
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
@@ -161,18 +166,21 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 final ExecutorService executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
                     counter.decrementAndGet();
-                    listener.onResponse(
-                        new SearchResponse(
-                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                            null,
-                            0,
-                            0,
-                            0,
-                            0L,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
+                    var response = new SearchResponse(
+                        InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0L,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
                     );
+                    try {
+                        listener.onResponse(response);
+                    } finally {
+                        response.decRef();
+                    }
                 });
             }
 
@@ -205,10 +213,14 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 multiSearchRequest.add(new SearchRequest());
             }
 
-            MultiSearchResponse response = ActionTestUtils.executeBlocking(action, multiSearchRequest);
-            assertThat(response.getResponses().length, equalTo(numSearchRequests));
-            assertThat(requests.size(), equalTo(numSearchRequests));
-            assertThat(errorHolder.get(), nullValue());
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(action, multiSearchRequest, future.delegateFailure((l, response) -> {
+                assertThat(response.getResponses().length, equalTo(numSearchRequests));
+                assertThat(requests.size(), equalTo(numSearchRequests));
+                assertThat(errorHolder.get(), nullValue());
+                l.onResponse(null);
+            }));
+            future.get();
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

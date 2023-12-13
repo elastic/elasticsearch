@@ -46,6 +46,7 @@ import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -1121,6 +1122,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         boolean storedKeywordField = storeTextField || randomBoolean();
         String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
         KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
+            randomBoolean() ? null : between(10, 100),
             storedKeywordField,
             nullValue,
             false == storeTextField
@@ -1323,5 +1325,53 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(dv.advanceExact(2));
             assertFalse(dv.advanceExact(3));
         });
+    }
+
+    @Override
+    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+        String parentName = mapper.mappingLookup().parentField(ft.name());
+        if (parentName == null) {
+            TextFieldMapper.TextFieldType text = (TextFieldType) ft;
+            return text.syntheticSourceDelegate() != null && text.syntheticSourceDelegate().hasDocValues();
+        }
+        MappedFieldType parent = mapper.fieldType(parentName);
+        if (false == parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+            throw new UnsupportedOperationException();
+        }
+        KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
+        return kwd.hasDocValues();
+    }
+
+    public void testBlockLoaderFromParentColumnReader() throws IOException {
+        testBlockLoaderFromParent(true, randomBoolean());
+    }
+
+    public void testBlockLoaderParentFromRowStrideReader() throws IOException {
+        testBlockLoaderFromParent(false, randomBoolean());
+    }
+
+    private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
+        boolean storeParent = randomBoolean();
+        KeywordFieldMapperTests.KeywordSyntheticSourceSupport kwdSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
+            null,
+            storeParent,
+            null,
+            false == storeParent
+        );
+        SyntheticSourceExample example = kwdSupport.example(5);
+        CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
+            b.startObject("field");
+            {
+                example.mapping().accept(b);
+                b.startObject("fields").startObject("sub");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject().endObject();
+            }
+            b.endObject();
+        };
+        MapperService mapper = createMapperService(syntheticSource ? syntheticSourceMapping(buildFields) : mapping(buildFields));
+        testBlockLoader(columnReader, example, mapper, "field.sub");
     }
 }

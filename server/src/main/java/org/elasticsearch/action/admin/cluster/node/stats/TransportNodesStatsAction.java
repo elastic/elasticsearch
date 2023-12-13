@@ -84,21 +84,21 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         return nodeService.stats(
             request.indices(),
             request.includeShardsStats(),
-            NodesStatsRequest.Metric.OS.containedIn(metrics),
-            NodesStatsRequest.Metric.PROCESS.containedIn(metrics),
-            NodesStatsRequest.Metric.JVM.containedIn(metrics),
-            NodesStatsRequest.Metric.THREAD_POOL.containedIn(metrics),
-            NodesStatsRequest.Metric.FS.containedIn(metrics),
-            NodesStatsRequest.Metric.TRANSPORT.containedIn(metrics),
-            NodesStatsRequest.Metric.HTTP.containedIn(metrics),
-            NodesStatsRequest.Metric.BREAKER.containedIn(metrics),
-            NodesStatsRequest.Metric.SCRIPT.containedIn(metrics),
-            NodesStatsRequest.Metric.DISCOVERY.containedIn(metrics),
-            NodesStatsRequest.Metric.INGEST.containedIn(metrics),
-            NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
-            NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics),
-            NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics),
-            NodesStatsRequest.Metric.REPOSITORIES.containedIn(metrics)
+            NodesStatsRequestParameters.Metric.OS.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.PROCESS.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.JVM.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.THREAD_POOL.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.FS.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.TRANSPORT.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.HTTP.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.BREAKER.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.SCRIPT.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.DISCOVERY.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.INGEST.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.SCRIPT_CACHE.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.INDEXING_PRESSURE.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.REPOSITORIES.containedIn(metrics)
         );
     }
 

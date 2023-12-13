@@ -21,9 +21,9 @@ import java.util.Map;
 
 public class AggregatedDfs implements Writeable {
 
-    private Map<Term, TermStatistics> termStatistics;
-    private Map<String, CollectionStatistics> fieldStatistics;
-    private long maxDoc;
+    private final Map<Term, TermStatistics> termStatistics;
+    private final Map<String, CollectionStatistics> fieldStatistics;
+    private final long maxDoc;
 
     public AggregatedDfs(StreamInput in) throws IOException {
         int size = in.readVInt();
@@ -49,10 +49,6 @@ public class AggregatedDfs implements Writeable {
 
     public Map<String, CollectionStatistics> fieldStatistics() {
         return fieldStatistics;
-    }
-
-    public long maxDoc() {
-        return maxDoc;
     }
 
     @Override

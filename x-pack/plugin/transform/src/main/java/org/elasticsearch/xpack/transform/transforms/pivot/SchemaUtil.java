@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -89,6 +90,7 @@ public final class SchemaUtil {
      * @param client Client from which to make requests against the cluster
      * @param config The PivotConfig for which to deduce destination mapping
      * @param sourceIndex Source index that contains the data to pivot
+     * @param sourceQuery Source index query to apply
      * @param runtimeMappings Source runtime mappings
      * @param listener Listener to alert on success or failure.
      */
@@ -97,6 +99,7 @@ public final class SchemaUtil {
         final Map<String, String> headers,
         final PivotConfig config,
         final String[] sourceIndex,
+        final QueryBuilder sourceQuery,
         final Map<String, Object> runtimeMappings,
         final ActionListener<Map<String, String>> listener
     ) {
@@ -145,6 +148,7 @@ public final class SchemaUtil {
             client,
             headers,
             sourceIndex,
+            sourceQuery,
             allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
             runtimeMappings,
             ActionListener.wrap(
@@ -248,6 +252,7 @@ public final class SchemaUtil {
         Client client,
         Map<String, String> headers,
         String[] index,
+        QueryBuilder query,
         String[] fields,
         Map<String, Object> runtimeMappings,
         ActionListener<Map<String, String>> listener
@@ -257,6 +262,7 @@ public final class SchemaUtil {
             return;
         }
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(index)
+            .indexFilter(query)
             .fields(fields)
             .runtimeFields(runtimeMappings)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);

@@ -1,0 +1,6 @@
+pr: 102230
+summary: Set region for the STS client via privileged calls in AWS SDK
+area: Snapshot/Restore
+type: bug
+issues:
+ - 102173

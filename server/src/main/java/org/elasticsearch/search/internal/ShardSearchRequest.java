@@ -240,7 +240,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = originalIndices;
         this.readerId = readerId;
         this.keepAlive = keepAlive;
-        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        assert keepAlive == null || readerId != null : "readerId: null keepAlive: " + keepAlive;
         this.channelVersion = TransportVersion.current();
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
@@ -276,7 +276,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         super(in);
         shardId = new ShardId(in);
         searchType = SearchType.fromId(in.readByte());
-        shardRequestIndex = in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0) ? in.readVInt() : -1;
+        shardRequestIndex = in.readVInt();
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
@@ -319,30 +319,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         requestCache = in.readOptionalBoolean();
         clusterAlias = in.readOptionalString();
         allowPartialSearchResults = in.readBoolean();
-        if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
-            in.readStringArray();
-            in.readOptionalString();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
-            canReturnNullResponseIfMatchNoDocs = in.readBoolean();
-            bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
-            readerId = in.readOptionalWriteable(ShardSearchContextId::new);
-            keepAlive = in.readOptionalTimeValue();
-        } else {
-            canReturnNullResponseIfMatchNoDocs = false;
-            bottomSortValues = null;
-            readerId = null;
-            keepAlive = null;
-        }
-        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+        bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
+        readerId = in.readOptionalWriteable(ShardSearchContextId::new);
+        keepAlive = in.readOptionalTimeValue();
+        assert keepAlive == null || readerId != null : "readerId: null keepAlive: " + keepAlive;
         channelVersion = TransportVersion.min(TransportVersion.readVersion(in), in.getTransportVersion());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            waitForCheckpoint = in.readLong();
-            waitForCheckpointsTimeout = in.readTimeValue();
-        } else {
-            waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            waitForCheckpointsTimeout = SearchService.NO_TIMEOUT;
-        }
+        waitForCheckpoint = in.readLong();
+        waitForCheckpointsTimeout = in.readTimeValue();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
@@ -367,9 +351,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         shardId.writeTo(out);
         out.writeByte(searchType.id());
         if (asKey == false) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-                out.writeVInt(shardRequestIndex);
-            }
+            out.writeVInt(shardRequestIndex);
             out.writeVInt(numberOfShards);
         }
         out.writeOptionalWriteable(scroll);
@@ -400,31 +382,15 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         out.writeOptionalBoolean(requestCache);
         out.writeOptionalString(clusterAlias);
         out.writeBoolean(allowPartialSearchResults);
-        if (asKey == false && out.getTransportVersion().before(TransportVersions.V_7_11_0)) {
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-            out.writeOptionalString(null);
-        }
-        if (asKey == false && out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
+        if (asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }
         TransportVersion.writeVersion(channelVersion, out);
-        TransportVersion waitForCheckpointsVersion = TransportVersions.V_7_16_0;
-        if (out.getTransportVersion().onOrAfter(waitForCheckpointsVersion)) {
-            out.writeLong(waitForCheckpoint);
-            out.writeTimeValue(waitForCheckpointsTimeout);
-        } else if (waitForCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException(
-                "Remote node version ["
-                    + out.getTransportVersion()
-                    + " incompatible with "
-                    + "wait_for_checkpoints. All nodes must be version ["
-                    + waitForCheckpointsVersion
-                    + "] or greater."
-            );
-        }
+        out.writeLong(waitForCheckpoint);
+        out.writeTimeValue(waitForCheckpointsTimeout);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {

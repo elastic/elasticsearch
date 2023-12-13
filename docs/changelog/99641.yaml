@@ -1,5 +1,0 @@
-pr: 99641
-summary: Chunk the cluster allocation explain response
-area: Network
-type: enhancement
-issues: [97803]

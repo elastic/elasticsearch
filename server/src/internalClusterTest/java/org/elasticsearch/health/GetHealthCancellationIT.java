@@ -90,7 +90,7 @@ public class GetHealthCancellationIT extends ESIntegTestCase {
         }
 
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        final PlainActionFuture<DiscoveryNode> findHealthNodeFuture = PlainActionFuture.newFuture();
+        final PlainActionFuture<DiscoveryNode> findHealthNodeFuture = new PlainActionFuture<>();
         // the health node might take a bit of time to be assigned by the persistent task framework so we wait until we have a health
         // node in the cluster before proceeding with the test
         // proceeding with the execution before the health node assignment would yield a non-deterministic behaviour as we

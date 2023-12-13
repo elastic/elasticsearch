@@ -20,7 +20,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
@@ -35,6 +34,7 @@ import java.io.IOException;
 import static org.elasticsearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -56,9 +56,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        DocWriteResponse indexResponse = client().prepareIndex()
-            .setIndex("test")
-            .setId("1")
+        DocWriteResponse indexResponse = prepareIndex("test").setId("1")
             .setSource(source("1", "test"))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .get();
@@ -89,7 +87,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
-            getResult = client().prepareGet("test", "1").execute().actionGet();
+            getResult = client().prepareGet("test", "1").get();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
             assertThat("cycle(map) #" + i, (String) getResult.getSourceAsMap().get("name"), equalTo("test"));
@@ -100,10 +98,10 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
         logger.info("Get [type1/1] with script");
         for (int i = 0; i < 5; i++) {
-            getResult = client().prepareGet("test", "1").setStoredFields("name").execute().actionGet();
+            getResult = client().prepareGet("test", "1").setStoredFields("name").get();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat(getResult.isExists(), equalTo(true));
-            assertThat(getResult.getSourceAsBytes(), nullValue());
+            assertThat(getResult.getSourceAsBytesRef(), nullValue());
             assertThat(getResult.getField("name").getValues().get(0).toString(), equalTo("test"));
         }
 
@@ -114,7 +112,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client().prepareDelete("test", "1").execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").get();
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
         logger.info("Refreshing");
@@ -132,7 +130,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         client().index(new IndexRequest("test").id("2").source(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
-        FlushResponse flushResult = indicesAdmin().prepareFlush("test").execute().actionGet();
+        FlushResponse flushResult = indicesAdmin().prepareFlush("test").get();
         assertThat(flushResult.getSuccessfulShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResult.getFailedShards(), equalTo(0));
         logger.info("Refreshing");
@@ -154,22 +152,23 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
-            assertNoFailures(countResponse);
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getFailedShards(), equalTo(0));
+            assertNoFailuresAndResponse(prepareSearch("test").setSize(0).setQuery(matchAllQuery()), countResponse -> {
+                assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
+                assertThat(countResponse.getFailedShards(), equalTo(0));
+            });
 
             // count with no query is a match all one
-            countResponse = prepareSearch("test").setSize(0).execute().actionGet();
-            assertThat(
-                "Failures " + countResponse.getShardFailures(),
-                countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
-                equalTo(0)
-            );
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getFailedShards(), equalTo(0));
+            assertNoFailuresAndResponse(prepareSearch("test").setSize(0), countResponse -> {
+                assertThat(
+                    "Failures " + countResponse.getShardFailures(),
+                    countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
+                    equalTo(0)
+                );
+                assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
+                assertThat(countResponse.getFailedShards(), equalTo(0));
+            });
         }
     }
 
@@ -180,14 +179,13 @@ public class DocumentActionsIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test")))
-            .add(client().prepareIndex().setIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
-            .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
-            .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
+            .add(prepareIndex("test").setId("1").setSource(source("1", "test")))
+            .add(prepareIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
+            .add(prepareIndex("test").setSource(source("3", "test")))
+            .add(prepareIndex("test").setCreate(true).setSource(source("4", "test")))
             .add(client().prepareDelete().setIndex("test").setId("1"))
-            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
-            .execute()
-            .actionGet();
+            .add(prepareIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
+            .get();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
         assertThat(bulkResponse.getItems().length, equalTo(6));
@@ -222,7 +220,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[5].getIndex(), equalTo(getConcreteIndexName()));
 
         waitForRelocation(ClusterHealthStatus.GREEN);
-        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().actionGet();
+        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
         assertNoFailures(refreshResponse);
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 

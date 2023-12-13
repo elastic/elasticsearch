@@ -115,16 +115,11 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             var request = new PutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
-                new ComposableIndexTemplate(
-                    List.of("k8s*"),
-                    new Template(templateSettings.build(), mapping, null),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("k8s*"))
+                    .template(new Template(templateSettings.build(), mapping, null))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                    .build()
             );
             client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
         } else {
@@ -134,16 +129,12 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
             var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
             putTemplateRequest.indexTemplate(
-                new ComposableIndexTemplate(
-                    List.of("k8s*"),
-                    new Template(templateSettings.build(), null, null),
-                    List.of("1"),
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("k8s*"))
+                    .template(new Template(templateSettings.build(), null, null))
+                    .componentTemplates(List.of("1"))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                    .build()
             );
             client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet();
         }
@@ -249,20 +240,17 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             var request = new PutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
-                new ComposableIndexTemplate(
-                    List.of("k8s*"),
-                    new Template(
-                        Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build(),
-                        new CompressedXContent(mappingTemplate),
-                        null
-                    ),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("k8s*"))
+                    .template(
+                        new Template(
+                            Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build(),
+                            new CompressedXContent(mappingTemplate),
+                            null
+                        )
+                    )
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                    .build()
             );
             var e = expectThrows(
                 IllegalArgumentException.class,
@@ -280,20 +268,17 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             var request = new PutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
-                new ComposableIndexTemplate(
-                    List.of("k8s*"),
-                    new Template(
-                        Settings.builder().put("index.mode", "time_series").build(),
-                        new CompressedXContent(mappingTemplate),
-                        null
-                    ),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("k8s*"))
+                    .template(
+                        new Template(
+                            Settings.builder().put("index.mode", "time_series").build(),
+                            new CompressedXContent(mappingTemplate),
+                            null
+                        )
+                    )
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                    .build()
             );
             var e = expectThrows(
                 InvalidIndexTemplateException.class,
@@ -317,20 +302,17 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }""";
         var request = new PutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("k8s*"),
-                new Template(
-                    Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build(),
-                    new CompressedXContent(mappingTemplate),
-                    null
-                ),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("k8s*"))
+                .template(
+                    new Template(
+                        Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build(),
+                        new CompressedXContent(mappingTemplate),
+                        null
+                    )
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
         );
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -360,20 +342,17 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }""";
         var request = new PutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("k8s*"),
-                new Template(
-                    Settings.builder().put("index.routing_path", "metricset").build(),
-                    new CompressedXContent(mappingTemplate),
-                    null
-                ),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("k8s*"))
+                .template(
+                    new Template(
+                        Settings.builder().put("index.routing_path", "metricset").build(),
+                        new CompressedXContent(mappingTemplate),
+                        null
+                    )
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
         );
         var e = expectThrows(
             IllegalArgumentException.class,
@@ -389,16 +368,11 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build();
             var request = new PutComposableIndexTemplateAction.Request("id1");
             request.indexTemplate(
-                new ComposableIndexTemplate(
-                    List.of("pattern-1"),
-                    new Template(templateSettings, mapping, null),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("pattern-1"))
+                    .template(new Template(templateSettings, mapping, null))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                    .build()
             );
             client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
             var indexRequest = new IndexRequest("pattern-1").opType(DocWriteRequest.OpType.CREATE).setRefreshPolicy("true");
@@ -408,16 +382,11 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             var request = new PutComposableIndexTemplateAction.Request("id2");
             request.indexTemplate(
-                new ComposableIndexTemplate(
-                    List.of("pattern-2"),
-                    new Template(null, mapping, null),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("pattern-2"))
+                    .template(new Template(null, mapping, null))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                    .build()
             );
             client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
             var indexRequest = new IndexRequest("pattern-2").opType(DocWriteRequest.OpType.CREATE).setRefreshPolicy("true");
@@ -457,26 +426,23 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String dataStreamName = "k8s";
         var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of(dataStreamName + "*"),
-                new Template(
-                    Settings.builder()
-                        .put("index.mode", "time_series")
-                        .put("index.number_of_replicas", 0)
-                        // Reduce sync interval to speedup this integraton test,
-                        // otherwise by default it will take 30 seconds before minimum retained seqno is updated:
-                        .put("index.soft_deletes.retention_lease.sync_interval", "100ms")
-                        .build(),
-                    new CompressedXContent(MAPPING_TEMPLATE),
-                    null
-                ),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName + "*"))
+                .template(
+                    new Template(
+                        Settings.builder()
+                            .put("index.mode", "time_series")
+                            .put("index.number_of_replicas", 0)
+                            // Reduce sync interval to speedup this integraton test,
+                            // otherwise by default it will take 30 seconds before minimum retained seqno is updated:
+                            .put("index.soft_deletes.retention_lease.sync_interval", "100ms")
+                            .build(),
+                        new CompressedXContent(MAPPING_TEMPLATE),
+                        null
+                    )
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet();
 

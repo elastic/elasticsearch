@@ -438,6 +438,8 @@ tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, Boolean) If `true`, concrete, expanded or aliased indices are
 ignored when frozen. Defaults to `true`.
++
+deprecated:[7.16.0]
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]

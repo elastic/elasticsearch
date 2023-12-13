@@ -212,7 +212,11 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
         try {
             assertOK(response);
             SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+            try {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+            } finally {
+                searchResponse.decRef();
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

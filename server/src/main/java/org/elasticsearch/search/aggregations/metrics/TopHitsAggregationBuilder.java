@@ -130,10 +130,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         trackScores = in.readBoolean();
         version = in.readBoolean();
         seqNoAndPrimaryTerm = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
-            }
+        if (in.readBoolean()) {
+            fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
     }
 
@@ -163,11 +161,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
         out.writeBoolean(seqNoAndPrimaryTerm);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeCollection(fetchFields);
-            }
+        out.writeBoolean(fetchFields != null);
+        if (fetchFields != null) {
+            out.writeCollection(fetchFields);
         }
     }
 
@@ -272,9 +268,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (this.sorts == null) {
             this.sorts = new ArrayList<>();
         }
-        for (SortBuilder<?> sort : sorts) {
-            this.sorts.add(sort);
-        }
+        this.sorts.addAll(sorts);
         return this;
     }
 

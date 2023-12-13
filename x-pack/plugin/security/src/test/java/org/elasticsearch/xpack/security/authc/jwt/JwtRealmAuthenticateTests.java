@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -65,6 +66,26 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
         final int jwtAuthcCount = randomIntBetween(2, 3);
         doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
+    }
+
+    public void testJwtCache() throws Exception {
+        jwtIssuerAndRealms = generateJwtIssuerRealmPairs(1, 1, 1, 1, 1, 1, 99, false);
+        JwtRealm realm = jwtIssuerAndRealms.get(0).realm();
+        realm.expireAll();
+        assertThat(realm.getJwtCache().count(), is(0));
+        final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
+        final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        for (int i = 1; i <= randomIntBetween(2, 10); i++) {
+            User user = randomUser(jwtIssuerAndRealm.issuer());
+            doMultipleAuthcAuthzAndVerifySuccess(
+                jwtIssuerAndRealm.realm(),
+                user,
+                randomJwt(jwtIssuerAndRealm, user),
+                clientSecret,
+                randomIntBetween(2, 10)
+            );
+            assertThat(realm.getJwtCache().count(), is(i));
+        }
     }
 
     /**
@@ -349,7 +370,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         {   // Do one more direct SUCCESS scenario by checking token() and authenticate() directly before moving on to FAILURE scenarios.
             final ThreadContext requestThreadContext = createThreadContext(jwt, clientSecret);
             final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm().token(requestThreadContext);
-            final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = new PlainActionFuture<>();
             jwtIssuerAndRealm.realm().authenticate(token, plainActionFuture);
             assertThat(plainActionFuture.get(), notNullValue());
             assertThat(plainActionFuture.get().isAuthenticated(), is(true));

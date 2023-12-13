@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -344,7 +345,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     private void failTask(JobTask jobTask, String reason) {
         String jobId = jobTask.getJobId();
         auditor.error(jobId, reason);
-        JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason);
+        JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason, Instant.now());
         jobTask.updatePersistentTaskState(failedState, ActionListener.wrap(r -> {
             logger.debug("[{}] updated task state to failed", jobId);
             stopAssociatedDatafeedForFailedJob(jobId);

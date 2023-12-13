@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -37,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -185,19 +185,22 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         client().execute(UpdateFilterAction.INSTANCE, updateFilterRequest).get();
 
         // Wait until the notification that the filter was updated is indexed
-        assertBusy(() -> {
-            SearchResponse searchResponse = prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).setSize(1)
-                .addSort("timestamp", SortOrder.DESC)
-                .setQuery(
-                    QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery("job_id", job.getId()))
-                        .filter(QueryBuilders.termQuery("level", "info"))
-                )
-                .get();
-            SearchHit[] hits = searchResponse.getHits().getHits();
-            assertThat(hits.length, equalTo(1));
-            assertThat((String) hits[0].getSourceAsMap().get("message"), containsString("Filter [safe_ips] has been modified"));
-        });
+        assertBusy(
+            () -> assertResponse(
+                prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).setSize(1)
+                    .addSort("timestamp", SortOrder.DESC)
+                    .setQuery(
+                        QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                            .filter(QueryBuilders.termQuery("level", "info"))
+                    ),
+                searchResponse -> {
+                    SearchHit[] hits = searchResponse.getHits().getHits();
+                    assertThat(hits.length, equalTo(1));
+                    assertThat((String) hits[0].getSourceAsMap().get("message"), containsString("Filter [safe_ips] has been modified"));
+                }
+            )
+        );
 
         long secondAnomalyTime = timestamp;
         // Send another anomalous bucket

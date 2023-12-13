@@ -1,0 +1,6 @@
+pr: 102282
+summary: "ES|QL: Fix drop of renamed grouping"
+area: ES|QL
+type: bug
+issues:
+ - 102121

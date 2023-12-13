@@ -24,11 +24,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
 
     @Override
-    protected final boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected int minimumNumberOfShards() {
         return 2;
     }
@@ -36,7 +31,7 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
     public void testShrinkIndex() throws Exception {
         final int randomNumberOfDocs = scaledRandomIntBetween(2, 12);
         for (int i = 0; i < randomNumberOfDocs; i++) {
-            client().prepareIndex("bigindex").setSource("foo", "bar").get();
+            prepareIndex("bigindex").setSource("foo", "bar").get();
         }
 
         Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();

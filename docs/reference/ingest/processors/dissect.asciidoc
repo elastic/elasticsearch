@@ -122,6 +122,7 @@ Use the right padding modifier to allow for repetition of the characters after a
 
 The right padding modifier may be placed on any key with any other modifiers. It should always be the furthest right
 modifier. For example: `%{+keyname/1->}` and `%{->}`
+// end::dissect-modifier-skip-right-padding[]
 
 Right padding modifier example
 |======
@@ -132,7 +133,9 @@ Right padding modifier example
 * level = WARN
 |======
 
+// tag::dissect-modifier-empty-right-padding[]
 The right padding modifier may be used with an empty key to help skip unwanted data. For example, the same input string, but wrapped with brackets requires the use of an empty right padded key to achieve the same result.
+// end::dissect-modifier-empty-right-padding[]
 
 Right padding modifier with empty key example
 |======
@@ -142,7 +145,6 @@ Right padding modifier with empty key example
 * ts = 1998-08-10T17:15:42,466
 * level = WARN
 |======
-// end::dissect-modifier-skip-right-padding[]
 
 [[append-modifier]]
 ===== Append modifier (`+`)
@@ -151,6 +153,7 @@ Right padding modifier with empty key example
 Dissect supports appending two or more results together for the output.
 Values are appended left to right. An append separator can be specified.
 In this example the append_separator is defined as a space.
+// end::append-modifier[]
 
 Append modifier example
 |======
@@ -159,7 +162,7 @@ Append modifier example
 | *Result*  a|
 * name = john jacob jingleheimer schmidt
 |======
-// end::append-modifier[]
+
 
 [[append-order-modifier]]
 ===== Append with order modifier (`+` and `/n`)
@@ -168,6 +171,7 @@ Append modifier example
 Dissect supports appending two or more results together for the output.
 Values are appended based on the order defined (`/n`). An append separator can be specified.
 In this example the append_separator is defined as a comma.
+// end::append-order-modifier[]
 
 Append with order modifier example
 |======
@@ -176,7 +180,6 @@ Append with order modifier example
 | *Result*  a|
 * name = schmidt,john,jingleheimer,jacob
 |======
-// end::append-order-modifier[]
 
 [[named-skip-key]]
 ===== Named skip key (`?`)
@@ -184,6 +187,7 @@ Append with order modifier example
 // tag::named-skip-key[]
 Dissect supports ignoring matches in the final result. This can be done with an empty key `%{}`, but for readability
 it may be desired to give that empty key a name.
+// end::named-skip-key[]
 
 Named skip key modifier example
 |======
@@ -193,7 +197,6 @@ Named skip key modifier example
 * clientip = 1.2.3.4
 * @timestamp = 30/Apr/1998:22:00:52 +0000
 |======
-// end::named-skip-key[]
 
 [[reference-keys]]
 ===== Reference keys (`*` and `&`)

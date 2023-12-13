@@ -1,0 +1,6 @@
+pr: 102715
+summary: Fix leaking blocks in TopN
+area: ES|QL
+type: bug
+issues:
+ - 102646

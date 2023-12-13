@@ -96,16 +96,11 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder().put("index.mode", tsdb ? "time_series" : "standard");
         var request = new PutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("k8s*"),
-                new Template(templateSettings.build(), new CompressedXContent(mappingTemplate), null),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("k8s*"))
+                .template(new Template(templateSettings.build(), new CompressedXContent(mappingTemplate), null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

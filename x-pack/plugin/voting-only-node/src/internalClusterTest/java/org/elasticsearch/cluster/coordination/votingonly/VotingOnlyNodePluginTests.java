@@ -152,7 +152,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         expectThrows(
             MasterNotDiscoveredException.class,
             () -> assertThat(
-                clusterAdmin().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId(),
+                clusterAdmin().prepareState().setMasterNodeTimeout("100ms").get().getState().nodes().getMasterNodeId(),
                 nullValue()
             )
         );
@@ -229,8 +229,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             .cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();

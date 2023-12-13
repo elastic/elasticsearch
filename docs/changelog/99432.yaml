@@ -1,5 +1,0 @@
-pr: 99432
-summary: "ESQL: Enable arithmetics for durations and periods"
-area: ES|QL
-type: enhancement
-issues: [99293]

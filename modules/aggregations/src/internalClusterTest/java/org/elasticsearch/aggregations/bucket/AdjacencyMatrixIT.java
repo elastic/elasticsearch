@@ -61,19 +61,19 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
         for (int i = 0; i < numTag1Docs; i++) {
             numSingleTag1Docs++;
             XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("tag", "tag1").endObject();
-            builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+            builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             if (randomBoolean()) {
                 // randomly index the document twice so that we have deleted
                 // docs that match the filter
-                builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+                builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             }
         }
         for (int i = numTag1Docs; i < (numTag1Docs + numTag2Docs); i++) {
             numSingleTag2Docs++;
             XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("tag", "tag2").endObject();
-            builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+            builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             if (randomBoolean()) {
-                builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+                builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             }
         }
         for (int i = numTag1Docs + numTag2Docs; i < numDocs; i++) {
@@ -81,17 +81,15 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
             numTag1Docs++;
             numTag2Docs++;
             XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).array("tag", "tag1", "tag2").endObject();
-            builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+            builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             if (randomBoolean()) {
-                builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+                builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             }
         }
         prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx")
-                    .setId("" + i)
-                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+                prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
             );
         }
         indexRandom(true, builders);

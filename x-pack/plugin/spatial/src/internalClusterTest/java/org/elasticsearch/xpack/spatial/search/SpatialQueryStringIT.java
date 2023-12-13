@@ -58,9 +58,7 @@ public class SpatialQueryStringIT extends ESIntegTestCase {
 
     public void testBasicAllQuery() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(
-            client().prepareIndex("test").setId("1").setSource("geo_shape", "POINT(0 0)", "shape", "POINT(0 0)", "point", "POINT(0 0)")
-        );
+        reqs.add(prepareIndex("test").setId("1").setSource("geo_shape", "POINT(0 0)", "shape", "POINT(0 0)", "point", "POINT(0 0)"));
         // nothing matches
         indexRandom(true, false, reqs);
         assertHitCount(prepareSearch("test").setQuery(queryStringQuery("foo")), 0L);

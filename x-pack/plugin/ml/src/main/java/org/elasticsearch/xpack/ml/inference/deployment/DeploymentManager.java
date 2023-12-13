@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -131,7 +132,7 @@ public class DeploymentManager {
     }
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
-        logger.info("[{}] Starting model deployment", task.getDeploymentId());
+        logger.info("[{}] Starting model deployment of model [{}]", task.getDeploymentId(), task.getModelId());
 
         if (processContextByAllocation.size() >= maxProcesses) {
             finalListener.onFailure(
@@ -167,34 +168,43 @@ public class DeploymentManager {
 
         ActionListener<TrainedModelConfig> getVerifiedModel = ActionListener.wrap((modelConfig) -> {
             processContext.modelInput.set(modelConfig.getInput());
+            processContext.prefixes.set(modelConfig.getPrefixStrings());
 
             if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
                 task.init(nlpConfig);
 
                 SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
-                executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchVocabResponse -> {
-                    if (searchVocabResponse.getHits().getHits().length == 0) {
-                        failedDeploymentListener.onFailure(
-                            new ResourceNotFoundException(
-                                Messages.getMessage(
-                                    Messages.VOCABULARY_NOT_FOUND,
-                                    modelConfig.getModelId(),
-                                    VocabularyConfig.docId(modelConfig.getModelId())
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    ActionListener.wrap(searchVocabResponse -> {
+                        if (searchVocabResponse.getHits().getHits().length == 0) {
+                            failedDeploymentListener.onFailure(
+                                new ResourceNotFoundException(
+                                    Messages.getMessage(
+                                        Messages.VOCABULARY_NOT_FOUND,
+                                        modelConfig.getModelId(),
+                                        VocabularyConfig.docId(modelConfig.getModelId())
+                                    )
                                 )
-                            )
-                        );
-                        return;
-                    }
+                            );
+                            return;
+                        }
 
-                    Vocabulary vocabulary = parseVocabularyDocLeniently(searchVocabResponse.getHits().getAt(0));
-                    NlpTask nlpTask = new NlpTask(nlpConfig, vocabulary);
-                    NlpTask.Processor processor = nlpTask.createProcessor();
-                    processContext.nlpTaskProcessor.set(processor);
-                    // here, we are being called back on the searching thread, which MAY be a network thread
-                    // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
-                    // executor.
-                    executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
-                }, failedDeploymentListener::onFailure));
+                        Vocabulary vocabulary = parseVocabularyDocLeniently(searchVocabResponse.getHits().getAt(0));
+                        NlpTask nlpTask = new NlpTask(nlpConfig, vocabulary);
+                        NlpTask.Processor processor = nlpTask.createProcessor();
+                        processContext.nlpTaskProcessor.set(processor);
+                        // here, we are being called back on the searching thread, which MAY be a network thread
+                        // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
+                        // executor.
+                        executorServiceForDeployment.execute(
+                            () -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener)
+                        );
+                    }, failedDeploymentListener::onFailure)
+                );
             } else {
                 failedDeploymentListener.onFailure(
                     new IllegalArgumentException(
@@ -319,6 +329,7 @@ public class DeploymentManager {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
@@ -336,6 +347,7 @@ public class DeploymentManager {
             processContext,
             config,
             input,
+            prefixType,
             threadPool,
             parentActionTask,
             listener
@@ -437,6 +449,7 @@ public class DeploymentManager {
         private final SetOnce<PyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
+        private final SetOnce<TrainedModelPrefixStrings> prefixes = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
         private final PriorityProcessWorkerExecutorService priorityProcessWorker;
@@ -680,6 +693,10 @@ public class DeploymentManager {
 
         SetOnce<NlpTask.Processor> getNlpTaskProcessor() {
             return nlpTaskProcessor;
+        }
+
+        SetOnce<TrainedModelPrefixStrings> getPrefixStrings() {
+            return prefixes;
         }
     }
 }

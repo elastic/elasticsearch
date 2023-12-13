@@ -10,12 +10,16 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public interface InferenceService extends Closeable {
+
+    default void init(Client client) {}
 
     String name();
 
@@ -51,7 +55,20 @@ public interface InferenceService extends Closeable {
      * @param secrets Sensitive configuration options (e.g. api key)
      * @return The parsed {@link Model}
      */
-    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
+    Model parsePersistedConfigWithSecrets(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
+
+    /**
+     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
+     * This function modifies {@code config map}, fields are removed from the map as they are read.
+     *
+     * If the map contains unrecognized configuration options, no error is thrown.
+     *
+     * @param modelId Model Id
+     * @param taskType The model task type
+     * @param config Configuration options
+     * @return The parsed {@link Model}
+     */
+    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
 
     /**
      * Perform inference on the model.
@@ -61,7 +78,7 @@ public interface InferenceService extends Closeable {
      * @param taskSettings Settings in the request to override the model's defaults
      * @param listener Inference result listener
      */
-    void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener);
+    void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener);
 
     /**
      * Start or prepare the model for use.

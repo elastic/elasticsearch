@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.transform;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -37,7 +36,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
@@ -141,17 +140,17 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
         refresh();
 
-        SearchResponse response = prepareSearch("output1").get();
-        assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
+        assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
+            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
+        });
 
-        response = prepareSearch("output2").get();
-        assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
+        assertNoFailuresAndResponse(prepareSearch("output2"), response -> {
+            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
+        });
     }
 
     public void testSearchTransform() throws Exception {
@@ -186,15 +185,15 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
         refresh();
 
-        SearchResponse response = prepareSearch("output1").get();
-        assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
+        assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
+            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
+        });
 
-        response = prepareSearch("output2").get();
-        assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
+        assertNoFailuresAndResponse(prepareSearch("output2"), response -> {
+            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
+        });
     }
 
     public void testChainTransform() throws Exception {
@@ -225,17 +224,17 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
         refresh();
 
-        SearchResponse response = prepareSearch("output1").get();
-        assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
+        assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
+            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
+        });
 
-        response = prepareSearch("output2").get();
-        assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
-        assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-        assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
+        assertNoFailuresAndResponse(prepareSearch("output2"), response -> {
+            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
+        });
     }
 
     private void executeWatch(String watchId) {

@@ -457,15 +457,17 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
                     Collections.singletonList(new Skip(skippedFilesWithReason.get(file)))
                 );
             } else {
+                List<RestTestTransform<?>> transformations = new ArrayList<>(getTransformations().get());
+
                 if (skippedFilesWithTestAndReason.containsKey(file)) {
                     // skip the named tests for this file
                     skippedFilesWithTestAndReason.get(file).forEach(fullTestNameAndReasonPair -> {
                         String prefix = file.getName().replace(".yml", "/");
                         String singleTestName = fullTestNameAndReasonPair.getLeft().replaceAll(".*" + prefix, "");
-                        getTransformations().add(new Skip(singleTestName, fullTestNameAndReasonPair.getRight()));
+                        transformations.add(new Skip(singleTestName, fullTestNameAndReasonPair.getRight()));
                     });
                 }
-                transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), getTransformations().get());
+                transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
             }
 
             // convert to url to ensure forward slashes

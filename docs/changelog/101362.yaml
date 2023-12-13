@@ -1,6 +1,0 @@
-pr: 101362
-summary: "ESQL: Remove the swapped-args check for date_xxx()"
-area: ES|QL
-type: enhancement
-issues:
- - 99562

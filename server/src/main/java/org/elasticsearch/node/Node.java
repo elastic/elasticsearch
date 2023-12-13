@@ -43,7 +43,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -61,6 +60,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -420,6 +420,8 @@ public class Node implements Closeable {
             }
         }
 
+        injector.getInstance(NodeMetrics.class).start();
+
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
@@ -463,6 +465,7 @@ public class Node implements Closeable {
         stopIfStarted(GatewayService.class);
         stopIfStarted(SearchService.class);
         stopIfStarted(TransportService.class);
+        stopIfStarted(NodeMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -508,8 +511,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
         toClose.add(injector.getInstance(RepositoriesService.class));
-        toClose.add(() -> stopWatch.stop().start("client"));
-        Releasables.close(injector.getInstance(Client.class));
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));
         toClose.add(injector.getInstance(IndicesClusterStateService.class));
         toClose.add(() -> stopWatch.stop().start("indices"));
@@ -533,6 +534,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(injector.getInstance(NodeMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }

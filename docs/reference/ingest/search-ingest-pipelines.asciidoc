@@ -22,7 +22,7 @@ To find this tab in the Kibana UI:
 The tab is highlighted in this screenshot:
 
 [.screenshot]
-image::../images/ingest/ingest-pipeline-ent-search-ui.png[align="center"]
+image::images/ingest/ingest-pipeline-ent-search-ui.png[align="center"]
 
 [discrete#ingest-pipeline-search-in-enterprise-search]
 === Overview

@@ -54,7 +54,7 @@ A common use case is a user searching FAQs, or a support agent searching a knowl
 The diagram below shows how documents are processed during ingestion.
 
 // Original diagram: https://whimsical.com/ml-in-enterprise-search-ErCetPqrcCPu2QYHvAwrgP@2bsEvpTYSt1Hiuq6UBf68tUWvFiXdzLt6ao
-image::../images/ingest/document-enrichment-diagram.png["ML inference pipeline diagram"]
+image::images/ingest/document-enrichment-diagram.png["ML inference pipeline diagram"]
 
 * Documents are processed by the `my-index-0001` pipeline, which happens automatically when indexing through a an Elastic connector or crawler.
 * The `_run_ml_inference` field is set to `true` to ensure the ML inference pipeline (`my-index-0001@ml-inference`) is executed.
@@ -95,7 +95,7 @@ Once your index-specific ML inference pipeline is ready, you can add inference p
 To add an inference processor to the ML inference pipeline, click the *Add Inference Pipeline* button in the *Machine Learning Inference Pipelines* card.
 
 [role="screenshot"]
-image::../images/ingest/document-enrichment-add-inference-pipeline.png["Add Inference Pipeline"]
+image::images/ingest/document-enrichment-add-inference-pipeline.png["Add Inference Pipeline"]
 
 Here, you'll be able to:
 

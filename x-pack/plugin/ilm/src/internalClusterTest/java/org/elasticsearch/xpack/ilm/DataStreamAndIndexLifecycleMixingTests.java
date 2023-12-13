@@ -80,10 +80,6 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, DataStreamsPlugin.class);
     }
 
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
@@ -964,16 +960,12 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(name);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .metadata(metadata)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

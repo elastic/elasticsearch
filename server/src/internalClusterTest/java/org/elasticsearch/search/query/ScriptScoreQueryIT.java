@@ -9,7 +9,6 @@
 package org.elasticsearch.search.query;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -32,6 +31,7 @@ import static org.elasticsearch.index.query.QueryBuilders.scriptScoreQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
@@ -66,31 +66,35 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double"));
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
-            client().prepareIndex("test-index").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
+            prepareIndex("test-index").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
         }
         refresh();
 
         Map<String, Object> params = new HashMap<>();
         params.put("param1", 0.1);
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
-        SearchResponse resp = prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)).get();
-        assertNoFailures(resp);
-        assertOrderedSearchHits(resp, "10", "8", "6", "4", "2");
-        assertFirstHit(resp, hasScore(1.0f));
-        assertSecondHit(resp, hasScore(0.8f));
-        assertThirdHit(resp, hasScore(0.6f));
+        assertNoFailuresAndResponse(
+            prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)),
+            response -> {
+                assertOrderedSearchHits(response, "10", "8", "6", "4", "2");
+                assertFirstHit(response, hasScore(1.0f));
+                assertSecondHit(response, hasScore(0.8f));
+                assertThirdHit(response, hasScore(0.6f));
+            }
+        );
 
         // applying min score
-        resp = prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script).setMinScore(0.6f)).get();
-        assertNoFailures(resp);
-        assertOrderedSearchHits(resp, "10", "8", "6");
+        assertNoFailuresAndResponse(
+            prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script).setMinScore(0.6f)),
+            response -> assertOrderedSearchHits(response, "10", "8", "6")
+        );
     }
 
     public void testScriptScoreBoolQuery() {
         assertAcked(prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double"));
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
-            client().prepareIndex("test-index").setId("" + i).setSource("field1", "text" + i, "field2", i).get();
+            prepareIndex("test-index").setId("" + i).setSource("field1", "text" + i, "field2", i).get();
         }
         refresh();
 
@@ -98,11 +102,11 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         params.put("param1", 0.1);
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
         QueryBuilder boolQuery = boolQuery().should(matchQuery("field1", "text1")).should(matchQuery("field1", "text10"));
-        SearchResponse resp = prepareSearch("test-index").setQuery(scriptScoreQuery(boolQuery, script)).get();
-        assertNoFailures(resp);
-        assertOrderedSearchHits(resp, "10", "1");
-        assertFirstHit(resp, hasScore(1.0f));
-        assertSecondHit(resp, hasScore(0.1f));
+        assertNoFailuresAndResponse(prepareSearch("test-index").setQuery(scriptScoreQuery(boolQuery, script)), response -> {
+            assertOrderedSearchHits(response, "10", "1");
+            assertFirstHit(response, hasScore(1.0f));
+            assertSecondHit(response, hasScore(0.1f));
+        });
     }
 
     // test that when the internal query is rewritten script_score works well
@@ -111,16 +115,17 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
             prepareCreate("test-index2").setSettings(Settings.builder().put("index.number_of_shards", 1))
                 .setMapping("field1", "type=date", "field2", "type=double")
         );
-        client().prepareIndex("test-index2").setId("1").setSource("field1", "2019-09-01", "field2", 1).get();
-        client().prepareIndex("test-index2").setId("2").setSource("field1", "2019-10-01", "field2", 2).get();
-        client().prepareIndex("test-index2").setId("3").setSource("field1", "2019-11-01", "field2", 3).get();
+        prepareIndex("test-index2").setId("1").setSource("field1", "2019-09-01", "field2", 1).get();
+        prepareIndex("test-index2").setId("2").setSource("field1", "2019-10-01", "field2", 2).get();
+        prepareIndex("test-index2").setId("3").setSource("field1", "2019-11-01", "field2", 3).get();
         refresh();
 
         RangeQueryBuilder rangeQB = new RangeQueryBuilder("field1").from("2019-01-01"); // the query should be rewritten to from:null
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", Map.of("param1", 0.1));
-        SearchResponse resp = prepareSearch("test-index2").setQuery(scriptScoreQuery(rangeQB, script)).get();
-        assertNoFailures(resp);
-        assertOrderedSearchHits(resp, "3", "2", "1");
+        assertNoFailuresAndResponse(
+            prepareSearch("test-index2").setQuery(scriptScoreQuery(rangeQB, script)),
+            response -> assertOrderedSearchHits(response, "3", "2", "1")
+        );
     }
 
     public void testDisallowExpensiveQueries() {
@@ -128,7 +133,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
             assertAcked(prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double"));
             int docCount = 10;
             for (int i = 1; i <= docCount; i++) {
-                client().prepareIndex("test-index").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
+                prepareIndex("test-index").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
             }
             refresh();
 

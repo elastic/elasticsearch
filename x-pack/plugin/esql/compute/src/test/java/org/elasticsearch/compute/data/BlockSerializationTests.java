@@ -159,7 +159,7 @@ public class BlockSerializationTests extends SerializationTestCase {
         function.addRawInput(page);
         Block[] blocks = new Block[function.intermediateBlockCount()];
         try {
-            function.evaluateIntermediate(blocks, 0);
+            function.evaluateIntermediate(blocks, 0, driverCtx);
 
             Block[] deserBlocks = Arrays.stream(blocks).map(this::uncheckedSerializeDeserializeBlock).toArray(Block[]::new);
             try {

@@ -204,6 +204,6 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             );
         }
 
-        return new CollapseContext(field, fieldType, innerHits);
+        return new CollapseContext(field, fieldType);
     }
 }

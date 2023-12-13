@@ -158,6 +158,8 @@ org.elasticsearch.cluster.ClusterState#compatibilityVersions()
 
 @defaultMessage ClusterFeatures#nodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
 org.elasticsearch.cluster.ClusterFeatures#nodeFeatures()
+@defaultMessage ClusterFeatures#allNodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
+org.elasticsearch.cluster.ClusterFeatures#allNodeFeatures()
 @defaultMessage ClusterFeatures#clusterHasFeature is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
 org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.features.NodeFeature)
 

@@ -27,20 +27,20 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     public void testSkipMultiRange() {
         SkipSection section = new SkipSection("6.0.0 - 6.1.0, 7.1.0 - 7.5.0", Collections.emptyList(), Collections.emptyList(), "foobar");
 
-        assertFalse(section.skip(Version.CURRENT));
-        assertFalse(section.skip(Version.fromString("6.2.0")));
-        assertFalse(section.skip(Version.fromString("7.0.0")));
-        assertFalse(section.skip(Version.fromString("7.6.0")));
+        assertFalse(section.skip(versionContext(Version.CURRENT)));
+        assertFalse(section.skip(versionContext(Version.fromString("6.2.0"))));
+        assertFalse(section.skip(versionContext(Version.fromString("7.0.0"))));
+        assertFalse(section.skip(versionContext(Version.fromString("7.6.0"))));
 
-        assertTrue(section.skip(Version.fromString("6.0.0")));
-        assertTrue(section.skip(Version.fromString("6.1.0")));
-        assertTrue(section.skip(Version.fromString("7.1.0")));
-        assertTrue(section.skip(Version.fromString("7.5.0")));
+        assertTrue(section.skip(versionContext(Version.fromString("6.0.0"))));
+        assertTrue(section.skip(versionContext(Version.fromString("6.1.0"))));
+        assertTrue(section.skip(versionContext(Version.fromString("7.1.0"))));
+        assertTrue(section.skip(versionContext(Version.fromString("7.5.0"))));
 
         section = new SkipSection("-  7.1.0, 7.2.0 - 7.5.0, 8.0.0 -", Collections.emptyList(), Collections.emptyList(), "foobar");
-        assertTrue(section.skip(Version.fromString("7.0.0")));
-        assertTrue(section.skip(Version.fromString("7.3.0")));
-        assertTrue(section.skip(Version.fromString("8.0.0")));
+        assertTrue(section.skip(versionContext(Version.fromString("7.0.0"))));
+        assertTrue(section.skip(versionContext(Version.fromString("7.3.0"))));
+        assertTrue(section.skip(versionContext(Version.fromString("8.0.0"))));
     }
 
     public void testSkip() {
@@ -50,15 +50,15 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             Collections.emptyList(),
             "foobar"
         );
-        assertFalse(section.skip(Version.CURRENT));
-        assertTrue(section.skip(Version.fromString("6.0.0")));
+        assertFalse(section.skip(versionContext(Version.CURRENT)));
+        assertTrue(section.skip(versionContext(Version.fromString("6.0.0"))));
         section = new SkipSection(
             randomBoolean() ? null : "6.0.0 - 6.1.0",
             Collections.singletonList("boom"),
             Collections.emptyList(),
             "foobar"
         );
-        assertTrue(section.skip(Version.CURRENT));
+        assertTrue(section.skip(versionContext(Version.CURRENT)));
     }
 
     public void testMessage() {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -38,5 +39,24 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTes
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return ExecutableSection.XCONTENT_REGISTRY;
+    }
+
+    protected static SkipSection.SkipSectionContext versionContext(Version version) {
+        return new SkipSection.SkipSectionContext() {
+            @Override
+            public Version getMinimumNodeVersion() {
+                return version;
+            }
+
+            @Override
+            public boolean clusterIsRunningOs(String osName) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean clusterHasFeature(String featureId) {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

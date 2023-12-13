@@ -37,6 +37,7 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.elasticsearch.test.rest.yaml.section.SkipSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -461,25 +462,21 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             );
         }
 
+        var skipContext = new SkipSectionContextAdapter(restTestExecutionContext);
         // skip test if the whole suite (yaml file) is disabled
         assumeFalse(
             testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+            testCandidate.getSetupSection().getSkipSection().skip(skipContext)
         );
         // skip test if the whole suite (yaml file) is disabled
         assumeFalse(
             testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+            testCandidate.getTeardownSection().getSkipSection().skip(skipContext)
         );
         // skip test if test section is disabled
         assumeFalse(
             testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion())
-        );
-        // skip test if os is excluded
-        assumeFalse(
-            testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os())
+            testCandidate.getTestSection().getSkipSection().skip(skipContext)
         );
 
         // let's check that there is something to run, otherwise there might be a problem with the test section
@@ -611,5 +608,28 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     public ClientYamlTestCandidate getTestCandidate() {
         return testCandidate;
+    }
+
+    private static class SkipSectionContextAdapter implements SkipSection.SkipSectionContext {
+        private final ClientYamlTestExecutionContext executionContext;
+
+        SkipSectionContextAdapter(ClientYamlTestExecutionContext executionContext) {
+            this.executionContext = executionContext;
+        }
+
+        @Override
+        public Version getMinimumNodeVersion() {
+            return executionContext.esVersion();
+        }
+
+        @Override
+        public boolean clusterIsRunningOs(String osName) {
+            return osName.equals(executionContext.os());
+        }
+
+        @Override
+        public boolean clusterHasFeature(String featureId) {
+            return executionContext.clusterHasFeature(featureId);
+        }
     }
 }

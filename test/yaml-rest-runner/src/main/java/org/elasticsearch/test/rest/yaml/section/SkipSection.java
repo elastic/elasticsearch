@@ -27,6 +27,14 @@ import java.util.List;
  * - an operating system (full name, including specific Linux distributions) that might show a certain behavior
  */
 public class SkipSection {
+    public interface SkipSectionContext {
+        Version getMinimumNodeVersion();
+
+        boolean clusterIsRunningOs(String osName);
+
+        boolean clusterHasFeature(String featureId);
+    }
+
     /**
      * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
      */
@@ -150,16 +158,13 @@ public class SkipSection {
         return reason;
     }
 
-    public boolean skip(Version currentVersion) {
+    public boolean skip(SkipSectionContext context) {
         if (isEmpty()) {
             return false;
         }
-        boolean skip = versionRanges.stream().anyMatch(range -> range.contains(currentVersion));
-        return skip || Features.areAllSupported(features) == false;
-    }
-
-    public boolean skip(String os) {
-        return this.operatingSystems.contains(os);
+        return versionRanges.stream().anyMatch(range -> range.contains(context.getMinimumNodeVersion()))
+            || Features.areAllSupported(features) == false
+            || operatingSystems.stream().anyMatch(context::clusterIsRunningOs);
     }
 
     public boolean isVersionCheck() {

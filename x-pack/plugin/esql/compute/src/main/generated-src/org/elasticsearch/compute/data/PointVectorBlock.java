@@ -89,4 +89,9 @@ public final class PointVectorBlock extends AbstractVectorBlock implements Point
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
     }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
 }

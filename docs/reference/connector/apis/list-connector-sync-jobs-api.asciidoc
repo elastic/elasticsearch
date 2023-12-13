@@ -41,41 +41,12 @@ Returns information about all stored connector sync jobs ordered by their creati
 
 The following example lists all connector sync jobs:
 
-////
-[source,console]
---------------------------------------------------
-PUT _connector/connector-1
-{
-  "index_name": "search-google-drive",
-  "name": "Google Drive Connector",
-  "service_type": "google_drive"
-}
-
-PUT _connector/connector-2
-{
-  "index_name": "search-sharepoint-online",
-  "name": "Sharepoint Online Connector",
-  "service_type": "sharepoint_online"
-}
-
-POST _connector/_sync_job
-{
-  "id": "connector-1"
-}
-
-POST _connector/_sync_job
-{
-  "id": "connector-2"
-}
-
---------------------------------------------------
-// TESTSETUP
-////
 
 [source,console]
 ----
 GET _connector/_sync_job
 ----
+// TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
 
 The following example lists the first two connector sync jobs:
 
@@ -83,18 +54,21 @@ The following example lists the first two connector sync jobs:
 ----
 GET _connector/_sync_job?from=0&size=2
 ----
+// TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
 
 The following example lists pending connector sync jobs (the first 100 per default):
 [source,console]
 ----
 GET _connector/_sync_job?status=pending
 ----
+// TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
 
 The following example lists connector sync jobs (the first 100 per default) for the connector with id `connector-1`:
 [source,console]
 ----
 GET _connector/_sync_job?connector_id=connector-1
 ----
+// TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
 
 [[list-connector-sync-jobs-api-response-codes]]
 ==== {api-response-codes-title}

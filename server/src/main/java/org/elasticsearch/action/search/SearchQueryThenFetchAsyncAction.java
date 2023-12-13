@@ -15,12 +15,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -85,8 +87,28 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final SearchShardTarget shard,
         final SearchActionListener<SearchPhaseResult> listener
     ) {
-        ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
-        getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
+        ShardSearchRequest request = super.buildShardSearchRequest(shardIt, listener.requestIndex);
+        if (request.source() != null && request.source().getRetrieverBuilder() != null) {
+            List<SearchSourceBuilder> queries = request.source()
+                .getRetrieverBuilder()
+                .buildQuerySearchSourceBuilders(request.shardRequestIndex(), null, request.source());
+            for (SearchSourceBuilder query : queries) {
+                request.source(query);
+                getSearchTransport().sendExecuteQuery(
+                    getConnection(shard.getClusterAlias(), shard.getNodeId()),
+                    request,
+                    getTask(),
+                    listener
+                );
+            }
+        } else {
+            getSearchTransport().sendExecuteQuery(
+                getConnection(shard.getClusterAlias(), shard.getNodeId()),
+                rewriteShardSearchRequest(request),
+                getTask(),
+                listener
+            );
+        }
     }
 
     @Override

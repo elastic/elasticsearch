@@ -55,6 +55,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -571,7 +572,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             @Override
             public IndexMetadata randomChange(IndexMetadata part) {
                 IndexMetadata.Builder builder = IndexMetadata.builder(part);
-                switch (randomIntBetween(0, 2)) {
+                switch (randomIntBetween(0, 3)) {
                     case 0:
                         builder.settings(Settings.builder().put(part.getSettings()).put(randomSettings(Settings.EMPTY)));
                         break;
@@ -585,10 +586,33 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     case 2:
                         builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
                         break;
+                    case 3:
+                        builder.fieldsForModels(randomFieldsForModels());
+                        break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }
                 return builder.build();
+            }
+
+            /**
+             * Generates a random fieldsForModels map
+             */
+            private Map<String, Set<String>> randomFieldsForModels() {
+                if (randomBoolean()) {
+                    return null;
+                }
+
+                Map<String, Set<String>> fieldsForModels = new HashMap<>();
+                for (int i = 0; i < randomIntBetween(0, 5); i++) {
+                    Set<String> fields = new HashSet<>();
+                    for (int j = 0; j < randomIntBetween(1, 4); j++) {
+                        fields.add(randomAlphaOfLengthBetween(4, 10));
+                    }
+                    fieldsForModels.put(randomAlphaOfLengthBetween(4, 10), fields);
+                }
+
+                return fieldsForModels;
             }
         });
     }

@@ -491,6 +491,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103357")
     public void testUnmovableSize() {
         Settings.Builder settingsBuilder = Settings.builder();
         if (randomBoolean()) {

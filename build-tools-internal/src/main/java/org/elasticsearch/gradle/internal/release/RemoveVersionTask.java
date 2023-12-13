@@ -59,7 +59,7 @@ public class RemoveVersionTask extends AbstractVersionTask {
 
     @VisibleForTesting
     static Optional<CompilationUnit> removeVersionConstant(CompilationUnit versionJava, Version version) {
-        String removeFieldName = String.format("V_%d_%d_%d", version.getMajor(), version.getMinor(), version.getRevision());
+        String removeFieldName = toVersionField(version);
 
         ClassOrInterfaceDeclaration versionClass = versionJava.getClassByName("Version").get();
         var declaration = versionClass.getFieldByName(removeFieldName);

@@ -35,6 +35,10 @@ public abstract class AbstractVersionTask extends DefaultTask {
         rootDir = layout.getRootDirectory().toPath();
     }
 
+    static String toVersionField(Version version) {
+        return String.format("V_%d_%d_%d", version.getMajor(), version.getMinor(), version.getRevision());
+    }
+
     static Optional<Version> parseVersionField(CharSequence field) {
         Matcher m = VERSION_FIELD.matcher(field);
         if (m.find() == false) return Optional.empty();

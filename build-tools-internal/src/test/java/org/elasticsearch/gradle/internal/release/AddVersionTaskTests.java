@@ -111,7 +111,7 @@ public class AddVersionTaskTests {
     @Test
     public void updateVersionFile_updatesCorrectly() throws Exception {
         Version newVersion = new Version(50, 10, 20);
-        String versionField = String.format("V_%d_%d_%d", newVersion.getMajor(), newVersion.getMinor(), newVersion.getRevision());
+        String versionField = AbstractVersionTask.toVersionField(newVersion);
 
         Path versionFile = Path.of("..", AddVersionTask.VERSION_FILE_PATH);
         CompilationUnit unit = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionFile));

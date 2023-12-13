@@ -73,7 +73,7 @@ public class AddVersionTask extends AbstractVersionTask {
 
     @VisibleForTesting
     static Optional<CompilationUnit> addVersionConstant(CompilationUnit versionJava, Version version, boolean updateCurrent) {
-        String newFieldName = String.format("V_%d_%d_%d", version.getMajor(), version.getMinor(), version.getRevision());
+        String newFieldName = toVersionField(version);
 
         ClassOrInterfaceDeclaration versionClass = versionJava.getClassByName("Version").get();
         if (versionClass.getFieldByName(newFieldName).isPresent()) {

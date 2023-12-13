@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MappingLookupTests extends ESTestCase {
@@ -151,6 +152,43 @@ public class MappingLookupTests extends ESTestCase {
         e = expectThrows(MapperParsingException.class, () -> mappingLookup.validateDoesNotShadow("metric"));
         assertThat(e.getMessage(), equalTo("Field [metric] attempted to shadow a time_series_metric"));
         mappingLookup.validateDoesNotShadow("plain");
+    }
+
+    public void testGetDimensions() {
+        FakeFieldType dim1 = new FakeFieldType("dim1") {
+            @Override
+            public boolean isDimension() {
+                return true;
+            }
+        };
+        FieldMapper dimMapper1 = new FakeFieldMapper(dim1, "index1");
+
+        FakeFieldType dim2 = new FakeFieldType("dim2") {
+            @Override
+            public boolean isDimension() {
+                return true;
+            }
+        };
+        FieldMapper dimMapper2 = new FakeFieldMapper(dim2, "index1");
+
+        MetricType metricType = randomFrom(MetricType.values());
+        FakeFieldType metric = new FakeFieldType("metric") {
+            @Override
+            public MetricType getMetricType() {
+                return metricType;
+            }
+        };
+        FieldMapper metricMapper = new FakeFieldMapper(metric, "index1");
+
+        FakeFieldType plain = new FakeFieldType("plain");
+        FieldMapper plainMapper = new FakeFieldMapper(plain, "index1");
+
+        MappingLookup mappingLookup = createMappingLookup(
+            List.of(dimMapper1, dimMapper2, metricMapper, plainMapper),
+            emptyList(),
+            emptyList()
+        );
+        assertThat(mappingLookup.getDimensions(), containsInAnyOrder("dim1", "dim2"));
     }
 
     public void testShadowingOnConstruction() {

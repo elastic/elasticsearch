@@ -334,6 +334,8 @@ public class MetadataRolloverService {
                 final Settings.Builder settingsBuilder = Settings.builder().put(originalSettings);
                 settingsBuilder.remove(IndexSettings.MODE.getKey());
                 settingsBuilder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                settingsBuilder.remove(IndexMetadata.DYNAMIC_DIMENSION_NAMES.getKey());
+                settingsBuilder.remove(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey());
                 long newVersion = index.getSettingsVersion() + 1;
                 builder.put(IndexMetadata.builder(index).settings(settingsBuilder.build()).settingsVersion(newVersion));
             }

@@ -2,11 +2,9 @@ setup:
   - skip:
       version: " - 8.0.99"
       reason: introduced in 8.1.0
-      features: allowed_warnings
+      features: "default_shards"
 
   - do:
-      allowed_warnings:
-        - "index template [my-template1] has index patterns [k8s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template1
         body:
@@ -191,3 +189,270 @@ index without timestamp with pipeline:
         pipeline: my_pipeline
         body:
           - '{"@timestamp": "wrong_format", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+
+---
+dynamic dimensions:
+  - skip:
+      version: " - 8.12.99"
+      features: "default_shards"
+      reason: "Support for dynamic dimensions was added in 8.13"
+  - do:
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series_dynamic_templates: true
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              dynamic_templates:
+                - keyword_dimension:
+                    mapping:
+                      type: keyword
+                      time_series_dimension: true
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension", "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "dim": "A" }'
+          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension", "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "dim": "A" }'
+          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension", "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "dim": "B" }'
+          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension", "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "dim": "B" }'
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+
+  - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - length: { aggregations.tsids.buckets: 2 }
+  - match: { aggregations.tsids.buckets.0.key.dim: A }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+  - match: { aggregations.tsids.buckets.1.key.dim: B }
+  - match: { aggregations.tsids.buckets.1.doc_count: 2 }
+
+---
+dynamic dimensions with routing path:
+  - skip:
+      version: " - 8.12.99"
+      features: "default_shards"
+      reason: "Support for dynamic dimensions was added in 8.13"
+  - do:
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series_dynamic_templates: true
+                routing_path: static_dim
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                data:
+                  type: integer
+                  time_series_metric: counter
+                static_dim:
+                  type: keyword
+                  time_series_dimension: true
+                some_label:
+                  type: keyword
+
+              dynamic_templates:
+                - keyword_dimension:
+                    mapping:
+                      type: keyword
+                      time_series_dimension: true
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "dim": "A", "static_dim": "sA", "some_label": "lA" }'
+          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "dim": "A", "static_dim": "sA", "some_label": "lA" }'
+          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "dim": "B", "static_dim": "sB", "some_label": "lB" }'
+          - '{ "create": { "dynamic_templates": { "dim": "keyword_dimension" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "dim": "B", "static_dim": "sB", "some_label": "lB" }'
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+
+  - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - length: { aggregations.tsids.buckets: 2 }
+  - match: { aggregations.tsids.buckets.0.key.dim: A }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+  - match: { aggregations.tsids.buckets.1.key.dim: B }
+  - match: { aggregations.tsids.buckets.1.doc_count: 2 }
+
+---
+dynamic dimensions with dynamic template path_match:
+  - skip:
+      version: " - 8.12.99"
+      features: "default_shards"
+      reason: "Support for dynamic dimensions was added in 8.13"
+  - do:
+      catch: /time-series indexes with \[time_series_dynamic_templates=true\] are only compatible with dynamic templates containing fields with no 'match' or 'path_match' or 'match_mapping_type' spec/
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series_dynamic_templates: true
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                data:
+                  type: integer
+                  time_series_metric: counter
+
+              dynamic_templates:
+                - keyword_dimension:
+                    path_match: static_*
+                    mapping:
+                      type: keyword
+                      time_series_dimension: true
+
+---
+dynamic routing path with dynamic template path_match:
+  - skip:
+      version: " - 8.12.99"
+      features: "default_shards"
+      reason: "Support for dynamic dimensions was added in 8.13"
+  - do:
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+              dynamic_templates:
+                - keyword_dimension:
+                    path_match: labels.*
+                    mapping:
+                      type: keyword
+                      time_series_dimension: true
+                - counter_metric:
+                    path_match: metrics.counters.*
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": {} }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","metrics.counters.data": "10", "labels.dim": "A" }'
+          - '{ "create": {} }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","metrics.counters.data": "20", "labels.dim": "A" }'
+          - '{ "create": {} }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","metrics.counters.data": "30", "labels.dim": "B" }'
+          - '{ "create": {} }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","metrics.counters.data": "40", "labels.dim": "B" }'
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+
+  - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - length: { aggregations.tsids.buckets: 2 }
+  - match: { aggregations.tsids.buckets.0.key: { labels.dim: A } }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+  - match: { aggregations.tsids.buckets.1.key: { labels.dim: B } }
+  - match: { aggregations.tsids.buckets.1.doc_count: 2 }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -49,7 +50,9 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routingRequired = docMapper.routingFieldMapper().required();
-        this.fieldsForModels = docMapper.mappers().getFieldsForModels();
+
+        MappingLookup mappingLookup = docMapper.mappers();
+        this.fieldsForModels = mappingLookup != null ? mappingLookup.getFieldsForModels() : null;
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })

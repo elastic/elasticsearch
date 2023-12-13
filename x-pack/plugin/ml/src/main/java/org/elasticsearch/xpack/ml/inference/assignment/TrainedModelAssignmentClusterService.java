@@ -64,6 +64,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -1099,13 +1100,23 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         // it may get re-allocated to that node when another node is added/removed...
         boolean nodesShutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
         if (event.nodesChanged() || nodesShutdownChanged) {
+            Supplier<String> eventIdentity = () -> Integer.toHexString(System.identityHashCode(event));
+
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
 
             Set<String> removedNodes = nodesDelta.removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> addedNodes = nodesDelta.addedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
-            logger.debug(() -> format("Initial node change info; removed nodes: %s; added nodes: %s", removedNodes, addedNodes));
+            logger.debug(
+                () -> format(
+                    "Initial node change info; identity: %s; removed nodes: %s; added nodes: %s; shutting down nodes: %s",
+                    eventIdentity.get(),
+                    removedNodes,
+                    addedNodes,
+                    shuttingDownNodes
+                )
+            );
 
             Set<String> exitingShutDownNodes;
             if (nodesShutdownChanged) {
@@ -1122,7 +1133,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
                 logger.debug(
                     () -> format(
-                        "Nodes shutting down changed; previous shutting down nodes: %s; returning nodes: %s",
+                        "Shutting down nodes were changed; identity: %s; previous shutting down nodes: %s; returning nodes: %s",
+                        eventIdentity.get(),
                         previousShuttingDownNodes,
                         returningShutDownNodes
                     )
@@ -1133,7 +1145,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
             logger.debug(
                 () -> format(
-                    "added nodes %s; removed nodes %s; shutting down nodes %s; exiting shutdown nodes %s",
+                    "identity: %s; added nodes %s; removed nodes %s; shutting down nodes %s; exiting shutdown nodes %s",
+                    eventIdentity.get(),
                     addedNodes,
                     removedNodes,
                     shuttingDownNodes,

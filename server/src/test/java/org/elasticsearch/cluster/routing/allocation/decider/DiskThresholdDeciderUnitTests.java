@@ -620,6 +620,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             subtractShardsMovingAway,
             dataPath,
             allocation.clusterInfo(),
+            allocation.snapshotShardSizeInfo(),
             allocation.metadata(),
             allocation.routingTable(),
             allocation.unaccountedSearchableSnapshotSize(node)

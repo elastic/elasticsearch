@@ -118,6 +118,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         boolean subtractShardsMovingAway,
         String dataPath,
         ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo snapshotShardSizeInfo,
         Metadata metadata,
         RoutingTable routingTable,
         long sizeOfUnaccountableSearchableSnapshotShards
@@ -137,7 +138,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 if (actualPath == null || actualPath.equals(dataPath)) {
                     totalSize += Math.max(
                         routing.getExpectedShardSize(),
-                        getExpectedShardSize(routing, 0L, clusterInfo, SnapshotShardSizeInfo.EMPTY, metadata, routingTable)
+                        getExpectedShardSize(routing, 0L, clusterInfo, snapshotShardSizeInfo, metadata, routingTable)
                     );
                 }
             }
@@ -148,7 +149,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
-                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, SnapshotShardSizeInfo.EMPTY, metadata, routingTable);
+                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, snapshotShardSizeInfo, metadata, routingTable);
                 }
             }
         }
@@ -193,6 +194,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 false,
                 usage.getPath(),
                 allocation.clusterInfo(),
+                allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
                 allocation.routingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
@@ -401,6 +403,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 true,
                 usage.getPath(),
                 allocation.clusterInfo(),
+                allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
                 allocation.routingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
@@ -480,6 +483,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 subtractLeavingShards,
                 usage.getPath(),
                 allocation.clusterInfo(),
+                allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
                 allocation.routingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)

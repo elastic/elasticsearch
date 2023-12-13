@@ -2444,7 +2444,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             // TODO: Need null check?
             Map<String, Set<String>> fieldsForModels = indexMetadata.getFieldsForModels();
-            if (fieldsForModels != null && !fieldsForModels.isEmpty()) {
+            if (fieldsForModels != null && fieldsForModels.isEmpty() == false) {
                 builder.field(KEY_FIELDS_FOR_MODELS, fieldsForModels);
             }
 

@@ -317,10 +317,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
         return validationException;
     }
 
-    static ActionRequestValidationException validateDocIdLength(
-        String id,
-        ActionRequestValidationException validationException
-    ) {
+    static ActionRequestValidationException validateDocIdLength(String id, ActionRequestValidationException validationException) {
         if (id != null && id.getBytes(StandardCharsets.UTF_8).length > MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
             validationException = addValidationError(
                 "id ["

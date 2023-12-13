@@ -514,8 +514,7 @@ public class UpdateRequestTests extends ESTestCase {
         request.doc("{}", XContentType.JSON);
         validate = request.validate();
         assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(),
-            containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
+        assertThat(validate.getMessage(), containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
     }
 
     public void testValidate() {

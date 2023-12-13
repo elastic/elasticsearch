@@ -1,5 +1,5 @@
 [chapter]
-[[getting-started]]
+[id="getting-started",canonical-url="https://www.elastic.co/guide/en/elasticsearch/reference/current/getting-started.html"]
 = Quick start
 
 This guide helps beginners learn how to:

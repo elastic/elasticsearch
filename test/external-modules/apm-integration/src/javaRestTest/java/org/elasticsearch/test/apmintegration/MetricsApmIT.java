@@ -62,18 +62,18 @@ public class MetricsApmIT extends ESRestTestCase {
         Map<String, Predicate<Map<String, Object>>> sampleAssertions = new HashMap<>(
             Map.ofEntries(
                 assertion(TestMeterUsages.VERY_LONG_NAME, m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("testLongCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("testAsyncDoubleCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("testAsyncLongCounter", m -> (Integer) m.get("value"), equalTo(1)),
-                assertion("testDoubleGauge", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("testLongGauge", m -> (Integer) m.get("value"), equalTo(1)),
+                assertion("es.testLongCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.testAsyncDoubleCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.testAsyncLongCounter", m -> (Integer) m.get("value"), equalTo(1)),
+                assertion("es.testDoubleGauge", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.testLongGauge", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion(
-                    "testDoubleHistogram",
+                    "es.testDoubleHistogram",
                     m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
                     equalTo(2)
                 ),
                 assertion(
-                    "testLongHistogram",
+                    "es.testLongHistogram",
                     m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
                     equalTo(2)
                 )

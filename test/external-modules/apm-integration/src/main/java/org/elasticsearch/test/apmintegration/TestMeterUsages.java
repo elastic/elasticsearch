@@ -26,18 +26,18 @@ public class TestMeterUsages {
     private final LongHistogram longHistogram;
     private final AtomicReference<DoubleWithAttributes> doubleWithAttributes = new AtomicReference<>();
     private final AtomicReference<LongWithAttributes> longWithAttributes = new AtomicReference<>();
-    public static String VERY_LONG_NAME = "a1234567890123456789012345678901234567890123456789012345678901234567890";
+    public static String VERY_LONG_NAME = "es.a1234567890123456789012345678901234567890123456789012345678901234567890";
 
     public TestMeterUsages(MeterRegistry meterRegistry) {
         this.doubleCounter = meterRegistry.registerDoubleCounter(VERY_LONG_NAME, "test", "unit");
-        this.longCounter = meterRegistry.registerDoubleCounter("testLongCounter", "test", "unit");
-        this.doubleHistogram = meterRegistry.registerDoubleHistogram("testDoubleHistogram", "test", "unit");
-        this.longHistogram = meterRegistry.registerLongHistogram("testLongHistogram", "test", "unit");
-        meterRegistry.registerDoubleGauge("testDoubleGauge", "test", "unit", doubleWithAttributes::get);
-        meterRegistry.registerLongGauge("testLongGauge", "test", "unit", longWithAttributes::get);
+        this.longCounter = meterRegistry.registerDoubleCounter("es.testLongCounter", "test", "unit");
+        this.doubleHistogram = meterRegistry.registerDoubleHistogram("es.testDoubleHistogram", "test", "unit");
+        this.longHistogram = meterRegistry.registerLongHistogram("es.testLongHistogram", "test", "unit");
+        meterRegistry.registerDoubleGauge("es.testDoubleGauge", "test", "unit", doubleWithAttributes::get);
+        meterRegistry.registerLongGauge("es.testLongGauge", "test", "unit", longWithAttributes::get);
 
-        meterRegistry.registerLongAsyncCounter("testAsyncLongCounter", "test", "unit", longWithAttributes::get);
-        meterRegistry.registerDoubleAsyncCounter("testAsyncDoubleCounter", "test", "unit", doubleWithAttributes::get);
+        meterRegistry.registerLongAsyncCounter("es.testAsyncLongCounter", "test", "unit", longWithAttributes::get);
+        meterRegistry.registerDoubleAsyncCounter("es.testAsyncDoubleCounter", "test", "unit", doubleWithAttributes::get);
     }
 
     public void testUponRequest() {

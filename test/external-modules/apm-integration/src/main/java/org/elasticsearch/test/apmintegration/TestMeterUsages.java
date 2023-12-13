@@ -30,14 +30,14 @@ public class TestMeterUsages {
 
     public TestMeterUsages(MeterRegistry meterRegistry) {
         this.doubleCounter = meterRegistry.registerDoubleCounter(VERY_LONG_NAME, "test", "unit");
-        this.longCounter = meterRegistry.registerDoubleCounter("es.testLongCounter", "test", "unit");
-        this.doubleHistogram = meterRegistry.registerDoubleHistogram("es.testDoubleHistogram", "test", "unit");
-        this.longHistogram = meterRegistry.registerLongHistogram("es.testLongHistogram", "test", "unit");
-        meterRegistry.registerDoubleGauge("es.testDoubleGauge", "test", "unit", doubleWithAttributes::get);
-        meterRegistry.registerLongGauge("es.testLongGauge", "test", "unit", longWithAttributes::get);
+        this.longCounter = meterRegistry.registerDoubleCounter("es.test.double_counter", "test", "unit");
+        this.doubleHistogram = meterRegistry.registerDoubleHistogram("es.test.double_histogram", "test", "unit");
+        this.longHistogram = meterRegistry.registerLongHistogram("es.test.long_histogram", "test", "unit");
+        meterRegistry.registerDoubleGauge("es.test.double_gauge", "test", "unit", doubleWithAttributes::get);
+        meterRegistry.registerLongGauge("es.test.long_gauge", "test", "unit", longWithAttributes::get);
 
-        meterRegistry.registerLongAsyncCounter("es.testAsyncLongCounter", "test", "unit", longWithAttributes::get);
-        meterRegistry.registerDoubleAsyncCounter("es.testAsyncDoubleCounter", "test", "unit", doubleWithAttributes::get);
+        meterRegistry.registerLongAsyncCounter("es.test.async_long_counter", "test", "unit", longWithAttributes::get);
+        meterRegistry.registerDoubleAsyncCounter("es.test.double_async_counter", "test", "unit", doubleWithAttributes::get);
     }
 
     public void testUponRequest() {

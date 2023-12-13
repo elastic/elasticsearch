@@ -28,7 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.SUPPORTS_FAILURE_STORE_REQUEST_OPTION;
+import static org.elasticsearch.TransportVersions.SUPPORTS_FAILURE_STORE_REQUEST_OPTIONS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 
@@ -296,7 +296,7 @@ public record IndicesOptions(
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         out.writeEnumSet(options);
         out.writeEnumSet(expandWildcards);
-        if (out.getTransportVersion().onOrAfter(SUPPORTS_FAILURE_STORE_REQUEST_OPTION)) {
+        if (out.getTransportVersion().onOrAfter(SUPPORTS_FAILURE_STORE_REQUEST_OPTIONS)) {
             out.writeOptionalEnum(failureStoreState);
         }
     }
@@ -304,7 +304,7 @@ public record IndicesOptions(
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         EnumSet<Option> options = in.readEnumSet(Option.class);
         EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
-        FailureStoreState failureStoreState = in.getTransportVersion().onOrAfter(SUPPORTS_FAILURE_STORE_REQUEST_OPTION)
+        FailureStoreState failureStoreState = in.getTransportVersion().onOrAfter(SUPPORTS_FAILURE_STORE_REQUEST_OPTIONS)
             ? in.readOptionalEnum(FailureStoreState.class)
             : null;
         return new IndicesOptions(options, states, failureStoreState);

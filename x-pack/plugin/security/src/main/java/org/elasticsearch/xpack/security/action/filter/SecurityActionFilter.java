@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
@@ -131,7 +131,9 @@ public class SecurityActionFilter implements ActionFilter {
         Request request,
         ActionListener<Response> listener
     ) {
-        if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
+        if (TransportCloseIndexAction.NAME.equals(action)
+            || OpenIndexAction.NAME.equals(action)
+            || TransportDeleteIndexAction.TYPE.name().equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
                 destructiveOperations.failDestructive(indicesRequest.indices());

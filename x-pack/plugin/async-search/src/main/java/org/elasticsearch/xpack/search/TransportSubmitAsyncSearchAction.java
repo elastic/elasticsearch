@@ -102,35 +102,49 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                             final String docId = searchTask.getExecutionId().getDocId();
                             // creates the fallback response if the node crashes/restarts in the middle of the request
                             // TODO: store intermediate results ?
+                            searchResponse.mustIncRef();
                             AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
-                            store.createResponse(docId, searchTask.getOriginHeaders(), initialResp, new ActionListener<>() {
-                                @Override
-                                public void onResponse(DocWriteResponse r) {
-                                    if (searchResponse.isRunning()) {
-                                        try {
-                                            // store the final response on completion unless the submit is cancelled
-                                            searchTask.addCompletionListener(
-                                                finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {})
-                                            );
-                                        } finally {
-                                            submitListener.onResponse(searchResponse);
+                            try {
+                                store.createResponse(
+                                    docId,
+                                    searchTask.getOriginHeaders(),
+                                    initialResp,
+                                    ActionListener.runAfter(new ActionListener<>() {
+                                        @Override
+                                        public void onResponse(DocWriteResponse r) {
+                                            if (searchResponse.isRunning()) {
+                                                try {
+                                                    // store the final response on completion unless the submit is cancelled
+                                                    searchTask.addCompletionListener(
+                                                        finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {})
+                                                    );
+                                                } finally {
+                                                    submitListener.onResponse(searchResponse);
+                                                }
+                                            } else {
+                                                onFinalResponse(
+                                                    searchTask,
+                                                    searchResponse,
+                                                    () -> submitListener.onResponse(searchResponse)
+                                                );
+                                            }
                                         }
-                                    } else {
-                                        onFinalResponse(searchTask, searchResponse, () -> submitListener.onResponse(searchResponse));
-                                    }
-                                }
 
-                                @Override
-                                public void onFailure(Exception exc) {
-                                    onFatalFailure(
-                                        searchTask,
-                                        exc,
-                                        searchResponse.isRunning(),
-                                        "fatal failure: unable to store initial response",
-                                        submitListener
-                                    );
-                                }
-                            });
+                                        @Override
+                                        public void onFailure(Exception exc) {
+                                            onFatalFailure(
+                                                searchTask,
+                                                exc,
+                                                searchResponse.isRunning(),
+                                                "fatal failure: unable to store initial response",
+                                                submitListener
+                                            );
+                                        }
+                                    }, searchResponse::decRef)
+                                );
+                            } finally {
+                                initialResp.decRef();
+                            }
                         } catch (Exception exc) {
                             onFatalFailure(searchTask, exc, searchResponse.isRunning(), "fatal failure: generic error", submitListener);
                         }

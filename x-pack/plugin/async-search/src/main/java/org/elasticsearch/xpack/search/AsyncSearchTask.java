@@ -307,10 +307,13 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
         AsyncSearchResponse finalResponse = getResponse();
-        for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
-            consumer.accept(finalResponse);
+        try {
+            for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
+                consumer.accept(finalResponse);
+            }
+        } finally {
+            finalResponse.decRef();
         }
-
     }
 
     /**

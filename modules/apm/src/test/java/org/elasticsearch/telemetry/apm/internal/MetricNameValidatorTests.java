@@ -35,14 +35,4 @@ public class MetricNameValidatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es.some_#_name0.somemetric.count"));
         expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es.some-name0.somemetric.count"));
     }
-    public void testLastElementAllowList(){
-        MetricNameValidator nameValidator = new MetricNameValidator();
-        nameValidator.validate("es.somemodule.somemetric.size");
-        nameValidator.validate("es.somemodule.somemetric.total");
-        nameValidator.validate("es.somemodule.somemetric.count");
-        nameValidator.validate("es.somemodule.somemetric.usage");
-        nameValidator.validate("es.somemodule.somemetric.utilization");
-        nameValidator.validate("es.somemodule.somemetric.requests");
-        expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es.somemodule.somemetric.some_other_suffix"));
-    }
 }

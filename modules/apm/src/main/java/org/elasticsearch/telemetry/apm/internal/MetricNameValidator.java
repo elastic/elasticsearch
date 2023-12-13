@@ -8,25 +8,16 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class MetricNameValidator {
     private final Pattern ALLOWED_CHARACTERS = Pattern.compile("[a-z][a-z0-9_]*");
-    private final Set<String> LAST_ELEMENT_ALLOW_LIST = Set.of(
-        "size",
-        "total",
-        "count",
-        "usage",
-        "utilization");
 
     public void validate(String name) {
         String[] elements = name.split("\\.");
         hasESPrefix(elements, name);
         hasOnlyAllowedCharacters(elements, name);
-        lastElementIsFromAllowListOrPlural(elements, name);
     }
 
     private static void hasESPrefix(String[] elements, String name) {
@@ -46,14 +37,4 @@ public class MetricNameValidator {
         }
     }
 
-    private void lastElementIsFromAllowListOrPlural(String[] elements, String name) {
-        String lastElement = elements[elements.length - 1];
-        if (LAST_ELEMENT_ALLOW_LIST.contains(lastElement) == false &&
-            lastElement.endsWith("s") == false) {
-            throw new IllegalArgumentException("Metric name should end with one of [" +
-                LAST_ELEMENT_ALLOW_LIST.stream().collect(Collectors.joining(",")) + "] or plural. " +
-                "Last element was: " + lastElement + ". " +
-                "Name was: " + name);
-        }
-    }
 }

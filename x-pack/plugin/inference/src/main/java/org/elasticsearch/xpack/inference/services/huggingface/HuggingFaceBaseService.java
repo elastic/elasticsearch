@@ -15,7 +15,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
-import org.elasticsearch.xpack.inference.external.http.batching.HuggingFaceRequestBatcher;
+import org.elasticsearch.xpack.inference.external.http.batching.HuggingFaceRequestBatcherFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public abstract class HuggingFaceBaseService extends SenderService<HuggingFaceAccount> {
 
     public HuggingFaceBaseService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
-        super(factory, serviceComponents, HuggingFaceRequestBatcher.Factory::new);
+        super(factory, serviceComponents, HuggingFaceRequestBatcherFactory::new);
     }
 
     @Override

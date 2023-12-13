@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.huggingface;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceElserResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceEmbeddingsResponseEntity;
@@ -22,10 +23,10 @@ import java.util.Objects;
  * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the hugging face model type.
  */
 public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
-    private final Sender sender;
+    private final Sender<HuggingFaceAccount> sender;
     private final ServiceComponents serviceComponents;
 
-    public HuggingFaceActionCreator(Sender sender, ServiceComponents serviceComponents) {
+    public HuggingFaceActionCreator(Sender<HuggingFaceAccount> sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }

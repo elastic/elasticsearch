@@ -19,7 +19,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.batching.ResponseHandler2;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
@@ -64,7 +63,7 @@ public class RetryingHttpSender implements Retrier {
 
     private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
         private final HttpRequestBase request;
-        private final ResponseHandler2 responseHandler;
+        private final ResponseHandler responseHandler;
         private final Logger logger;
         private final HttpClientContext context;
 
@@ -72,7 +71,7 @@ public class RetryingHttpSender implements Retrier {
             Logger logger,
             HttpRequestBase request,
             HttpClientContext context,
-            ResponseHandler2 responseHandler,
+            ResponseHandler responseHandler,
             ActionListener<InferenceServiceResults> listener
         ) {
             super(
@@ -159,7 +158,7 @@ public class RetryingHttpSender implements Retrier {
         Logger logger,
         HttpRequestBase request,
         HttpClientContext context,
-        ResponseHandler2 responseHandler,
+        ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     ) {
         InternalRetrier retrier = new InternalRetrier(logger, request, context, responseHandler, listener);

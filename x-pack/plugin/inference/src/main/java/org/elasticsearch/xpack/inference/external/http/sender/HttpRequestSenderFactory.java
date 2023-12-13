@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,10 +19,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.batching.BatchingComponents;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
-import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandler;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -150,20 +148,6 @@ public class HttpRequestSenderFactory {
             service.shutdown();
         }
 
-        /**
-         * Send a request at some point in the future with a timeout specified.
-         * @param request the http request to send
-         * @param timeout the maximum time the request should wait for a response before timing out. If null, the timeout is ignored.
-         *                The queuing logic may still throw a timeout if it fails to send the request because it couldn't get a leased
-         *                connection from the connection pool
-         * @param listener a listener to handle the response
-         */
-        public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
-            assert started.get() : "call start() before sending a request";
-            waitForStartToComplete();
-            service.send(request, timeout, listener);
-        }
-
         private void waitForStartToComplete() {
             try {
                 if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
@@ -176,13 +160,18 @@ public class HttpRequestSenderFactory {
 
         /**
          * Send a request at some point in the future. The timeout used is retrieved from the settings.
-         * @param request the http request to send
+         * @param input the list of string input to send in the request
          * @param listener a listener to handle the response
          */
-        public void send(HttpRequestBase request, ActionListener<HttpResult> listener) {
+        public void send(
+            RequestCreator<K> requestCreator,
+            List<String> input,
+            @Nullable TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send(request, maxRequestTimeout, listener);
+            service.send(requestCreator, input, timeout, listener);
         }
 
         /**
@@ -190,10 +179,10 @@ public class HttpRequestSenderFactory {
          * @param input the list of string input to send in the request
          * @param listener a listener to handle the response
          */
-        public void send2(TransactionHandler<K> transactionHandler, List<String> input, ActionListener<InferenceServiceResults> listener) {
+        public void send(RequestCreator<K> requestCreator, List<String> input, ActionListener<InferenceServiceResults> listener) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send2(transactionHandler, input, maxRequestTimeout, listener);
+            service.send(requestCreator, input, maxRequestTimeout, listener);
         }
 
         public static List<Setting<?>> getSettings() {

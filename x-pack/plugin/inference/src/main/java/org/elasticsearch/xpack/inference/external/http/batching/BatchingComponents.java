@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
+import org.elasticsearch.xpack.inference.external.http.retry.Retrier;
 
 import java.util.Objects;
 
-public record BatchingComponents(RetryingHttpSender retryingHttpSender, ThreadPool threadPool) {
+// TODO I think we can remove the threadpool?
+public record BatchingComponents(Retrier retrier, ThreadPool threadPool) {
     public BatchingComponents {
-        Objects.requireNonNull(retryingHttpSender);
+        Objects.requireNonNull(retrier);
         Objects.requireNonNull(threadPool);
     }
 }

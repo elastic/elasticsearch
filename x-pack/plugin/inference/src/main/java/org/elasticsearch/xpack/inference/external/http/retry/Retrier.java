@@ -12,14 +12,13 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.http.batching.ResponseHandler2;
 
 public interface Retrier {
     void send(
         Logger logger,
         HttpRequestBase request,
         HttpClientContext context,
-        ResponseHandler2 responseHandler,
+        ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     );
 }

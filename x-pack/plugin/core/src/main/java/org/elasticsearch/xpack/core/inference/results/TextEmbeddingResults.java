@@ -96,6 +96,11 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         return List.of(legacyEmbedding);
     }
 
+    @Override
+    public InferenceServiceResults subList(int start, int end) {
+        return new TextEmbeddingResults(embeddings.subList(start, end));
+    }
+
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(TEXT_EMBEDDING, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));

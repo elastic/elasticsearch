@@ -28,7 +28,7 @@ import java.util.function.Function;
 public abstract class SenderService<K> implements InferenceService {
     private final SetOnce<HttpRequestSenderFactory> factory;
     private final SetOnce<ServiceComponents> serviceComponents;
-    private final AtomicReference<Sender> sender = new AtomicReference<>();
+    private final AtomicReference<Sender<K>> sender = new AtomicReference<>();
     private final Function<BatchingComponents, RequestBatcherFactory<K>> batchFactoryCreator;
 
     public SenderService(
@@ -41,7 +41,7 @@ public abstract class SenderService<K> implements InferenceService {
         this.batchFactoryCreator = Objects.requireNonNull(batchFactoryCreator);
     }
 
-    protected Sender getSender() {
+    protected Sender<K> getSender() {
         return sender.get();
     }
 

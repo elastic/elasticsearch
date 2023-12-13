@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -19,10 +19,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
-import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandler;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -161,13 +160,15 @@ class HttpRequestExecutorService<K> implements ExecutorService {
     private void batchRequests(Task<K> initialTask) {
         try {
             var batcher = batcherFactory.create(httpContext);
-            batcher.add(initialTask);
 
             // TODO make this a setting
             // or make this auto adjustable some how
-            int batchSize = 20;
+            int batchSize = 5;
             List<Task<K>> requests = new ArrayList<>(batchSize);
+            requests.add(initialTask);
             queue.drainTo(requests, batchSize);
+
+            logger.warn(() -> format("Dequeued requests size: %s", requests.size()));
 
             if (hasAShutdownTask(requests)) {
                 running.set(false);
@@ -263,14 +264,14 @@ class HttpRequestExecutorService<K> implements ExecutorService {
         return terminationLatch.await(timeout, unit);
     }
 
-    // TODO: change the listener type to be correct
-    public void send2(
-        TransactionHandler<K> handler,
+    public void send(
+        RequestCreator<K> requestCreator,
         List<String> input,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        RequestTask2<K> task = new RequestTask2<>(handler, input, timeout, threadPool, listener);
+        var preservingListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
+        RequestTask2<K> task = new RequestTask2<>(requestCreator, input, timeout, threadPool, preservingListener);
 
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(
@@ -298,42 +299,42 @@ class HttpRequestExecutorService<K> implements ExecutorService {
         }
     }
 
-    /**
-     * Send the request at some point in the future.
-     * @param request the http request to send
-     * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
-     *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
-     *                If null, then the request will wait forever
-     * @param listener an {@link ActionListener<HttpResult>} for the response or failure
-     */
-    public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
-        RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
-
-        if (isShutdown()) {
-            EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-                format("Failed to enqueue task because the http executor service [%s] has already shutdown", serviceName),
-                true
-            );
-
-            task.onRejection(rejected);
-            return;
-        }
-
-        boolean added = queue.offer(task);
-        if (added == false) {
-            EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-                format("Failed to execute task because the http executor service [%s] queue is full", serviceName),
-                false
-            );
-
-            task.onRejection(rejected);
-        } else if (isShutdown()) {
-            // It is possible that a shutdown and notification request occurred after we initially checked for shutdown above
-            // If the task was added after the queue was already drained it could sit there indefinitely. So let's check again if
-            // we shut down and if so we'll redo the notification
-            notifyRequestsOfShutdown();
-        }
-    }
+    // /**
+    // * Send the request at some point in the future.
+    // * @param request the http request to send
+    // * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
+    // * listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
+    // * If null, then the request will wait forever
+    // * @param listener an {@link ActionListener<HttpResult>} for the response or failure
+    // */
+    // public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+    // RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
+    //
+    // if (isShutdown()) {
+    // EsRejectedExecutionException rejected = new EsRejectedExecutionException(
+    // format("Failed to enqueue task because the http executor service [%s] has already shutdown", serviceName),
+    // true
+    // );
+    //
+    // task.onRejection(rejected);
+    // return;
+    // }
+    //
+    // boolean added = queue.offer(task);
+    // if (added == false) {
+    // EsRejectedExecutionException rejected = new EsRejectedExecutionException(
+    // format("Failed to execute task because the http executor service [%s] queue is full", serviceName),
+    // false
+    // );
+    //
+    // task.onRejection(rejected);
+    // } else if (isShutdown()) {
+    // // It is possible that a shutdown and notification request occurred after we initially checked for shutdown above
+    // // If the task was added after the queue was already drained it could sit there indefinitely. So let's check again if
+    // // we shut down and if so we'll redo the notification
+    // notifyRequestsOfShutdown();
+    // }
+    // }
 
     /**
      * This method is not supported. Use {@link #send} instead.

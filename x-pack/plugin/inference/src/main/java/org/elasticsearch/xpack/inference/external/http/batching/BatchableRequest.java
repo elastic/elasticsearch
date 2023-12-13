@@ -13,7 +13,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import java.util.List;
 
 public interface BatchableRequest<K> {
-    TransactionHandler<K> handler();
+    RequestCreator<K> requestCreator();
 
     List<String> input();
 

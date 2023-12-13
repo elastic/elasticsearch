@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandler;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
 
 import java.util.List;
 
@@ -25,7 +25,7 @@ class ShutdownTask<K> implements Task<K> {
     }
 
     @Override
-    public TransactionHandler<K> handler() {
+    public RequestCreator<K> requestCreator() {
         return null;
     }
 
@@ -35,7 +35,7 @@ class ShutdownTask<K> implements Task<K> {
     }
 
     @Override
-    public ActionListener<HttpResult> listener() {
+    public ActionListener<InferenceServiceResults> listener() {
         return null;
     }
 

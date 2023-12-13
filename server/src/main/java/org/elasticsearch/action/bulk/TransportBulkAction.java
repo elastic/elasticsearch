@@ -73,6 +73,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1144,8 +1145,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // 2) Set its destination to be the targetIndexName's failure store
             // 3) Mark the index request as being sent to the failure store for the target index for correct routing later on
 
-            // For now, mark the item as failed
-            markItemAsFailed(slot, e);
+            try {
+                IndexRequest errorDocument = new FailureStoreDocument(indexRequest, e, targetIndexName).convert();
+                bulkRequest.requests.set(slot, errorDocument);
+
+                // For now, mark the item as failed
+                markItemAsFailed(slot, e);
+            } catch (IOException ex) {
+                ex.addSuppressed(e);
+                markItemAsFailed(slot, ex);
+            }
         }
     }
 }

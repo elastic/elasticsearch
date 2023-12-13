@@ -10,6 +10,8 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.telemetry.apm.internal.MetricNameValidator.MAX_ELEMENT_LENGTH;
+
 public class MetricNameValidatorTests extends ESTestCase {
     MetricNameValidator nameValidator = new MetricNameValidator();
 
@@ -50,9 +52,9 @@ public class MetricNameValidatorTests extends ESTestCase {
     }
 
     public void testElementLengthLimit() {
-        nameValidator.validate("es.a2345678900123456789.count");
+        nameValidator.validate("es." + "a".repeat(MAX_ELEMENT_LENGTH) + ".count");
 
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.a2345678900123456789x.count"));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es." + "a".repeat(MAX_ELEMENT_LENGTH + 1) + ".count"));
     }
 
     public void testLastElementAllowList() {
@@ -62,6 +64,9 @@ public class MetricNameValidatorTests extends ESTestCase {
         nameValidator.validate("es.somemodule.somemetric.count");
         nameValidator.validate("es.somemodule.somemetric.usage");
         nameValidator.validate("es.somemodule.somemetric.utilization");
+        nameValidator.validate("es.somemodule.somemetric.histogram");
+        nameValidator.validate("es.somemodule.somemetric.ratio");
+        nameValidator.validate("es.somemodule.somemetric.status");
         expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.somemodule.somemetric.some_other_suffix"));
     }
 }

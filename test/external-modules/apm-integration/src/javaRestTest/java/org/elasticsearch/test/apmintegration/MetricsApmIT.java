@@ -61,19 +61,19 @@ public class MetricsApmIT extends ESRestTestCase {
     public void testApmIntegration() throws Exception {
         Map<String, Predicate<Map<String, Object>>> sampleAssertions = new HashMap<>(
             Map.ofEntries(
-                assertion(TestMeterUsages.VERY_LONG_NAME, m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.double_counter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.async_double_counter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.async_long_counter", m -> (Integer) m.get("value"), equalTo(1)),
-                assertion("es.test.double_gauge", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.long_gauge", m -> (Integer) m.get("value"), equalTo(1)),
+                assertion("es.test.long_counter.count", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.double_counter.count", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.async_double_counter.count", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.async_long_counter.count", m -> (Integer) m.get("value"), equalTo(1)),
+                assertion("es.test.double_gauge.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.long_gauge.total", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion(
-                    "es.test.double_histogram",
+                    "es.test.double_histogram.histogram",
                     m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
                     equalTo(2)
                 ),
                 assertion(
-                    "es.test.long_histogram",
+                    "es.test.long_histogram.histogram",
                     m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
                     equalTo(2)
                 )
@@ -109,7 +109,7 @@ public class MetricsApmIT extends ESRestTestCase {
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
         finished.await(30, TimeUnit.SECONDS);
-        assertThat(sampleAssertions, Matchers.anEmptyMap());
+        assertThat(sampleAssertions, Matchers.equalTo(Collections.emptyMap()));
     }
 
     private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(

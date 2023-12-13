@@ -98,7 +98,7 @@ public class DesiredBalanceReconciler {
 
         unassignedShards = LongGaugeMetric.create(
             meterRegistry,
-            "es.allocator.desired_balance.shards.unassigned",
+            "es.allocator.desired_balance.shards.unassigned.count",
             "Unassigned shards count",
             "{shard}"
         );
@@ -110,12 +110,12 @@ public class DesiredBalanceReconciler {
         );
         undesiredAllocations = LongGaugeMetric.create(
             meterRegistry,
-            "es.allocator.desired_balance.allocations.undesired",
+            "es.allocator.desired_balance.allocations.undesired.count",
             "Count of shards allocated on undesired nodes",
             "{shard}"
         );
         undesiredAllocationsRatio = meterRegistry.registerDoubleGauge(
-            "es.allocator.desired_balance.allocations.undesired_ratio",
+            "es.allocator.desired_balance.allocations.undesired.ratio",
             "Ratio of undesired allocations to shard count",
             "1",
             () -> {

@@ -15,7 +15,19 @@ import java.util.stream.Collectors;
 
 public class MetricNameValidator {
     private final Pattern ALLOWED_CHARACTERS = Pattern.compile("[a-z][a-z0-9_]*");
-    private final Set<String> LAST_ELEMENT_ALLOW_LIST = Set.of("size", "total", "count", "usage", "utilization");
+    private final Set<String> LAST_ELEMENT_ALLOW_LIST = Set.of(
+        "size",
+        "total",
+        "count",
+        "usage",
+        "utilization",
+        "histogram",
+        "ratio",
+        "status" /*a workaround for enums */,
+        "time"
+    );
+
+    static final int MAX_ELEMENT_LENGTH = 30;
 
     public void validate(String name) {
         String[] elements = name.split("\\.");
@@ -75,9 +87,14 @@ public class MetricNameValidator {
     }
 
     private void hasNotBreachLengthLimit(String element, String name) {
-        if (element.length() > 20) {
+        if (element.length() > MAX_ELEMENT_LENGTH) {
             throw new IllegalArgumentException(
-                "Metric name's element should not be longer than 20 characters. Was: " + element.length() + ". Name was: " + name
+                "Metric name's element should not be longer than "
+                    + MAX_ELEMENT_LENGTH
+                    + " characters. Was: "
+                    + element.length()
+                    + ". Name was: "
+                    + name
             );
         }
     }

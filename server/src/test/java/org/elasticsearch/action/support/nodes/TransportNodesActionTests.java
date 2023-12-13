@@ -248,6 +248,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         expectThrows(TaskCancelledException.class, () -> listener.actionGet(10, TimeUnit.SECONDS));
+        assertTrue(cancellableTask.isCancelled()); // keep task alive
     }
 
     @BeforeClass

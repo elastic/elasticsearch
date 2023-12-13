@@ -154,7 +154,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
                 listener.onFailure(new IllegalArgumentException(message));
             }
-            metadataDataStreamsService.setRolloverNeeded(
+            metadataDataStreamsService.setRolloverOnWrite(
                 rolloverRequest.getRolloverTarget(),
                 true,
                 rolloverRequest.ackTimeout(),

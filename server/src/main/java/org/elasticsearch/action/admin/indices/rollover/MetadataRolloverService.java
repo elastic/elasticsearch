@@ -314,7 +314,7 @@ public class MetadataRolloverService {
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
 
         newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
-        newState = MetadataDataStreamsService.setRolloverNeeded(newState, dataStreamName, false);
+        newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false);
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }

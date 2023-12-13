@@ -110,9 +110,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final IndexMode indexMode;
     @Nullable
     private final DataStreamLifecycle lifecycle;
+    private final boolean rolloverOnWrite;
     private final boolean failureStore;
     private final List<Index> failureIndices;
-    private final boolean rolloverNeeded;
 
     public DataStream(
         String name,
@@ -159,7 +159,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamLifecycle lifecycle,
         boolean failureStore,
         List<Index> failureIndices,
-        boolean rolloverNeeded
+        boolean rolloverOnWrite
     ) {
         this(
             name,
@@ -175,7 +175,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
-            rolloverNeeded
+            rolloverOnWrite
         );
     }
 
@@ -194,7 +194,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamLifecycle lifecycle,
         boolean failureStore,
         List<Index> failureIndices,
-        boolean rolloverNeeded
+        boolean rolloverOnWrite
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -212,7 +212,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.failureStore = failureStore;
         this.failureIndices = failureIndices;
         assert assertConsistent(this.indices);
-        this.rolloverNeeded = rolloverNeeded;
+        this.rolloverOnWrite = rolloverOnWrite;
     }
 
     // mainly available for testing
@@ -273,8 +273,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return indices.get(indices.size() - 1);
     }
 
-    public boolean isRolloverNeeded() {
-        return rolloverNeeded;
+    public boolean rolloverOnWrite() {
+        return rolloverOnWrite;
     }
 
     /**
@@ -658,7 +658,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
-            rolloverNeeded
+            rolloverOnWrite
         );
     }
 
@@ -952,7 +952,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeCollection(failureIndices);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
-            out.writeBoolean(rolloverNeeded);
+            out.writeBoolean(rolloverOnWrite);
         }
     }
 
@@ -1011,6 +1011,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_ON_WRITE_FIELD);
+        // The fields behind the feature flag should always be last, so the parser will not fail when the feature flag is disabled
         if (DataStream.isFailureStoreEnabled()) {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
             PARSER.declareObjectArray(
@@ -1063,7 +1064,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration);
         }
-        builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), rolloverNeeded);
+        builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), rolloverOnWrite);
         builder.endObject();
         return builder;
     }
@@ -1085,7 +1086,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && Objects.equals(lifecycle, that.lifecycle)
             && failureStore == that.failureStore
             && failureIndices.equals(that.failureIndices)
-            && rolloverNeeded == that.rolloverNeeded;
+            && rolloverOnWrite == that.rolloverOnWrite;
     }
 
     @Override
@@ -1103,7 +1104,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
-            rolloverNeeded
+            rolloverOnWrite
         );
     }
 

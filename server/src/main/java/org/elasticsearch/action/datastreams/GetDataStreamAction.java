@@ -346,7 +346,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(SYSTEM_FIELD.getPreferredName(), dataStream.isSystem());
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
-                builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.isRolloverNeeded());
+                builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
                 if (DataStream.isFailureStoreEnabled()) {
                     builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
                 }

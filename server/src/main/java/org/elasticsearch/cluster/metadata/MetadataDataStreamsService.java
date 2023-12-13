@@ -42,7 +42,7 @@ public class MetadataDataStreamsService {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
-    private final MasterServiceTaskQueue<SetRolloverNeededTask> setRolloverNeededtaskQueue;
+    private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
 
     public MetadataDataStreamsService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
@@ -63,23 +63,23 @@ public class MetadataDataStreamsService {
         // We chose priority high because changing the lifecycle is changing the retention of a backing index, so processing it quickly
         // can either free space when the retention is shortened, or prevent an index to be deleted when the retention is extended.
         this.updateLifecycleTaskQueue = clusterService.createTaskQueue("modify-lifecycle", Priority.HIGH, updateLifecycleExecutor);
-        ClusterStateTaskExecutor<SetRolloverNeededTask> rolloverNeededExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+        ClusterStateTaskExecutor<SetRolloverOnWriteTask> rolloverOnWriteExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(
-                SetRolloverNeededTask setRolloverNeededTask,
+                SetRolloverOnWriteTask setRolloverOnWriteTask,
                 ClusterState clusterState
             ) {
                 return new Tuple<>(
-                    setRolloverNeeded(clusterState, setRolloverNeededTask.getDataStreamName(), setRolloverNeededTask.isRolloverNeeded()),
-                    setRolloverNeededTask
+                    setRolloverOnWrite(clusterState, setRolloverOnWriteTask.getDataStreamName(), setRolloverOnWriteTask.rolloverOnWrite()),
+                    setRolloverOnWriteTask
                 );
             }
         };
-        this.setRolloverNeededtaskQueue = clusterService.createTaskQueue(
-            "data-stream-rollover-needed",
+        this.setRolloverOnWriteTaskQueue = clusterService.createTaskQueue(
+            "data-stream-rollover-on-write",
             Priority.NORMAL,
-            rolloverNeededExecutor
+            rolloverOnWriteExecutor
         );
     }
 
@@ -141,18 +141,18 @@ public class MetadataDataStreamsService {
     }
 
     /**
-     * Submits the task to signal that the next time this data stream receives a document, it needs to be rolled over.
+     * Submits the task to signal that the next time this data stream receives a document, it will be rolled over.
      */
-    public void setRolloverNeeded(
+    public void setRolloverOnWrite(
         String dataStreamName,
-        boolean rolloverNeeded,
+        boolean rolloverOnWrite,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        setRolloverNeededtaskQueue.submitTask(
-            "set-rollover-needed",
-            new SetRolloverNeededTask(dataStreamName, rolloverNeeded, ackTimeout, listener),
+        setRolloverOnWriteTaskQueue.submitTask(
+            "set-rollover-on-write",
+            new SetRolloverOnWriteTask(dataStreamName, rolloverOnWrite, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -220,12 +220,12 @@ public class MetadataDataStreamsService {
     }
 
     /**
-     * Creates an updated cluster state in which the requested data stream has the flag that it needs a rollover set to true.
+     * Creates an updated cluster state in which the requested data stream has the flag 'rollover_on_write' set to true.
      */
-    public static ClusterState setRolloverNeeded(ClusterState currentState, String dataStreamName, boolean rolloverNeeded) {
+    public static ClusterState setRolloverOnWrite(ClusterState currentState, String dataStreamName, boolean rolloverOnWrite) {
         Metadata metadata = currentState.metadata();
         var dataStream = validateDataStream(metadata, dataStreamName);
-        if (dataStream.isRolloverNeeded() == rolloverNeeded) {
+        if (dataStream.rolloverOnWrite() == rolloverOnWrite) {
             return currentState;
         }
         Metadata.Builder builder = Metadata.builder(metadata);
@@ -243,7 +243,7 @@ public class MetadataDataStreamsService {
                 dataStream.getLifecycle(),
                 dataStream.isFailureStore(),
                 dataStream.getFailureIndices(),
-                rolloverNeeded
+                rolloverOnWrite
             )
         );
         return ClusterState.builder(currentState).metadata(builder.build()).build();
@@ -348,28 +348,28 @@ public class MetadataDataStreamsService {
     /**
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
-    static class SetRolloverNeededTask extends AckedBatchedClusterStateUpdateTask {
+    static class SetRolloverOnWriteTask extends AckedBatchedClusterStateUpdateTask {
 
         private final String dataStreamName;
-        private final boolean rolloverNeeded;
+        private final boolean rolloverOnWrite;
 
-        SetRolloverNeededTask(
+        SetRolloverOnWriteTask(
             String dataStreamName,
-            boolean rolloverNeeded,
+            boolean rolloverOnWrite,
             TimeValue ackTimeout,
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
             this.dataStreamName = dataStreamName;
-            this.rolloverNeeded = rolloverNeeded;
+            this.rolloverOnWrite = rolloverOnWrite;
         }
 
         public String getDataStreamName() {
             return dataStreamName;
         }
 
-        public boolean isRolloverNeeded() {
-            return rolloverNeeded;
+        public boolean rolloverOnWrite() {
+            return rolloverOnWrite;
         }
     }
 }

@@ -438,7 +438,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[4];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(mockMetadataDataStreamService).setRolloverNeeded(eq(dataStream.getName()), eq(true), any(), any(), anyActionListener());
+        }).when(mockMetadataDataStreamService).setRolloverOnWrite(eq(dataStream.getName()), eq(true), any(), any(), anyActionListener());
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),

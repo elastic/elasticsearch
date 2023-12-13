@@ -56,7 +56,6 @@ public class MetricsApmIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103286")
     @SuppressWarnings("unchecked")
     public void testApmIntegration() throws Exception {
         Map<String, Predicate<Map<String, Object>>> sampleAssertions = new HashMap<>(
@@ -109,7 +108,7 @@ public class MetricsApmIT extends ESRestTestCase {
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
         finished.await(30, TimeUnit.SECONDS);
-        assertThat(sampleAssertions, Matchers.anEmptyMap());
+        assertThat(sampleAssertions, Matchers.equalTo(Collections.emptyMap()));
     }
 
     private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(

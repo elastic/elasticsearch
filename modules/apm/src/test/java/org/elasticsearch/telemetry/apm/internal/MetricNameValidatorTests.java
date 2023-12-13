@@ -11,9 +11,9 @@ package org.elasticsearch.telemetry.apm.internal;
 import org.elasticsearch.test.ESTestCase;
 
 public class MetricNameValidatorTests extends ESTestCase {
+    MetricNameValidator nameValidator = new MetricNameValidator();
 
     public void testESPrefixAndDotSeparator() {
-        MetricNameValidator nameValidator = new MetricNameValidator();
         nameValidator.validate("es.somemodule.somemetric.count");
 
         expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("somemodule.somemetric.count"));
@@ -23,7 +23,6 @@ public class MetricNameValidatorTests extends ESTestCase {
     }
 
     public void testNameElementRegex() {
-        MetricNameValidator nameValidator = new MetricNameValidator();
         nameValidator.validate("es.somemodulename0.somemetric.count");
         nameValidator.validate("es.some_module_name0.somemetric.count");
         nameValidator.validate("es.s.somemetric.count");
@@ -36,12 +35,33 @@ public class MetricNameValidatorTests extends ESTestCase {
     }
 
     public void testNameHas3Elements() {
-        MetricNameValidator nameValidator = new MetricNameValidator();
-        nameValidator.validate("es.group.suffix");
-        nameValidator.validate("es.group.subgroup.suffix");
+        nameValidator.validate("es.group.count");
+        nameValidator.validate("es.group.subgroup.count");
 
         expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es"));
         expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es."));
         expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.sth"));
+    }
+
+    public void testNumberOfElementsLimit() {
+        nameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.count");
+
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.a10.count"));
+    }
+
+    public void testElementLengthLimit() {
+        nameValidator.validate("es.a2345678900123456789.count");
+
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.a2345678900123456789x.count"));
+    }
+
+    public void testLastElementAllowList() {
+        MetricNameValidator nameValidator = new MetricNameValidator();
+        nameValidator.validate("es.somemodule.somemetric.size");
+        nameValidator.validate("es.somemodule.somemetric.total");
+        nameValidator.validate("es.somemodule.somemetric.count");
+        nameValidator.validate("es.somemodule.somemetric.usage");
+        nameValidator.validate("es.somemodule.somemetric.utilization");
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.somemodule.somemetric.some_other_suffix"));
     }
 }

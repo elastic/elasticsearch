@@ -8,17 +8,47 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class MetricNameValidator {
     private final Pattern ALLOWED_CHARACTERS = Pattern.compile("[a-z][a-z0-9_]*");
+    private final Set<String> LAST_ELEMENT_ALLOW_LIST = Set.of("size", "total", "count", "usage", "utilization");
 
     public void validate(String name) {
         String[] elements = name.split("\\.");
         hasESPrefix(elements, name);
-        hasOnlyAllowedCharacters(elements, name);
         hasAtLeast3Elements(elements, name);
+        hasNotBreachNumberOfElementsLimit(elements, name);
+        lastElementIsFromAllowListOrPlural(elements, name);
+
+        perElementValidations(elements, name);
+    }
+
+    private void lastElementIsFromAllowListOrPlural(String[] elements, String name) {
+        String lastElement = elements[elements.length - 1];
+        if (LAST_ELEMENT_ALLOW_LIST.contains(lastElement) == false) {
+            throw new IllegalArgumentException(
+                "Metric name should end with one of ["
+                    + LAST_ELEMENT_ALLOW_LIST.stream().collect(Collectors.joining(","))
+                    + "] "
+                    + "Last element was: "
+                    + lastElement
+                    + ". "
+                    + "Name was: "
+                    + name
+            );
+        }
+    }
+
+    private void hasNotBreachNumberOfElementsLimit(String[] elements, String name) {
+        if (elements.length > 10) {
+            throw new IllegalArgumentException(
+                "Metric name should have at most 10 elements. It had: " + elements.length + ". The name was: " + name
+            );
+        }
     }
 
     private void hasAtLeast3Elements(String[] elements, String name) {
@@ -37,19 +67,32 @@ public class MetricNameValidator {
         }
     }
 
-    private void hasOnlyAllowedCharacters(String[] elements, String name) {
+    private void perElementValidations(String[] elements, String name) {
         for (String element : elements) {
-            Matcher matcher = ALLOWED_CHARACTERS.matcher(element);
-            if (matcher.matches() == false) {
-                throw new IllegalArgumentException(
-                    "Metric name should only use [a-z][a-z0-9_]* characters. "
-                        + "Element does not match: \""
-                        + element
-                        + "\". "
-                        + "Name was: "
-                        + name
-                );
-            }
+            hasOnlyAllowedCharacters(element, name);
+            hasNotBreachLengthLimit(element, name);
+        }
+    }
+
+    private void hasNotBreachLengthLimit(String element, String name) {
+        if (element.length() > 20) {
+            throw new IllegalArgumentException(
+                "Metric name's element should not be longer than 20 characters. Was: " + element.length() + ". Name was: " + name
+            );
+        }
+    }
+
+    private void hasOnlyAllowedCharacters(String element, String name) {
+        Matcher matcher = ALLOWED_CHARACTERS.matcher(element);
+        if (matcher.matches() == false) {
+            throw new IllegalArgumentException(
+                "Metric name should only use [a-z][a-z0-9_]* characters. "
+                    + "Element does not match: \""
+                    + element
+                    + "\". "
+                    + "Name was: "
+                    + name
+            );
         }
     }
 

@@ -983,8 +983,6 @@ public class HotThreadsTests extends ESTestCase {
         try (var stringWriter = new StringWriter()) {
             new HotThreads().detect(stringWriter);
             assertEquals(ALREADY_RUNNING_MESSAGE, stringWriter.toString());
-        } catch (Exception e) {
-            fail(e);
         } finally {
             safeAwait(barrier);
             backgroundThread.join();

@@ -23,6 +23,9 @@ You can use these APIs to create, get, delete and update connectors.
 Use the following APIs to manage connectors:
 
 * <<create-connector-api>>
+* <<delete-connector-api>>
+* <<get-connector-api>>
+* <<list-connector-api>>
 
 
 [discrete]
@@ -33,5 +36,11 @@ You can use these APIs to create, cancel, delete and update sync jobs.
 
 Use the following APIs to manage sync jobs:
 
+* <<create-connector-sync-job-api>>
+
 
 include::create-connector-api.asciidoc[]
+include::create-connector-sync-job-api.asciidoc[]
+include::delete-connector-api.asciidoc[]
+include::get-connector-api.asciidoc[]
+include::list-connectors-api.asciidoc[]

@@ -1418,6 +1418,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (rolloverInfos.equals(that.rolloverInfos) == false) {
             return false;
         }
+        if (fieldsForModels.equals(that.fieldsForModels) == false) {
+            return false;
+        }
         if (isSystem != that.isSystem) {
             return false;
         }
@@ -1438,6 +1441,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + Arrays.hashCode(primaryTerms);
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + rolloverInfos.hashCode();
+        result = 31 * result + fieldsForModels.hashCode();
         result = 31 * result + Boolean.hashCode(isSystem);
         return result;
     }

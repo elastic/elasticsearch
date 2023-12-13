@@ -74,10 +74,10 @@ public class RollupResponseTranslator {
      * on the translation conventions
      */
     public static SearchResponse translateResponse(
-        MultiSearchResponse.Item[] rolledMsearch,
+        MultiSearchResponse mSearchResponse,
         AggregationReduceContext.Builder reduceContextBuilder
     ) throws Exception {
-
+        var rolledMsearch = mSearchResponse.getResponses();
         assert rolledMsearch.length > 0;
         List<SearchResponse> responses = new ArrayList<>();
         for (MultiSearchResponse.Item item : rolledMsearch) {
@@ -200,13 +200,13 @@ public class RollupResponseTranslator {
      * so that the final product looks like a regular aggregation response, allowing it to be
      * reduced/merged into the response from the un-rolled index
      *
-     * @param msearchResponses The responses from the msearch, where the first response is the live-index response
+     * @param mSearchResponse The response from the msearch, where the first response is the live-index response
      */
     public static SearchResponse combineResponses(
-        MultiSearchResponse.Item[] msearchResponses,
+        MultiSearchResponse mSearchResponse,
         AggregationReduceContext.Builder reduceContextBuilder
     ) throws Exception {
-
+        var msearchResponses = mSearchResponse.getResponses();
         assert msearchResponses.length >= 2;
 
         boolean first = true;

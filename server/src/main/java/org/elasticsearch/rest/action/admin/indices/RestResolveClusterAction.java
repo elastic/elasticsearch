@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class RestResolveClusterAction extends BaseRestHandler {
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] indexExpressions = Strings.splitStringByCommaToArray(request.param("name"));
         ResolveClusterAction.Request resolveRequest = new ResolveClusterAction.Request(indexExpressions);
-        return channel -> client.admin()
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .execute(ResolveClusterAction.INSTANCE, resolveRequest, new RestToXContentListener<>(channel));
     }

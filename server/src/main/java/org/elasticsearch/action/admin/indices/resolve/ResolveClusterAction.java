@@ -35,7 +35,9 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -149,6 +151,16 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
         public boolean includeDataStreams() {
             // request must allow data streams because the index name expression resolver for the action handler assumes it
             return true;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+                @Override
+                public String getDescription() {
+                    return "resolve/cluster for " + Arrays.toString(indices());
+                }
+            };
         }
     }
 
@@ -321,7 +333,6 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
     }
 
     public static class TransportAction extends HandledTransportAction<ResolveClusterAction.Request, ResolveClusterAction.Response> {
-
         private final ThreadPool threadPool;
         private final Executor searchCoordinationExecutor;
         private final ClusterService clusterService;
@@ -360,6 +371,8 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
+            assert task instanceof CancellableTask;
+            final CancellableTask resolveClusterTask = (CancellableTask) task;
             ClusterState clusterState = clusterService.state();
             Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
                 request.indicesOptions(),
@@ -372,6 +385,7 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                 int remoteRequests = remoteClusterIndices.size();
                 CountDown completionCounter = new CountDown(remoteRequests);
                 Runnable terminalHandler = () -> {
+                    resolveClusterTask.ensureNotCancelled();
                     if (completionCounter.countDown()) {
                         listener.onResponse(new ResolveClusterAction.Response(clusterInfoMap));
                     }
@@ -386,61 +400,55 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                 }
 
                 // make the cross-cluster calls
-                final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
                 for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
+                    resolveClusterTask.ensureNotCancelled();
                     String clusterAlias = remoteIndices.getKey();
                     OriginalIndices originalIndices = remoteIndices.getValue();
                     boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                     Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                         threadPool,
                         clusterAlias,
-                        remoteClientResponseExecutor
+                        searchCoordinationExecutor
                     );
                     ResolveClusterAction.Request remoteRequest = new ResolveClusterAction.Request(originalIndices.indices());
-                    remoteClusterClient.admin()
-                        .indices()
-                        .execute(ResolveClusterAction.INSTANCE, remoteRequest, new ActionListener<Response>() {
-                            @Override
-                            public void onResponse(Response response) {
-                                ResolveClusterInfo info = response.getResolveClusterInfo().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                                if (info != null) {
-                                    clusterInfoMap.put(
-                                        clusterAlias,
-                                        new ResolveClusterInfo(
-                                            info.isConnected(),
-                                            skipUnavailable,
-                                            info.getMatchingIndices(),
-                                            info.getBuild()
-                                        )
-                                    );
-                                }
-                                terminalHandler.run();
+                    remoteClusterClient.admin().indices().execute(ResolveClusterAction.INSTANCE, remoteRequest, new ActionListener<>() {
+                        @Override
+                        public void onResponse(Response response) {
+                            ResolveClusterInfo info = response.getResolveClusterInfo().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                            if (info != null) {
+                                clusterInfoMap.put(
+                                    clusterAlias,
+                                    new ResolveClusterInfo(info.isConnected(), skipUnavailable, info.getMatchingIndices(), info.getBuild())
+                                );
                             }
+                            terminalHandler.run();
+                        }
 
-                            @Override
-                            public void onFailure(Exception failure) {
-                                if (notConnectedError(failure)) {
-                                    clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
-                                } else if (clusterResolveEndpointNotFound(failure)) {
-                                    // if the endpoint returns an error that it does not _resolve/cluster, we know we are connected
-                                    // TODO: call remoteClusterClient.admin().indices().resolveIndex() to fill in 'matching_indices'?
-                                    clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable));
-                                } else {
-                                    Throwable cause = ExceptionsHelper.unwrapCause(failure);
-                                    // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
-                                    // determine based on the error, so we default to false in the face of any error and report it
-                                    // back to the user for consideration
-                                    clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
-                                    logger.warn(
-                                        () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
-                                        failure
-                                    );
-                                }
-                                terminalHandler.run();
+                        @Override
+                        public void onFailure(Exception failure) {
+                            if (notConnectedError(failure)) {
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                            } else if (clusterResolveEndpointNotFound(failure)) {
+                                // if the endpoint returns an error that it does not _resolve/cluster, we know we are connected
+                                // TODO: call remoteClusterClient.admin().indices().resolveIndex() to fill in 'matching_indices'?
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable));
+                            } else {
+                                Throwable cause = ExceptionsHelper.unwrapCause(failure);
+                                // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
+                                // determine based on the error, so we default to false in the face of any error and report it
+                                // back to the user for consideration
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
+                                logger.warn(
+                                    () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
+                                    failure
+                                );
                             }
-                        });
+                            terminalHandler.run();
+                        }
+                    });
                 }
             } else {
+                resolveClusterTask.ensureNotCancelled();
                 clusterInfoMap.put(
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     new ResolveClusterInfo(true, null, hasMatchingIndices(localIndices, clusterState), Build.current())

@@ -22,7 +22,9 @@ public class MetricNameValidator {
 
     private static void hasESPrefix(String[] elements, String name) {
         if (elements[0].equals("es") == false) {
-            throw new IllegalArgumentException("Metric name should start with \"es.\" prefix. Name was: " + name);
+            throw new IllegalArgumentException(
+                "Metric name should start with \"es.\" prefix and use \".\" as a separator. Name was: " + name
+            );
         }
     }
 

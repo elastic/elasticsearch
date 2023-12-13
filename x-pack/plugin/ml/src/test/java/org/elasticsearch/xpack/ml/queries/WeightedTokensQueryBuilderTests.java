@@ -56,8 +56,12 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     @Override
     protected WeightedTokensQueryBuilder doCreateTestQueryBuilder() {
+        return createTestQueryBuilder(randomBoolean());
+    }
+
+    private WeightedTokensQueryBuilder createTestQueryBuilder(boolean onlyScorePrunedTokens) {
         TokenPruningConfig tokenPruningConfig = randomBoolean()
-            ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean())
+            ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), onlyScorePrunedTokens)
             : null;
 
         var builder = new WeightedTokensQueryBuilder(RANK_FEATURES_FIELD, WEIGHTED_TOKENS, tokenPruningConfig);
@@ -120,7 +124,8 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
             iw.addDocument(document);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                WeightedTokensQueryBuilder firstQuery = createTestQueryBuilder();
+                // We need to force token pruning config here, to get repeatable lucene queries for comparison
+                WeightedTokensQueryBuilder firstQuery = createTestQueryBuilder(false);
                 WeightedTokensQueryBuilder controlQuery = copyQuery(firstQuery);
                 QueryBuilder rewritten = rewriteQuery(firstQuery, context);
                 Query firstLuceneQuery = rewritten.toQuery(context);

@@ -49,6 +49,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -66,6 +67,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
 
     private static final Settings TEST_SETTINGS = Settings.builder()
         .put(CUT_OFF_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(FREQUENCY_IN_SECONDS))
+        .put(RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(50))
         .build();
 
     private final ThreadPool testThreadPool = new TestThreadPool(IndicesMappingSizeCollectorTests.class.getSimpleName());

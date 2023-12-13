@@ -622,6 +622,7 @@ public class Stateless extends Plugin
             IngestLoadSampler.SAMPLING_FREQUENCY_SETTING,
             IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
             IndicesMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
+            IndicesMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,

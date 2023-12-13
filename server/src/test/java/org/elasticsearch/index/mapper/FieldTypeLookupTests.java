@@ -8,7 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -16,6 +18,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -35,6 +38,10 @@ public class FieldTypeLookupTests extends ESTestCase {
         Collection<String> names = lookup.getMatchingFieldNames("foo");
         assertNotNull(names);
         assertThat(names, hasSize(0));
+
+        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        assertNotNull(fieldsForModels);
+        assertTrue(fieldsForModels.isEmpty());
     }
 
     public void testAddNewField() {
@@ -42,6 +49,10 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup.get("foo"));
+
+        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        assertNotNull(fieldsForModels);
+        assertTrue(fieldsForModels.isEmpty());
     }
 
     public void testAddFieldAlias() {
@@ -421,7 +432,51 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
+    public void testInferenceModelFieldType() {
+        MockFieldMapper f = new MockFieldMapper(new MockInferenceModelFieldType("foo", "bar"));
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
+        assertEquals(f.fieldType(), lookup.get("foo"));
+        assertEquals(Collections.emptySet(), lookup.getFieldsForModel("baz"));
+        assertEquals(Collections.singleton("foo"), lookup.getFieldsForModel("bar"));
+
+        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        assertNotNull(fieldsForModels);
+        assertEquals(1, fieldsForModels.size());
+        assertEquals(Collections.singleton("foo"), fieldsForModels.get("bar"));
+    }
+
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
         return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
+    }
+
+    private static class MockInferenceModelFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {
+        private static final String TYPE_NAME = "mock_inference_model_field_type";
+
+        private final String modelId;
+
+        MockInferenceModelFieldType(String name, String modelId) {
+            super(name, false, false, false, TextSearchInfo.NONE, Map.of());
+            this.modelId = modelId;
+        }
+
+        @Override
+        public String typeName() {
+            return TYPE_NAME;
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("termQuery not implemented");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return SourceValueFetcher.toString(name(), context, format);
+        }
+
+        @Override
+        public String getInferenceModel() {
+            return modelId;
+        }
     }
 }

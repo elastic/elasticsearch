@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.xpack.application.connector.action.PostConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.configuration.ConfigurationDependency;
 import org.elasticsearch.xpack.application.connector.configuration.ConfigurationDisplayType;
@@ -43,6 +44,17 @@ public final class ConnectorTestUtils {
     public static PutConnectorAction.Request getRandomPutConnectorActionRequest() {
         return new PutConnectorAction.Request(
             randomAlphaOfLengthBetween(5, 15),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomBoolean()),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15))
+        );
+    }
+
+    public static PostConnectorAction.Request getRandomPostConnectorActionRequest() {
+        return new PostConnectorAction.Request(
             randomFrom(randomAlphaOfLengthBetween(5, 15)),
             randomFrom(randomAlphaOfLengthBetween(5, 15)),
             randomFrom(randomBoolean()),
@@ -226,22 +238,22 @@ public final class ConnectorTestUtils {
     }
 
     public static Connector getRandomConnector() {
-        return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
-            .setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+
+        return new Connector.Builder().setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setConfiguration(getRandomConnectorConfiguration())
             .setCustomScheduling(Map.of(randomAlphaOfLengthBetween(5, 10), getRandomConnectorCustomSchedule()))
             .setDescription(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setFeatures(randomBoolean() ? getRandomConnectorFeatures() : null)
-            .setFiltering(randomBoolean() ? List.of(getRandomConnectorFiltering()) : null)
-            .setIndexName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setFiltering(List.of(getRandomConnectorFiltering()))
+            .setIndexName(randomAlphaOfLength(10))
             .setIsNative(randomBoolean())
             .setLanguage(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setLastSeen(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
             .setSyncInfo(getRandomConnectorSyncInfo())
             .setName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setPipeline(randomBoolean() ? getRandomConnectorIngestPipeline() : null)
-            .setScheduling(randomBoolean() ? getRandomConnectorScheduling() : null)
+            .setScheduling(getRandomConnectorScheduling())
             .setStatus(getRandomConnectorStatus())
             .setSyncCursor(randomBoolean() ? Map.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)) : null)
             .setSyncNow(randomBoolean())

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
@@ -19,16 +20,24 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
 
-public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSettings {
+public record HuggingFaceElserServiceSettings(URI uri, Integer maxInputTokens) implements ServiceSettings {
+
     public static final String NAME = "hugging_face_elser_service_settings";
+    private static final Integer ELSER_TOKEN_LIMIT = 512;
 
     static final String URL = "url";
 
     public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map) {
-        return new HuggingFaceElserServiceSettings(extractUri(map, URL));
+        ValidationException validationException = new ValidationException();
+        var uri = extractUri(map, URL, validationException);
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+        return new HuggingFaceElserServiceSettings(uri, ELSER_TOKEN_LIMIT);
     }
 
     public HuggingFaceElserServiceSettings {
@@ -36,7 +45,7 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
     }
 
     public HuggingFaceElserServiceSettings(String url) {
-        this(createUri(url));
+        this(createUri(url), ELSER_TOKEN_LIMIT);
     }
 
     public HuggingFaceElserServiceSettings(StreamInput in) throws IOException {
@@ -47,6 +56,7 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(URL, uri.toString());
+        builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         builder.endObject();
 
         return builder;

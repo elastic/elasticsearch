@@ -22,7 +22,7 @@ setup:
       connector.get:
         connector_id: test-connector
 
-  - match: { connector_id: test-connector }
+  - match: { id: test-connector }
   - match: { index_name: search-test }
   - match: { name: my-connector }
   - match: { language: pl }
@@ -43,7 +43,7 @@ setup:
       connector.get:
         connector_id: test-connector-with-defaults
 
-  - match: { connector_id: test-connector-with-defaults }
+  - match: { id: test-connector-with-defaults }
   - match: { index_name: search-test }
   - match: { is_native: false }
   - match: { sync_now: false }
@@ -67,7 +67,7 @@ setup:
       connector.get:
         connector_id: test-connector-native
 
-  - match: { connector_id: test-connector-native }
+  - match: { id: test-connector-native }
   - match: { index_name: search-test }
   - match: { is_native: true }
   - match: { sync_now: false }

@@ -280,18 +280,10 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                     null,
                     0
                 );
-
-                final SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
-                    randomAlphaOfLengthBetween(3, 8),
-                    1,
-                    1,
-                    0,
-                    10,
-                    null,
-                    null
+                ActionListener.respondAndRelease(
+                    l,
+                    new SearchResponse(internalSearchResponse, randomAlphaOfLengthBetween(3, 8), 1, 1, 0, 10, null, null)
                 );
-                l.onResponse(searchResponse);
             } else if (r instanceof ClearScrollRequest) {
                 l.onResponse(new ClearScrollResponse(true, 1));
             } else {

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.dataframe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -241,7 +241,7 @@ public class DataFrameAnalyticsManager {
         ClientHelper.executeAsyncWithOrigin(
             new ParentTaskAssigningClient(client, task.getParentTaskId()),
             ML_ORIGIN,
-            DeleteIndexAction.INSTANCE,
+            TransportDeleteIndexAction.TYPE,
             new DeleteIndexRequest(config.getDest().getIndex()),
             ActionListener.wrap(
                 r -> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config, destIndexAllowedSettings)),

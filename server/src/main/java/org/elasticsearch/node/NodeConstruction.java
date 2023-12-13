@@ -995,7 +995,15 @@ class NodeConstruction {
 
         modules.add(
             loadPluginShutdownService(clusterService),
-            loadDiagnosticServices(settings, discoveryModule.getCoordinator(), clusterService, transportService, featureService, threadPool)
+            loadDiagnosticServices(
+                settings,
+                discoveryModule.getCoordinator(),
+                clusterService,
+                transportService,
+                featureService,
+                threadPool,
+                telemetryProvider
+            )
         );
 
         RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
@@ -1132,7 +1140,8 @@ class NodeConstruction {
         ClusterService clusterService,
         TransportService transportService,
         FeatureService featureService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        TelemetryProvider telemetryProvider
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1156,7 +1165,13 @@ class NodeConstruction {
             Stream.concat(serverHealthIndicatorServices, pluginHealthIndicatorServices).toList(),
             threadPool
         );
-        HealthPeriodicLogger healthPeriodicLogger = HealthPeriodicLogger.create(settings, clusterService, client, healthService);
+        HealthPeriodicLogger healthPeriodicLogger = HealthPeriodicLogger.create(
+            settings,
+            clusterService,
+            client,
+            healthService,
+            telemetryProvider
+        );
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
             settings,

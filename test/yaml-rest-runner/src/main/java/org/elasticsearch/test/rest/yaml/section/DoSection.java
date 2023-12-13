@@ -662,7 +662,7 @@ public class DoSection implements ExecutableSection {
             nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
             versionSelectorString = "version is " + Build.current().version() + " (current)";
         } else {
-            var acceptedVersionRange = SkipSection.parseVersionRanges(parser.text());
+            var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
             nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
             versionSelectorString = "version ranges " + acceptedVersionRange;
         }

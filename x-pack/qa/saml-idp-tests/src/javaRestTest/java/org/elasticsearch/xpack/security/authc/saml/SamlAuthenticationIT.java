@@ -155,8 +155,8 @@ public class SamlAuthenticationIT extends ESRestTestCase {
 
     private static String calculateIdpMetaData() {
         Resource resource = Resource.fromClasspath("/idp/shibboleth-idp/metadata/idp-metadata.xml");
-        try {
-            String metadata = IOUtils.toString(resource.asStream());
+        try (InputStream stream = resource.asStream()) {
+            String metadata = IOUtils.toString(stream, "UTF-8");
             return metadata.replace("${port}", String.valueOf(idpFixture.getDefaultPort()));
         } catch (IOException e) {
             throw new RuntimeException(e);

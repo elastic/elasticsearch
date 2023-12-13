@@ -20,8 +20,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
 public abstract class AbstractVersionTask extends DefaultTask {
-    static final String SERVER_PATH = "server/src/main/java/";
-    static final String VERSION_PATH = SERVER_PATH + "org/elasticsearch/Version.java";
+    static final String SERVER_MODULE_PATH = "server/src/main/java/";
+    static final String VERSION_FILE_PATH = SERVER_MODULE_PATH + "org/elasticsearch/Version.java";
 
     final Path rootDir;
 

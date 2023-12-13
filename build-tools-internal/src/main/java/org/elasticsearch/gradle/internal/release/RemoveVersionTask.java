@@ -45,10 +45,10 @@ public class RemoveVersionTask extends AbstractVersionTask {
     @TaskAction
     public void executeTask() throws IOException {
         if (version == null) {
-            throw new IllegalStateException("version has not been specified");
+            throw new IllegalArgumentException("version has not been specified");
         }
 
-        Path versionJava = rootDir.resolve(VERSION_PATH);
+        Path versionJava = rootDir.resolve(VERSION_FILE_PATH);
         LOGGER.lifecycle("Removing version [{}] from [{}]", version, versionJava);
         CompilationUnit file = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionJava));
         var newFile = removeVersionConstant(file, version);
@@ -59,13 +59,25 @@ public class RemoveVersionTask extends AbstractVersionTask {
 
     @VisibleForTesting
     static Optional<CompilationUnit> removeVersionConstant(CompilationUnit versionJava, Version version) {
-        String newFieldName = String.format("V_%d_%d_%d", version.getMajor(), version.getMinor(), version.getRevision());
+        String removeFieldName = String.format("V_%d_%d_%d", version.getMajor(), version.getMinor(), version.getRevision());
 
         ClassOrInterfaceDeclaration versionClass = versionJava.getClassByName("Version").get();
-        var declaration = versionClass.getFieldByName(newFieldName);
+        var declaration = versionClass.getFieldByName(removeFieldName);
         if (declaration.isEmpty()) {
-            LOGGER.lifecycle("Version constant [{}] not found, skipping", newFieldName);
+            LOGGER.lifecycle("Version constant [{}] not found, skipping", removeFieldName);
             return Optional.empty();
+        }
+
+        // check if this is referenced by CURRENT
+        String currentReference = versionClass.getFieldByName("CURRENT")
+            .orElseThrow(() -> new IllegalArgumentException("Could not find CURRENT constant"))
+            .getVariable(0)
+            .getInitializer()
+            .get()
+            .asNameExpr()
+            .getNameAsString();
+        if (currentReference.equals(removeFieldName)) {
+            throw new IllegalArgumentException(String.format("Cannot remove version [%s], it is referenced by CURRENT", version));
         }
 
         declaration.get().remove();

@@ -60,10 +60,10 @@ public class AddVersionTask extends AbstractVersionTask {
     @TaskAction
     public void executeTask() throws IOException {
         if (version == null) {
-            throw new IllegalStateException("version has not been specified");
+            throw new IllegalArgumentException("version has not been specified");
         }
 
-        Path versionJava = rootDir.resolve(VERSION_PATH);
+        Path versionJava = rootDir.resolve(VERSION_FILE_PATH);
         LOGGER.lifecycle("Adding new version [{}] to [{}]", version, versionJava);
         CompilationUnit file = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionJava));
         var newFile = addVersionConstant(file, version, setCurrent);
@@ -86,7 +86,7 @@ public class AddVersionTask extends AbstractVersionTask {
 
         NavigableMap<Version, FieldDeclaration> versions = versionClass.getFields()
             .stream()
-            .map(f -> Map.entry(f, VERSION_FIELD.matcher(f.getVariable(0).getName().getIdentifier())))
+            .map(f -> Map.entry(f, VERSION_FIELD.matcher(f.getVariable(0).getNameAsString())))
             .filter(e -> e.getValue().find())
             .collect(
                 Collectors.toMap(

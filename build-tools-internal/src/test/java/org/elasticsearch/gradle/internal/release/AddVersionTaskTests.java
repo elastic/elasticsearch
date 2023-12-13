@@ -113,7 +113,7 @@ public class AddVersionTaskTests {
         Version newVersion = new Version(50, 10, 20);
         String versionField = String.format("V_%d_%d_%d", newVersion.getMajor(), newVersion.getMinor(), newVersion.getRevision());
 
-        Path versionFile = Path.of("..", AddVersionTask.VERSION_PATH);
+        Path versionFile = Path.of("..", AddVersionTask.VERSION_FILE_PATH);
         CompilationUnit unit = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionFile));
         assertFalse("Test version already exists in the file", findFirstField(unit, versionField).isPresent());
 

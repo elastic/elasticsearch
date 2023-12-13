@@ -24,9 +24,11 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThrows;
 
 public class RemoveVersionTaskTests {
     @Test
@@ -43,6 +45,25 @@ public class RemoveVersionTaskTests {
 
         var newUnit = RemoveVersionTask.removeVersionConstant(unit, Version.fromString("8.10.2"));
         assertThat(newUnit.isPresent(), is(false));
+    }
+
+    @Test
+    public void removeVersion_versionIsCurrent() {
+        final String versionJava = """
+            public class Version {
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_8_10_1 = new Version(8_10_01_99);
+                public static final Version V_8_11_0 = new Version(8_11_00_99);
+                public static final Version CURRENT = V_8_11_0;
+            }""";
+
+        CompilationUnit unit = StaticJavaParser.parse(versionJava);
+
+        var ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> RemoveVersionTask.removeVersionConstant(unit, Version.fromString("8.11.0"))
+        );
+        assertThat(ex.getMessage(), equalTo("Cannot remove version [8.11.0], it is referenced by CURRENT"));
     }
 
     @Test
@@ -76,7 +97,7 @@ public class RemoveVersionTaskTests {
 
     @Test
     public void updateVersionFile_updatesCorrectly() throws Exception {
-        Path versionFile = Path.of("..", AddVersionTask.VERSION_PATH);
+        Path versionFile = Path.of("..", AddVersionTask.VERSION_FILE_PATH);
         CompilationUnit unit = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionFile));
 
         List<FieldDeclaration> existingFields = unit.findAll(FieldDeclaration.class);

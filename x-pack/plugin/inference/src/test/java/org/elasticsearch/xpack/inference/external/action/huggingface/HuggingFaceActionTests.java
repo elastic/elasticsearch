@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -28,7 +29,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests.createModel;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -106,7 +107,7 @@ public class HuggingFaceActionTests extends ESTestCase {
         return new HuggingFaceAction(
             sender,
             model,
-            new ServiceComponents(threadPool, mock(ThrottlerManager.class), Settings.EMPTY),
+            new ServiceComponents(threadPool, mock(ThrottlerManager.class), Settings.EMPTY, TruncatorTests.createTruncator()),
             new AlwaysRetryingResponseHandler("test", (result) -> null),
             "test action"
         );

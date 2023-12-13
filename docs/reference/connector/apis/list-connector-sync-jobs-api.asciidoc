@@ -22,7 +22,7 @@ Returns information about all stored connector sync jobs ordered by their creati
 * To sync data using connectors, it's essential to have the Elastic connectors service running.
 
 [[list-connector-sync-jobs-api-path-params]]
-==== {api-path-params-title}
+==== {api-path-parms-title}
 
 `size`::
 (Optional, integer) Maximum number of results to retrieve. Defaults to `100`.

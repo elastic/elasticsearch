@@ -35,7 +35,7 @@ public class RestUpdateConnectorLastSeenAction extends BaseRestHandler {
         return channel -> client.execute(
             UpdateConnectorLastSeenAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, UpdateConnectorLastSeenAction.Response::status, r -> null)
+            new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
         );
     }
 }

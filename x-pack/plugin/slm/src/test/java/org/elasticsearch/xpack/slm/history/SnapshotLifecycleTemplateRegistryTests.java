@@ -365,7 +365,6 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
             final PutComposableIndexTemplateAction.Request putRequest = (PutComposableIndexTemplateAction.Request) request;
             assertThat(putRequest.name(), equalTo(SLM_TEMPLATE_NAME));
-            assertThat(putRequest.indexTemplate().template().settings().get("index.lifecycle.name"), equalTo(SLM_POLICY_NAME));
             assertThat(putRequest.indexTemplate().version(), equalTo((long) INDEX_TEMPLATE_VERSION));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);

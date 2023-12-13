@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -707,6 +708,17 @@ public class StatementParserTests extends ESTestCase {
         assertEquals(MvExpand.class, cmd.getClass());
         MvExpand expand = (MvExpand) cmd;
         assertThat(expand.target(), equalTo(attribute("a")));
+    }
+
+    // see https://github.com/elastic/elasticsearch/issues/103331
+    public void testKeepStarMvExpand() {
+        try {
+            String query = "from test | keep * | mv_expand a";
+            var plan = statement(query);
+        } catch (UnresolvedException e) {
+            fail(e, "Regression: https://github.com/elastic/elasticsearch/issues/103331");
+        }
+
     }
 
     public void testUsageOfProject() {

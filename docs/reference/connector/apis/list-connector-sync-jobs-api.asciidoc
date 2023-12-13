@@ -1,0 +1,106 @@
+[role="xpack"]
+[[list-connector-sync-jobs-api]]
+=== List connector sync jobs API
+
+preview::[]
+
+++++
+<titleabbrev>List connector sync jobs</titleabbrev>
+++++
+
+Returns information about all stored connector sync jobs ordered by their creation date in ascending order.
+
+
+[[list-connector-sync-jobs-api-request]]
+==== {api-request-title}
+
+`GET _connector/_sync_job`
+
+[[list-connector-sync-jobs-api-prereq]]
+==== {api-prereq-title}
+
+* To sync data using connectors, it's essential to have the Elastic connectors service running.
+
+[[list-connector-sync-jobs-api-path-params]]
+==== {api-path-params-title}
+
+`size`::
+(Optional, integer) Maximum number of results to retrieve. Defaults to `100`.
+
+`from`::
+(Optional, integer) The offset from the first result to fetch. Defaults to `0`.
+
+`status`::
+(Optional, job status) The job status the fetched sync jobs need to have.
+
+`connector_id`::
+(Optional, string) The connector id the fetched sync jobs need to have.
+
+[[list-connector-sync-jobs-api-example]]
+==== {api-examples-title}
+
+The following example lists all connector sync jobs:
+
+////
+[source,console]
+--------------------------------------------------
+PUT _connector/connector-1
+{
+  "index_name": "search-google-drive",
+  "name": "Google Drive Connector",
+  "service_type": "google_drive"
+}
+
+PUT _connector/connector-2
+{
+  "index_name": "search-sharepoint-online",
+  "name": "Sharepoint Online Connector",
+  "service_type": "sharepoint_online"
+}
+
+POST _connector/_sync_job
+{
+  "id": "connector-1"
+}
+
+POST _connector/_sync_job
+{
+  "id": "connector-2"
+}
+
+--------------------------------------------------
+// TESTSETUP
+////
+
+[source,console]
+----
+GET _connector/_sync_job
+----
+
+The following example lists the first two connector sync jobs:
+
+[source,console]
+----
+GET _connector/_sync_job?from=0&size=2
+----
+
+The following example lists pending connector sync jobs (the first 100 per default):
+[source,console]
+----
+GET _connector/_sync_job?status=pending
+----
+
+The following example lists connector sync jobs (the first 100 per default) for the connector with id `connector-1`:
+[source,console]
+----
+GET _connector/_sync_job?connector_id=connector-1
+----
+
+[[list-connector-sync-jobs-api-response-codes]]
+==== {api-response-codes-title}
+
+`200`:
+Indicates that results were successfully returned (results can also be empty).
+
+`400`:
+Indicates that the request was malformed.

@@ -52,7 +52,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         this.routingRequired = docMapper.routingFieldMapper().required();
 
         MappingLookup mappingLookup = docMapper.mappers();
-        this.fieldsForModels = mappingLookup != null ? mappingLookup.getFieldsForModels() : null;
+        this.fieldsForModels = mappingLookup != null ? mappingLookup.getFieldsForModels() : Map.of();
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })
@@ -64,7 +64,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         }
         this.type = mappingMap.keySet().iterator().next();
         this.routingRequired = routingRequired((Map<String, Object>) mappingMap.get(this.type));
-        this.fieldsForModels = null;
+        this.fieldsForModels = Map.of();
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })
@@ -80,7 +80,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
-        this.fieldsForModels = null;
+        this.fieldsForModels = Map.of();
     }
 
     public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {
@@ -177,7 +177,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routingRequired);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED) && fieldsForModels != null) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
             out.writeMap(fieldsForModels, StreamOutput::writeStringCollection);
         }
     }
@@ -209,7 +209,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
             fieldsForModels = in.readMap(StreamInput::readString, i -> i.readCollectionAsImmutableSet(StreamInput::readString));
         } else {
-            fieldsForModels = null;
+            fieldsForModels = Map.of();
         }
     }
 

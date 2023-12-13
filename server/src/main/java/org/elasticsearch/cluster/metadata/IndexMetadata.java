@@ -795,7 +795,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats,
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
-            this.fieldsForModels  // TODO: Need to take fieldsForModels from MappingMetadata in this constructor?
+            this.fieldsForModels
         );
     }
 
@@ -1963,10 +1963,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             mapping = mappingMd;
             if (mappingMd != null) {
                 Map<String, Set<String>> fieldsForModels = mappingMd.getFieldsForModels();
-                // TODO: Need to clear fieldsForModels if the version from MappingMetadata is null?
-                if (fieldsForModels != null) {
-                    processFieldsForModels(this.fieldsForModels, fieldsForModels);
-                }
+                processFieldsForModels(this.fieldsForModels, fieldsForModels);
             }
             return this;
         }

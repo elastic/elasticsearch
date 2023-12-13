@@ -117,7 +117,7 @@ If `true`, checks whether the current index satisfies the specified
 `lazy`::
 (Optional, Boolean)
 If `true`, signals that the data stream, applies only to data streams, needs to be
-rolled over when the next indexing operation occurs. This applies when there
+rolled over when the next indexing operation occurs. This only applies when there
 are no `conditions` provided. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]

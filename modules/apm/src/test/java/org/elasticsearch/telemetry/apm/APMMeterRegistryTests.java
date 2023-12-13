@@ -107,11 +107,11 @@ public class APMMeterRegistryTests extends ESTestCase {
         APMMeterService apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel);
         apmMeter.start();
         int max_length = 255;
-        var counter = apmMeter.getMeterRegistry().registerLongCounter("a".repeat(max_length), "desc", "count");
+        var counter = apmMeter.getMeterRegistry().registerLongCounter("es." + "a".repeat(max_length - 3), "desc", "count");
         assertThat(counter, instanceOf(LongCounter.class));
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> apmMeter.getMeterRegistry().registerLongCounter("a".repeat(max_length + 1), "desc", "count")
+            () -> apmMeter.getMeterRegistry().registerLongCounter("es." + "a".repeat(max_length), "desc", "count")
         );
         assertThat(iae.getMessage(), containsString("exceeds maximum length [255]"));
     }
@@ -125,18 +125,18 @@ public class APMMeterRegistryTests extends ESTestCase {
         APMMeterRegistry registry = apmMeter.getMeterRegistry();
 
         Supplier<DoubleWithAttributes> doubleObserver = () -> new DoubleWithAttributes(1.5, Collections.emptyMap());
-        DoubleCounter dc = registry.registerDoubleCounter("es.dc.count", "", "");
-        DoubleUpDownCounter dudc = registry.registerDoubleUpDownCounter("es.dudc.count", "", "");
-        DoubleHistogram dh = registry.registerDoubleHistogram("es.dh.statistics", "", "");
-        DoubleAsyncCounter dac = registry.registerDoubleAsyncCounter("es.dac.count", "", "", doubleObserver);
-        DoubleGauge dg = registry.registerDoubleGauge("es.dg.", "", "", doubleObserver);
+        DoubleCounter dc = registry.registerDoubleCounter("es.dc", "", "");
+        DoubleUpDownCounter dudc = registry.registerDoubleUpDownCounter("es.dudc", "", "");
+        DoubleHistogram dh = registry.registerDoubleHistogram("es.dh", "", "");
+        DoubleAsyncCounter dac = registry.registerDoubleAsyncCounter("es.dac", "", "", doubleObserver);
+        DoubleGauge dg = registry.registerDoubleGauge("es.dg", "", "", doubleObserver);
 
         Supplier<LongWithAttributes> longObserver = () -> new LongWithAttributes(100, Collections.emptyMap());
-        LongCounter lc = registry.registerLongCounter("lc", "", "");
-        LongUpDownCounter ludc = registry.registerLongUpDownCounter("ludc", "", "");
-        LongHistogram lh = registry.registerLongHistogram("lh", "", "");
-        LongAsyncCounter lac = registry.registerLongAsyncCounter("lac", "", "", longObserver);
-        LongGauge lg = registry.registerLongGauge("lg", "", "", longObserver);
+        LongCounter lc = registry.registerLongCounter("es.lc", "", "");
+        LongUpDownCounter ludc = registry.registerLongUpDownCounter("es.ludc", "", "");
+        LongHistogram lh = registry.registerLongHistogram("es.lh", "", "");
+        LongAsyncCounter lac = registry.registerLongAsyncCounter("es.lac", "", "", longObserver);
+        LongGauge lg = registry.registerLongGauge("es.lg", "", "", longObserver);
 
         apmMeter.setEnabled(true);
 

@@ -8,31 +8,30 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
-
 import org.elasticsearch.test.ESTestCase;
 
 public class MetricNameValidatorTests extends ESTestCase {
 
-    public void testESPrefixAndDotSeparator(){
+    public void testESPrefixAndDotSeparator() {
         MetricNameValidator nameValidator = new MetricNameValidator();
         nameValidator.validate("es.somemodule.somemetric.count");
 
-        expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("somemodule.somemetric.count"));
-        //verify . is a separator
-        expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es_somemodule_somemetric_count"));
-        expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es_somemodule.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("somemodule.somemetric.count"));
+        // verify . is a separator
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es_somemodule_somemetric_count"));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es_somemodule.somemetric.count"));
     }
 
-    public void testNameElementRegex(){
+    public void testNameElementRegex() {
         MetricNameValidator nameValidator = new MetricNameValidator();
         nameValidator.validate("es.somemodulename0.somemetric.count");
         nameValidator.validate("es.some_module_name0.somemetric.count");
         nameValidator.validate("es.s.somemetric.count");
 
-        expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es.someModuleName0.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es.SomeModuleName.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es.0some_module_name0.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es.some_#_name0.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, ()-> nameValidator.validate("es.some-name0.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.someModuleName0.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.SomeModuleName.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.0some_module_name0.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.some_#_name0.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.some-name0.somemetric.count"));
     }
 }

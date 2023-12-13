@@ -30,9 +30,14 @@ public class MetricNameValidator {
         for (String element : elements) {
             Matcher matcher = ALLOWED_CHARACTERS.matcher(element);
             if (matcher.matches() == false) {
-                throw new IllegalArgumentException("Metric name should only use [a-z][a-z0-9_]* characters. " +
-                    "Element does not match: \"" + element + "\". " +
-                    "Name was: " + name);
+                throw new IllegalArgumentException(
+                    "Metric name should only use [a-z][a-z0-9_]* characters. "
+                        + "Element does not match: \""
+                        + element
+                        + "\". "
+                        + "Name was: "
+                        + name
+                );
             }
         }
     }

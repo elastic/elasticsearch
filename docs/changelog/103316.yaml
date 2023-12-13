@@ -1,0 +1,5 @@
+pr: 103316
+summary: Review KEEP logic to prevent duplicate column names
+area: ES|QL
+type: bug
+issues: []

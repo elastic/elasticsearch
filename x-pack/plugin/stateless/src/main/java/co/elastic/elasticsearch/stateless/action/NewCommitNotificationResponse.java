@@ -37,18 +37,18 @@ public class NewCommitNotificationResponse extends ActionResponse {
 
     private static final TransportVersion VERSION_SUPPORTING_NEW_COMMIT_NOTIFICATION_RESPONSE = TransportVersions.V_8_500_061;
 
-    private final Set<PrimaryTermAndGeneration> usedPrimaryTermAndGenerations;
+    private final Set<PrimaryTermAndGeneration> primaryTermAndGenerationsInUse;
 
-    public NewCommitNotificationResponse(Set<PrimaryTermAndGeneration> usedPrimaryTermAndGenerations) {
-        this.usedPrimaryTermAndGenerations = usedPrimaryTermAndGenerations;
+    public NewCommitNotificationResponse(Set<PrimaryTermAndGeneration> primaryTermAndGenerationsInUse) {
+        this.primaryTermAndGenerationsInUse = primaryTermAndGenerationsInUse;
     }
 
     public NewCommitNotificationResponse(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NEW_COMMIT_NOTIFICATION_RESPONSE)) {
-            this.usedPrimaryTermAndGenerations = in.readCollectionAsImmutableSet(PrimaryTermAndGeneration::new);
+            this.primaryTermAndGenerationsInUse = in.readCollectionAsImmutableSet(PrimaryTermAndGeneration::new);
         } else {
-            this.usedPrimaryTermAndGenerations = Collections.emptySet();
+            this.primaryTermAndGenerationsInUse = Collections.emptySet();
         }
     }
 
@@ -56,12 +56,12 @@ public class NewCommitNotificationResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         // Before this version we used ActionResponse.Empty as a response
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NEW_COMMIT_NOTIFICATION_RESPONSE)) {
-            out.writeCollection(usedPrimaryTermAndGenerations);
+            out.writeCollection(primaryTermAndGenerationsInUse);
         }
     }
 
-    public Set<PrimaryTermAndGeneration> getUsedPrimaryTermAndGenerations() {
-        return usedPrimaryTermAndGenerations;
+    public Set<PrimaryTermAndGeneration> getPrimaryTermAndGenerationsInUse() {
+        return primaryTermAndGenerationsInUse;
     }
 
     @Override
@@ -69,18 +69,18 @@ public class NewCommitNotificationResponse extends ActionResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NewCommitNotificationResponse that = (NewCommitNotificationResponse) o;
-        return Objects.equals(usedPrimaryTermAndGenerations, that.usedPrimaryTermAndGenerations);
+        return Objects.equals(primaryTermAndGenerationsInUse, that.primaryTermAndGenerationsInUse);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(usedPrimaryTermAndGenerations);
+        return Objects.hash(primaryTermAndGenerationsInUse);
     }
 
     public static NewCommitNotificationResponse combine(List<NewCommitNotificationResponse> responses) {
         var combinedPrimaryTermAndGenerations = new HashSet<PrimaryTermAndGeneration>();
         for (NewCommitNotificationResponse response : responses) {
-            combinedPrimaryTermAndGenerations.addAll(response.usedPrimaryTermAndGenerations);
+            combinedPrimaryTermAndGenerations.addAll(response.primaryTermAndGenerationsInUse);
         }
         return new NewCommitNotificationResponse(Collections.unmodifiableSet(combinedPrimaryTermAndGenerations));
     }

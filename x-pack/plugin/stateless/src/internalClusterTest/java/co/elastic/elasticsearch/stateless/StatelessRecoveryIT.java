@@ -1909,7 +1909,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 handler.messageReceived(request, new TestTransportChannel(new ChannelActionListener<>(channel).delegateFailure((l, tr) -> {
-                    var termGens = ((NewCommitNotificationResponse) tr).getUsedPrimaryTermAndGenerations();
+                    var termGens = ((NewCommitNotificationResponse) tr).getPrimaryTermAndGenerationsInUse();
                     assertThat(termGens.size(), equalTo(1));
                     termGens.forEach(termGen -> newCommitNotificationResponseGeneration.set(termGen.generation()));
                     l.onResponse(tr);

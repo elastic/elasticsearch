@@ -48,6 +48,10 @@ restResources {
 tasks {
     test {
         exclude("**/S3RegisterCASLinearizabilityTests.class")
+        // A small writer buffer size so that write into cache region needs to be done in multiple batches
+        // This allows reading small files to finish earlier before the region is fully filled which is a behaviour
+        // we want to test
+        systemProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "8kb")
     }
 
     internalClusterTest {

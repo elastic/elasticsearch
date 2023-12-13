@@ -1100,18 +1100,24 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         // it may get re-allocated to that node when another node is added/removed...
         boolean nodesShutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
         if (event.nodesChanged() || nodesShutdownChanged) {
-            Supplier<String> eventIdentity = () -> Integer.toHexString(System.identityHashCode(event));
+            // This is just to track the various log messages that happen in this function to help with debugging in the future
+            // so that we can reasonably assume they're all related
+            // If the log messages printed from this method get interlaced across nodes it can make debugging difficult
+            Supplier<String> eventIdentity = () -> Long.toHexString(System.nanoTime());
 
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
 
+            Set<String> presentNodes = event.state().nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> removedNodes = nodesDelta.removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> addedNodes = nodesDelta.addedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
             logger.debug(
                 () -> format(
-                    "Initial node change info; identity: %s; removed nodes: %s; added nodes: %s; shutting down nodes: %s",
+                    "Initial node change info; identity: %s; present nodes: %s;"
+                        + " removed nodes: %s; added nodes: %s; shutting down nodes: %s",
                     eventIdentity.get(),
+                    presentNodes,
                     removedNodes,
                     addedNodes,
                     shuttingDownNodes
@@ -1124,7 +1130,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
                 // Add nodes that where marked for shutdown in the previous state
                 // but are no longer marked as shutdown in the current state.
-                Set<String> returningShutDownNodes = Sets.difference(previousShuttingDownNodes, shuttingDownNodes);
+                // The intersection is to only include the nodes that actually exist
+                Set<String> returningShutDownNodes = Sets.intersection(
+                    presentNodes,
+                    Sets.difference(previousShuttingDownNodes, shuttingDownNodes)
+                );
                 addedNodes.addAll(returningShutDownNodes);
 
                 // and nodes that are marked for shutdown in this event only

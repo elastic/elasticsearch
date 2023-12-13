@@ -546,6 +546,50 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         latch.await();
     }
 
+    public void testHaveMlNodesChanged_ReturnsFalseWhenPreviouslyShuttingDownNode_IsMarkedAsReturning_ButIsNotAPresentNode() {
+        String model1 = "model-1";
+        String shuttingDownNode = "ml-shutting-down-node";
+        String mlNode1 = "ml-node-with-room";
+
+        ClusterState stateWithShuttingDownNodeAndMlNode1 = createClusterState(
+            List.of(shuttingDownNode, mlNode1),
+            Metadata.builder()
+                .putCustom(
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata.Builder.empty()
+                        .addNewAssignment(
+                            model1,
+                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                        )
+                        .build()
+                )
+                .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(shuttingDownNode))
+                .build()
+        );
+
+        ClusterState stateWithMlNode1 = createClusterState(
+            List.of(mlNode1),
+            Metadata.builder()
+                .putCustom(
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata.Builder.empty()
+                        .addNewAssignment(
+                            model1,
+                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                        )
+                        .build()
+                )
+                .build()
+        );
+
+        var shutdownEvent = new ClusterChangedEvent("test", stateWithMlNode1, stateWithShuttingDownNodeAndMlNode1);
+        var metadata = TrainedModelAssignmentMetadata.fromState(shutdownEvent.state());
+
+        assertFalse(TrainedModelAssignmentClusterService.haveMlNodesChanged(shutdownEvent, metadata));
+    }
+
     public void testHaveMlNodesChanged_ReturnsTrueWhenNodeShutsDownAndWasRoutedTo() {
         String model1 = "model-1";
         String mlNode1 = "ml-node-with-room";
@@ -2039,6 +2083,11 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.CURRENT, MlConfigVersion.CURRENT);
     }
 
+    /**
+     * The name parameter uniquely identifies the node. If two nodes have the same name across cluster states,
+     * they will be considered equal. This is because the name is used for the ephemeralId which
+     * is used by {@link DiscoveryNode#equals(Object)} for equality.
+     */
     private static DiscoveryNode buildNode(
         String name,
         boolean isML,
@@ -2049,6 +2098,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     ) {
         return DiscoveryNodeUtils.builder(name)
             .name(name)
+            .ephemeralId(name)
             .attributes(
                 Map.ofEntries(
                     entry(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(nativeMemory)),

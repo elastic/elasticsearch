@@ -69,16 +69,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             return null;
         }
         FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters> filterByFilterBuilder =
-            new FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters>(
-                name,
-                false,
-                false,
-                null,
-                context,
-                parent,
-                cardinality,
-                metadata
-            ) {
+            new FilterByFilterAggregator.AdapterBuilder<>(name, false, false, null, context, parent, cardinality, metadata) {
                 @Override
                 protected StringTermsAggregatorFromFilters adapt(
                     CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate
@@ -164,7 +155,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         }
         TermsEnum terms = valuesSupplier.get().termsEnum();
         if (filters.getBuckets().size() > bucketCountThresholds.getShardSize()) {
-            PriorityQueue<OrdBucket> queue = new PriorityQueue<OrdBucket>(bucketCountThresholds.getShardSize()) {
+            PriorityQueue<OrdBucket> queue = new PriorityQueue<>(bucketCountThresholds.getShardSize()) {
                 private final Comparator<Bucket> comparator = order.comparator();
 
                 @Override
@@ -195,7 +186,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                 for (OrdBucket b : queue) {
                     buckets.add(buildBucket(b, terms));
                 }
-                Collections.sort(buckets, reduceOrder.comparator());
+                buckets.sort(reduceOrder.comparator());
             } else {
                 /*
                  * Note for the curious: you can just use a for loop to iterate
@@ -217,7 +208,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                 }
                 buckets.add(buildBucket(b, terms));
             }
-            Collections.sort(buckets, reduceOrder.comparator());
+            buckets.sort(reduceOrder.comparator());
         }
         return new StringTerms(
             filters.getName(),

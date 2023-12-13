@@ -613,8 +613,12 @@ public final class DocumentParser {
                 || context.isCopyToField(fullFieldName)
                 || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
                 || mappers.size() > MAX_DIMS_COUNT
+                // Anything that is NOT a number or anything that IS a number but not mapped to `float` should NOT be mapped to dense_vector
                 || mappers.stream()
-                    .allMatch(m -> m instanceof NumberFieldMapper.Builder nb && nb.type != NumberFieldMapper.NumberType.FLOAT)) {
+                    .anyMatch(
+                        m -> m instanceof NumberFieldMapper.Builder == false
+                            || ((NumberFieldMapper.Builder) m).type != NumberFieldMapper.NumberType.FLOAT
+                    )) {
                 return;
             }
 

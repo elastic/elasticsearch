@@ -30,10 +30,10 @@ public class ReindexBasicTests extends ReindexTestCase {
     public void testFiltering() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("source").setId("1").setSource("foo", "a"),
-            client().prepareIndex("source").setId("2").setSource("foo", "a"),
-            client().prepareIndex("source").setId("3").setSource("foo", "b"),
-            client().prepareIndex("source").setId("4").setSource("foo", "c")
+            prepareIndex("source").setId("1").setSource("foo", "a"),
+            prepareIndex("source").setId("2").setSource("foo", "a"),
+            prepareIndex("source").setId("3").setSource("foo", "b"),
+            prepareIndex("source").setId("4").setSource("foo", "c")
         );
         assertHitCount(prepareSearch("source").setSize(0), 4);
 
@@ -63,7 +63,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);
         for (int i = 0; i < max; i++) {
-            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
+            docs.add(prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
         indexRandom(true, docs);
@@ -90,7 +90,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);
         for (int i = 0; i < max; i++) {
-            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
+            docs.add(prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
         indexRandom(true, docs);
@@ -127,7 +127,7 @@ public class ReindexBasicTests extends ReindexTestCase {
             docs.put(indexName, new ArrayList<>());
             int numDocs = between(50, 200);
             for (int i = 0; i < numDocs; i++) {
-                docs.get(indexName).add(client().prepareIndex(indexName).setId("id_" + sourceIndex + "_" + i).setSource("foo", "a"));
+                docs.get(indexName).add(prepareIndex(indexName).setId("id_" + sourceIndex + "_" + i).setSource("foo", "a"));
             }
         }
 
@@ -161,10 +161,10 @@ public class ReindexBasicTests extends ReindexTestCase {
         String destIndexName = "<reindex-datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
         indexRandom(
             true,
-            client().prepareIndex(sourceIndexName).setId("1").setSource("foo", "a"),
-            client().prepareIndex(sourceIndexName).setId("2").setSource("foo", "a"),
-            client().prepareIndex(sourceIndexName).setId("3").setSource("foo", "b"),
-            client().prepareIndex(sourceIndexName).setId("4").setSource("foo", "c")
+            prepareIndex(sourceIndexName).setId("1").setSource("foo", "a"),
+            prepareIndex(sourceIndexName).setId("2").setSource("foo", "a"),
+            prepareIndex(sourceIndexName).setId("3").setSource("foo", "b"),
+            prepareIndex(sourceIndexName).setId("4").setSource("foo", "c")
         );
         assertHitCount(prepareSearch(sourceIndexName).setSize(0), 4);
 

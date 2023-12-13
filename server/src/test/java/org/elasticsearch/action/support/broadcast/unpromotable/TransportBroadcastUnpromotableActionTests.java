@@ -216,7 +216,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     }
 
     private int countRequestsForIndex(ClusterState state, String index) {
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
         state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).iterator().forEachRemaining(shardId -> {
             logger.debug("--> executing for primary shard id: {}", shardId.shardId());
             ActionTestUtils.execute(
@@ -321,7 +321,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         }
         IndexShardRoutingTable wrongRoutingTable = wrongRoutingTableBuilder.build();
 
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
         logger.debug("--> executing for wrong shard routing table: {}", wrongRoutingTable);
 
         // The request fails if we don't mark shards as stale
@@ -377,7 +377,6 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     }
 
     public void testNullIndexShardRoutingTable() {
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
         IndexShardRoutingTable shardRoutingTable = null;
         assertThat(
             expectThrows(

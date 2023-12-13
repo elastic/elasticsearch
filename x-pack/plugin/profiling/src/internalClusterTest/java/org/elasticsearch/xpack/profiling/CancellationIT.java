@@ -56,17 +56,12 @@ public class CancellationIT extends ProfilingTestCase {
         return plugins;
     }
 
-    @Override
-    protected boolean useOnlyAllEvents() {
-        // we assume that all indices have been created to simplify the testing logic.
-        return false;
-    }
-
     public void testAutomaticCancellation() throws Exception {
         Request restRequest = new Request("POST", "/_profiling/stacktraces");
         restRequest.setEntity(new StringEntity("""
                 {
                   "sample_size": 10000,
+                  "requested_duration": 33,
                   "query": {
                     "bool": {
                       "filter": [
@@ -91,7 +86,7 @@ public class CancellationIT extends ProfilingTestCase {
         Map<String, String> nodeIdToName = readNodesInfo();
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
 
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);

@@ -123,7 +123,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(new ShardGeneration(-1L));
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -165,7 +165,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
             SnapshotId snapshotId = new SnapshotId("test", "test");
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -196,7 +196,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             SnapshotId snapshotId = new SnapshotId("test_1", "test_1");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -227,7 +227,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             SnapshotId snapshotId = new SnapshotId("test_2", "test_2");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
@@ -289,7 +289,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(shard.getThreadPool(), () -> {
                 repository.snapshotShard(
                     new SnapshotShardContext(
@@ -306,7 +306,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     )
                 );
                 future.actionGet();
-                final PlainActionFuture<SnapshotInfo> finFuture = PlainActionFuture.newFuture();
+                final PlainActionFuture<SnapshotInfo> finFuture = new PlainActionFuture<>();
                 final ShardGenerations shardGenerations = ShardGenerations.builder()
                     .put(indexId, 0, indexShardSnapshotStatus.generation())
                     .build();
@@ -382,7 +382,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node_g");
         restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
         runAsSnapshot(shard.getThreadPool(), () -> {
-            final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             restoredShard.restoreFromRepository(repository, future);
             assertTrue(future.actionGet());
         });

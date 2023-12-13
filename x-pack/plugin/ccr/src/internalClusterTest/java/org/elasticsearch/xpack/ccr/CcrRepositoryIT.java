@@ -548,7 +548,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         final Map<Integer, Long> fetchedSnapshotShardSizes = new ConcurrentHashMap<>();
 
-        final PlainActionFuture<Void> waitForRestoreInProgress = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> waitForRestoreInProgress = new PlainActionFuture<>();
         final ClusterStateListener listener = event -> {
             if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                 final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
@@ -634,7 +634,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         try {
             final SnapshotsInfoService snapshotsInfoService = getFollowerCluster().getCurrentMasterNodeInstance(SnapshotsInfoService.class);
 
-            final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = new PlainActionFuture<>();
             final ClusterStateListener listener = event -> {
                 if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                     try {

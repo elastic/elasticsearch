@@ -198,7 +198,7 @@ public class ClusterServiceUtils {
 
     public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService)
         throws Exception {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         ClusterStateObserver.waitForState(
             clusterService,
             clusterService.getClusterApplierService().threadPool().getThreadContext(),

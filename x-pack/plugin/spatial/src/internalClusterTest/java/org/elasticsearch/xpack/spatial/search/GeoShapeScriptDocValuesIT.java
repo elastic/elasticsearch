@@ -249,8 +249,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
     private void doTestGeometry(Geometry geometry, GeoShapeValues.GeoShapeValue expectedLabelPosition, boolean fallbackToCentroid)
         throws IOException {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject().field("name", "TestPosition").field("location", WellKnownText.toWKT(geometry)).endObject()
             )
@@ -309,8 +308,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testNullShape() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("name", "TestPosition").nullField("location").endObject())
             .get();
 

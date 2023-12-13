@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -89,7 +90,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
     private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) throws Exception {
         return PlainActionFuture.get(
             future -> action.masterOperation(
-                new Task(1, "test", GetDesiredBalanceAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+                new Task(1, "test", TransportGetDesiredBalanceAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new DesiredBalanceRequest(),
                 clusterState,
                 future
@@ -219,17 +220,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         }
 
         when(desiredBalanceShardsAllocator.getDesiredBalance()).thenReturn(new DesiredBalance(randomInt(1024), shardAssignments));
-        DesiredBalanceStats desiredBalanceStats = new DesiredBalanceStats(
-            randomInt(Integer.MAX_VALUE),
-            randomBoolean(),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE)
-        );
+        DesiredBalanceStats desiredBalanceStats = randomDesiredBalanceStats();
         when(desiredBalanceShardsAllocator.getStats()).thenReturn(desiredBalanceStats);
         ClusterInfo clusterInfo = ClusterInfo.EMPTY;
         when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);

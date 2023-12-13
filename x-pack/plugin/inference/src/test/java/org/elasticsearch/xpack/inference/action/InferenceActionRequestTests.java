@@ -11,9 +11,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+
+import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class InferenceActionRequestTests extends AbstractWireSerializingTestCase<InferenceAction.Request> {
 
@@ -27,9 +32,31 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
         return new InferenceAction.Request(
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
-            randomAlphaOfLength(8),
+            randomList(1, 5, () -> randomAlphaOfLength(8)),
             randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)))
         );
+    }
+
+    public void testParsing() throws IOException {
+        String singleInputRequest = """
+            {
+              "input": "single text input"
+            }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
+            var request = InferenceAction.Request.parseRequest("model_id", "sparse_embedding", parser);
+            assertThat(request.getInput(), contains("single text input"));
+        }
+
+        String multiInputRequest = """
+            {
+              "input": ["an array", "of", "inputs"]
+            }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, multiInputRequest)) {
+            var request = InferenceAction.Request.parseRequest("model_id", "sparse_embedding", parser);
+            assertThat(request.getInput(), contains("an array", "of", "inputs"));
+        }
     }
 
     @Override
@@ -46,12 +73,11 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
                 instance.getInput(),
                 instance.getTaskSettings()
             );
-            case 2 -> new InferenceAction.Request(
-                instance.getTaskType(),
-                instance.getModelId(),
-                instance.getInput() + "bar",
-                instance.getTaskSettings()
-            );
+            case 2 -> {
+                var changedInputs = new ArrayList<String>(instance.getInput());
+                changedInputs.add("bar");
+                yield new InferenceAction.Request(instance.getTaskType(), instance.getModelId(), changedInputs, instance.getTaskSettings());
+            }
             case 3 -> {
                 var taskSettings = new HashMap<>(instance.getTaskSettings());
                 if (taskSettings.isEmpty()) {

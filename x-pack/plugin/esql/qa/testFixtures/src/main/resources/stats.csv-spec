@@ -532,10 +532,14 @@ c:l
 10
 ;
 
+countStar
+from employees | stats count=count(*) | sort count desc | limit 0;
 
+count:l
+;
 
 countAllGrouped
-from employees | stats c = count(*) by languages | rename languages as l | sort l DESC ; 
+from employees | stats c = count(*) by languages | rename languages as l | sort l DESC;
 
 c:l | l:i
 10  |null
@@ -682,18 +686,108 @@ c:l |  job_positions:s
 4   |Tech Lead    
 ;
 
-duplicateAggregationsWithoutGrouping
+duplicateAggregationsWithoutGrouping#[skip:-8.11.99]
 from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1);
 
 c:l | m:i | m1:i | c1:l
 100 | 25324 | 25324  | 100
 ;
 
-duplicateAggregationsWithGrouping
+duplicateAggregationsWithGrouping#[skip:-8.11.99]
 from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1) by gender | sort gender;
 
 c:l| m:i   | m1:i  | c1:l| gender:s
 33 | 25976 | 25976 | 33  | F
 57 | 25945 | 25945 | 57  | M
 10 | 25324 | 25324 | 10  | null
+;
+
+
+twoCountStarInStats#[skip:-8.11.99]
+row x = 1 | stats  a = count(*), b = count(*) | stats  c = count(*);
+
+c:long
+1
+;
+
+
+twoCountStarInStatsOnRealData-Ignore
+from employees | stats  a = count(*), b = count(*) | stats  c = count(*);
+
+c:long
+1
+;
+
+
+twoStatsSameExp#[skip:-8.11.99]
+row x = 1 | stats  a = max(x), b = max(x) | stats  c = max(a);
+
+c:integer
+1
+;
+
+
+twoCountStarByXInStats#[skip:-8.11.99]
+row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) by x | stats  c = count(*);
+
+c:long
+1
+;
+
+
+twoCountStarPlusStatsBy#[skip:-8.11.99]
+row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) | stats  c = count(*) by a;
+
+c:long | a:long
+1      | 1
+;
+
+
+twoCountStarByPlusStatsBy#[skip:-8.11.99]
+row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) by x | stats  c = count(*) by a;
+
+c:long | a:long
+1      | 1
+;
+
+docsGettingStartedStats
+// tag::gs-stats[]
+FROM sample_data
+| STATS median_duration = MEDIAN(event_duration)
+// end::gs-stats[]
+;
+
+median_duration:double
+2764889.0
+;
+
+docsGettingStartedTwoStats
+// tag::gs-two-stats[]
+FROM sample_data
+| STATS median_duration = MEDIAN(event_duration), max_duration = MAX(event_duration)
+// end::gs-two-stats[]
+;
+
+median_duration:double | max_duration:long
+2764889.0      |8268153   
+;
+
+docsGettingStartedStatsBy
+// tag::gs-stats-by[]
+FROM sample_data
+| STATS median_duration = MEDIAN(event_duration) BY client_ip
+// end::gs-stats-by[]
+| LIMIT 0
+;
+
+median_duration:double | client_ip:ip
+;
+
+fieldEscaping#[skip:-8.12.99, reason:Fixed bug in 8.13 of removing the leading/trailing backquotes of an identifier]
+FROM sample_data
+| stats count(`event_duration`) |  keep `count(``event_duration``)`
+;
+
+count(`event_duration`):l
+7
 ;

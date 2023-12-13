@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -194,9 +193,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(mockThreadPool);
-        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(
-            Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE))
-        );
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(Mockito.spy(new SearchRequestBuilder(client)));
         final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
             "mapping",
             new FieldExpression("dn", Collections.singletonList(new FieldValue("*"))),
@@ -238,9 +235,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(mockThreadPool);
-        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(
-            Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE))
-        );
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(Mockito.spy(new SearchRequestBuilder(client)));
         final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
             "mapping",
             new FieldExpression("dn", Collections.singletonList(new FieldValue("*"))),
@@ -302,9 +297,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(mockThreadPool);
-        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(
-            Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE))
-        );
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(Mockito.spy(new SearchRequestBuilder(client)));
         final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
             "mapping",
             new FieldExpression("dn", Collections.singletonList(new FieldValue("*"))),
@@ -378,17 +371,10 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 null,
                 0
             );
-            final var searchResponse = new SearchResponse(
-                internalSearchResponse,
-                randomAlphaOfLengthBetween(3, 8),
-                1,
-                1,
-                0,
-                10,
-                null,
-                null
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(internalSearchResponse, randomAlphaOfLengthBetween(3, 8), 1, 1, 0, 10, null, null)
             );
-            listener.onResponse(searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
     }

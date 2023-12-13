@@ -7,27 +7,96 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
+
 import java.util.List;
 
 public class GetStackTracesActionIT extends ProfilingTestCase {
     public void testGetStackTracesUnfiltered() throws Exception {
-        GetStackTracesRequest request = new GetStackTracesRequest(1, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(1000, 600.0d, 1.0d, null, null, null, null, null, null, null, null);
+        request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(1, response.getTotalFrames());
+        assertEquals(46, response.getTotalSamples());
+        assertEquals(1821, response.getTotalFrames());
+
+        assertNotNull(response.getStackTraceEvents());
+        assertEquals(3L, response.getStackTraceEvents().get("L7kj7UvlKbT-vN73el4faQ").count);
+
         assertNotNull(response.getStackTraces());
-        StackTrace stackTrace = response.getStackTraces().get("QjoLteG7HX3VUUXr-J4kHQ");
-        assertEquals(List.of(1083999), stackTrace.addressOrLines);
-        assertEquals(List.of("QCCDqjSg3bMK1C4YRK6Tiw"), stackTrace.fileIds);
-        assertEquals(List.of("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf"), stackTrace.frameIds);
-        assertEquals(List.of(2), stackTrace.typeIds);
+        // just do a high-level spot check. Decoding is tested in unit-tests
+        StackTrace stackTrace = response.getStackTraces().get("L7kj7UvlKbT-vN73el4faQ");
+        assertEquals(18, stackTrace.addressOrLines.size());
+        assertEquals(18, stackTrace.fileIds.size());
+        assertEquals(18, stackTrace.frameIds.size());
+        assertEquals(18, stackTrace.typeIds.size());
+        assertEquals(0.0000098789d, stackTrace.annualCO2Tons, 0.0000000001d);
+        assertEquals(0.093075d, stackTrace.annualCostsUSD, 0.000001d);
 
         assertNotNull(response.getStackFrames());
-        StackFrame stackFrame = response.getStackFrames().get("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf");
-        assertEquals(List.of("_raw_spin_unlock_irqrestore", "inlined_frame_1", "inlined_frame_0"), stackFrame.functionName);
-        assertNotNull(response.getStackTraceEvents());
-        assertEquals(1, (int) response.getStackTraceEvents().get("QjoLteG7HX3VUUXr-J4kHQ"));
+        StackFrame stackFrame = response.getStackFrames().get("8NlMClggx8jaziUTJXlmWAAAAAAAAIYI");
+        assertEquals(List.of("start_thread"), stackFrame.functionName);
 
         assertNotNull(response.getExecutables());
-        assertNotNull("libc.so.6", response.getExecutables().get("QCCDqjSg3bMK1C4YRK6Tiw"));
+        assertEquals("vmlinux", response.getExecutables().get("lHp5_WAgpLy2alrUVab6HA"));
+    }
+
+    public void testGetStackTracesFromAPMWithMatch() throws Exception {
+        TermQueryBuilder query = QueryBuilders.termQuery("transaction.name", "encodeSha1");
+
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            null,
+            1.0d,
+            1.0d,
+            query,
+            "apm-test-*",
+            "transaction.profiler_stack_trace_ids",
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
+        assertEquals(49, response.getTotalFrames());
+
+        assertNotNull(response.getStackTraceEvents());
+        assertEquals(3L, response.getStackTraceEvents().get("Ce77w10WeIDow3kd1jowlA").count);
+        assertEquals(2L, response.getStackTraceEvents().get("JvISdnJ47BQ01489cwF9DA").count);
+
+        assertNotNull(response.getStackTraces());
+        // just do a high-level spot check. Decoding is tested in unit-tests
+        StackTrace stackTrace = response.getStackTraces().get("Ce77w10WeIDow3kd1jowlA");
+        assertEquals(39, stackTrace.addressOrLines.size());
+        assertEquals(39, stackTrace.fileIds.size());
+        assertEquals(39, stackTrace.frameIds.size());
+        assertEquals(39, stackTrace.typeIds.size());
+
+        assertNotNull(response.getStackFrames());
+        StackFrame stackFrame = response.getStackFrames().get("fhsEKXDuxJ-jIJrZpdRuSAAAAAAAAFtj");
+        assertEquals(List.of("deflate", "deflate"), stackFrame.functionName);
+
+        assertNotNull(response.getExecutables());
+        assertEquals("libzip.so", response.getExecutables().get("GXH6S9Nv2Lf0omTz4cH4RA"));
+    }
+
+    public void testGetStackTracesFromAPMNoMatch() throws Exception {
+        TermQueryBuilder query = QueryBuilders.termQuery("transaction.name", "nonExistingTransaction");
+
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            null,
+            1.0d,
+            1.0d,
+            query,
+            "apm-test-*",
+            "transaction.profiler_stack_trace_ids",
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
+        assertEquals(0, response.getTotalFrames());
     }
 }

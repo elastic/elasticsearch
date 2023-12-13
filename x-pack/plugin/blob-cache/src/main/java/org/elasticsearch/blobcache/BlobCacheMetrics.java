@@ -14,6 +14,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 public class BlobCacheMetrics {
     private final LongCounter cacheMissCounter;
+    private final LongCounter evictedCountNonZeroFrequency;
     private final LongHistogram cacheMissLoadTimes;
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
@@ -23,6 +24,11 @@ public class BlobCacheMetrics {
                 "The number of times there was a cache miss that triggered a read from the blob store",
                 "count"
             ),
+            meterRegistry.registerLongCounter(
+                "elasticsearch.blob_cache.count_of_evicted_used_regions",
+                "The number of times a cache entry was evicted where the frequency was not zero",
+                "entries"
+            ),
             meterRegistry.registerLongHistogram(
                 "elasticsearch.blob_cache.cache_miss_load_times",
                 "The timing data for populating entries in the blob store resulting from a cache miss.",
@@ -31,8 +37,9 @@ public class BlobCacheMetrics {
         );
     }
 
-    BlobCacheMetrics(LongCounter cacheMissCounter, LongHistogram cacheMissLoadTimes) {
+    BlobCacheMetrics(LongCounter cacheMissCounter, LongCounter evictedCountNonZeroFrequency, LongHistogram cacheMissLoadTimes) {
         this.cacheMissCounter = cacheMissCounter;
+        this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
         this.cacheMissLoadTimes = cacheMissLoadTimes;
     }
 
@@ -40,6 +47,10 @@ public class BlobCacheMetrics {
 
     public LongCounter getCacheMissCounter() {
         return cacheMissCounter;
+    }
+
+    public LongCounter getEvictedCountNonZeroFrequency() {
+        return evictedCountNonZeroFrequency;
     }
 
     public LongHistogram getCacheMissLoadTimes() {

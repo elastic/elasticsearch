@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -41,8 +40,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -225,26 +226,36 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         );
 
         logger.info("Running moreLikeThis on beta shard");
-        SearchResponse response = prepareSearch("beta").setQuery(
-            new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)
-        ).get();
-        assertHitCount(response, 1L);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
-
+        assertResponse(
+            prepareSearch("beta").setQuery(
+                new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)
+            ),
+            response -> {
+                assertHitCount(response, 1L);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
+            }
+        );
         logger.info("Running moreLikeThis on release shard");
-        response = prepareSearch("release").setQuery(
-            new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)
-        ).get();
-        assertHitCount(response, 1L);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+        assertResponse(
+            prepareSearch("release").setQuery(
+                new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)
+            ),
+            response -> {
+                assertHitCount(response, 1L);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+            }
+        );
 
         logger.info("Running moreLikeThis on alias with node client");
-        response = internalCluster().coordOnlyNodeClient()
-            .prepareSearch("beta")
-            .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1))
-            .get();
-        assertHitCount(response, 1L);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
+        assertResponse(
+            internalCluster().coordOnlyNodeClient()
+                .prepareSearch("beta")
+                .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
+            response -> {
+                assertHitCount(response, 1L);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
+            }
+        );
     }
 
     // Issue #14944
@@ -267,17 +278,20 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         ).actionGet();
         refresh(indexName);
 
-        SearchResponse response = prepareSearch().setQuery(
-            new MoreLikeThisQueryBuilder(null, new Item[] { new Item(aliasName, "1") }).minTermFreq(1).minDocFreq(1)
-        ).get();
-        assertHitCount(response, 2L);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
+        assertResponse(
+            prepareSearch().setQuery(
+                new MoreLikeThisQueryBuilder(null, new Item[] { new Item(aliasName, "1") }).minTermFreq(1).minDocFreq(1)
+            ),
+            response -> {
+                assertHitCount(response, 2L);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
+            }
+        );
     }
 
     public void testMoreLikeThisIssue2197() throws Exception {
         indicesAdmin().prepareCreate("foo").get();
-        client().prepareIndex("foo")
-            .setId("1")
+        prepareIndex("foo").setId("1")
             .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
             .get();
         indicesAdmin().prepareRefresh("foo").get();
@@ -292,8 +306,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("foo").get();
         ensureGreen();
 
-        client().prepareIndex("foo")
-            .setId("1")
+        prepareIndex("foo").setId("1")
             .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
             .setRouting("2")
             .get();
@@ -307,8 +320,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertAcked(prepareCreate("foo", 2, indexSettings(2, 0)));
         ensureGreen();
 
-        client().prepareIndex("foo")
-            .setId("1")
+        prepareIndex("foo").setId("1")
             .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
             .setRouting("4000")
             .get();
@@ -334,12 +346,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .endObject()
         ).get();
         ensureGreen();
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject())
             .get();
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setSource(jsonBuilder().startObject().field("string_value", "elasticsearch index").field("int_value", 42).endObject())
             .get();
 
@@ -547,9 +557,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         logger.info("Indexing...");
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test").setSource("text", "lucene").setId("1"));
-        builders.add(client().prepareIndex("test").setSource("text", "lucene release").setId("2"));
-        builders.add(client().prepareIndex("test").setSource("text", "apache lucene").setId("3"));
+        builders.add(prepareIndex("test").setSource("text", "lucene").setId("1"));
+        builders.add(prepareIndex("test").setSource("text", "lucene release").setId("2"));
+        builders.add(prepareIndex("test").setSource("text", "apache lucene").setId("3"));
         indexRandom(true, builders);
 
         logger.info("Running MoreLikeThis");
@@ -573,10 +583,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         String[] values = { "aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj" };
         List<IndexRequestBuilder> builders = new ArrayList<>(values.length + 1);
         // index one document with all the values
-        builders.add(client().prepareIndex("test").setId("0").setSource("text", values));
+        builders.add(prepareIndex("test").setId("0").setSource("text", values));
         // index each document with only one of the values
         for (int i = 0; i < values.length; i++) {
-            builders.add(client().prepareIndex("test").setId(String.valueOf(i + 1)).setSource("text", values[i]));
+            builders.add(prepareIndex("test").setId(String.valueOf(i + 1)).setSource("text", values[i]));
         }
         indexRandom(true, builders);
 
@@ -608,7 +618,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             for (int j = 1; j <= 10 - i; j++) {
                 text += j + " ";
             }
-            builders.add(client().prepareIndex("test").setId(i + "").setSource("text", text));
+            builders.add(prepareIndex("test").setId(i + "").setSource("text", text));
         }
         indexRandom(true, builders);
 
@@ -620,13 +630,14 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minDocFreq(1)
                 .minimumShouldMatch(minimumShouldMatch);
             logger.info("Testing with minimum_should_match = {}", minimumShouldMatch);
-            SearchResponse response = prepareSearch("test").setQuery(mltQuery).get();
-            assertNoFailures(response);
-            if (minimumShouldMatch.equals("0%")) {
-                assertHitCount(response, 10);
-            } else {
-                assertHitCount(response, 11 - i);
-            }
+            final int finalI = i;
+            assertNoFailuresAndResponse(prepareSearch("test").setQuery(mltQuery), response -> {
+                if (minimumShouldMatch.equals("0%")) {
+                    assertHitCount(response, 10);
+                } else {
+                    assertHitCount(response, 11 - finalI);
+                }
+            });
         }
     }
 
@@ -642,7 +653,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             doc.field("field" + i, generateRandomStringArray(5, 10, false) + "a"); // make sure they are not all empty
         }
         doc.endObject();
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(doc));
+        indexRandom(true, prepareIndex("test").setId("0").setSource(doc));
 
         logger.info("Checking the document matches ...");
         // routing to ensure we hit the shard with the doc
@@ -661,8 +672,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Creating an index with a single document ...");
         indexRandom(
             true,
-            client().prepareIndex("test")
-                .setId("1")
+            prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("text", "Hello World!").field("date", "2009-01-01").endObject())
         );
 
@@ -707,7 +717,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Indexing each field value of this document as a single document.");
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numFields; i++) {
-            builders.add(client().prepareIndex("test").setId(i + "").setSource("field" + i, i + ""));
+            builders.add(prepareIndex("test").setId(i + "").setSource("field" + i, i + ""));
         }
         indexRandom(true, builders);
 
@@ -738,11 +748,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test")
-                .setId("1")
+            prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("text", "hello world").field("text1", "elasticsearch").endObject()),
-            client().prepareIndex("test")
-                .setId("2")
+            prepareIndex("test").setId("2")
                 .setSource(jsonBuilder().startObject().field("text", "goodby moon").field("text1", "elasticsearch").endObject())
         );
 
@@ -760,9 +768,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     }
 
     public void testWithRouting() throws IOException {
-        client().prepareIndex("index").setId("1").setRouting("3").setSource("text", "this is a document").get();
-        client().prepareIndex("index").setId("2").setRouting("1").setSource("text", "this is another document").get();
-        client().prepareIndex("index").setId("3").setRouting("4").setSource("text", "this is yet another document").get();
+        prepareIndex("index").setId("1").setRouting("3").setSource("text", "this is a document").get();
+        prepareIndex("index").setId("2").setRouting("1").setSource("text", "this is another document").get();
+        prepareIndex("index").setId("3").setRouting("4").setSource("text", "this is yet another document").get();
         refresh("index");
 
         Item item = new Item("index", "2").routing("1");
@@ -773,8 +781,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         );
         moreLikeThisQueryBuilder.minTermFreq(1);
         moreLikeThisQueryBuilder.minDocFreq(1);
-        SearchResponse searchResponse = prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
-        assertEquals(2, searchResponse.getHits().getTotalHits().value);
+        assertHitCount(prepareSearch("index").setQuery(moreLikeThisQueryBuilder), 2L);
     }
 
     // Issue #29678

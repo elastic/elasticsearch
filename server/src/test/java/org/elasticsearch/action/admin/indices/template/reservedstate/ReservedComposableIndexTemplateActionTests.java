@@ -875,7 +875,13 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             .indexTemplates(
                 Map.of(
                     reservedComposableIndexName(conflictingTemplateName),
-                    new ComposableIndexTemplate(singletonList("foo*"), null, Collections.emptyList(), 1L, 1L, Collections.emptyMap())
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(singletonList("foo*"))
+                        .componentTemplates(Collections.emptyList())
+                        .priority(1L)
+                        .version(1L)
+                        .metadata(Collections.emptyMap())
+                        .build()
                 )
             )
             .build();

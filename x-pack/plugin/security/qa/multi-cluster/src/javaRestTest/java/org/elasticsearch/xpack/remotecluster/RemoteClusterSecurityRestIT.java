@@ -224,13 +224,17 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
             final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-                .map(SearchHit::getIndex)
-                .collect(Collectors.toList());
-            if (alsoSearchLocally) {
-                assertThat(actualIndices, containsInAnyOrder("index1", "local_index"));
-            } else {
-                assertThat(actualIndices, containsInAnyOrder("index1"));
+            try {
+                final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                    .map(SearchHit::getIndex)
+                    .collect(Collectors.toList());
+                if (alsoSearchLocally) {
+                    assertThat(actualIndices, containsInAnyOrder("index1", "local_index"));
+                } else {
+                    assertThat(actualIndices, containsInAnyOrder("index1"));
+                }
+            } finally {
+                searchResponse.decRef();
             }
 
             // Check remote metric users can search metric documents from all FC nodes
@@ -241,11 +245,15 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             final SearchResponse metricSearchResponse = SearchResponse.fromXContent(
                 responseAsParser(performRequestWithRemoteMetricUser(metricSearchRequest))
             );
-            assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
-            assertThat(
-                Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
-                containsInAnyOrder("shared-metrics")
-            );
+            try {
+                assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
+                assertThat(
+                    Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
+                    containsInAnyOrder("shared-metrics")
+                );
+            } finally {
+                metricSearchResponse.decRef();
+            }
 
             // Check that access is denied because of user privileges
             final ResponseException exception = expectThrows(

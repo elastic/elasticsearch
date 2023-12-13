@@ -91,7 +91,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private volatile BoundTransportAddress boundAddress;
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Map<HttpChannel, RequestTrackingHttpChannel> httpChannels = new ConcurrentHashMap<>();
-    private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
+    private final PlainActionFuture<Void> allClientsClosedListener = new PlainActionFuture<>();
     private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final long shutdownGracePeriodMillis;

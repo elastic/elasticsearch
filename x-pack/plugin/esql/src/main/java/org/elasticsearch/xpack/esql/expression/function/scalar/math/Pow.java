@@ -19,13 +19,13 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast.cast;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
@@ -37,13 +37,13 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
 
     public Pow(
         Source source,
-        @Param(name = "base", type = { "integer", "long", "double" }) Expression base,
-        @Param(name = "exponent", type = { "integer", "double" }) Expression exponent
+        @Param(name = "base", type = { "integer", "unsigned_long", "long", "double" }) Expression base,
+        @Param(name = "exponent", type = { "integer", "unsigned_long", "long", "double" }) Expression exponent
     ) {
         super(source, Arrays.asList(base, exponent));
         this.base = base;
         this.exponent = exponent;
-        this.dataType = determineDataType(base, exponent);
+        this.dataType = DataTypes.DOUBLE;
     }
 
     @Override
@@ -70,63 +70,9 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
         return EvaluatorMapper.super.fold();
     }
 
-    @Evaluator(extraName = "Double", warnExceptions = { ArithmeticException.class })
+    @Evaluator(warnExceptions = { ArithmeticException.class })
     static double process(double base, double exponent) {
-        return validateAsDouble(base, exponent);
-    }
-
-    @Evaluator(extraName = "Long", warnExceptions = { ArithmeticException.class })
-    static long processLong(double base, double exponent) {
-        return exponent == 1 ? validateAsLong(base) : validateAsLong(base, exponent);
-    }
-
-    @Evaluator(extraName = "Int", warnExceptions = { ArithmeticException.class })
-    static int processInt(double base, double exponent) {
-        return exponent == 1 ? validateAsInt(base) : validateAsInt(base, exponent);
-    }
-
-    private static double validateAsDouble(double base, double exponent) {
-        double result = Math.pow(base, exponent);
-        if (Double.isNaN(result)) {
-            throw new ArithmeticException("invalid result: pow(" + base + ", " + exponent + ")");
-        }
-        return result;
-    }
-
-    private static long validateAsLong(double base, double exponent) {
-        double result = Math.pow(base, exponent);
-        if (Double.isNaN(result)) {
-            throw new ArithmeticException("invalid result: pow(" + base + ", " + exponent + ")");
-        }
-        return validateAsLong(result);
-    }
-
-    private static long validateAsLong(double value) {
-        if (Double.compare(value, Long.MAX_VALUE) > 0) {
-            throw new ArithmeticException("long overflow");
-        }
-        if (Double.compare(value, Long.MIN_VALUE) < 0) {
-            throw new ArithmeticException("long overflow");
-        }
-        return (long) value;
-    }
-
-    private static int validateAsInt(double base, double exponent) {
-        double result = Math.pow(base, exponent);
-        if (Double.isNaN(result)) {
-            throw new ArithmeticException("invalid result: pow(" + base + ", " + exponent + ")");
-        }
-        return validateAsInt(result);
-    }
-
-    private static int validateAsInt(double value) {
-        if (Double.compare(value, Integer.MAX_VALUE) > 0) {
-            throw new ArithmeticException("integer overflow");
-        }
-        if (Double.compare(value, Integer.MIN_VALUE) < 0) {
-            throw new ArithmeticException("integer overflow");
-        }
-        return (int) value;
+        return NumericUtils.asFiniteNumber(Math.pow(base, exponent));
     }
 
     @Override
@@ -152,16 +98,6 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
         return dataType;
     }
 
-    private static DataType determineDataType(Expression base, Expression exponent) {
-        if (base.dataType().isRational() || exponent.dataType().isRational()) {
-            return DataTypes.DOUBLE;
-        }
-        if (base.dataType().size() == Long.BYTES || exponent.dataType().size() == Long.BYTES) {
-            return DataTypes.LONG;
-        }
-        return DataTypes.INTEGER;
-    }
-
     @Override
     public ScriptTemplate asScript() {
         throw new UnsupportedOperationException("functions do not support scripting");
@@ -169,27 +105,9 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var baseEvaluator = toEvaluator.apply(base);
-        var exponentEvaluator = toEvaluator.apply(exponent);
-        if (dataType == DataTypes.DOUBLE) {
-            return new PowDoubleEvaluator.Factory(
-                source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator)
-            );
-        } else if (dataType == DataTypes.LONG) {
-            return new PowLongEvaluator.Factory(
-                source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator)
-            );
-        } else {
-            return new PowIntEvaluator.Factory(
-                source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator)
-            );
-        }
+        var baseEval = Cast.cast(source(), base.dataType(), DataTypes.DOUBLE, toEvaluator.apply(base));
+        var expEval = Cast.cast(source(), exponent.dataType(), DataTypes.DOUBLE, toEvaluator.apply(exponent));
+        return new PowEvaluator.Factory(source(), baseEval, expEval);
     }
 
     @Override

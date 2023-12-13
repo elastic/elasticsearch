@@ -32,7 +32,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -77,7 +76,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             "/" + ECS_DYNAMIC_TEMPLATES_FILE,
             Integer.toString(1),
             StackTemplateRegistry.TEMPLATE_VERSION_VARIABLE,
-            Collections.emptyMap()
+            StackTemplateRegistry.ADDITIONAL_TEMPLATE_VARIABLES
         );
         Map<String, Object> ecsDynamicTemplatesRaw;
         try (
@@ -181,6 +180,38 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         Map<String, Object> nestedFieldsMap = createTestDocument(false);
         indexDocument(indexName, nestedFieldsMap);
         verifyEcsMappings(indexName);
+    }
+
+    public void testNumericMessage() throws IOException {
+        String indexName = "test-numeric-message";
+        createTestIndex(indexName);
+        Map<String, Object> fieldsMap = createTestDocument(false);
+        fieldsMap.put("message", 123); // Should be mapped as match_only_text
+        indexDocument(indexName, fieldsMap);
+        verifyEcsMappings(indexName);
+    }
+
+    public void testUsage() throws IOException {
+        String indexName = "test-usage";
+        createTestIndex(indexName);
+        Map<String, Object> fieldsMap = createTestDocument(false);
+        // Only non-root numeric (or coercable to numeric) "usage" fields should match
+        // ecs_usage_*_scaled_float; root fields and intermediate object fields should not match.
+        fieldsMap.put("host.cpu.usage", 123); // should be mapped as scaled_float
+        fieldsMap.put("string.usage", "123"); // should also be mapped as scale_float
+        fieldsMap.put("usage", 123);
+        fieldsMap.put("root.usage.long", 123);
+        fieldsMap.put("root.usage.float", 123.456);
+        indexDocument(indexName, fieldsMap);
+
+        final Map<String, Object> rawMappings = getMappings(indexName);
+        final Map<String, String> flatFieldMappings = new HashMap<>();
+        processRawMappingsSubtree(rawMappings, flatFieldMappings, new HashMap<>(), "");
+        assertEquals("scaled_float", flatFieldMappings.get("host.cpu.usage"));
+        assertEquals("scaled_float", flatFieldMappings.get("string.usage"));
+        assertEquals("long", flatFieldMappings.get("usage"));
+        assertEquals("long", flatFieldMappings.get("root.usage.long"));
+        assertEquals("float", flatFieldMappings.get("root.usage.float"));
     }
 
     private static void indexDocument(String indexName, Map<String, Object> flattenedFieldsMap) throws IOException {

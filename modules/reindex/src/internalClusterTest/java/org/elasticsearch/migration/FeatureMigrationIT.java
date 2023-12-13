@@ -396,27 +396,29 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("a-ct").componentTemplate(ct)).get();
 
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            Collections.singletonList(prefix + "*"),
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"dynamic\": false,\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field2\": {\n"
-                        + "          \"type\": \"keyword\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            Collections.singletonList("a-ct"),
-            4L,
-            5L,
-            Collections.singletonMap("baz", "thud")
-        );
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(prefix + "*"))
+            .template(
+                new Template(
+                    null,
+                    new CompressedXContent(
+                        "{\n"
+                            + "      \"dynamic\": false,\n"
+                            + "      \"properties\": {\n"
+                            + "        \"field2\": {\n"
+                            + "          \"type\": \"keyword\"\n"
+                            + "        }\n"
+                            + "      }\n"
+                            + "    }"
+                    ),
+                    null
+                )
+            )
+            .componentTemplates(Collections.singletonList("a-ct"))
+            .priority(4L)
+            .version(5L)
+            .metadata(Collections.singletonMap("baz", "thud"))
+            .build();
         client().execute(PutComposableIndexTemplateAction.INSTANCE, new PutComposableIndexTemplateAction.Request("a-it").indexTemplate(cit))
             .get();
 

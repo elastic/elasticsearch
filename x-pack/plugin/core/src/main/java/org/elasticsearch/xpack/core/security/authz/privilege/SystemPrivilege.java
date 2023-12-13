@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
@@ -34,16 +34,16 @@ public final class SystemPrivilege extends Privilege {
         "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
         RetentionLeaseSyncAction.ACTION_NAME + "*", // needed for retention lease syncs
         RetentionLeaseBackgroundSyncAction.ACTION_NAME + "*", // needed for background retention lease syncs
-        RetentionLeaseActions.Add.ACTION_NAME + "*", // needed for CCR to add retention leases
-        RetentionLeaseActions.Remove.ACTION_NAME + "*", // needed for CCR to remove retention leases
-        RetentionLeaseActions.Renew.ACTION_NAME + "*", // needed for CCR to renew retention leases
+        RetentionLeaseActions.ADD.name() + "*", // needed for CCR to add retention leases
+        RetentionLeaseActions.REMOVE.name() + "*", // needed for CCR to remove retention leases
+        RetentionLeaseActions.RENEW.name() + "*", // needed for CCR to renew retention leases
         "indices:admin/settings/update", // needed for DiskThresholdMonitor.markIndicesReadOnly
         CompletionPersistentTaskAction.NAME, // needed for ShardFollowTaskCleaner
         "indices:data/write/*", // needed for SystemIndexMigrator
         "indices:data/read/*", // needed for SystemIndexMigrator
         "indices:admin/refresh", // needed for SystemIndexMigrator
         "indices:admin/aliases", // needed for SystemIndexMigrator
-        SearchShardsAction.NAME // added so this API can be called with the system user by other APIs
+        TransportSearchShardsAction.TYPE.name() // added so this API can be called with the system user by other APIs
     );
 
     private static final Predicate<String> PREDICATE = (action) -> {

@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
@@ -41,12 +40,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -112,40 +112,41 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         return Arrays.asList(ExplainableScriptPlugin.class);
     }
 
-    public void testExplainScript() throws InterruptedException, IOException {
+    public void testExplainScript() throws InterruptedException, IOException, ExecutionException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             indexRequests.add(
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
+                prepareIndex("test").setId(Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject())
             );
         }
         indexRandom(true, true, indexRequests);
         client().admin().indices().prepareRefresh().get();
         ensureYellow();
-        SearchResponse response = client().search(
-            new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                .source(
-                    searchSource().explain(true)
-                        .query(
-                            functionScoreQuery(
-                                termQuery("text", "text"),
-                                scriptFunction(new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap()))
-                            ).boostMode(CombineFunction.REPLACE)
-                        )
-                )
-        ).actionGet();
-
-        assertNoFailures(response);
-        SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(20L));
-        int idCounter = 19;
-        for (SearchHit hit : hits.getHits()) {
-            assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(), containsString(Double.toString(idCounter)));
-            assertThat(hit.getExplanation().getDetails().length, equalTo(2));
-            idCounter--;
-        }
+        assertNoFailuresAndResponse(
+            client().search(
+                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
+                    .source(
+                        searchSource().explain(true)
+                            .query(
+                                functionScoreQuery(
+                                    termQuery("text", "text"),
+                                    scriptFunction(new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap()))
+                                ).boostMode(CombineFunction.REPLACE)
+                            )
+                    )
+            ),
+            response -> {
+                SearchHits hits = response.getHits();
+                assertThat(hits.getTotalHits().value, equalTo(20L));
+                int idCounter = 19;
+                for (SearchHit hit : hits.getHits()) {
+                    assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
+                    assertThat(hit.getExplanation().toString(), containsString(Double.toString(idCounter)));
+                    assertThat(hit.getExplanation().getDetails().length, equalTo(2));
+                    idCounter--;
+                }
+            }
+        );
     }
 }

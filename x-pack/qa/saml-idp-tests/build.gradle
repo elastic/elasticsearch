@@ -1,46 +1,13 @@
-import org.elasticsearch.gradle.LazyPropertyMap
-
-Project idpFixtureProject = project(':x-pack:test:idp-fixture')
-
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   javaRestTestImplementation testArtifact(project(xpackModule('core')))
   javaRestTestImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   javaRestTestImplementation "com.google.guava:guava:${versions.jimfs_guava}"
+  javaRestTestImplementation project(":x-pack:test:idp-fixture")
 }
 
-testFixtures.useFixture ":x-pack:test:idp-fixture"
-
-String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-tasks.register("copyIdpFiles", Sync) {
-  dependsOn idpFixtureProject.postProcessFixture
-  // Don't attempt to get ephemeral ports when Docker is not available
-  onlyIf(idpFixtureProject.postProcessFixture.path + " not skipped") {
-    idpFixtureProject.postProcessFixture.state.skipped == false
-  }
-  from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml',
-    'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
-  into outputDir
-  def expandProps = new LazyPropertyMap<>("lazy port config")
-  expandProps.put("port", () -> idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443")
-  inputs.properties(expandProps)
-  filesMatching("idp-metadata.xml") {
-    expand(expandProps)
-  }
-}
-
-normalization {
-  runtimeClasspath {
-    ignore 'idp-metadata.xml'
-  }
-}
 
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
-  classpath += files(tasks.named("copyIdpFiles"))
-  onlyIf(idpFixtureProject.postProcessFixture.path + " not skipped") {
-    idpFixtureProject.postProcessFixture.state.skipped == false
-  }
 }

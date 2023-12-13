@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -45,6 +44,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -308,7 +308,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings(indices).setIndicesOptions(options), false);
 
         assertAcked(prepareCreate("foobar"));
-        client().prepareIndex("foobar").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("foobar").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
 
         // Verify defaults for wildcards, with one wildcard expression and one existing index
         indices = new String[] { "foo*" };
@@ -394,7 +394,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testAllMissingLenient() throws Exception {
         createIndex("test1");
-        client().prepareIndex("test1").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test1").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(prepareSearch("test2").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchAllQuery()), 0L);
         assertHitCount(prepareSearch("test2", "test3").setQuery(matchAllQuery()).setIndicesOptions(IndicesOptions.lenientExpandOpen()), 0L);
         // you should still be able to run empty searches without things blowing up
@@ -403,12 +403,12 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testAllMissingStrict() throws Exception {
         createIndex("test1");
-        expectThrows(IndexNotFoundException.class, () -> prepareSearch("test2").setQuery(matchAllQuery()).execute().actionGet());
+        expectThrows(IndexNotFoundException.class, () -> prepareSearch("test2").setQuery(matchAllQuery()).get());
 
-        expectThrows(IndexNotFoundException.class, () -> prepareSearch("test2", "test3").setQuery(matchAllQuery()).execute().actionGet());
+        expectThrows(IndexNotFoundException.class, () -> prepareSearch("test2", "test3").setQuery(matchAllQuery()).get());
 
         // you should still be able to run empty searches without things blowing up
-        prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
+        prepareSearch().setQuery(matchAllQuery()).get().decRef();
     }
 
     // For now don't handle closed indices
@@ -674,13 +674,14 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
-                assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+                assertResponse(multiSearchRequestBuilder, multiSearchResponse -> {
+                    assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                    assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+                });
             } else {
                 try {
-                    requestBuilder.get();
+                    requestBuilder.get().decRef();
                     fail("IndexNotFoundException or IndexClosedException was expected");
                 } catch (IndexNotFoundException | IndexClosedException e) {}
             }
@@ -688,11 +689,12 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
                 assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].getResponse(), notNullValue());
+                assertResponse(multiSearchRequestBuilder, response -> {
+                    assertThat(response.getResponses().length, equalTo(1));
+                    assertThat(response.getResponses()[0].getResponse(), notNullValue());
+                });
             } else {
-                requestBuilder.get();
+                requestBuilder.get().decRef();
             }
         }
     }

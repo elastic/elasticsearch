@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -117,19 +118,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         populateIndex(indexName, 10_000);
 
-        final TotalHits originalAllHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits();
-        final TotalHits originalBarHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .setQuery(matchQuery("foo", "bar"))
-            .get()
-            .getHits()
-            .getTotalHits();
+        final TotalHits originalAllHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true)
+        );
+        final TotalHits originalBarHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true).setQuery(matchQuery("foo", "bar"))
+        );
         logger.info("--> [{}] in total, of which [{}] match the query", originalAllHits, originalBarHits);
 
         expectThrows(
@@ -365,7 +359,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final Thread indexingThead = new Thread(() -> {
             final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
             for (int i = between(10, 10_000); i >= 0; i--) {
-                indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+                indexRequestBuilders.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
             }
             try {
                 safeAwait(cyclicBarrier);
@@ -427,7 +421,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             true,
             false,
             IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("foo", randomAlphaOfLength(1048)))
+                .mapToObj(i -> prepareIndex(indexName).setSource("foo", randomAlphaOfLength(1048)))
                 .collect(Collectors.toList())
         );
         refresh(indexName);
@@ -699,18 +693,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final int docCount = between(0, 1000);
         for (int i = 0; i < docCount; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(indexName)
-                    .setSource(
-                        DataStream.TIMESTAMP_FIELD_NAME,
-                        String.format(
-                            Locale.ROOT,
-                            "2020-11-26T%02d:%02d:%02d.%09dZ",
-                            between(0, 23),
-                            between(0, 59),
-                            between(0, 59),
-                            randomLongBetween(0, 999999999L)
-                        )
+                prepareIndex(indexName).setSource(
+                    DataStream.TIMESTAMP_FIELD_NAME,
+                    String.format(
+                        Locale.ROOT,
+                        "2020-11-26T%02d:%02d:%02d.%09dZ",
+                        between(0, 23),
+                        between(0, 59),
+                        between(0, 59),
+                        randomLongBetween(0, 999999999L)
                     )
+                )
             );
         }
         indexRandom(true, false, indexRequestBuilders);
@@ -766,19 +759,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
         );
 
-        final TotalHits originalAllHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits();
-        final TotalHits originalBarHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .setQuery(matchQuery("foo", "bar"))
-            .get()
-            .getHits()
-            .getTotalHits();
+        final TotalHits originalAllHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true)
+        );
+        final TotalHits originalBarHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true).setQuery(matchQuery("foo", "bar"))
+        );
         logger.info("--> [{}] in total, of which [{}] match the query", originalAllHits, originalBarHits);
 
         // The repository that contains the actual data
@@ -937,19 +923,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
         );
 
-        final TotalHits originalAllHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits();
-        final TotalHits originalBarHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .setQuery(matchQuery("foo", "bar"))
-            .get()
-            .getHits()
-            .getTotalHits();
+        final TotalHits originalAllHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true)
+        );
+        final TotalHits originalBarHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true).setQuery(matchQuery("foo", "bar"))
+        );
         logger.info("--> [{}] in total, of which [{}] match the query", originalAllHits, originalBarHits);
 
         // Take snapshot containing the actual data to one repository

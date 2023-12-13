@@ -53,6 +53,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -144,7 +145,6 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
-import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
@@ -160,14 +160,12 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
@@ -625,6 +623,7 @@ public class Security extends Plugin
                 services.client(),
                 services.threadPool(),
                 services.clusterService(),
+                services.featureService(),
                 services.resourceWatcherService(),
                 services.scriptService(),
                 services.xContentRegistry(),
@@ -642,6 +641,7 @@ public class Security extends Plugin
         Client client,
         ThreadPool threadPool,
         ClusterService clusterService,
+        FeatureService featureService,
         ResourceWatcherService resourceWatcherService,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
@@ -868,8 +868,8 @@ public class Security extends Plugin
             client,
             systemIndices.getProfileIndexManager(),
             clusterService,
-            realms::getDomainConfig,
-            threadPool
+            featureService,
+            realms::getDomainConfig
         );
         components.add(profileService);
 
@@ -1298,9 +1298,9 @@ public class Security extends Plugin
             new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
             new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
             new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
-            new ActionHandler<>(ChangePasswordAction.INSTANCE, TransportChangePasswordAction.class),
+            new ActionHandler<>(TransportChangePasswordAction.TYPE, TransportChangePasswordAction.class),
             new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
-            new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
+            new ActionHandler<>(TransportSetEnabledAction.TYPE, TransportSetEnabledAction.class),
             new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
             new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
             new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
@@ -1314,7 +1314,7 @@ public class Security extends Plugin
             new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
             new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
             new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
-            new ActionHandler<>(SamlCompleteLogoutAction.INSTANCE, TransportSamlCompleteLogoutAction.class),
+            new ActionHandler<>(TransportSamlCompleteLogoutAction.TYPE, TransportSamlCompleteLogoutAction.class),
             new ActionHandler<>(SamlSpMetadataAction.INSTANCE, TransportSamlSpMetadataAction.class),
             new ActionHandler<>(OpenIdConnectPrepareAuthenticationAction.INSTANCE, TransportOpenIdConnectPrepareAuthenticationAction.class),
             new ActionHandler<>(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),

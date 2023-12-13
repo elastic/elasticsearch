@@ -115,7 +115,11 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         if (field.dataType() == DataTypes.DATETIME) {
             long f = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) from.fold()).utf8ToString());
             long t = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) to.fold()).utf8ToString());
-            return DateTrunc.evaluator(toEvaluator.apply(field), new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown());
+            return DateTrunc.evaluator(
+                source(),
+                toEvaluator.apply(field),
+                new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown()
+            );
         }
         if (field.dataType().isNumeric()) {
             double f = ((Number) from.fold()).doubleValue();

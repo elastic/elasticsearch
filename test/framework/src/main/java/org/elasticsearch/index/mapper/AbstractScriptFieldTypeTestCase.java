@@ -383,11 +383,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected final List<Object> blockLoaderReadValues(DirectoryReader reader, MappedFieldType fieldType) throws IOException {
+    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType)
+        throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext());
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            TestBlock block = (TestBlock) loader.reader(ctx).readValues(TestBlock.FACTORY, TestBlock.docs(ctx));
+            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx)
+                .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(ctx));
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));
             }
@@ -395,15 +397,17 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return all;
     }
 
-    protected final List<Object> blockLoaderReadValuesFromSingleDoc(DirectoryReader reader, MappedFieldType fieldType) throws IOException {
+    protected final List<Object> blockLoaderReadValuesFromRowStrideReader(DirectoryReader reader, MappedFieldType fieldType)
+        throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext());
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            BlockDocValuesReader blockReader = loader.reader(ctx);
-            TestBlock block = (TestBlock) blockReader.builder(TestBlock.FACTORY, ctx.reader().numDocs());
+            BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), ctx.reader().numDocs());
             for (int i = 0; i < ctx.reader().numDocs(); i++) {
-                blockReader.readValuesFromSingleDoc(i, block);
+                blockReader.read(i, null, builder);
             }
+            TestBlock block = (TestBlock) builder.build();
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));
             }
@@ -425,6 +429,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
             @Override
             public Set<String> sourcePaths(String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String parentField(String field) {
                 throw new UnsupportedOperationException();
             }
         };

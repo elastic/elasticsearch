@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -38,6 +39,8 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     @Nullable
     private String preference;
 
+    private QueryBuilder indexFilter;
+
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
     public OpenPointInTimeRequest(String... indices) {
@@ -54,6 +57,9 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             this.maxConcurrentShardRequests = in.readVInt();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.PIT_WITH_INDEX_FILTER)) {
+            this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
     }
 
     @Override
@@ -66,6 +72,9 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         out.writeOptionalString(preference);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeVInt(maxConcurrentShardRequests);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.PIT_WITH_INDEX_FILTER)) {
+            out.writeOptionalWriteable(indexFilter);
         }
     }
 
@@ -151,6 +160,14 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
             throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
         }
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+
+    public void indexFilter(QueryBuilder indexFilter) {
+        this.indexFilter = indexFilter;
+    }
+
+    public QueryBuilder indexFilter() {
+        return indexFilter;
     }
 
     @Override

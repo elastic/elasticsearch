@@ -62,8 +62,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             .setRestoreGlobalState(true)
             .setIndices("-*")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("make sure old repository wasn't restored");
         assertRequestBuilderThrows(clusterAdmin().prepareGetRepositories("test-repo-1"), RepositoryMissingException.class);
@@ -104,8 +103,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
             .setRestoreGlobalState(true)
             .setIndices("-*")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
 
         var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         logger.info("check that custom persistent metadata [{}] is correctly restored", metadata);

@@ -55,6 +55,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -496,6 +497,11 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 final String[] indicesToRestore = indicesToRestoreList.toArray(new String[0]);
                 final String[] indicesToClose = indicesToCloseList.toArray(new String[0]);
                 final String[] indicesToDelete = indicesToDeleteList.toArray(new String[0]);
+                final String indicesToRestoreDescription = (restoreSpecificIndices ? "" : "*=") + Arrays.toString(indicesToRestore);
+
+                if (restoreSpecificIndices == false) {
+                    assertEquals(Set.copyOf(snapshotInfo.indices()), Set.of(indicesToRestore));
+                }
 
                 final ListenableFuture<Void> closeIndicesStep = new ListenableFuture<>();
                 final ListenableFuture<Void> deleteIndicesStep = new ListenableFuture<>();
@@ -515,15 +521,17 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         );
 
                         logger.info(
-                            "--> closing indices {} in preparation for restoring from [{}:{}]",
-                            indicesToRestoreList,
+                            "--> closing indices {} in preparation for restoring {} from [{}:{}]",
+                            indicesToClose,
+                            indicesToRestoreDescription,
                             snapshotInfo.repository(),
                             snapshotInfo.snapshotId().getName()
                         );
                         indicesAdmin().prepareClose(indicesToClose).execute(mustSucceed(closeIndexResponse -> {
                             logger.info(
-                                "--> finished closing indices {} in preparation for restoring from [{}:{}]",
-                                indicesToRestoreList,
+                                "--> finished closing indices {} in preparation for restoring {} from [{}:{}]",
+                                indicesToClose,
+                                indicesToRestoreDescription,
                                 snapshotInfo.repository(),
                                 snapshotInfo.snapshotId().getName()
                             );
@@ -538,15 +546,17 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                 if (indicesToDelete.length > 0) {
                     logger.info(
-                        "--> deleting indices {} in preparation for restoring from [{}:{}]",
-                        indicesToRestoreList,
+                        "--> deleting indices {} in preparation for restoring {} from [{}:{}]",
+                        indicesToDelete,
+                        indicesToRestore,
                         snapshotInfo.repository(),
                         snapshotInfo.snapshotId().getName()
                     );
                     indicesAdmin().prepareDelete(indicesToDelete).execute(mustSucceed(deleteIndicesResponse -> {
                         logger.info(
-                            "--> finished deleting indices {} in preparation for restoring from [{}:{}]",
-                            indicesToRestoreList,
+                            "--> finished deleting indices {} in preparation for restoring {} from [{}:{}]",
+                            indicesToDelete,
+                            indicesToRestoreDescription,
                             snapshotInfo.repository(),
                             snapshotInfo.snapshotId().getName()
                         );
@@ -569,9 +579,8 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                     }
 
                     logger.info(
-                        "--> restoring indices {}{} from [{}:{}]",
-                        restoreSpecificIndices ? "" : "*=",
-                        indicesToRestoreList,
+                        "--> restoring indices {} from [{}:{}]",
+                        indicesToRestoreDescription,
                         snapshotInfo.repository(),
                         snapshotInfo.snapshotId().getName()
                     );
@@ -579,7 +588,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                     restoreSnapshotRequestBuilder.execute(mustSucceed(restoreSnapshotResponse -> {
                         logger.info(
                             "--> triggered restore of indices {} from [{}:{}], waiting for green health",
-                            indicesToRestoreList,
+                            indicesToRestoreDescription,
                             snapshotInfo.repository(),
                             snapshotInfo.snapshotId().getName()
                         );
@@ -590,7 +599,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                                 logger.info(
                                     "--> indices {} successfully restored from [{}:{}]",
-                                    indicesToRestoreList,
+                                    indicesToRestoreDescription,
                                     snapshotInfo.repository(),
                                     snapshotInfo.snapshotId().getName()
                                 );

@@ -81,7 +81,7 @@ public class Retry2Tests extends ESTestCase {
     public void testRetryBacksOff() throws Exception {
         BulkRequest bulkRequest = createBulkRequest();
         Retry2 retry2 = new Retry2(CALLS_TO_FAIL);
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         retry2.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, future);
         BulkResponse response = future.actionGet();
 
@@ -93,7 +93,7 @@ public class Retry2Tests extends ESTestCase {
         BulkRequest bulkRequest = createBulkRequest();
         try {
             Retry2 retry2 = new Retry2(CALLS_TO_FAIL - 1);
-            PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             retry2.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, future);
             BulkResponse response = future.actionGet();
             /*

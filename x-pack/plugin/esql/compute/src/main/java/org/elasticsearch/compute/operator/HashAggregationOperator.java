@@ -161,7 +161,7 @@ public class HashAggregationOperator implements Operator {
         } finally {
             // selected should always be closed
             if (selected != null) {
-                Releasables.closeExpectNoException(selected.asBlock()); // we always close blocks, not vectors
+                selected.close();
             }
             if (success == false && blocks != null) {
                 Releasables.closeExpectNoException(blocks);

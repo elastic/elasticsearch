@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -115,7 +115,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             "Operator Optimization",
             new CombineProjections(),
             new CombineEvals(),
-            new ReplaceDuplicateAggWithEval(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
@@ -149,7 +148,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         );
 
         var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
-        var cleanup = new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN());
+        var cleanup = new Batch<>(
+            "Clean Up",
+            new ReplaceDuplicateAggWithEval(),
+            // pushing down limits again, because ReplaceDuplicateAggWithEval could create new Project nodes that can still be optimized
+            new PushDownAndCombineLimits(),
+            new ReplaceLimitAndSortAsTopN()
+        );
         var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
@@ -281,7 +286,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     // eliminate lower project but first replace the aliases in the upper one
                     return p.withProjections(combineProjections(project.projections(), p.projections()));
                 } else if (child instanceof Aggregate a) {
-                    return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
+                    var aggs = a.aggregates();
+                    var newAggs = combineProjections(project.projections(), aggs);
+                    var newGroups = replacePrunedAliasesUsedInGroupBy(a.groupings(), aggs, newAggs);
+                    return new Aggregate(a.source(), a.child(), newGroups, newAggs);
                 }
             }
 
@@ -318,6 +326,39 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
+        }
+
+        /**
+         * Replace grouping alias previously contained in the aggregations that might have been projected away.
+         */
+        private List<Expression> replacePrunedAliasesUsedInGroupBy(
+            List<Expression> groupings,
+            List<? extends NamedExpression> oldAggs,
+            List<? extends NamedExpression> newAggs
+        ) {
+            AttributeMap<Expression> removedAliases = new AttributeMap<>();
+            AttributeSet currentAliases = new AttributeSet(Expressions.asAttributes(newAggs));
+
+            // record only removed aliases
+            for (NamedExpression ne : oldAggs) {
+                if (ne instanceof Alias alias) {
+                    var attr = ne.toAttribute();
+                    if (currentAliases.contains(attr) == false) {
+                        removedAliases.put(attr, alias.child());
+                    }
+                }
+            }
+
+            if (removedAliases.isEmpty()) {
+                return groupings;
+            }
+
+            var newGroupings = new ArrayList<Expression>(groupings.size());
+            for (Expression group : groupings) {
+                newGroupings.add(group.transformUp(Attribute.class, a -> removedAliases.resolve(a, a)));
+            }
+
+            return newGroupings;
         }
 
         public static Expression trimNonTopLevelAliases(Expression e) {
@@ -623,7 +664,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         // fill the boolean block later in LocalExecutionPlanner
                         if (dataType != DataTypes.BOOLEAN) {
                             // look for count(literal) with literal != null
-                            var wrapper = BlockUtils.wrapperFor(blockFactory, LocalExecutionPlanner.toElementType(dataType), 1);
+                            var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(dataType), 1);
                             if (aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)) {
                                 wrapper.accept(0L);
                             } else {
@@ -786,7 +827,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             if (child instanceof OrderBy childOrder) {
                 // combine orders
-                return new OrderBy(orderBy.source(), childOrder.child(), CollectionUtils.combine(orderBy.order(), childOrder.order()));
+                return new OrderBy(orderBy.source(), childOrder.child(), orderBy.order());
             } else if (child instanceof Project) {
                 return pushDownPastProject(orderBy);
             }

@@ -205,8 +205,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
             ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(indexName)
                 .setWaitForStatus(ClusterHealthStatus.RED)
                 .setWaitForEvents(Priority.LANGUID)
-                .execute()
-                .actionGet();
+                .get();
             assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
         });
     }

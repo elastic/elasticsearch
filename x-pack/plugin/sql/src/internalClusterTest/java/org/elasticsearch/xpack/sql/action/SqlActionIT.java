@@ -30,9 +30,10 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
 
         boolean dataBeforeCount = randomBoolean();
         String columns = dataBeforeCount ? "data, count" : "count, data";
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
-            "SELECT " + columns + " FROM test ORDER BY count"
-        ).mode(Mode.JDBC).version(Version.CURRENT.toString()).get();
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query("SELECT " + columns + " FROM test ORDER BY count")
+            .mode(Mode.JDBC)
+            .version(Version.CURRENT.toString())
+            .get();
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));
         int dataIndex = dataBeforeCount ? 0 : 1;
@@ -48,7 +49,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
     }
 
     public void testSqlActionCurrentVersion() {
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT true")
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query("SELECT true")
             .mode(randomFrom(Mode.CLI, Mode.JDBC))
             .version(Version.CURRENT.toString())
             .get();
@@ -57,7 +58,7 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
     }
 
     public void testSqlActionOutdatedVersion() {
-        SqlQueryRequestBuilder request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT true")
+        SqlQueryRequestBuilder request = new SqlQueryRequestBuilder(client()).query("SELECT true")
             .mode(randomFrom(Mode.CLI, Mode.JDBC))
             .version("1.2.3");
         assertRequestBuilderThrows(request, org.elasticsearch.action.ActionRequestValidationException.class);

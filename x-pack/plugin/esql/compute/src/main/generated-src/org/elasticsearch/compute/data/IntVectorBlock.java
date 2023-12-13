@@ -17,6 +17,9 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     private final IntVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     IntVectorBlock(IntVector vector) {
         super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
@@ -72,15 +75,22 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     @Override
     public boolean isReleased() {
-        return released || vector.isReleased();
+        return super.isReleased() || vector.isReleased();
     }
 
     @Override
-    public void close() {
-        if (released || vector.isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

@@ -52,7 +52,12 @@ of datasets and configurations that we use for our nightly benchmarks.
 include::search-speed.asciidoc[tag=warm-fs-cache]
 
 The following file extensions are used for the approximate kNN search:
-"vec" (for vector values), "vex" (for HNSW graph), "vem" (for metadata).
++
+--
+* `vec` and `veq` for vector values
+* `vex` for HNSW graph
+* `vem`, `vemf`, and `vemq` for metadata
+--
 
 [discrete]
 === Reduce vector dimensionality
@@ -65,6 +70,14 @@ dimensional options available. You could also experiment with dimensionality
 reduction techniques like PCA. When experimenting with different approaches,
 it's important to measure the impact on relevance to ensure the search
 quality is still acceptable.
+
+[discrete]
+=== Reduce vector memory foot-print
+
+The default <<dense-vector-element-type,`element_type`>> is `float`. But this can be
+automatically quantized during index time through <<dense-vector-quantization,`quantization`>>. Quantization will
+reduce the required memory by 4x, but it will also reduce the precision of the vectors. For `float` vectors with
+`dim` greater than or equal to `384`, using a <<dense-vector-quantization,`quantized`>> index is highly recommended.
 
 [discrete]
 === Exclude vector fields from `_source`

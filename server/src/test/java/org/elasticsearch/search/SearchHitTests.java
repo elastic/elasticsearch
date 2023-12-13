@@ -102,7 +102,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             Map<String, HighlightField> highlightFields = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 HighlightField testItem = HighlightFieldTests.createTestItem();
-                highlightFields.put(testItem.getName(), testItem);
+                highlightFields.put(testItem.name(), testItem);
             }
             hit.highlightFields(highlightFields);
         }

@@ -1347,7 +1347,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     void syncFlush(IndexWriter writer, InternalEngine engine, String syncId) throws IOException {
-        try (ReleasableLock ignored = engine.writeLock.acquire()) {
+        try (ReleasableLock ignored = engine.readLock.acquire()) {
             Map<String, String> userData = new HashMap<>();
             writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
             userData.put(Engine.SYNC_COMMIT_ID, syncId);
@@ -2573,28 +2573,40 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private static class MockMTAppender extends AbstractAppender {
+    private static class MockMergeThreadAppender extends AbstractAppender {
+
         private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
+        private final AtomicBoolean luceneMergeSchedulerEnded = new AtomicBoolean();
 
         List<String> messages() {
             return List.copyOf(messages);
         }
 
-        MockMTAppender(final String name) throws IllegalAccessException {
+        public boolean mergeCompleted() {
+            return luceneMergeSchedulerEnded.get();
+        }
+
+        MockMergeThreadAppender(final String name) throws IllegalAccessException {
             super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false, Property.EMPTY_ARRAY);
         }
 
         @Override
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && formattedMessage.startsWith("merge thread")) {
-                messages.add(formattedMessage);
+            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0]")) {
+                if (formattedMessage.startsWith("merge thread")) {
+                    messages.add(formattedMessage);
+                } else if (event.getLoggerName().endsWith(".MS")
+                    && formattedMessage.contains("MS: merge thread")
+                    && formattedMessage.endsWith("end")) {
+                        luceneMergeSchedulerEnded.set(true);
+                    }
             }
         }
     }
 
     public void testMergeThreadLogging() throws Exception {
-        final MockMTAppender mockAppender = new MockMTAppender("testMergeThreadLogging");
+        final MockMergeThreadAppender mockAppender = new MockMergeThreadAppender("testMergeThreadLogging");
         mockAppender.start();
 
         Logger rootLogger = LogManager.getRootLogger();
@@ -2613,26 +2625,29 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null)));
                 engine.index(indexForDoc(testParsedDocument("4", null, testDocument(), B_1, null)));
                 engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-                engine.flushAndClose();
 
                 assertBusy(() -> {
                     assertThat(engine.getMergeStats().getTotal(), greaterThan(0L));
                     assertThat(engine.getMergeStats().getCurrent(), equalTo(0L));
                 });
-            }
 
-            assertBusy(() -> {
-                List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge thread")).toList();
-                assertThat("messages:" + threadMsgs, threadMsgs.size(), greaterThanOrEqualTo(3));
-                assertThat(
-                    threadMsgs,
-                    containsInRelativeOrder(
-                        matchesRegex("^merge thread .* start$"),
-                        matchesRegex("^merge thread .* merge segment.*$"),
-                        matchesRegex("^merge thread .* end$")
-                    )
-                );
-            });
+                assertBusy(() -> {
+                    List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge thread")).toList();
+                    assertThat("messages:" + threadMsgs, threadMsgs.size(), greaterThanOrEqualTo(3));
+                    assertThat(
+                        threadMsgs,
+                        containsInRelativeOrder(
+                            matchesRegex("^merge thread .* start$"),
+                            matchesRegex("^merge thread .* merge segment.*$"),
+                            matchesRegex("^merge thread .* end$")
+                        )
+                    );
+                    assertThat(mockAppender.mergeCompleted(), is(true));
+                });
+
+                Loggers.setLevel(rootLogger, savedLevel);
+                engine.close();
+            }
         } finally {
             Loggers.setLevel(rootLogger, savedLevel);
             Loggers.removeAppender(rootLogger, mockAppender);
@@ -3433,17 +3448,6 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(topDocs.totalHits.value, equalTo(0L));
             }
         }
-    }
-
-    private Path[] filterExtraFSFiles(Path[] files) {
-        List<Path> paths = new ArrayList<>();
-        for (Path p : files) {
-            if (p.getFileName().toString().startsWith("extra")) {
-                continue;
-            }
-            paths.add(p);
-        }
-        return paths.toArray(new Path[0]);
     }
 
     public void testTranslogReplay() throws IOException {
@@ -7687,7 +7691,7 @@ public class InternalEngineTests extends EngineTestCase {
             InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
         ) {
             Engine.IndexResult result1 = engine.index(indexForDoc(createParsedDoc("a", null)));
-            PlainActionFuture<Long> future1 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future1 = new PlainActionFuture<>();
             engine.addFlushListener(result1.getTranslogLocation(), future1);
             assertFalse(future1.isDone());
             engine.flush();
@@ -7695,7 +7699,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             Engine.IndexResult result2 = engine.index(indexForDoc(createParsedDoc("a", null)));
             engine.flush();
-            PlainActionFuture<Long> future2 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future2 = new PlainActionFuture<>();
             engine.addFlushListener(result2.getTranslogLocation(), future2);
             assertTrue(future2.isDone());
             assertThat(future2.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));

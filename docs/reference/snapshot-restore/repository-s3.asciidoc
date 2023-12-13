@@ -12,7 +12,7 @@ https://www.elastic.co/cloud/.*
 To register an S3 repository, specify the type as `s3` when creating
 the repository. The repository defaults to using
 https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html[ECS
-IAM Role] credentials for authentication. You can also use <<iam-kubernetes-service-accounts>> Kubernetes service accounts.
+IAM Role] credentials for authentication. You can also use <<iam-kubernetes-service-accounts,Kubernetes service accounts>> for authentication.
 
 The only mandatory setting is the bucket name:
 
@@ -123,7 +123,9 @@ settings belong in the `elasticsearch.yml` file.
     `https`. Defaults to `https`. When using HTTPS, this repository type validates the
     repository's certificate chain using the JVM-wide truststore. Ensure that
     the root certificate authority is in this truststore using the JVM's
-    `keytool` tool.
+    `keytool` tool. If you have a custom certificate authority for your S3 repository
+    and you use the {es} <<jvm-version,bundled JDK>>, then you will need to reinstall your
+    CA certificate every time you upgrade {es}.
 
 `proxy.host`::
 
@@ -132,6 +134,12 @@ settings belong in the `elasticsearch.yml` file.
 `proxy.port`::
 
     The port of a proxy to connect to S3 through.
+
+`proxy.scheme`::
+
+    The scheme to use for the proxy connection to S3. Valid values are either `http` or `https`.
+    Defaults to `http`. This setting allows to specify the protocol used for communication with the
+    proxy server
 
 `proxy.username` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
@@ -198,75 +206,6 @@ pattern then you should set this setting to `true` when upgrading.
     https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/ClientConfiguration.html#setSignerOverride-java.lang.String-[AWS
     Java SDK documentation] for details. Defaults to empty string which means that no signing algorithm override will be used.
 
-[discrete]
-[[repository-s3-compatible-services]]
-===== S3-compatible services
-
-There are a number of storage systems that provide an S3-compatible API, and
-the `repository-s3` type allows you to use these systems in place of AWS S3.
-To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
-system's endpoint. This setting accepts IP addresses and hostnames and may
-include a port. For example, the endpoint may be `172.17.0.2` or
-`172.17.0.2:9000`.
-
-By default {es} communicates with your storage system using HTTPS, and
-validates the repository's certificate chain using the JVM-wide truststore.
-Ensure that the JVM-wide truststore includes an entry for your repository. If
-you wish to use unsecured HTTP communication instead of HTTPS, set
-`s3.client.CLIENT_NAME.protocol` to `http`.
-
-https://minio.io[MinIO] is an example of a storage system that provides an
-S3-compatible API. The `repository-s3` type allows {es} to work with
-MinIO-backed repositories as well as repositories stored on AWS S3. Other
-S3-compatible storage systems may also work with {es}, but these are not
-covered by the {es} test suite.
-
-Note that some storage systems claim to be S3-compatible but do not faithfully
-emulate S3's behaviour in full. The `repository-s3` type requires full
-compatibility with S3. In particular it must support the same set of API
-endpoints, return the same errors in case of failures, and offer consistency and
-performance at least as good as S3 even when accessed concurrently by multiple
-nodes. You will need to work with the supplier of your storage system to address
-any incompatibilities you encounter. Please do not report {es} issues involving
-storage systems which claim to be S3-compatible unless you can demonstrate that
-the same issue exists when using a genuine AWS S3 repository.
-
-You can perform some basic checks of the suitability of your storage system
-using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
-does not complete successfully, or indicates poor performance, then your
-storage system is not fully compatible with AWS S3 and therefore unsuitable for
-use as a snapshot repository. However, these checks do not guarantee full
-compatibility.
-
-Most storage systems can be configured to log the details of their interaction
-with {es}. If you are investigating a suspected incompatibility with AWS S3, it
-is usually simplest to collect these logs and provide them to the supplier of
-your storage system for further analysis. If the incompatibility is not clear
-from the logs emitted by the storage system, configure {es} to log every
-request it makes to the S3 API by <<configuring-logging-levels,setting the
-logging level>> of the `com.amazonaws.request` logger to `DEBUG`:
-
-[source,console]
-----
-PUT /_cluster/settings
-{
-  "persistent": {
-    "logger.com.amazonaws.request": "DEBUG"
-  }
-}
-----
-// TEST[skip:we don't really want to change this logger]
-
-Collect the Elasticsearch logs covering the time period of the failed analysis
-from all nodes in your cluster and share them with the supplier of your storage
-system along with the analysis response so they can use them to determine the
-problem. See the
-https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-logging.html[AWS Java SDK]
-documentation for further information, including details about other loggers
-that can be used to obtain even more verbose logs. When you have finished
-collecting the logs needed by your supplier, set the logger settings back to
-`null` to return to the default logging configuration. See <<cluster-logger>>
-and <<cluster-update-settings>> for more information.
 
 [[repository-s3-repository]]
 ==== Repository settings
@@ -401,7 +340,7 @@ This sets up a repository that uses all client settings from the client
 `my.s3.endpoint` by the repository settings.
 
 [[repository-s3-permissions]]
-===== Recommended S3 permissions
+==== Recommended S3 permissions
 
 In order to restrict the Elasticsearch snapshot process to the minimum required
 resources, we recommend using Amazon IAM in conjunction with pre-existing S3
@@ -493,7 +432,28 @@ bucket, in this example, named "foo".
 The bucket needs to exist to register a repository for snapshots. If you did not
 create the bucket then the repository registration will fail.
 
-===== Cleaning up multi-part uploads
+[[iam-kubernetes-service-accounts]]
+[discrete]
+===== Using IAM roles for Kubernetes service accounts for authentication
+
+If you want to use https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/[Kubernetes service accounts]
+for authentication, you need to add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable
+(which should be automatically set by a Kubernetes pod) in the S3 repository config directory, so the repository
+can have the read access for the service account (a repository can't read any files outside its config directory).
+For example:
+
+[source,bash]
+----
+mkdir -p "${ES_PATH_CONF}/repository-s3"
+ln -s $AWS_WEB_IDENTITY_TOKEN_FILE "${ES_PATH_CONF}/repository-s3/aws-web-identity-token-file"
+----
+
+IMPORTANT: The symlink must be created on all data and master eligible nodes and be readable
+by the `elasticsearch` user. By default, {es} runs as user `elasticsearch` using uid:gid `1000:0`.
+
+If the symlink exists, it will be used by default by all S3 repositories that don't have explicit `client` credentials.
+
+==== Cleaning up multi-part uploads
 
 {es} uses S3's multi-part upload process to upload larger blobs to the
 repository. The multi-part upload process works by dividing each blob into
@@ -521,7 +481,6 @@ a bucket lifecycle policy] to automatically abort incomplete uploads once they
 reach a certain age.
 
 [[repository-s3-aws-vpc]]
-[discrete]
 ==== AWS VPC bandwidth settings
 
 AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch
@@ -537,23 +496,81 @@ bandwidth of your VPC's NAT instance.
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the
 VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
 
+[[repository-s3-compatible-services]]
+==== S3-compatible services
 
-[[iam-kubernetes-service-accounts]]
-[discrete]
-==== Using IAM roles for Kubernetes service accounts for authentication
-If you want to use https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/[Kubernetes service accounts]
-for authentication, you need to add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable
-(which should be automatically set by a Kubernetes pod) in the S3 repository config directory, so the repository
-can have the read access for the service account (a repository can't read any files outside its config directory).
-For example:
+There are a number of storage systems that provide an S3-compatible API, and
+the `repository-s3` type allows you to use these systems in place of AWS S3.
+To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
+system's endpoint. This setting accepts IP addresses and hostnames and may
+include a port. For example, the endpoint may be `172.17.0.2` or
+`172.17.0.2:9000`.
 
-[source,bash]
+By default {es} communicates with your storage system using HTTPS, and
+validates the repository's certificate chain using the JVM-wide truststore.
+Ensure that the JVM-wide truststore includes an entry for your repository. If
+you wish to use unsecured HTTP communication instead of HTTPS, set
+`s3.client.CLIENT_NAME.protocol` to `http`.
+
+https://minio.io[MinIO] is an example of a storage system that provides an
+S3-compatible API. The `repository-s3` type allows {es} to work with
+MinIO-backed repositories as well as repositories stored on AWS S3. Other
+S3-compatible storage systems may also work with {es}, but these are not
+covered by the {es} test suite.
+
+Note that some storage systems claim to be S3-compatible but do not faithfully
+emulate S3's behaviour in full. The `repository-s3` type requires full
+compatibility with S3. In particular it must support the same set of API
+endpoints, return the same errors in case of failures, and offer consistency and
+performance at least as good as S3 even when accessed concurrently by multiple
+nodes. You will need to work with the supplier of your storage system to address
+any incompatibilities you encounter. Please do not report {es} issues involving
+storage systems which claim to be S3-compatible unless you can demonstrate that
+the same issue exists when using a genuine AWS S3 repository.
+
+You can perform some basic checks of the suitability of your storage system
+using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
+does not complete successfully, or indicates poor performance, then your
+storage system is not fully compatible with AWS S3 and therefore unsuitable for
+use as a snapshot repository. However, these checks do not guarantee full
+compatibility.
+
+Most storage systems can be configured to log the details of their interaction
+with {es}. If you are investigating a suspected incompatibility with AWS S3, it
+is usually simplest to collect these logs and provide them to the supplier of
+your storage system for further analysis. If the incompatibility is not clear
+from the logs emitted by the storage system, configure {es} to log every
+request it makes to the S3 API by <<configuring-logging-levels,setting the
+logging level>> of the `com.amazonaws.request` logger to `DEBUG`:
+
+[source,console]
 ----
-mkdir -p "${ES_PATH_CONF}/repository-s3"
-ln -s $AWS_WEB_IDENTITY_TOKEN_FILE "${ES_PATH_CONF}/repository-s3/aws-web-identity-token-file"
+PUT /_cluster/settings
+{
+  "persistent": {
+    "logger.com.amazonaws.request": "DEBUG"
+  }
+}
 ----
+// TEST[skip:we don't really want to change this logger]
 
-IMPORTANT: The symlink must be created on all data and master eligible nodes and be readable
-by the `elasticsearch` user. By default, {es} runs as user `elasticsearch` using uid:gid `1000:0`.
+Collect the Elasticsearch logs covering the time period of the failed analysis
+from all nodes in your cluster and share them with the supplier of your storage
+system along with the analysis response so they can use them to determine the
+problem. See the
+https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-logging.html[AWS Java SDK]
+documentation for further information, including details about other loggers
+that can be used to obtain even more verbose logs. When you have finished
+collecting the logs needed by your supplier, set the logger settings back to
+`null` to return to the default logging configuration. See <<cluster-logger>>
+and <<cluster-update-settings>> for more information.
 
-If the symlink exists, it will be used by default by all S3 repositories that don't have explicit `client` credentials.
+[[repository-s3-linearizable-registers]]
+==== Linearizable register implementation
+
+The linearizable register implementation for S3 repositories is based on the
+strongly consistent semantics of the multipart upload API. {es} first creates a
+multipart upload to indicate its intention to perform a linearizable register
+operation. {es} then lists and cancels all other multipart uploads for the same
+register. {es} then attempts to complete the upload. If the upload completes
+successfully then the compare-and-exchange operation was atomic.

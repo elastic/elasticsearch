@@ -1,0 +1,16 @@
+{
+  "indices": [
+    "test1",
+    "test2"
+  ],
+  "fields": {
+    "_index": {
+      "_index": {
+        "type": "_index",
+        "metadata_field": true,
+        "searchable": true,
+        "aggregatable": true
+      }
+    }
+  }
+}

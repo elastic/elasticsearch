@@ -44,6 +44,10 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+
 public class DfsQueryPhaseTests extends ESTestCase {
 
     private static DfsSearchResult newSearchResult(int shardIndex, ShardSearchContextId contextId, SearchShardTarget target) {
@@ -81,30 +85,38 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else if (request.contextId().getId() == 2) {
                     QuerySearchResult queryResult = new QuerySearchResult(
                         new ShardSearchContextId("", 123),
                         new SearchShardTarget("node2", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(84, 2.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(84, 2.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else {
                     fail("no such request ID: " + request.contextId());
                 }
@@ -113,7 +125,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -122,26 +134,30 @@ public class DfsQueryPhaseTests extends ESTestCase {
             results.length(),
             exc -> {}
         );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
-            @Override
-            public void run() throws IOException {
-                responseRef.set(response.results);
-            }
-        }, mockSearchPhaseContext);
-        assertEquals("dfs_query", phase.getName());
-        phase.run();
-        mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(responseRef.get());
-        assertNotNull(responseRef.get().get(0));
-        assertNull(responseRef.get().get(0).fetchResult());
-        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
-        assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
-        assertNotNull(responseRef.get().get(1));
-        assertNull(responseRef.get().get(1).fetchResult());
-        assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
-        assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
-        assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
-        assertEquals(2, mockSearchPhaseContext.numSuccess.get());
+        try {
+            DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    responseRef.set(((QueryPhaseResultConsumer) response).results);
+                }
+            }, mockSearchPhaseContext);
+            assertEquals("dfs_query", phase.getName());
+            phase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            assertNotNull(responseRef.get());
+            assertNotNull(responseRef.get().get(0));
+            assertNull(responseRef.get().get(0).fetchResult());
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
+            assertNotNull(responseRef.get().get(1));
+            assertNull(responseRef.get().get(1).fetchResult());
+            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
+            assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
+            assertEquals(2, mockSearchPhaseContext.numSuccess.get());
+        } finally {
+            consumer.decRef();
+        }
     }
 
     public void testDfsWith1ShardFailed() throws IOException {
@@ -172,15 +188,19 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else if (request.contextId().getId() == 2) {
                     listener.onFailure(new MockDirectoryWrapper.FakeIOException());
                 } else {
@@ -191,7 +211,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -200,28 +220,32 @@ public class DfsQueryPhaseTests extends ESTestCase {
             results.length(),
             exc -> {}
         );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
-            @Override
-            public void run() throws IOException {
-                responseRef.set(response.results);
-            }
-        }, mockSearchPhaseContext);
-        assertEquals("dfs_query", phase.getName());
-        phase.run();
-        mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(responseRef.get());
-        assertNotNull(responseRef.get().get(0));
-        assertNull(responseRef.get().get(0).fetchResult());
-        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
-        assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
-        assertNull(responseRef.get().get(1));
+        try {
+            DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    responseRef.set(((QueryPhaseResultConsumer) response).results);
+                }
+            }, mockSearchPhaseContext);
+            assertEquals("dfs_query", phase.getName());
+            phase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            assertNotNull(responseRef.get());
+            assertNotNull(responseRef.get().get(0));
+            assertNull(responseRef.get().get(0).fetchResult());
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
+            assertNull(responseRef.get().get(1));
 
-        assertEquals(1, mockSearchPhaseContext.numSuccess.get());
-        assertEquals(1, mockSearchPhaseContext.failures.size());
-        assertTrue(mockSearchPhaseContext.failures.get(0).getCause() instanceof MockDirectoryWrapper.FakeIOException);
-        assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
-        assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(new ShardSearchContextId("", 2L)));
-        assertNull(responseRef.get().get(1));
+            assertEquals(1, mockSearchPhaseContext.numSuccess.get());
+            assertEquals(1, mockSearchPhaseContext.failures.size());
+            assertTrue(mockSearchPhaseContext.failures.get(0).getCause() instanceof MockDirectoryWrapper.FakeIOException);
+            assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
+            assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(new ShardSearchContextId("", 2L)));
+            assertNull(responseRef.get().get(1));
+        } finally {
+            consumer.decRef();
+        }
     }
 
     public void testFailPhaseOnException() throws IOException {
@@ -252,17 +276,21 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else if (request.contextId().getId() == 2) {
-                    throw new UncheckedIOException(new MockDirectoryWrapper.FakeIOException());
+                    listener.onFailure(new UncheckedIOException(new MockDirectoryWrapper.FakeIOException()));
                 } else {
                     fail("no such request ID: " + request.contextId());
                 }
@@ -271,7 +299,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController searchPhaseController = searchPhaseController();
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             () -> false,
@@ -280,15 +308,21 @@ public class DfsQueryPhaseTests extends ESTestCase {
             results.length(),
             exc -> {}
         );
-        DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
-            @Override
-            public void run() throws IOException {
-                responseRef.set(response.results);
-            }
-        }, mockSearchPhaseContext);
-        assertEquals("dfs_query", phase.getName());
-        expectThrows(UncheckedIOException.class, phase::run);
-        assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty()); // phase execution will clean up on the contexts
+        try {
+            DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
+                @Override
+                public void run() throws IOException {
+                    responseRef.set(((QueryPhaseResultConsumer) response).results);
+                }
+            }, mockSearchPhaseContext);
+            assertEquals("dfs_query", phase.getName());
+            phase.run();
+            assertThat(mockSearchPhaseContext.failures, hasSize(1));
+            assertThat(mockSearchPhaseContext.failures.get(0).getCause(), instanceOf(UncheckedIOException.class));
+            assertThat(mockSearchPhaseContext.releasedSearchContexts, hasSize(1)); // phase execution will clean up on the contexts
+        } finally {
+            consumer.decRef();
+        }
     }
 
     public void testRewriteShardSearchRequestWithRank() {
@@ -301,7 +335,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         );
         MockSearchPhaseContext mspc = new MockSearchPhaseContext(2);
         mspc.searchTransport = new SearchTransportService(null, null, null);
-        DfsQueryPhase dqp = new DfsQueryPhase(null, null, dkrs, null, null, mspc);
+        DfsQueryPhase dqp = new DfsQueryPhase(null, null, dkrs, mock(QueryPhaseResultConsumer.class), null, mspc);
 
         QueryBuilder bm25 = new TermQueryBuilder("field", "term");
         SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)

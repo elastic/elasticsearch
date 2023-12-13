@@ -156,8 +156,8 @@ Universally unique identifier (UUID) for the index.
 
 `prefer_ilm`::
 (boolean)
-Functionality in preview:[]. Indicates if this index is configured to prefer {ilm} 
-when both {ilm-cap} and <<data-stream-lifecycle, Data stream lifecycle>> are configured to 
+Functionality in preview:[]. Indicates if this index is configured to prefer {ilm}
+when both {ilm-cap} and <<data-stream-lifecycle, Data stream lifecycle>> are configured to
 manage this index.
 
 `managed_by`::
@@ -223,8 +223,8 @@ Functionality in preview:[]. Indicates the system that will managed the next gen
 
 `prefer_ilm`::
 (boolean)
-Functionality in preview:[]. Indicates if the index template used to create the data 
-stream's backing indices is configured to prefer {ilm-cap} when both {ilm-cap} and 
+Functionality in preview:[]. Indicates if the index template used to create the data
+stream's backing indices is configured to prefer {ilm-cap} when both {ilm-cap} and
 <<data-stream-lifecycle, Data stream lifecycle>> are configured to manage this index.
 
 `hidden`::
@@ -351,3 +351,4 @@ The API returns the following response:
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-two-2099.03.08-000001"/"index_name": $body.data_streams.1.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "3liBu2SYS5axasRt6fUIpA"/"index_uuid": $body.data_streams.1.indices.0.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+// TESTRESPONSE[s/"replicated": false/"replicated": false,"failure_indices":[],"failure_store":false/]

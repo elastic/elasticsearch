@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -90,16 +92,20 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
+            shouldSkipTest(testName);
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
         }
     }
 
+    protected void shouldSkipTest(String testName) {
+        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+    }
+
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        Map<String, Object> answer = runEsql(builder.query(testCase.query).build(), testCase.expectedWarnings);
+        Map<String, Object> answer = runEsql(builder.query(testCase.query).build(), testCase.expectedWarnings(false));
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");
@@ -124,7 +130,32 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Logger logger
     ) {
         assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, logger, value -> value == null ? "null" : value.toString());
+        assertData(expected, actualValues, testCase.ignoreOrder, logger, EsqlSpecTestCase::valueToString);
+    }
+
+    /**
+     * Unfortunately the GeoPoint.toString method returns the old format, but cannot be changed due to BWC.
+     * So we need to custom format GeoPoint as well as wrap Lists to ensure this custom conversion applies to multi-value fields
+     */
+    private static String valueToString(Object value) {
+        if (value == null) {
+            return "null";
+        } else if (value instanceof List<?> list) {
+            StringBuilder sb = new StringBuilder("[");
+            for (Object field : list) {
+                if (sb.length() > 1) {
+                    sb.append(", ");
+                }
+                sb.append(valueToString(field));
+            }
+            return sb.append("]").toString();
+        } else if (value instanceof SpatialPoint point) {
+            // TODO: This knowledge should be in GeoPoint or at least that package
+            // Alternatively we could just change GeoPoint.toString() to use WKT, but that has other side-effects
+            return "POINT (" + point.getX() + " " + point.getY() + ")";
+        } else {
+            return value.toString();
+        }
     }
 
     private Throwable reworkException(Throwable th) {

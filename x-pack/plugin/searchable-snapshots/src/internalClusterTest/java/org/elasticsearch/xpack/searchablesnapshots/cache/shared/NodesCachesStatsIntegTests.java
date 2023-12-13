@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest;
 
-import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     public void testNodesCachesStats() throws Exception {
@@ -46,7 +47,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         // since this test verifies the cache stats on specific nodes
         ensureStableCluster(nodeNames.length);
 
-        final String index = getTestName().toLowerCase(Locale.ROOT);
+        final String index = randomIdentifier();
         createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
 
         final int nbDocs = randomIntBetween(1_000, 10_000);
@@ -111,7 +112,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 randomBoolean()
                     ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
                     : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
-            ).setSize(randomIntBetween(0, 1000)).get();
+            ).setSize(randomIntBetween(0, 1000)).get().decRef();
         }
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);

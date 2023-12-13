@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -110,7 +110,7 @@ public class ClientHelperTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
-        ClientHelper.executeAsyncWithOrigin(client, origin, ClusterHealthAction.INSTANCE, new ClusterHealthRequest(), listener);
+        ClientHelper.executeAsyncWithOrigin(client, origin, TransportClusterHealthAction.TYPE, new ClusterHealthRequest(), listener);
 
         latch.await();
     }
@@ -170,7 +170,7 @@ public class ClientHelperTests extends ESTestCase {
         SearchRequest request = new SearchRequest("foo");
 
         String originName = randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.ROLLUP_ORIGIN);
-        ClientHelper.executeWithHeadersAsync(Collections.emptyMap(), originName, client, SearchAction.INSTANCE, request, listener);
+        ClientHelper.executeWithHeadersAsync(Collections.emptyMap(), originName, client, TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -201,7 +201,7 @@ public class ClientHelperTests extends ESTestCase {
         headers.put("bar", "bar");
 
         String originName = randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.ROLLUP_ORIGIN);
-        ClientHelper.executeWithHeadersAsync(headers, originName, client, SearchAction.INSTANCE, request, listener);
+        ClientHelper.executeWithHeadersAsync(headers, originName, client, TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -234,7 +234,7 @@ public class ClientHelperTests extends ESTestCase {
         headers.put("_xpack_security_authentication", "bar");
 
         String originName = randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.ROLLUP_ORIGIN);
-        ClientHelper.executeWithHeadersAsync(headers, originName, client, SearchAction.INSTANCE, request, listener);
+        ClientHelper.executeWithHeadersAsync(headers, originName, client, TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -246,7 +246,7 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
             new SearchResponse(
                 InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
@@ -270,7 +270,7 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
             new SearchResponse(
                 InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
@@ -305,7 +305,7 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
             new SearchResponse(
                 InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
@@ -340,7 +340,7 @@ public class ClientHelperTests extends ESTestCase {
             assertThat(headers, not(hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything")));
 
             return client.search(new SearchRequest()).actionGet();
-        });
+        }).decRef();
     }
 
     /**
@@ -356,7 +356,7 @@ public class ClientHelperTests extends ESTestCase {
 
             consumer.accept(client.threadPool().getThreadContext().getHeaders());
             return client.search(new SearchRequest()).actionGet();
-        });
+        }).decRef();
     }
 
     public void testFilterSecurityHeaders() {

@@ -10,6 +10,11 @@ Also see <<breaking-changes-8.11,Breaking changes in 8.11>>.
 Infra/Core::
 * Remove `transport_versions` from cluster state API {es-pull}99223[#99223]
 
+[[known-issues-8.11.0]]
+[float]
+=== Known issues
+include::8.10.3.asciidoc[tag=no-preventive-gc-issue]
+
 [[bug-8.11.0]]
 [float]
 === Bug fixes

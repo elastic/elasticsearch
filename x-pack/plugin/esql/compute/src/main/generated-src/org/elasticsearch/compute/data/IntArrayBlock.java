@@ -50,7 +50,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
 
     @Override
     public IntBlock filter(int... positions) {
-        try (var builder = blockFactory.newIntBlockBuilder(positions.length)) {
+        try (var builder = blockFactory().newIntBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -80,10 +80,11 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     @Override
     public IntBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values
-        try (var builder = blockFactory.newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {
+        try (var builder = blockFactory().newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -135,11 +136,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+    public void closeInternal() {
+        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

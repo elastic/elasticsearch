@@ -222,8 +222,7 @@ public class SequenceSpecTests extends ESTestCase {
                 0.0f
             );
             SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-            SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
-            l.onResponse(s);
+            ActionListener.respondAndRelease(l, new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY));
         }
 
         @Override

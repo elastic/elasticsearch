@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -26,7 +27,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,27 +69,11 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
             )
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
+            .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofBytes(between(0, 256)))
+            .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofBytes(between(0, 1024)))
             // allow reading pages from network can trip the circuit breaker
             .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
             .build();
-    }
-
-    private void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
-        if (limit != null) {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit).build()
-                    )
-            );
-        } else {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build()
-                    )
-            );
-        }
     }
 
     @Override
@@ -119,8 +103,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .get();
         int numDocs = between(1000, 5000);
         for (int i = 0; i < numDocs; i++) {
-            DocWriteResponse response = client().prepareIndex("test_breaker")
-                .setId(Integer.toString(i))
+            DocWriteResponse response = prepareIndex("test_breaker").setId(Integer.toString(i))
                 .setSource("foo", "foo-" + i, "bar", "bar-" + (i * 2))
                 .get();
             assertThat(Strings.toString(response), response.getResult(), equalTo(DocWriteResponse.Result.CREATED));

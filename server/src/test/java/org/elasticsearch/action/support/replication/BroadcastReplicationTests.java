@@ -141,7 +141,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             )
         );
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        PlainActionFuture<BaseBroadcastResponse> response = PlainActionFuture.newFuture();
+        PlainActionFuture<BaseBroadcastResponse> response = new PlainActionFuture<>();
         ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             if (randomBoolean()) {
@@ -160,7 +160,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         final String index = "test";
         setState(clusterService, state(index, randomBoolean(), ShardRoutingState.STARTED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        PlainActionFuture<BaseBroadcastResponse> response = PlainActionFuture.newFuture();
+        PlainActionFuture<BaseBroadcastResponse> response = new PlainActionFuture<>();
         ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             ReplicationResponse replicationResponse = new ReplicationResponse();
@@ -176,7 +176,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         int numShards = 1 + randomInt(3);
         setState(clusterService, stateWithAssignedPrimariesAndOneReplica(index, numShards));
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        PlainActionFuture<BaseBroadcastResponse> response = PlainActionFuture.newFuture();
+        PlainActionFuture<BaseBroadcastResponse> response = new PlainActionFuture<>();
         ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest().indices(index), response);
         int succeeded = 0;
         int failed = 0;
@@ -303,7 +303,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         TransportBroadcastReplicationAction<DummyBroadcastRequest, BaseBroadcastResponse, ?, ?> broadcastAction,
         DummyBroadcastRequest request
     ) {
-        PlainActionFuture<BaseBroadcastResponse> response = PlainActionFuture.newFuture();
+        PlainActionFuture<BaseBroadcastResponse> response = new PlainActionFuture<>();
         ActionTestUtils.execute(broadcastAction, null, request, response);
         return response.actionGet("5s");
     }

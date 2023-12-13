@@ -83,7 +83,7 @@ public class TriggeredWatchStore {
     }
 
     public BulkResponse putAll(final List<TriggeredWatch> triggeredWatches) throws IOException {
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         putAll(triggeredWatches, future);
         return future.actionGet(defaultBulkTimeout);
     }

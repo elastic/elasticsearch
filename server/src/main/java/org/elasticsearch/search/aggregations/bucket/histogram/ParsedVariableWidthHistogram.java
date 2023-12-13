@@ -36,7 +36,7 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
         return buckets;
     }
 
-    private static ObjectParser<ParsedVariableWidthHistogram, Void> PARSER = new ObjectParser<>(
+    private static final ObjectParser<ParsedVariableWidthHistogram, Void> PARSER = new ObjectParser<>(
         ParsedVariableWidthHistogram.class.getSimpleName(),
         true,
         ParsedVariableWidthHistogram::new

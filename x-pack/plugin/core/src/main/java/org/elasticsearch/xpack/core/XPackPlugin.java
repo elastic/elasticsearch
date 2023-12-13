@@ -78,6 +78,7 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -98,6 +99,9 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.datatiers.DataTiersInfoTransportAction;
+import org.elasticsearch.xpack.core.datatiers.DataTiersUsageTransportAction;
+import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
@@ -362,6 +366,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
+        actions.add(new ActionHandler<>(NodesDataTiersUsageTransportAction.TYPE, NodesDataTiersUsageTransportAction.class));
         return actions;
     }
 
@@ -427,7 +432,8 @@ public class XPackPlugin extends XPackClientPlugin
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }

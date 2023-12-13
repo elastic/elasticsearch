@@ -53,7 +53,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     @Override
     public BytesRefBlock filter(int... positions) {
         final BytesRef scratch = new BytesRef();
-        try (var builder = blockFactory.newBytesRefBlockBuilder(positions.length)) {
+        try (var builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -83,11 +83,12 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     @Override
     public BytesRefBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
         // TODO use reference counting to share the values
         final BytesRef scratch = new BytesRef();
-        try (var builder = blockFactory.newBytesRefBlockBuilder(firstValueIndexes[getPositionCount()])) {
+        try (var builder = blockFactory().newBytesRefBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -139,12 +140,8 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+    public void closeInternal() {
+        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }
 }

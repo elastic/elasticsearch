@@ -182,7 +182,6 @@ public class ValuesSourceConfig {
             aggregationScript,
             scriptValueType,
             missing,
-            timeZone,
             docValueFormat,
             context::nowInMillis
         );
@@ -258,14 +257,14 @@ public class ValuesSourceConfig {
     public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType, AggregationContext context) {
         FieldContext fieldContext = context.buildFieldContext(fieldType);
         ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType();
-        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context::nowInMillis);
+        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, context::nowInMillis);
     }
 
     /**
      * Convenience method for creating unmapped configs
      */
     public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, AggregationContext context) {
-        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, null, context::nowInMillis);
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, context::nowInMillis);
     }
 
     private final ValuesSourceType valuesSourceType;
@@ -275,7 +274,6 @@ public class ValuesSourceConfig {
     private final boolean unmapped;
     private final DocValueFormat format;
     private final Object missing;
-    private final ZoneId timeZone;
     private final ValuesSource valuesSource;
 
     @SuppressWarnings("this-escape")
@@ -286,7 +284,6 @@ public class ValuesSourceConfig {
         AggregationScript.LeafFactory script,
         ValueType scriptValueType,
         Object missing,
-        ZoneId timeZone,
         DocValueFormat format,
         LongSupplier nowInMillis
     ) {
@@ -299,7 +296,6 @@ public class ValuesSourceConfig {
         this.script = script;
         this.scriptValueType = scriptValueType;
         this.missing = missing;
-        this.timeZone = timeZone;
         this.format = format == null ? DocValueFormat.RAW : format;
 
         if (valid() == false) {
@@ -381,10 +377,6 @@ public class ValuesSourceConfig {
 
     public Object missing() {
         return this.missing;
-    }
-
-    public ZoneId timezone() {
-        return this.timeZone;
     }
 
     public DocValueFormat format() {

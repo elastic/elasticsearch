@@ -780,7 +780,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort salary""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         as(topN.child(), EsRelation.class);
     }
 
@@ -792,7 +792,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("x"));
         var eval = as(topN.child(), Eval.class);
         as(eval.child(), EsRelation.class);
     }
@@ -806,7 +806,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort z""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("z", "emp_no"));
+        assertThat(orderNames(topN), contains("z"));
         var eval = as(topN.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("x", "y", "z"));
         as(eval.child(), EsRelation.class);
@@ -820,7 +820,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("x"));
         var dissect = as(topN.child(), Dissect.class);
         as(dissect.child(), EsRelation.class);
     }
@@ -833,7 +833,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("x", "emp_no"));
+        assertThat(orderNames(topN), contains("x"));
         var grok = as(topN.child(), Grok.class);
         as(grok.child(), EsRelation.class);
     }
@@ -847,7 +847,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         as(topN.child(), EsRelation.class);
     }
 
@@ -862,7 +862,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         var eval = as(topN.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("e"));
         as(eval.child(), EsRelation.class);
@@ -878,7 +878,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         as(topN.child(), EsRelation.class);
     }
 
@@ -890,7 +890,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort salary""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("salary", "emp_no"));
+        assertThat(orderNames(topN), contains("salary"));
         var filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
     }
@@ -998,7 +998,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(), equalTo(5));
-        assertThat(orderNames(topN), contains("salary", "first_name"));
+        assertThat(orderNames(topN), contains("salary"));
         var limit = as(topN.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(5));
         var mvExp = as(limit.child(), MvExpand.class);
@@ -1313,10 +1313,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(orderNames(topN), contains("emp_no", "first_name"));
+        assertThat(orderNames(topN), contains("emp_no"));
         var filter = as(topN.child(), Filter.class);
         var topN2 = as(filter.child(), TopN.class);
-        assertThat(orderNames(topN2), contains("salary", "emp_no"));
+        assertThat(orderNames(topN2), contains("salary"));
         as(topN2.child(), EsRelation.class);
     }
 
@@ -1357,12 +1357,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
-                ),
-                new Order(
-                    EMPTY,
-                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
-                    Order.OrderDirection.ASC,
-                    Order.NullsPosition.LAST
                 )
             )
         );
@@ -1406,12 +1400,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.LAST
-                ),
-                new Order(
-                    EMPTY,
-                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
-                    Order.OrderDirection.DESC,
-                    Order.NullsPosition.LAST
                 )
             )
         );
@@ -1436,12 +1424,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
-                ),
-                new Order(
-                    EMPTY,
-                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
-                    Order.OrderDirection.DESC,
-                    Order.NullsPosition.FIRST
                 )
             )
         );
@@ -2470,6 +2452,73 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(expand.expanded().semanticEquals(filterProp));
         assertFalse(expand.target().semanticEquals(filterProp));
         var row = as(expand.child(), Row.class);
+    }
+
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[a{r}#2],[COUNT([2a][KEYWORD]) AS bar]]
+     *   \_Row[[1[INTEGER] AS a]]
+     */
+    public void testRenameStatsDropGroup() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 1
+            | rename a AS foo
+            | stats bar = count(*) by foo
+            | drop foo""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        var row = as(agg.child(), Row.class);
+    }
+
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[a{r}#2, bar{r}#8],[COUNT([2a][KEYWORD]) AS baz, b{r}#4 AS bar]]
+     *   \_Row[[1[INTEGER] AS a, 2[INTEGER] AS b]]
+     */
+    public void testMultipleRenameStatsDropGroup() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 1, b = 2
+            | rename a AS foo, b as bar
+            | stats baz = count(*) by foo, bar
+            | drop foo""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a", "bar"));
+        var row = as(agg.child(), Row.class);
+    }
+
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no{f}#11, bar{r}#4],[MAX(salary{f}#16) AS baz, gender{f}#13 AS bar]]
+     *   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testMultipleRenameStatsDropGroupMultirow() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename emp_no AS foo, gender as bar
+            | stats baz = max(salary) by foo, bar
+            | drop foo""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("emp_no", "bar"));
+        var row = as(agg.child(), EsRelation.class);
+    }
+
+    public void testLimitZeroUsesLocalRelation() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | stats count=count(*)
+            | sort count desc
+            | limit 0""");
+
+        assertThat(plan, instanceOf(LocalRelation.class));
     }
 
     private <T> T aliased(Expression exp, Class<T> clazz) {

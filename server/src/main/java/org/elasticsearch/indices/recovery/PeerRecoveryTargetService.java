@@ -320,7 +320,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
             try (onCompletion) {
                 client.execute(
-                    StatelessPrimaryRelocationAction.INSTANCE,
+                    StatelessPrimaryRelocationAction.TYPE,
                     new StatelessPrimaryRelocationAction.Request(
                         recoveryId,
                         indexShard.shardId(),
@@ -340,7 +340,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                             final var sendShardFailure =
                                 // these indicate the source shard has already failed, which will independently notify the master and fail
                                 // the target shard
-                                false == (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException);
+                                false == (cause instanceof ShardNotFoundException
+                                    || cause instanceof IndexNotFoundException
+                                    || cause instanceof AlreadyClosedException);
 
                             // TODO retries? See RecoveryResponseHandler#handleException
                             onGoingRecoveries.failRecovery(

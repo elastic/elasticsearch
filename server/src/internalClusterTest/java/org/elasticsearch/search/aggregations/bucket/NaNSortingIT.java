@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -28,7 +27,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.extended
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -114,7 +113,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 source.field("numeric_value", randomDouble());
             }
-            client().prepareIndex("idx").setSource(source.endObject()).get();
+            prepareIndex("idx").setSource(source.endObject()).get();
         }
         refresh();
         ensureSearchable();
@@ -145,16 +144,18 @@ public class NaNSortingIT extends ESIntegTestCase {
     public void testTerms(String fieldName) {
         final boolean asc = randomBoolean();
         SubAggregation agg = randomFrom(SubAggregation.values());
-        SearchResponse response = prepareSearch("idx").addAggregation(
-            terms("terms").field(fieldName)
-                .collectMode(randomFrom(SubAggCollectionMode.values()))
-                .subAggregation(agg.builder())
-                .order(BucketOrder.aggregation(agg.sortKey(), asc))
-        ).get();
-
-        assertNoFailures(response);
-        final Terms terms = response.getAggregations().get("terms");
-        assertCorrectlySorted(terms, asc, agg);
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
+                terms("terms").field(fieldName)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .subAggregation(agg.builder())
+                    .order(BucketOrder.aggregation(agg.sortKey(), asc))
+            ),
+            response -> {
+                final Terms terms = response.getAggregations().get("terms");
+                assertCorrectlySorted(terms, asc, agg);
+            }
+        );
     }
 
     public void testStringTerms() {
@@ -172,16 +173,17 @@ public class NaNSortingIT extends ESIntegTestCase {
     public void testLongHistogram() {
         final boolean asc = randomBoolean();
         SubAggregation agg = randomFrom(SubAggregation.values());
-        SearchResponse response = prepareSearch("idx").addAggregation(
-            histogram("histo").field("long_value")
-                .interval(randomIntBetween(1, 2))
-                .subAggregation(agg.builder())
-                .order(BucketOrder.aggregation(agg.sortKey(), asc))
-        ).get();
-
-        assertNoFailures(response);
-        final Histogram histo = response.getAggregations().get("histo");
-        assertCorrectlySorted(histo, asc, agg);
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
+                histogram("histo").field("long_value")
+                    .interval(randomIntBetween(1, 2))
+                    .subAggregation(agg.builder())
+                    .order(BucketOrder.aggregation(agg.sortKey(), asc))
+            ),
+            response -> {
+                final Histogram histo = response.getAggregations().get("histo");
+                assertCorrectlySorted(histo, asc, agg);
+            }
+        );
     }
-
 }

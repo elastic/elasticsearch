@@ -476,15 +476,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         client.execute(
             LoadTrainedModelPackageAction.INSTANCE,
             new LoadTrainedModelPackageAction.Request(modelId, modelPackageConfig, waitForCompletion),
-            ActionListener.wrap(ack -> {
-                if (waitForCompletion) {
-                    listener.onResponse(null);
-                }
-            }, listener::onFailure)
+            ActionListener.wrap(ack -> listener.onResponse(null), listener::onFailure)
         );
-        if (waitForCompletion == false) {
-            listener.onResponse(null);
-        }
     }
 
     private void resolvePackageConfig(String modelId, ActionListener<ModelPackageConfig> listener) {
@@ -577,6 +570,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             )
         );
         trainedModelConfig.setTags(resolvedModelPackageConfig.getTags());
+        trainedModelConfig.setPrefixStrings(resolvedModelPackageConfig.getPrefixStrings());
         trainedModelConfig.setModelPackageConfig(
             new ModelPackageConfig.Builder(resolvedModelPackageConfig).resetPackageOnlyFields().build()
         );

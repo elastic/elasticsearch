@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -71,6 +72,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private IndicesService indicesService;
     private ThreadPool threadPool;
     private IndexNameExpressionResolver indexNameExpressionResolver;
+    private Client client;
     private MockTransport mockTransport;
     private Task transformTask;
     private final String indexNamePattern = "test_index-";
@@ -133,6 +135,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             .putCompatibilityVersions("node01", TransportVersions.V_8_5_0, Map.of())
             .build();
 
+        client = mock(Client.class);
+
         transformTask = new Task(
             1L,
             "persistent",
@@ -157,6 +161,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             Strings.EMPTY_ARRAY,
             IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
             TimeValue.timeValueSeconds(5)
         );
         assertCheckpointAction(request, response -> {
@@ -170,6 +176,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             new String[] { indexNamePattern + "0" },
             IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
             TimeValue.timeValueSeconds(5)
         );
 
@@ -189,6 +197,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             testIndices,
             IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
             TimeValue.timeValueSeconds(5)
         );
         assertCheckpointAction(request, response -> {
@@ -208,7 +218,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     class TestTransportGetCheckpointAction extends TransportGetCheckpointAction {
 
         TestTransportGetCheckpointAction() {
-            super(transportService, new ActionFilters(emptySet()), indicesService, clusterService, indexNameExpressionResolver);
+            super(transportService, new ActionFilters(emptySet()), indicesService, clusterService, indexNameExpressionResolver, client);
         }
 
         @Override

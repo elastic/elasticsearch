@@ -295,7 +295,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             failIfNoDocValues();
-            return BlockDocValuesReader.bytesRefsFromOrds(name());
+            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
         }
 
         @Override

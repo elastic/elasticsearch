@@ -6,6 +6,16 @@
  */
 package org.elasticsearch.xpack.sql.qa.multi_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.cli.LenientTestCase;
+import org.junit.ClassRule;
 
-public class CliLenientIT extends LenientTestCase {}
+public class CliLenientIT extends LenientTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+}

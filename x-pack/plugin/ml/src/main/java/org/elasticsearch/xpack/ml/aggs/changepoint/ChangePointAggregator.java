@@ -91,7 +91,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         ChangeType changeType = changePValue(bucketValues, candidatePoints, P_VALUE_THRESHOLD);
         if (changeType.pValue() > P_VALUE_THRESHOLD) {
             try {
-                changeType = maxDeviationKdePValue(bucketValues, P_VALUE_THRESHOLD);
+                SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
+                changeType = detect.at(P_VALUE_THRESHOLD);
             } catch (NotStrictlyPositiveException nspe) {
                 logger.debug("failure calculating spikes", nspe);
             }
@@ -104,42 +105,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
 
         return new InternalChangePointAggregation(name(), metadata(), changePointBucket, changeType);
-    }
-
-    static ChangeType maxDeviationKdePValue(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
-        double[] timeWindow = bucketValues.getValues();
-        double variance = RunningStats.from(timeWindow, i -> 1.0).variance();
-        if (variance == 0.0) {
-            return new ChangeType.Stationary();
-        }
-        int minIndex = 0;
-        double minValue = Double.MAX_VALUE;
-        int maxIndex = 0;
-        double maxValue = -Double.MAX_VALUE;
-        for (int i = 0; i < timeWindow.length; i++) {
-            if (timeWindow[i] < minValue) {
-                minValue = timeWindow[i];
-                minIndex = i;
-            }
-            if (timeWindow[i] > maxValue) {
-                maxValue = timeWindow[i];
-                maxIndex = i;
-            } else if (timeWindow[i] == maxValue) {
-                maxIndex = i;
-            }
-        }
-        KDE dist = new KDE(timeWindow, minIndex, maxIndex);
-        KDE.ValueAndMagnitude cdf = dist.cdf(minValue);
-        KDE.ValueAndMagnitude sf = dist.sf(maxValue);
-
-        if (cdf.isMoreSignificant(sf, timeWindow.length) && cdf.significance(timeWindow.length) * 2 < pValueThreshold) {
-            return new ChangeType.Dip(cdf.significance(timeWindow.length) * 2, bucketValues.getBucketIndex(minIndex));
-        }
-        if (sf.significance(timeWindow.length) * 2 < pValueThreshold) {
-            return new ChangeType.Spike(sf.significance(timeWindow.length) * 2, bucketValues.getBucketIndex(maxIndex));
-        }
-        return new ChangeType.Stationary();
-
     }
 
     static ChangeType changePValue(

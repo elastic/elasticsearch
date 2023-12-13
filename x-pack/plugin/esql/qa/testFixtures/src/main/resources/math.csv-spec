@@ -200,10 +200,10 @@ height:double | s:double
 1.53          | 0.34
 ;
 
-powSalarySquared
+powSalarySquared#[skip:-8.11.99,reason:return type changed in 8.12]
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
-salary:integer | s:long
+salary:integer | s:double
 74999          | 10001
 74970          | 10900
 74572          | 193184
@@ -328,14 +328,14 @@ base:integer | exponent:double | s:double
 // end::powID-sqrt-result[]
 ;
 
-powSqrtNeg
+powSqrtNeg#[skip:-8.12.99,reason:warning message changed in 8.13]
 // tag::powNeg-sqrt[]
 ROW base = -4, exponent = 0.5
 | EVAL s = POW(base, exponent)
 // end::powNeg-sqrt[]
 ;
 warning:Line 2:12: evaluation of [POW(base, exponent)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:12: java.lang.ArithmeticException: invalid result: pow(-4.0, 0.5)
+warning:Line 2:12: java.lang.ArithmeticException: not a finite double number: NaN
 
 // tag::powNeg-sqrt-result[]
 base:integer | exponent:double | s:double
@@ -356,23 +356,19 @@ base:double | exponent:integer | result:double
 // end::powDI-result[]
 ;
 
-powIntInt
-// tag::powII[]
+powIntInt#[skip:-8.11.99,reason:return type changed in 8.12]
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
-// end::powII[]
 ;
 
-// tag::powII-result[]
-base:integer | exponent:integer | s:integer
-2            | 2                | 4
-// end::powII-result[]
+base:integer | exponent:integer | s:double
+2            | 2                | 4.0
 ;
 
-powIntIntPlusInt
+powIntIntPlusInt#[skip:-8.11.99,reason:return type changed in 8.12]
 row s = 1 + pow(2, 2);
 
-s:integer
+s:double
 5
 ;
 
@@ -383,24 +379,24 @@ s:double
 5
 ;
 
-powIntUL
+powIntUL#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = pow(1, 9223372036854775808);
 
-x:long
+x:double
 1
 ;
 
-powLongUL
+powLongUL#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
-x:long
+x:double
 1
 ;
 
-powUnsignedLongUL
+powUnsignedLongUL#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
-x:long
+x:double
 1
 ;
 
@@ -411,36 +407,28 @@ x:double
 1.0
 ;
 
-powIntULOverrun
+powIntULOverrun#[skip:-8.12.99,reason:warning message changed in 8.13]
 row x = pow(2, 9223372036854775808);
 warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:9: java.lang.ArithmeticException: long overflow
+warning:Line 1:9: java.lang.ArithmeticException: not a finite double number: Infinity
 
-x:long
+x:double
 null
 ;
 
-powULInt
+powULInt#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = pow(to_unsigned_long(9223372036854775807), 1);
 
-x:long
+x:double
 9223372036854775807
 ;
 
-powULIntOverrun
-// tag::powULOverrun[]
+powULIntOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
 ROW x = POW(9223372036854775808, 2)
-// end::powULOverrun[]
 ;
-// tag::powULOverrun-warning[]
-warning:Line 1:9: evaluation of [POW(9223372036854775808, 2)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:9: java.lang.ArithmeticException: long overflow
-// end::powULOverrun-warning[]
 
-// tag::powULOverrun-result[]
-x:long
-null
-// end::powULOverrun-result[]
+x:double
+8.507059173023462E37
 ;
 
 powULInt_2d
@@ -455,20 +443,18 @@ x:double
 // end::pow2d-result[]
 ;
 
-powULLong
+powULLong#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
-x:long
+x:double
 10000000000
 ;
 
-powULLongOverrun
+powULLongOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
-warning:Line 1:33: evaluation of [pow(to_unsigned_long(10), x)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:33: java.lang.ArithmeticException: long overflow
 
-x:long
-null
+x:double
+1.0E100
 ;
 
 powULDouble

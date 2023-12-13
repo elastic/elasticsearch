@@ -184,13 +184,17 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
             final Response response = performRequestWithApiKey(searchRequest, apiKeyEncoded);
             assertOK(response);
             final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-                .map(SearchHit::getIndex)
-                .collect(Collectors.toList());
-            if (alsoSearchLocally) {
-                assertThat(actualIndices, containsInAnyOrder("index1", "local_index"));
-            } else {
-                assertThat(actualIndices, containsInAnyOrder("index1"));
+            try {
+                final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                    .map(SearchHit::getIndex)
+                    .collect(Collectors.toList());
+                if (alsoSearchLocally) {
+                    assertThat(actualIndices, containsInAnyOrder("index1", "local_index"));
+                } else {
+                    assertThat(actualIndices, containsInAnyOrder("index1"));
+                }
+            } finally {
+                searchResponse.decRef();
             }
 
             // Check that access is denied because of API key privileges

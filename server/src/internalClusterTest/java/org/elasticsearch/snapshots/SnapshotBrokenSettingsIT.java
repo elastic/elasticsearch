@@ -38,8 +38,7 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
             .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(BrokenSettingPlugin.BROKEN_SETTING.getKey(), value))
-            .execute()
-            .actionGet();
+            .get();
 
         Consumer<String> assertSettingValue = value -> assertThat(
             client.admin()
@@ -47,8 +46,7 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
                 .prepareState()
                 .setRoutingTable(false)
                 .setNodes(false)
-                .execute()
-                .actionGet()
+                .get()
                 .getState()
                 .getMetadata()
                 .persistentSettings()

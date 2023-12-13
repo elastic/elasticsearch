@@ -248,13 +248,12 @@ public class InternalEngine extends Engine {
             throttle = new IndexThrottle();
             try {
                 store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
-                translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(), seqNo -> {
-                    final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
-                    assert tracker != null || getTranslog().isOpen() == false;
-                    if (tracker != null) {
-                        tracker.markSeqNoAsPersisted(seqNo);
-                    }
-                });
+                translog = openTranslog(
+                    engineConfig,
+                    translogDeletionPolicy,
+                    engineConfig.getGlobalCheckpointSupplier(),
+                    translogPersistedSeqNoConsumer()
+                );
                 assert translog.getGeneration() != null;
                 this.translog = translog;
                 this.totalDiskSpace = new ByteSizeValue(Environment.getFileStore(translog.location()).getTotalSpace(), ByteSizeUnit.BYTES);
@@ -344,6 +343,16 @@ public class InternalEngine extends Engine {
         localCheckpoint = seqNoStats.localCheckpoint;
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
         return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
+    }
+
+    protected LongConsumer translogPersistedSeqNoConsumer() {
+        return seqNo -> {
+            final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
+            assert tracker != null || getTranslog().isOpen() == false;
+            if (tracker != null) {
+                tracker.markSeqNoAsPersisted(seqNo);
+            }
+        };
     }
 
     private SoftDeletesPolicy newSoftDeletesPolicy() throws IOException {
@@ -518,7 +527,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
-        try (ReleasableLock ignored = writeLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
@@ -759,13 +768,11 @@ public class InternalEngine extends Engine {
 
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
         boolean success = false;
+        ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager internalReaderManager = null;
         try {
             try {
-                final ElasticsearchDirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(
-                    DirectoryReader.open(indexWriter),
-                    shardId
-                );
+                directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 internalReaderManager = createInternalReaderManager(directoryReader);
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
@@ -782,7 +789,9 @@ public class InternalEngine extends Engine {
             }
         } finally {
             if (success == false) { // release everything we created on a failure
-                IOUtils.closeWhileHandlingException(internalReaderManager, indexWriter);
+                // make sure that we close the directory reader even if the internal reader manager has failed to initialize
+                var reader = internalReaderManager == null ? directoryReader : internalReaderManager;
+                IOUtils.closeWhileHandlingException(reader, indexWriter);
             }
         }
     }
@@ -1941,7 +1950,7 @@ public class InternalEngine extends Engine {
     }
 
     private NoOpResult innerNoOp(final NoOp noOp) throws IOException {
-        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
+        assert readLock.isHeldByCurrentThread();
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
@@ -2469,7 +2478,7 @@ public class InternalEngine extends Engine {
         if (flushFirst) {
             logger.trace("start flush for snapshot");
             // TODO: Split acquireLastIndexCommit into two apis one with blocking flushes one without
-            PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
             flush(false, true, future);
             future.actionGet();
             logger.trace("finish flush for snapshot");
@@ -2951,7 +2960,7 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
-    LocalCheckpointTracker getLocalCheckpointTracker() {
+    protected LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
     }
 

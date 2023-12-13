@@ -92,6 +92,8 @@ public class MetadataIndexTemplateService {
 
     private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
 
+    private static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
+
     static {
         final Map<String, Map<String, String>> defaultTimestampField = Map.of(
             DEFAULT_TIMESTAMP_FIELD,
@@ -120,6 +122,110 @@ public class MetadataIndexTemplateService {
                     .map(defaultTimestampField)
                     .endObject()
             );
+            /*
+             * The data stream failure store mapping. The JSON content is as follows:
+             * {
+             *   "_doc": {
+             *     "dynamic": false,
+             *     "_routing": {
+             *       "required": false
+             *     },
+             *     "properties": {
+             *       "@timestamp": {
+             *         "type": "date",
+             *         "ignore_malformed": false
+             *       },
+             *       "document": {
+             *         "properties": {
+             *           "id": {
+             *             "type": "keyword"
+             *           },
+             *           "routing": {
+             *             "type": "keyword"
+             *           },
+             *           "index": {
+             *             "type": "keyword"
+             *           }
+             *         }
+             *       },
+             *       "error": {
+             *         "properties": {
+             *           "message": {
+             *              "type": "wildcard"
+             *           },
+             *           "stack_trace": {
+             *              "type": "text"
+             *           },
+             *           "type": {
+             *              "type": "keyword"
+             *           },
+             *           "pipeline": {
+             *              "type": "keyword"
+             *           },
+             *           "pipeline_trace": {
+             *              "type": "keyword"
+             *           },
+             *           "processor": {
+             *              "type": "keyword"
+             *           }
+             *         }
+             *       }
+             *     }
+             *   }
+             * }
+             */
+            DATA_STREAM_FAILURE_STORE_MAPPING = new CompressedXContent(
+                (builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .field("dynamic", false)
+                    .startObject(RoutingFieldMapper.NAME)
+                    .field("required", false)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject(DEFAULT_TIMESTAMP_FIELD)
+                    .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .field("ignore_malformed", false)
+                    .endObject()
+                    .startObject("document")
+                    .startObject("properties")
+                    // document.source is unmapped so that it can be persisted in source only without worrying that the document might cause
+                    // a mapping error
+                    .startObject("id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("routing")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("index")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .startObject("error")
+                    .startObject("properties")
+                    .startObject("message")
+                    .field("type", "wildcard")
+                    .endObject()
+                    .startObject("stack_trace")
+                    .field("type", "text")
+                    .endObject()
+                    .startObject("type")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("pipeline")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("pipeline_trace")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("processor")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
+
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -1338,6 +1444,10 @@ public class MetadataIndexTemplateService {
         final String indexName
     ) {
         Objects.requireNonNull(template, "Composable index template must be provided");
+        // Check if this is a failure store index, and if it is, discard any template mappings. Failure store mappings are predefined.
+        if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.FAILURE_STORE_PREFIX)) {
+            return List.of(DATA_STREAM_FAILURE_STORE_MAPPING, ComposableIndexTemplate.DataStreamTemplate.DATA_STREAM_MAPPING_SNIPPET);
+        }
         List<CompressedXContent> mappings = template.composedOf()
             .stream()
             .map(componentTemplates::get)
@@ -1348,7 +1458,7 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toCollection(LinkedList::new));
         // Add the actual index template's mappings, since it takes the highest precedence
         Optional.ofNullable(template.template()).map(Template::mappings).ifPresent(mappings::add);
-        if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+        if (template.getDataStreamTemplate() != null && isDataStreamIndex(indexName)) {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
             if (template.getDataStreamTemplate().isAllowCustomRouting()) {
@@ -1359,7 +1469,7 @@ public class MetadataIndexTemplateService {
         }
 
         // Only include _timestamp mapping snippet if creating backing index.
-        if (indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+        if (isDataStreamIndex(indexName)) {
             // Only if template has data stream definition this should be added and
             // adding this template last, since _timestamp field should have highest precedence:
             if (template.getDataStreamTemplate() != null) {
@@ -1367,6 +1477,10 @@ public class MetadataIndexTemplateService {
             }
         }
         return Collections.unmodifiableList(mappings);
+    }
+
+    private static boolean isDataStreamIndex(String indexName) {
+        return indexName.startsWith(DataStream.BACKING_INDEX_PREFIX) || indexName.startsWith(DataStream.FAILURE_STORE_PREFIX);
     }
 
     /**

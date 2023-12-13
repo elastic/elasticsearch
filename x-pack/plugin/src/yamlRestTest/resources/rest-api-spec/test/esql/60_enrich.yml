@@ -1,0 +1,136 @@
+---
+setup:
+  - skip:
+      version: " - 8.10.99"
+      reason: "ESQL is available in 8.11+"
+      features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index:  cities
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              city_code:
+                type: keyword
+              city:
+                type: keyword
+              country:
+                type: keyword
+
+  - do:
+      bulk:
+        index: "cities"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "city_code": "nyc", "city": "New York", "country": "USA" }
+          - { "index": { } }
+          - { "city_code": "rom", "city": "Rome", "country": "Italy" }
+
+  - do:
+      enrich.put_policy:
+        name: cities_policy
+        body:
+          match:
+            indices: ["cities"]
+            match_field: "city_code"
+            enrich_fields: ["city", "country"]
+
+  - do:
+      enrich.execute_policy:
+        name: cities_policy
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              city_id:
+                type: keyword
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name": "Alice", "city_id": "nyc" }
+          - { "index": { } }
+          - { "name": "Bob", "city_id": "nyc" }
+          - { "index": { } }
+          - { "name": "Mario", "city_id": "rom" }
+          - { "index": { } }
+          - { "name": "Denise", "city_id": "sgn" }
+
+---
+"Basic":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | enrich cities_policy on city_id | keep name, city, country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "country" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "New York", "USA" ] }
+  - match: { values.1: [ "Bob", "New York", "USA" ] }
+  - match: { values.2: [ "Denise", null, null ] }
+  - match: { values.3: [ "Mario", "Rome", "Italy" ] }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep name, city_id | enrich cities_policy on city_id with country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city_id" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "country" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "nyc", "USA" ] }
+  - match: { values.1: [ "Bob", "nyc", "USA" ] }
+  - match: { values.2: [ "Denise", "sgn", null ] }
+  - match: { values.3: [ "Mario", "rom", "Italy" ] }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep name, city_id | enrich cities_policy on city_id with country_name = country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city_id" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "country_name" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "nyc", "USA" ] }
+  - match: { values.1: [ "Bob", "nyc", "USA" ] }
+  - match: { values.2: [ "Denise", "sgn", null ] }
+  - match: { values.3: [ "Mario", "rom", "Italy" ] }
+
+  - do:
+      enrich.delete_policy:
+        name: cities_policy
+  - is_true: acknowledged

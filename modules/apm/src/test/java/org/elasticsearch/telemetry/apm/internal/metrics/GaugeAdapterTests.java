@@ -100,4 +100,16 @@ public class GaugeAdapterTests extends ESTestCase {
         metrics = otelMeter.getRecorder().getMeasurements(gauge);
         assertThat(metrics, hasSize(0));
     }
+
+    public void testNullGaugeRecord() throws Exception {
+        DoubleGauge dgauge = registry.registerDoubleGauge("name", "desc", "unit", new AtomicReference<DoubleWithAttributes>()::get);
+        otelMeter.collectMetrics();
+        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(dgauge);
+        assertThat(metrics, hasSize(0));
+
+        LongGauge lgauge = registry.registerLongGauge("name", "desc", "unit", new AtomicReference<LongWithAttributes>()::get);
+        otelMeter.collectMetrics();
+        metrics = otelMeter.getRecorder().getMeasurements(lgauge);
+        assertThat(metrics, hasSize(0));
+    }
 }

@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -39,7 +38,9 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -144,19 +145,13 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         Client client = client();
 
         // no specifying an index, should replace indices with the permitted ones (test & test1)
-        SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2);
+        assertHitCountAndNoFailures(prepareSearch().setQuery(matchAllQuery()), 2);
 
         // _all should expand to all the permitted indices
-        searchResponse = client.prepareSearch("_all").setQuery(matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2);
+        assertHitCountAndNoFailures(client.prepareSearch("_all").setQuery(matchAllQuery()), 2);
 
         // wildcards should expand to all the permitted indices
-        searchResponse = client.prepareSearch("test*").setQuery(matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2);
+        assertHitCountAndNoFailures(client.prepareSearch("test*").setQuery(matchAllQuery()), 2);
 
         try {
             client.prepareSearch("test", "test2").setQuery(matchAllQuery()).get();
@@ -170,16 +165,20 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             .add(client.prepareSearch("test"))
             .add(client.prepareSearch("test1"))
             .get();
-        MultiSearchResponse.Item[] items = msearchResponse.getResponses();
-        assertThat(items.length, is(2));
-        assertThat(items[0].isFailure(), is(false));
-        searchResponse = items[0].getResponse();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
-        assertThat(items[1].isFailure(), is(false));
-        searchResponse = items[1].getResponse();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
+        try {
+            MultiSearchResponse.Item[] items = msearchResponse.getResponses();
+            assertThat(items.length, is(2));
+            assertThat(items[0].isFailure(), is(false));
+            var searchResponse = items[0].getResponse();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 1);
+            assertThat(items[1].isFailure(), is(false));
+            searchResponse = items[1].getResponse();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 1);
+        } finally {
+            msearchResponse.decRef();
+        }
     }
 
     public void testMonitorRestrictedWildcards() throws Exception {
@@ -248,18 +247,18 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
         Client client = client();
 
-        SearchResponse response = client.filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD))
-        ).prepareSearch("a").get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(
+            client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
+                .prepareSearch("a"),
+            1
+        );
 
         String[] indices = randomDouble() < 0.3 ? new String[] { "_all" } : randomBoolean() ? new String[] { "*" } : new String[] {};
-        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
-            .prepareSearch(indices)
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(
+            client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))
+                .prepareSearch(indices),
+            1
+        );
 
         try {
             indices = randomBoolean() ? new String[] { "a", "b" } : new String[] { "b", "a" };
@@ -275,25 +274,25 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
         }
 
-        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
-            .prepareSearch("b")
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(
+            client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
+                .prepareSearch("b"),
+            1
+        );
 
         indices = randomBoolean() ? new String[] { "a", "b" } : new String[] { "b", "a" };
-        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
-            .prepareSearch(indices)
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
+        assertHitCountAndNoFailures(
+            client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
+                .prepareSearch(indices),
+            2
+        );
 
         indices = randomDouble() < 0.3 ? new String[] { "_all" } : randomBoolean() ? new String[] { "*" } : new String[] {};
-        response = client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
-            .prepareSearch(indices)
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
+        assertHitCountAndNoFailures(
+            client.filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_ab", USERS_PASSWD)))
+                .prepareSearch(indices),
+            2
+        );
     }
 
     public void testMultiNamesWorkCorrectly() {
@@ -303,14 +302,16 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field1", "public")))
         );
 
-        client().prepareIndex("index1").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("index1").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
 
         final Client userAClient = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD))
         );
 
-        final SearchResponse searchResponse = userAClient.prepareSearch("alias1").setSize(0).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertResponse(
+            userAClient.prepareSearch("alias1").setSize(0),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L))
+        );
 
         final ElasticsearchSecurityException e1 = expectThrows(
             ElasticsearchSecurityException.class,

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -78,13 +79,22 @@ public class StackTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
+    private FeatureService featureService;
 
     @Before
     public void createRegistryAndClient() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        featureService = new FeatureService(List.of(new StackTemplatesFeatures()));
+        registry = new StackTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            featureService
+        );
     }
 
     @After
@@ -101,7 +111,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            featureService
         );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
     }
@@ -113,7 +124,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            featureService
         );
         assertThat(disabledRegistry.getComponentTemplateConfigs(), not(anEmptyMap()));
         assertThat(
@@ -357,7 +369,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            featureService
         );
 
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
@@ -505,6 +518,23 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
+    }
+
+    public void testThatTemplatesAreNotDeprecated() {
+        for (ComposableIndexTemplate it : registry.getComposableTemplateConfigs().values()) {
+            assertFalse(it.isDeprecated());
+        }
+        for (LifecyclePolicy ilm : registry.getLifecyclePolicies()) {
+            assertFalse(ilm.isDeprecated());
+        }
+        for (ComponentTemplate ct : registry.getComponentTemplateConfigs().values()) {
+            assertFalse(ct.deprecated());
+        }
+        registry.getIngestPipelines()
+            .stream()
+            .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
+            .map(PipelineConfiguration::getConfigAsMap)
+            .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
     }
 
     // -------------

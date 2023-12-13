@@ -44,15 +44,12 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
     public void testDeleteIndexOnIndexReadOnlyAllowDeleteSetting() {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
+        prepareIndex("test").setId("1").setSource("foo", "bar").get();
         refresh();
         try {
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true), "test");
             assertSearchHits(prepareSearch(), "1");
-            assertBlocked(
-                client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
-                IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-            );
+            assertBlocked(prepareIndex("test").setId("2").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertSearchHits(prepareSearch(), "1");
             assertAcked(indicesAdmin().prepareDelete("test"));
         } finally {
@@ -70,7 +67,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true), "test");
             ClusterBlockException e = expectThrows(
                 ClusterBlockException.class,
-                () -> client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get()
+                () -> prepareIndex("test").setId("1").setSource("foo", "bar").get()
             );
             assertEquals(
                 "index [test] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
@@ -85,15 +82,12 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
     public void testDeleteIndexOnClusterReadOnlyAllowDeleteSetting() {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
+        prepareIndex("test").setId("1").setSource("foo", "bar").get();
         refresh();
         try {
             updateClusterSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
             assertSearchHits(prepareSearch(), "1");
-            assertBlocked(
-                client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
-                Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK
-            );
+            assertBlocked(prepareIndex("test").setId("2").setSource("foo", "bar"), Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertBlocked(
                 indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2)),
                 Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK

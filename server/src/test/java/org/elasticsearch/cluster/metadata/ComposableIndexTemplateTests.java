@@ -228,15 +228,14 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         }
         DataStreamLifecycle lifecycle = randomLifecycle();
         Template template = new Template(settings, mappings, aliases, lifecycle);
-        new ComposableIndexTemplate(
-            List.of(randomAlphaOfLength(4)),
-            template,
-            List.of(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            null,
-            dataStreamTemplate
-        );
+        ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomAlphaOfLength(4)))
+            .template(template)
+            .componentTemplates(List.of())
+            .priority(randomNonNegativeLong())
+            .version(randomNonNegativeLong())
+            .dataStreamTemplate(dataStreamTemplate)
+            .build();
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);

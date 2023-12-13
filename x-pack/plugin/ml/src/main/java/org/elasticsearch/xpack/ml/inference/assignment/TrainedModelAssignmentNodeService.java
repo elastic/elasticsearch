@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
@@ -289,10 +290,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
-        deploymentManager.infer(task, config, input, skipQueue, timeout, parentActionTask, listener);
+        deploymentManager.infer(task, config, input, skipQueue, timeout, prefixType, parentActionTask, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {
@@ -367,9 +369,14 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
 
                     if (shouldLoadModel(routingInfo, trainedModelAssignment.getDeploymentId(), isResetMode)) {
-                        prepareModelToLoad(
-                            createStartTrainedModelDeploymentTaskParams(trainedModelAssignment, routingInfo.getCurrentAllocations())
+                        StartTrainedModelDeploymentAction.TaskParams params = createStartTrainedModelDeploymentTaskParams(
+                            trainedModelAssignment,
+                            routingInfo.getCurrentAllocations()
                         );
+                        // Loading the model is done by a separate task, so needs a new trace context
+                        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                            prepareModelToLoad(params);
+                        }
                     }
                 }
 

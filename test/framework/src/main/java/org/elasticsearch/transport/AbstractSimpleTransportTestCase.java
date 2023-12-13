@@ -2425,7 +2425,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile).setPingInterval(TimeValue.timeValueMillis(50))
             .build();
         try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
-            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Transport.Connection> future = new PlainActionFuture<>();
             DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
                 .name("TS_TPC")
                 .address(service.boundAddress().publishAddress())
@@ -2451,7 +2451,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .roles(emptySet())
                 .version(version0)
                 .build();
-            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Transport.Connection> future = new PlainActionFuture<>();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
                 assertEquals(TransportVersion.current(), connection.getTransportVersion());
@@ -3553,7 +3553,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             handler.executor(transportService.threadPool)
         );
         responseListener.addListener(ActionListener.wrap(handler::handleResponse, e -> handler.handleException((TransportException) e)));
-        final PlainActionFuture<T> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<T> future = new PlainActionFuture<>();
         responseListener.addListener(future);
         transportService.sendRequest(node, action, request, options, futureHandler);
         return future;

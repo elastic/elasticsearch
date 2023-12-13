@@ -117,11 +117,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             if (key != null) {
                 return key;
             }
-            StringBuilder sb = new StringBuilder();
-            sb.append((from == null || from == 0) ? "*" : from);
-            sb.append("-");
-            sb.append((to == null || Double.isInfinite(to)) ? "*" : to);
-            return sb.toString();
+            return ((from == null || from == 0) ? "*" : from) + "-" + ((to == null || Double.isInfinite(to)) ? "*" : to);
         }
     }
 

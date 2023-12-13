@@ -49,9 +49,7 @@ List projects = [
   'docs',
   'client:rest',
   'client:rest-high-level',
-  'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',
-  'client:transport',
   'client:test',
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
@@ -90,7 +88,6 @@ List projects = [
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
   'server',
-  'server:cli',
   'test:framework',
   'test:fixtures:azure-fixture',
   'test:fixtures:gcs-fixture',
@@ -100,13 +97,15 @@ List projects = [
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
+  'test:fixtures:testcontainer-utils',
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',
   'test:logger-usage',
   'test:test-clusters',
   'test:x-content',
-  'test:yaml-rest-runner'
+  'test:yaml-rest-runner',
+  'test:metadata-extractor'
 ]
 
 /**

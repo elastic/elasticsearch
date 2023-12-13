@@ -1,0 +1,5 @@
+pr: 102682
+summary: Introduce fielddata cache ttl
+area: Aggregations
+type: enhancement
+issues: []

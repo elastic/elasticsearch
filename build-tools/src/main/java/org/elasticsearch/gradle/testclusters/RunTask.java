@@ -40,6 +40,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
     private static final String transportCertificate = "private-cert2.p12";
 
     private Boolean debug = false;
+    private Boolean cliDebug = false;
     private Boolean apmServerEnabled = false;
 
     private Boolean preserveData = false;
@@ -62,9 +63,19 @@ public abstract class RunTask extends DefaultTestClustersTask {
         this.debug = enabled;
     }
 
+    @Option(option = "debug-cli-jvm", description = "Enable debugging configuration, to allow attaching a debugger to the cli launcher.")
+    public void setCliDebug(boolean enabled) {
+        this.cliDebug = enabled;
+    }
+
     @Input
     public Boolean getDebug() {
         return debug;
+    }
+
+    @Input
+    public Boolean getCliDebug() {
+        return cliDebug;
     }
 
     @Input
@@ -190,17 +201,29 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     try {
                         mockServer.start();
                         node.setting("telemetry.metrics.enabled", "true");
+                        node.setting("tracing.apm.agent.enabled", "true");
+                        node.setting("tracing.apm.agent.transaction_sample_rate", "0.10");
+                        node.setting("tracing.apm.agent.metrics_interval", "10s");
                         node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
                     } catch (IOException e) {
                         logger.warn("Unable to start APM server", e);
                     }
-
+                }
+                // in serverless metrics are enabled by default
+                // if metrics were not enabled explicitly for gradlew run we should disable them
+                else if (node.getSettingKeys().contains("telemetry.metrics.enabled") == false) { // metrics
+                    node.setting("telemetry.metrics.enabled", "false");
+                } else if (node.getSettingKeys().contains("tracing.apm.agent.enabled") == false) { // tracing
+                    node.setting("tracing.apm.agent.enable", "false");
                 }
 
             }
         }
         if (debug) {
             enableDebug();
+        }
+        if (cliDebug) {
+            enableCliDebug();
         }
     }
 

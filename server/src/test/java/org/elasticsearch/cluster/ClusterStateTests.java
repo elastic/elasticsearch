@@ -1248,7 +1248,7 @@ public class ClusterStateTests extends ESTestCase {
         // equal mappings versions
         {
             var builder = ClusterState.builder(buildClusterState());
-            builder.compatibilityVersions(
+            builder.nodeIdsToCompatibilityVersions(
                 Map.of(
                     "node1",
                     new CompatibilityVersions(
@@ -1268,7 +1268,7 @@ public class ClusterStateTests extends ESTestCase {
         // unequal mappings versions
         {
             var builder = ClusterState.builder(buildClusterState());
-            builder.compatibilityVersions(
+            builder.nodeIdsToCompatibilityVersions(
                 Map.of(
                     "node1",
                     new CompatibilityVersions(
@@ -1288,7 +1288,7 @@ public class ClusterStateTests extends ESTestCase {
         // one node has a mappings version that the other is missing
         {
             var builder = ClusterState.builder(buildClusterState());
-            builder.compatibilityVersions(
+            builder.nodeIdsToCompatibilityVersions(
                 Map.of(
                     "node1",
                     new CompatibilityVersions(

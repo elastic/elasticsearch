@@ -12,4 +12,7 @@ import java.util.Map;
 
 public record DoubleWithAttributes(double value, Map<String, Object> attributes) {
 
+    public DoubleWithAttributes(double value) {
+        this(value, Map.of());
+    }
 }

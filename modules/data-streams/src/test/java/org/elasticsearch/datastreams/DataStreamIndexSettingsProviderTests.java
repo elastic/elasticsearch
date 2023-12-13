@@ -315,7 +315,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 ds.isSystem(),
                 ds.isAllowCustomRouting(),
                 IndexMode.TIME_SERIES,
-                ds.getLifecycle()
+                ds.getLifecycle(),
+                ds.isFailureStore(),
+                ds.getFailureIndices()
             )
         );
         Metadata metadata = mb.build();

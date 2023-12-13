@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Map;
@@ -70,6 +70,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final String NAME = "disk_threshold";
 
+    @UpdateForV9
     public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE = Setting.boolSetting(
         "cluster.routing.allocation.disk.watermark.enable_for_single_data_node",
         true,
@@ -99,7 +100,6 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        assert Version.CURRENT.major < 9 : "remove enable_for_single_data_node in 9";
         // get deprecation warnings.
         boolean enabledForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
         assert enabledForSingleDataNode;
@@ -159,7 +159,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
-                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);
+                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, SnapshotShardSizeInfo.EMPTY, metadata, routingTable);
                 }
             }
         }

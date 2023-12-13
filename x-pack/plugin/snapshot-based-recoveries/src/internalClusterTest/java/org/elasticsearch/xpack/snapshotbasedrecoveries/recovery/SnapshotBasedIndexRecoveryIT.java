@@ -57,6 +57,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -109,6 +110,7 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -147,7 +149,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Map.of(
                 FAULTY_TYPE,
@@ -1573,9 +1576,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[docCount];
         for (int i = 0; i < builders.length; i++) {
             int docId = i + docIdOffset;
-            builders[i] = client().prepareIndex(indexName)
-                .setId(Integer.toString(docId))
-                .setSource("field", docId, "field2", "Some text " + docId);
+            builders[i] = prepareIndex(indexName).setId(Integer.toString(docId)).setSource("field", docId, "field2", "Some text " + docId);
         }
         indexRandom(true, builders);
 
@@ -1609,27 +1610,26 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         for (int testCase = 0; testCase < 3; testCase++) {
             final SearchRequestBuilder searchRequestBuilder = prepareSearch(indexName).addSort("field", SortOrder.ASC).setSize(10_000);
 
-            SearchResponse searchResponse;
+            // SearchResponse searchResponse;
             switch (testCase) {
-                case 0 -> {
-                    searchResponse = searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery()).get();
+                case 0 -> assertResponse(searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
                     assertSearchResponseContainsAllIndexedDocs(searchResponse, docCount);
-                }
+                });
                 case 1 -> {
                     int docIdToMatch = randomIntBetween(0, docCount - 1);
-                    searchResponse = searchRequestBuilder.setQuery(QueryBuilders.termQuery("field", docIdToMatch)).get();
-                    assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
-                    assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-                    SearchHit searchHit = searchResponse.getHits().getAt(0);
-                    Map<String, Object> source = searchHit.getSourceAsMap();
-                    assertThat(source, is(notNullValue()));
-                    assertThat(source.get("field"), is(equalTo(docIdToMatch)));
-                    assertThat(source.get("field2"), is(equalTo("Some text " + docIdToMatch)));
+                    assertResponse(searchRequestBuilder.setQuery(QueryBuilders.termQuery("field", docIdToMatch)), searchResponse -> {
+                        assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
+                        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+                        SearchHit searchHit = searchResponse.getHits().getAt(0);
+                        Map<String, Object> source = searchHit.getSourceAsMap();
+                        assertThat(source, is(notNullValue()));
+                        assertThat(source.get("field"), is(equalTo(docIdToMatch)));
+                        assertThat(source.get("field2"), is(equalTo("Some text " + docIdToMatch)));
+                    });
                 }
-                case 2 -> {
-                    searchResponse = searchRequestBuilder.setQuery(QueryBuilders.matchQuery("field2", "text")).get();
+                case 2 -> assertResponse(searchRequestBuilder.setQuery(QueryBuilders.matchQuery("field2", "text")), searchResponse -> {
                     assertSearchResponseContainsAllIndexedDocs(searchResponse, docCount);
-                }
+                });
                 default -> throw new IllegalStateException("Unexpected value: " + testCase);
             }
         }

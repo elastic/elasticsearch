@@ -35,6 +35,10 @@ gradlePlugin {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
     }
+    buildComplete {
+      id = 'elasticsearch.build-complete'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
+    }
     distro {
       id = 'elasticsearch.distro'
       implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'
@@ -158,7 +162,7 @@ gradlePlugin {
     stringTemplate {
        id = 'elasticsearch.string-templates'
        implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
-     }
+    }
     testFixtures {
       id = 'elasticsearch.test.fixtures'
       implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
@@ -191,6 +195,10 @@ gradlePlugin {
       id = 'elasticsearch.legacy-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
     }
+    cacheTestFixtures {
+        id = 'elasticsearch.cache-test-fixtures'
+        implementationClass = 'org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin'
+    }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
@@ -221,6 +229,7 @@ sourceSets {
 
 tasks.withType(JavaCompile).configureEach {
   options.encoding = 'UTF-8'
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
 tasks.named('licenseHeaders').configure {
@@ -266,6 +275,8 @@ dependencies {
   api buildLibs.apache.rat
   api buildLibs.jna
   api buildLibs.shadow.plugin
+  api buildLibs.gradle.enterprise
+
   // for our ide tweaking
   api buildLibs.idea.ext
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
@@ -280,7 +291,10 @@ dependencies {
   api buildLibs.asm.tree
   api buildLibs.httpclient
   api buildLibs.httpcore
+
   compileOnly buildLibs.checkstyle
+  compileOnly buildLibs.reflections
+
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle
   testImplementation buildLibs.wiremock

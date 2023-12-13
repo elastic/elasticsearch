@@ -434,13 +434,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         Page page,
         int position
     ) {
+        final var sortOrders = List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst));
         TopNOperator.RowFiller rf = new TopNOperator.RowFiller(
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> elementType).toList(),
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> encoder).toList(),
-            List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst)),
+            sortOrders,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"));
+        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders);
         rf.row(position, row);
         return row;
     }

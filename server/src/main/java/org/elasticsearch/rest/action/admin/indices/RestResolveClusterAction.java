@@ -8,7 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.resolve.ResolveClusterAction;
+import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionRequest;
+import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -36,9 +37,9 @@ public class RestResolveClusterAction extends BaseRestHandler {
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] indexExpressions = Strings.splitStringByCommaToArray(request.param("name"));
-        ResolveClusterAction.Request resolveRequest = new ResolveClusterAction.Request(indexExpressions);
+        ResolveClusterActionRequest resolveRequest = new ResolveClusterActionRequest(indexExpressions);
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
-            .execute(ResolveClusterAction.INSTANCE, resolveRequest, new RestToXContentListener<>(channel));
+            .execute(TransportResolveClusterAction.TYPE, resolveRequest, new RestToXContentListener<>(channel));
     }
 }

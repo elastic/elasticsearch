@@ -100,15 +100,7 @@ final class InstanceType implements ToXContentObject {
             }
         }
 
-        // We only support AWS for 8.12, but plan for GCP and Azure later.
-        // "gcp": check 'gce.instance.name' or 'gce.instance.name' to extract the instanceType
-        // "azure": extract the instanceType
-        String instanceType = "";
-        if ("aws".equals(provider)) {
-            instanceType = (String) source.get("ec2.instance_type");
-        }
-
-        return new InstanceType(provider, region, instanceType);
+        return new InstanceType(provider, region, "");
     }
 
     @SuppressWarnings("unchecked")

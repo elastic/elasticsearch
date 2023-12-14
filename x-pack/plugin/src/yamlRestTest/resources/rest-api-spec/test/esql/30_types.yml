@@ -865,3 +865,63 @@ synthetic _source text with parent keyword:
   - match: {columns.0.type: text}
   - length: {values: 1}
   - match: {values.0.0: jack of diamonds}
+
+---
+geo_point:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": "POINT(1 -1)" }
+
+  - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: location }
+  - match: { columns.0.type: geo_point }
+  - length: { values: 1 }
+  - match: { values.0.0: "POINT (0.9999999403953552 -1.000000024214387)" }
+
+---
+cartesian_point:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: point
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": "POINT(4321 -1234)" }
+
+  - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: location }
+  - match: { columns.0.type: cartesian_point }
+  - length: { values: 1 }
+  - match: { values.0.0: "POINT (4321.0 -1234.0)" }

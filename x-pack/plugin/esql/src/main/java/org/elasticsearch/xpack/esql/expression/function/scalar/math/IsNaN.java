@@ -23,7 +23,7 @@ public class IsNaN extends RationalUnaryPredicate {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return new IsNaNEvaluator.Factory(toEvaluator.apply(field()));
+        return new IsNaNEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Evaluator

@@ -11,9 +11,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
@@ -34,10 +32,7 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -50,13 +45,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DISSECT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.EVAL;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.GROK;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SORT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.STATS;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -73,9 +61,11 @@ public class Verifier {
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
+     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+        assert partialMetrics != null;
         Set<Failure> failures = new LinkedHashSet<>();
 
         // quick verification for unresolved attributes
@@ -152,7 +142,7 @@ public class Verifier {
 
         // gather metrics
         if (failures.isEmpty()) {
-            gatherMetrics(plan);
+            gatherMetrics(plan, partialMetrics);
         }
 
         return failures;
@@ -259,25 +249,8 @@ public class Verifier {
         });
     }
 
-    private void gatherMetrics(LogicalPlan plan) {
-        BitSet b = new BitSet(FeatureMetric.values().length);
-        plan.forEachDown(p -> {
-            if (p instanceof Dissect) {
-                b.set(DISSECT.ordinal());
-            } else if (p instanceof Eval) {
-                b.set(EVAL.ordinal());
-            } else if (p instanceof Grok) {
-                b.set(GROK.ordinal());
-            } else if (p instanceof Limit) {
-                b.set(LIMIT.ordinal());
-            } else if (p instanceof OrderBy) {
-                b.set(SORT.ordinal());
-            } else if (p instanceof Aggregate) {
-                b.set(STATS.ordinal());
-            } else if (p instanceof Filter) {
-                b.set(WHERE.ordinal());
-            }
-        });
+    private void gatherMetrics(LogicalPlan plan, BitSet b) {
+        plan.forEachDown(p -> FeatureMetric.set(p, b));
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
@@ -305,6 +278,8 @@ public class Verifier {
         allowed.add(DataTypes.IP);
         allowed.add(DataTypes.DATETIME);
         allowed.add(DataTypes.VERSION);
+        allowed.add(EsqlDataTypes.GEO_POINT);
+        allowed.add(EsqlDataTypes.CARTESIAN_POINT);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataTypes.BOOLEAN);
         }

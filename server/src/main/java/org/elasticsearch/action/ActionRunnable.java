@@ -70,12 +70,7 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
         return wrap(listener, new CheckedConsumer<>() {
             @Override
             public void accept(ActionListener<T> l) throws Exception {
-                var res = supplier.get();
-                try {
-                    l.onResponse(res);
-                } finally {
-                    res.decRef();
-                }
+                ActionListener.respondAndRelease(l, supplier.get());
             }
 
             @Override

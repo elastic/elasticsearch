@@ -42,7 +42,7 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     public void testSearchContextIsCleanedUpAfterPageTimeout(String query) throws Exception {
         setupTestIndex();
 
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query(query)
             .fetchSize(1)
             .pageTimeout(TimeValue.timeValueMillis(500))
             .get();
@@ -54,7 +54,7 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
 
         SearchPhaseExecutionException exception = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).cursor(response.cursor()).get()
+            () -> new SqlQueryRequestBuilder(client()).cursor(response.cursor()).get()
         );
 
         assertThat(Arrays.asList(exception.guessRootCauses()), contains(instanceOf(SearchContextMissingException.class)));

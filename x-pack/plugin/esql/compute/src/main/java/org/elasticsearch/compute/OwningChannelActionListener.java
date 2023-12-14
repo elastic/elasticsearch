@@ -28,11 +28,7 @@ public final class OwningChannelActionListener<Response extends TransportRespons
 
     @Override
     public void onResponse(Response response) {
-        try {
-            listener.onResponse(response);
-        } finally {
-            response.decRef();
-        }
+        ActionListener.respondAndRelease(listener, response);
     }
 
     @Override

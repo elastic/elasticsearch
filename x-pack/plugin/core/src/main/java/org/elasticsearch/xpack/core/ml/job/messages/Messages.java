@@ -123,6 +123,8 @@ public final class Messages {
         "Unable to delete model [{0}] as it is required by machine learning";
     public static final String MODEL_DEFINITION_TRUNCATED =
         "Model definition truncated. Unable to deserialize trained model definition [{0}]";
+    public static final String MODEL_DOWNLOAD_IN_PROGRESS =
+        "Model download task is currently running. Wait for trained model [{0}] download task to complete then try again";
     public static final String UNABLE_TO_DEPLOY_MODEL_BAD_PARTS = "Unable to deploy model, please delete and recreate the model definition";
     public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";
     public static final String INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED =

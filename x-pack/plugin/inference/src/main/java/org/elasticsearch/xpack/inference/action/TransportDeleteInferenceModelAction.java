@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
@@ -55,11 +56,8 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
         DeleteInferenceModelAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
-        modelRegistry.deleteModel(
-            request.getModelId(),
-            ActionListener.wrap(r -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
-        );
+    ) {
+        modelRegistry.deleteModel(request.getModelId(), listener.delegateFailureAndWrap((l, r) -> l.onResponse(AcknowledgedResponse.TRUE)));
     }
 
     @Override

@@ -313,37 +313,6 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         });
     }
 
-    public void testCreateProcessorWithEmptyConfigNotSupportedOnOldNode() throws IOException {
-        Set<Boolean> includeNodeInfoValues = new HashSet<>(Arrays.asList(true, false));
-
-        includeNodeInfoValues.forEach(includeNodeInfo -> {
-            InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(
-                client,
-                clusterService,
-                Settings.EMPTY,
-                includeNodeInfo
-            );
-            try {
-                processorFactory.accept(builderClusterStateWithModelReferences(MlConfigVersion.V_7_5_0, "model1"));
-            } catch (IOException ioe) {
-                throw new AssertionError(ioe.getMessage());
-            }
-
-            Map<String, Object> minimalConfig = new HashMap<>() {
-                {
-                    put(InferenceProcessor.MODEL_ID, "my_model");
-                    put(InferenceProcessor.TARGET_FIELD, "result");
-                }
-            };
-
-            ElasticsearchException ex = expectThrows(
-                ElasticsearchException.class,
-                () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, minimalConfig)
-            );
-            assertThat(ex.getMessage(), equalTo("[inference_config] required property is missing"));
-        });
-    }
-
     public void testCreateProcessor() {
         Set<Boolean> includeNodeInfoValues = new HashSet<>(Arrays.asList(true, false));
 

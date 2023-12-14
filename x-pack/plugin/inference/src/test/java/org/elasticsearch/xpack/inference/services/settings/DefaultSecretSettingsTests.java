@@ -33,6 +33,10 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
         assertThat(new DefaultSecretSettings(new SecureString(apiKey.toCharArray())), is(serviceSettings));
     }
 
+    public void testFromMap_ReturnsNull_WhenMapIsNull() {
+        assertNull(DefaultSecretSettings.fromMap(null));
+    }
+
     public void testFromMap_MissingApiKey_ThrowsError() {
         var thrownException = expectThrows(ValidationException.class, () -> DefaultSecretSettings.fromMap(new HashMap<>()));
 

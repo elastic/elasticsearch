@@ -28,8 +28,8 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     /**
      * Constructs new restore snapshot request builder with specified repository and snapshot names
      */
-    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, RestoreSnapshotAction action, String repository, String name) {
-        super(client, action, new RestoreSnapshotRequest(repository, name));
+    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, String repository, String name) {
+        super(client, RestoreSnapshotAction.INSTANCE, new RestoreSnapshotRequest(repository, name));
     }
 
     /**

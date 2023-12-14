@@ -229,7 +229,7 @@ PUT _application/search_application/my-search-app
           {
             "query": {
               "text_expansion": {
-                "ml.inference.{{.}}_expanded.predicted_value": {
+                "{{.}}": {
                   "model_text": "{{query_string}}",
                     "model_id": "<elser_model_id>"
                 }
@@ -247,7 +247,7 @@ PUT _application/search_application/my-search-app
       }
       """,
       "params": {
-        "elser_fields": ["title", "meta_description"],
+        "elser_fields": ["title_embedding", "meta_description_embedding"],
         "text_fields": ["title", "meta_description"],
         "query_string": "",
         "rrf": {
@@ -271,7 +271,7 @@ POST _application/search_application/my-search-app/_search
 {
   "params": {
     "query_string": "What is the most popular brand of coffee sold in the United States?",
-    "elser_fields": ["title", "meta_description"],
+    "elser_fields": ["title_embedding", "meta_description_embedding"],
     "text_fields": ["title", "meta_description"],
     "rrf": {
       "window_size": 50,
@@ -323,7 +323,7 @@ PUT _application/search_application/my_search_application
               {{#elser_fields}}
               {
                 "text_expansion": {
-                  "ml.inference.{{name}}_expanded.predicted_value": {
+                  "{{name}}": {
                     "model_text": "{{query_string}}",
                     "model_id": ".elser_model_1",
                     "boost": "{{boost}}"
@@ -360,8 +360,8 @@ PUT _application/search_application/my_search_application
         "text": false,
         "elser": false,
         "elser_fields": [
-          {"name": "title", "boost": 1},
-          {"name": "description", "boost": 1}
+          {"name": "title_embedding", "boost": 1},
+          {"name": "description_embedding", "boost": 1}
         ],
         "text_fields": [
           {"name": "title", "boost": 10},
@@ -411,8 +411,8 @@ POST _application/search_application/my_search_application/_search
     "elser": true,
     "query_string": "where is the best mountain climbing?",
     "elser_fields": [
-      {"name": "title", "boost": 1},
-      {"name": "description", "boost": 1}
+      {"name": "title_embedding", "boost": 1},
+      {"name": "description_embedding", "boost": 1}
     ]
   }
 }
@@ -429,8 +429,8 @@ POST _application/search_application/my_search_application/_search
     "text": true,
     "query_string": "where is the best mountain climbing?",
     "elser_fields": [
-      {"name": "title", "boost": 1},
-      {"name": "description", "boost": 1}
+      {"name": "title_embedding", "boost": 1},
+      {"name": "description_embedding", "boost": 1}
     ],
     "text_query_boost": 4,
     "min_score": 10
@@ -484,7 +484,7 @@ PUT _application/search_application/my_search_application
                 {{#elser_fields}}
                 {
                   "text_expansion": {
-                    "ml.inference.{{name}}_expanded.predicted_value": {
+                    "{{name}}": {
                       "model_text": "{{query_string}}",
                       "model_id": "<elser_model_id>"
                     }
@@ -502,10 +502,10 @@ PUT _application/search_application/my_search_application
           "min_score": "10",
           "elser_fields": [
             {
-              "name": "title"
+              "name": "title_embedding"
             },
             {
-              "name": "description"
+              "name": "description_embedding"
             }
             ]
         }

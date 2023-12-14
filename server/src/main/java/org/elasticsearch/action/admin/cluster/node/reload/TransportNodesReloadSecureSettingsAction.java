@@ -122,6 +122,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             keystore.decrypt(request.hasPassword() ? request.getSecureSettingsPassword().getChars() : new char[0]);
             // add the keystore to the original node settings object
             final Settings settingsWithKeystore = Settings.builder().put(environment.settings(), false).setSecureSettings(keystore).build();
+            clusterService.getClusterSettings().validate(settingsWithKeystore, true);
+
             final List<Exception> exceptions = new ArrayList<>();
             // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
             pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {

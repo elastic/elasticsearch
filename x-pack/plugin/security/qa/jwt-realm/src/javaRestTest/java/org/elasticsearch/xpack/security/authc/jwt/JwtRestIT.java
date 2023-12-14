@@ -105,16 +105,15 @@ public class JwtRestIT extends ESRestTestCase {
         .setting("xpack.security.transport.ssl.enabled", "false")
         .setting("xpack.security.authc.token.enabled", "true")
         .setting("xpack.security.authc.api_key.enabled", "true")
-
         .setting("xpack.security.http.ssl.enabled", "true")
         .setting("xpack.security.http.ssl.certificate", "http.crt")
         .setting("xpack.security.http.ssl.key", "http.key")
-        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
         .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
         .setting("xpack.security.http.ssl.client_authentication", "optional")
         .settings(JwtRestIT::realmSettings)
         .keystore("xpack.security.authc.realms.jwt.jwt2.hmac_key", HMAC_PASSPHRASE)
         .keystore("xpack.security.authc.realms.jwt.jwt3.hmac_jwkset", HMAC_JWKSET)
+        .keystore("xpack.security.http.ssl.secure_key_passphrase", "http-password")
         .keystore("xpack.security.authc.realms.jwt.jwt3.client_authentication.shared_secret", VALID_SHARED_SECRET)
         .keystore(keystoreSettings)
         .user("admin_user", "admin-password")
@@ -508,8 +507,8 @@ public class JwtRestIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103308")
     public void testReloadClientSecret() throws Exception {
+        assumeFalse("Cannot run in FIPS mode because this test tampers with the keystore", inFipsJvm());
         final String principal = SERVICE_SUBJECT.get();
         final String username = getUsernameFromPrincipal(principal);
         final List<String> roles = randomRoles();

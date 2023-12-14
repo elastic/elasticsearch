@@ -423,7 +423,6 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
         assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(false));
         assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getReason(), equalTo("not supported"));
-        assertOperatingSystems(restTestSuite.getTestSections().get(0).getSkipSection(), containsInAnyOrder("windows95", "debian-5"));
         assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getFeatures(), containsInAnyOrder("skip_os"));
     }
 

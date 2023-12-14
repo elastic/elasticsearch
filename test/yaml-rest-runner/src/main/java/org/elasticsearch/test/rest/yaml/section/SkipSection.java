@@ -26,22 +26,7 @@ import java.util.List;
  */
 public class SkipSection {
 
-    /**
-     * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
-     */
-    public static SkipSection parseIfNext(XContentParser parser) throws IOException {
-        ParserUtils.advanceToFieldName(parser);
-
-        if ("skip".equals(parser.currentName())) {
-            SkipSection section = parse(parser);
-            parser.nextToken();
-            return section;
-        }
-
-        return EMPTY;
-    }
-
-    private static class SkipSectionBuilder {
+    static class SkipSectionBuilder {
         String version = null;
         String reason = null;
         List<String> testFeatures = new ArrayList<>();
@@ -67,7 +52,26 @@ public class SkipSection {
             return this;
         }
 
-        public SkipSection build(XContentLocation contentLocation) {
+        void validate(XContentLocation contentLocation) {
+            if ((Strings.hasLength(version) == false) && testFeatures.isEmpty() && operatingSystems.isEmpty()) {
+                throw new ParsingException(
+                    contentLocation,
+                    "at least one criteria (version, test features, os) is mandatory within a skip section"
+                );
+            }
+            if (Strings.hasLength(version) && Strings.hasLength(reason) == false) {
+                throw new ParsingException(contentLocation, "reason is mandatory within skip version section");
+            }
+            if (operatingSystems.isEmpty() == false && Strings.hasLength(reason) == false) {
+                throw new ParsingException(contentLocation, "reason is mandatory within skip version section");
+            }
+            // make feature "skip_os" mandatory if os is given, this is a temporary solution until language client tests know about os
+            if (operatingSystems.isEmpty() == false && testFeatures.contains("skip_os") == false) {
+                throw new ParsingException(contentLocation, "if os is specified, feature skip_os must be set");
+            }
+        }
+
+        public SkipSection build() {
             List<SkipCriteria> skipCriteriaList = new ArrayList<>();
             if (Strings.hasLength(version)) {
                 skipCriteriaList.add(new VersionSkipCriteria(version));
@@ -75,28 +79,32 @@ public class SkipSection {
             if (operatingSystems.isEmpty() == false) {
                 skipCriteriaList.add(new OsSkipCriteria(operatingSystems));
             }
-
-            if (skipCriteriaList.isEmpty() && testFeatures.isEmpty()) {
-                throw new ParsingException(
-                    contentLocation,
-                    "At least one criteria (version, test features, os) is mandatory within a skip section"
-                );
-            }
-            if (Strings.hasLength(version) && Strings.hasLength(reason) == false) {
-                throw new ParsingException(contentLocation, "reason is mandatory within skip version section");
-            }
-            if (operatingSystems.isEmpty() == false && Strings.hasLength(reason) == false) {
-                throw new ParsingException(contentLocation, "reason is mandatory within skip os section");
-            }
-            // make feature "skip_os" mandatory if os is given, this is a temporary solution until language client tests know about os
-            if (operatingSystems.isEmpty() == false && testFeatures.contains("skip_os") == false) {
-                throw new ParsingException(contentLocation, "if os is specified, feature skip_os must be set");
-            }
             return new SkipSection(skipCriteriaList, testFeatures, reason);
         }
     }
 
+
+    /**
+     * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
+     */
+    public static SkipSection parseIfNext(XContentParser parser) throws IOException {
+        ParserUtils.advanceToFieldName(parser);
+
+        if ("skip".equals(parser.currentName())) {
+            SkipSection section = parse(parser);
+            parser.nextToken();
+            return section;
+        }
+
+        return EMPTY;
+    }
+
     public static SkipSection parse(XContentParser parser) throws IOException {
+        return parseInternal(parser).build();
+    }
+
+    // package private for tests
+    static SkipSectionBuilder parseInternal(XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException(
                 "Expected ["
@@ -143,8 +151,8 @@ public class SkipSection {
         }
 
         parser.nextToken();
-
-        return builder.build(parser.getTokenLocation());
+        builder.validate(parser.getTokenLocation());
+        return builder;
     }
 
     public static final SkipSection EMPTY = new SkipSection();
@@ -159,7 +167,7 @@ public class SkipSection {
         this.reason = null;
     }
 
-    public SkipSection(List<SkipCriteria> skipCriteriaList, List<String> testFeatures, String reason) {
+    SkipSection(List<SkipCriteria> skipCriteriaList, List<String> testFeatures, String reason) {
         this.skipCriteriaList = skipCriteriaList;
         this.testFeatures = testFeatures;
         this.reason = reason;

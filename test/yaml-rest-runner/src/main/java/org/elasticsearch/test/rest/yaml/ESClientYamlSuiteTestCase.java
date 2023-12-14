@@ -632,5 +632,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         public boolean clusterVersionInRange(VersionRange range) {
             return range.contains(executionContext.esVersion());
         }
+
     }
 }

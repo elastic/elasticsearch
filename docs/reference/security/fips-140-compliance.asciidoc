@@ -79,6 +79,7 @@ the scope of this document. The exact steps are dependent on the Java installati
 At a high level, the general steps are:
 
 TODO: <still working on this>
+* Set ES_JAVA_HOME to the external JVM (ES_JAVA_HOME=$JAVA_HOME)
 * Place the NIST certified security provider .jar file(s) where {es}
 * Configure the java.security file (conf/security or -Djava.security.properties)  to use the Java security provider
 * Configure {es} security manager's java.policy file (-Djava.security.policy) to allow an additional permissions needed by the security provider

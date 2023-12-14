@@ -8,9 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -447,36 +445,5 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
         return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
-    }
-
-    private static class MockInferenceModelFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {
-        private static final String TYPE_NAME = "mock_inference_model_field_type";
-
-        private final String modelId;
-
-        MockInferenceModelFieldType(String name, String modelId) {
-            super(name, false, false, false, TextSearchInfo.NONE, Map.of());
-            this.modelId = modelId;
-        }
-
-        @Override
-        public String typeName() {
-            return TYPE_NAME;
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("termQuery not implemented");
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
-        }
-
-        @Override
-        public String getInferenceModel() {
-            return modelId;
-        }
     }
 }

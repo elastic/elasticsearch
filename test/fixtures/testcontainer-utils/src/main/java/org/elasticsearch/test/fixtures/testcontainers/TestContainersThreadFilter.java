@@ -17,6 +17,8 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 public class TestContainersThreadFilter implements ThreadFilter {
     @Override
     public boolean reject(Thread t) {
-        return t.getName().startsWith("testcontainers-") || t.getName().startsWith("ducttape");
+        return t.getName().startsWith("testcontainers-")
+            || t.getName().startsWith("ducttape")
+            || t.getName().startsWith("ForkJoinPool.commonPool-worker-1");
     }
 }

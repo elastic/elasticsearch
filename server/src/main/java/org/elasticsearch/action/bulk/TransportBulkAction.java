@@ -368,11 +368,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        // Step 3: Collect all the data streams that need to be rolled over
+        // Step 3: Collect all the data streams that need to be rolled over before the write
         Set<String> dataStreamsToBeRolledOver = bulkRequest.requests.stream().filter(request -> {
             DataStream dataStream = state.metadata().dataStreams().get(request.index());
             if (dataStream != null) {
-                return dataStream.isRolloverNeeded();
+                return dataStream.rolloverOnWrite();
             } else {
                 return false;
             }
@@ -392,7 +392,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     /*
-     * This method is responsible for creating any missing indices and indexing the data in the BulkRequest
+     * This method is responsible for creating any missing indices, rolling over a data stream when needed and then
+     *  indexing the data in the BulkRequest
      */
     protected void createMissingIndicesAndIndexData(
         Task task,
@@ -426,13 +427,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 indicesThatCannotBeCreated.put(index, indexNotFoundException);
                             }
                         } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
-                            // fail all requests involving this index, if create didn't work
-                            for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                                if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
-                                    bulkRequest.requests.set(i, null);
-                                }
-                            }
+                            failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
                         }
                         if (counter.decrementAndGet() == 0) {
                             forkExecuteBulk(ActionListener.wrap(listener::onResponse, inner -> {
@@ -463,13 +458,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     @Override
                     public void onFailure(Exception e) {
-                        // fail all requests involving this index, if create didn't work
-                        for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                            DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                            if (request != null && setResponseFailureIfIndexMatches(responses, i, request, dataStream, e)) {
-                                bulkRequest.requests.set(i, null);
-                            }
-                        }
+                        failRequestsWhenPrerequisiteActionFailed(dataStream, bulkRequest, responses, e);
                         if (counter.decrementAndGet() == 0) {
                             forkExecuteBulk(ActionListener.wrap(listener::onResponse, inner -> {
                                 inner.addSuppressed(e);
@@ -487,6 +476,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         });
                     }
                 });
+            }
+        }
+    }
+
+    // fail all requests involving this index or data stream because the prerequisite action failed too.
+    private static void failRequestsWhenPrerequisiteActionFailed(
+        String target,
+        BulkRequest bulkRequest,
+        AtomicArray<BulkItemResponse> responses,
+        Exception error
+    ) {
+        for (int i = 0; i < bulkRequest.requests.size(); i++) {
+            DocWriteRequest<?> request = bulkRequest.requests.get(i);
+            if (request != null && setResponseFailureIfIndexMatches(responses, i, request, target, error)) {
+                bulkRequest.requests.set(i, null);
             }
         }
     }

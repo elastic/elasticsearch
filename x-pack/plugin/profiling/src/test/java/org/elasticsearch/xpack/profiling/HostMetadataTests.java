@@ -62,6 +62,29 @@ public class HostMetadataTests extends ESTestCase {
         assertEquals("", host.instanceType.name);
     }
 
+    public void testCreateFromSourceAzure() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+        final String provider = "azure";
+        final String region = "eastus2";
+
+        // tag::noformat
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
+                "host.id", hostID,
+                "profiling.host.machine", machine,
+                "azure.compute.location", region
+            )
+        );
+        // end::noformat
+
+        assertEquals(hostID, host.hostID);
+        assertEquals(machine, host.profilingHostMachine);
+        assertEquals(provider, host.instanceType.provider);
+        assertEquals(region, host.instanceType.region);
+        assertEquals("", host.instanceType.name);
+    }
+
     public void testCreateFromSourceECS() {
         final String hostID = "1440256254710195396";
         final String machine = "x86_64";

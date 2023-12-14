@@ -26,8 +26,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -119,6 +117,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -153,6 +152,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.StringWriter;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -971,17 +971,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
             final var allocationExplainRef = new AtomicReference<ClusterAllocationExplainResponse>();
             final var clusterStateRef = new AtomicReference<ClusterStateResponse>();
             final var pendingTasksRef = new AtomicReference<PendingClusterTasksResponse>();
-            final var hotThreadsRef = new AtomicReference<NodesHotThreadsResponse>();
+            final var hotThreadsRef = new AtomicReference<String>();
 
             final var detailsFuture = new PlainActionFuture<Void>();
             try (var listeners = new RefCountingListener(detailsFuture)) {
                 clusterAdmin().prepareAllocationExplain().execute(listeners.acquire(allocationExplainRef::set));
                 clusterAdmin().prepareState().execute(listeners.acquire(clusterStateRef::set));
                 clusterAdmin().preparePendingClusterTasks().execute(listeners.acquire(pendingTasksRef::set));
-                clusterAdmin().prepareNodesHotThreads()
-                    .setThreads(9999)
-                    .setIgnoreIdleThreads(false)
-                    .execute(listeners.acquire(hotThreadsRef::set));
+
+                try (var writer = new StringWriter()) {
+                    new HotThreads().busiestThreads(9999).ignoreIdleThreads(false).detect(writer);
+                    hotThreadsRef.set(writer.toString());
+                } catch (Exception e) {
+                    logger.error("exception capturing hot threads", e);
+                    hotThreadsRef.set("exception capturing hot threads: " + e);
+                }
             }
 
             try {
@@ -996,10 +1000,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 safeFormat(allocationExplainRef.get(), r -> Strings.toString(r.getExplanation(), true, true)),
                 safeFormat(clusterStateRef.get(), r -> r.getState().toString()),
                 safeFormat(pendingTasksRef.get(), r -> Strings.toString(r, true, true)),
-                safeFormat(
-                    hotThreadsRef.get(),
-                    r -> r.getNodes().stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"))
-                )
+                hotThreadsRef.get()
             );
             fail("timed out waiting for " + color + " state");
         }

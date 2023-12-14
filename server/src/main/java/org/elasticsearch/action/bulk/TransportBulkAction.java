@@ -974,7 +974,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Metadata metadata,
         long epochMillis
     ) {
-        return resolveFailureStoreFromMetadata(indexName, metadata, epochMillis)
+        return DataStream.isFailureStoreEnabled() && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis)
             .or(() -> resolveFailureStoreFromTemplate(indexName, metadata))
             .orElse(false);
     }
@@ -1133,27 +1133,27 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         public void markItemForFailureStore(int slot, String targetIndexName, Exception e) {
-            // Modify the request in the slot to point to the failure index for its data stream
-            logger.warn(
-                "I would store the document in slot [{}] to the failure store for [{}] but I haven't figured out how to do that yet",
-                slot,
-                targetIndexName
-            );
-            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-            // We hit an error during preprocessing a request so we:
-            // 1) Need to convert the original document into a failure document
-            // 2) Set its destination to be the targetIndexName's failure store
-            // 3) Mark the index request as being sent to the failure store for the target index for correct routing later on
-
-            try {
-                IndexRequest errorDocument = new FailureStoreDocument(indexRequest, e, targetIndexName).convert();
-                bulkRequest.requests.set(slot, errorDocument);
-
-                // For now, mark the item as failed
+            if (DataStream.isFailureStoreEnabled() == false) {
                 markItemAsFailed(slot, e);
-            } catch (IOException ex) {
-                ex.addSuppressed(e);
-                markItemAsFailed(slot, ex);
+            } else {
+                IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
+                try {
+                    IndexRequest errorDocument = new FailureStoreDocument(indexRequest, e, targetIndexName).convert();
+                    bulkRequest.requests.set(slot, errorDocument);
+                } catch (IOException ex) {
+                    // This is unlikely to happen because the conversion is so simple, but be defensive and attempt to report about it if
+                    // we need the info later.
+                    ex.addSuppressed(e);
+                    logger.debug(
+                        () -> "Encountered exception while attempting to redirect a failed ingest operation: index ["
+                            + targetIndexName
+                            + "], source: ["
+                            + indexRequest.source().utf8ToString()
+                            + "]",
+                        ex
+                    );
+                    markItemAsFailed(slot, ex);
+                }
             }
         }
     }

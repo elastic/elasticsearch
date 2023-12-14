@@ -105,7 +105,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -147,7 +147,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(6);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -220,7 +220,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(6);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -302,7 +302,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
         Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
@@ -356,7 +356,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -423,7 +423,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -463,7 +463,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
         Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
@@ -517,7 +517,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -566,8 +566,8 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId1, primaryTerm);
-        translogReplicator.register(shardId2, primaryTerm);
+        translogReplicator.register(shardId1, primaryTerm, seqNo -> {});
+        translogReplicator.register(shardId2, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -634,7 +634,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -676,7 +676,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm + 1
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(1);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -718,7 +718,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(1);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -751,7 +751,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(1);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -800,7 +800,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);

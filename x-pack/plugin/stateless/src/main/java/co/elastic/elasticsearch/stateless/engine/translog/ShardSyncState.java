@@ -32,8 +32,10 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 class ShardSyncState {
@@ -41,6 +43,7 @@ class ShardSyncState {
     private final ShardId shardId;
     private final long startingPrimaryTerm;
     private final LongSupplier currentPrimaryTerm;
+    private final LongConsumer persistedSeqNoConsumer;
     private final ThreadContext threadContext;
     private final BigArrays bigArrays;
     private final PriorityQueue<SyncListener> listeners = new PriorityQueue<>();
@@ -55,10 +58,18 @@ class ShardSyncState {
     private BufferState bufferState = null;
     private final AtomicReference<State> state = new AtomicReference<>(State.OPEN);
 
-    ShardSyncState(ShardId shardId, long primaryTerm, LongSupplier currentPrimaryTerm, ThreadContext threadContext, BigArrays bigArrays) {
+    ShardSyncState(
+        ShardId shardId,
+        long primaryTerm,
+        LongSupplier currentPrimaryTerm,
+        LongConsumer persistedSeqNoConsumer,
+        ThreadContext threadContext,
+        BigArrays bigArrays
+    ) {
         this.shardId = shardId;
         this.startingPrimaryTerm = primaryTerm;
         this.currentPrimaryTerm = currentPrimaryTerm;
+        this.persistedSeqNoConsumer = persistedSeqNoConsumer;
         this.threadContext = threadContext;
         this.bigArrays = bigArrays;
     }
@@ -115,6 +126,9 @@ class ShardSyncState {
         // ignore them here.
         if (syncMarker.primaryTerm() == currentPrimaryTerm.getAsLong()) {
             assert syncMarker.location().compareTo(syncedLocation) > 0;
+            // We mark the seqNos of persisted before exposing the synced location. This matches what we do in the TranlogWriter.
+            // Some assertions in TransportVerifyShardBeforeCloseAction depend on the seqNos marked as persisted before the sync is exposed.
+            syncMarker.syncedSeqNos().forEach(persistedSeqNoConsumer::accept);
             syncedLocation = syncMarker.location();
             synchronized (referencedTranslogFiles) {
                 if (markedTranslogStartFile > translogFile.generation()) {
@@ -261,6 +275,7 @@ class ShardSyncState {
     class BufferState implements Releasable {
 
         private final ReleasableBytesStreamOutput data;
+        private final ArrayList<Long> seqNos;
         private final long shardTranslogGeneration;
         private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
@@ -270,11 +285,13 @@ class ShardSyncState {
 
         private BufferState(ReleasableBytesStreamOutput data, long shardTranslogGeneration) {
             this.data = data;
+            this.seqNos = new ArrayList<>();
             this.shardTranslogGeneration = shardTranslogGeneration;
         }
 
         public final void append(BytesReference data, long seqNo, Translog.Location location) throws IOException {
             data.writeTo(this.data);
+            seqNos.add(seqNo);
             minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
             maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
             totalOps++;
@@ -301,9 +318,12 @@ class ShardSyncState {
             return shardTranslogGeneration;
         }
 
+        private Translog.Location syncLocation() {
+            return new Translog.Location(location.generation, location.translogLocation + location.size, 0);
+        }
+
         public SyncMarker syncMarker() {
-            Translog.Location syncedLocation = new Translog.Location(location.generation, location.translogLocation + location.size, 0);
-            return new SyncMarker(startingPrimaryTerm, syncedLocation);
+            return new SyncMarker(startingPrimaryTerm, syncLocation(), seqNos);
         }
 
         @Override
@@ -312,7 +332,7 @@ class ShardSyncState {
         }
     }
 
-    record SyncMarker(long primaryTerm, Translog.Location location) {}
+    record SyncMarker(long primaryTerm, Translog.Location location, List<Long> syncedSeqNos) {}
 
     private enum State {
         OPEN,

@@ -663,7 +663,12 @@ public class Stateless extends Plugin
                 @Override
                 public void afterIndexShardCreated(IndexShard indexShard) {
                     statelessCommitService.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-                    localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+                    localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm(), seqNo -> {
+                        var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+                        if (indexEngine != null) {
+                            indexEngine.objectStorePersistedSeqNoConsumer().accept(seqNo);
+                        }
+                    });
                     // We are pruning the archive for a given generation, only once we know all search shards are
                     // aware of that generation.
                     // TODO: In the context of real-time GET, this might be an overkill and in case of misbehaving

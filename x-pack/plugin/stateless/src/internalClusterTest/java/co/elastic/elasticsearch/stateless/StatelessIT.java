@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -50,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -58,7 +60,9 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -86,7 +90,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -98,6 +105,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -269,10 +277,9 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     public void testTranslogIsSyncedToObjectStoreDuringIndexing() throws Exception {
         startMasterOnlyNode();
-        final int numberOfShards = 1;
-        startIndexNodes(numberOfShards);
+        startIndexNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithIndexShards();
@@ -303,6 +310,80 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
         assertThat(maxSeqNo, equalTo(0L));
         assertThat(totalOps, equalTo(1L));
+    }
+
+    public void testGlobalCheckpointOnlyAdvancesAfterObjectStoreSync() throws Exception {
+        startMasterOnlyNode();
+        final int numberOfShards = 1;
+        String indexNode = startIndexNodes(numberOfShards).get(0);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        ensureGreen(indexName);
+
+        assertObjectStoreConsistentWithIndexShards();
+
+        final Map<Index, Integer> indices = resolveIndices();
+        Optional<Map.Entry<Index, Integer>> index = indices.entrySet()
+            .stream()
+            .filter(e -> indexName.equals(e.getKey().getName()))
+            .findFirst();
+        assertTrue(index.isPresent());
+
+        // Ensure that an automatic flush cannot clean translog
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+        repository.setRandomIOExceptionPattern(".*translog.*");
+
+        var bulkRequest = client().prepareBulk();
+        bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        ActionFuture<BulkResponse> bulkFuture = bulkRequest.execute();
+
+        IndexShard indexShard = findIndexShard(index.get().getKey(), 0);
+
+        assertBusy(() -> {
+            assertThat(indexShard.getEngineOrNull().getProcessedLocalCheckpoint(), greaterThanOrEqualTo(0L));
+            assertThat(indexShard.getEngineOrNull().getTranslogLastWriteLocation().translogLocation, greaterThanOrEqualTo(0L));
+        });
+        // Sleep to allow local file system translog sync to complete which historically would have advanced local checkpoint. But now it
+        // should no longer advance local checkpoint
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+
+        // Submit GlobalCheckpointSyncAction. This is necessary to propagate the local checkpoint advancement which the bulk request does
+        // not do because it is currently blocked.
+        client().execute(GlobalCheckpointSyncAction.TYPE, new GlobalCheckpointSyncAction.Request(indexShard.shardId())).actionGet();
+
+        PlainActionFuture<Long> globalCheckpointFuture1 = new PlainActionFuture<>();
+        indexShard.addGlobalCheckpointListener(0, new GlobalCheckpointListeners.GlobalCheckpointListener() {
+            @Override
+            public Executor executor() {
+                return indexShard.getThreadPool().generic();
+            }
+
+            @Override
+            public void accept(long globalCheckpoint, Exception e) {
+                if (e != null) {
+                    globalCheckpointFuture1.onFailure(e);
+                } else {
+                    globalCheckpointFuture1.onResponse(globalCheckpoint);
+                }
+
+            }
+        }, TimeValue.timeValueMillis(100L));
+
+        try {
+            UncategorizedExecutionException uee = expectThrows(UncategorizedExecutionException.class, globalCheckpointFuture1::actionGet);
+            assertThat(uee.getCause().getCause(), instanceOf(TimeoutException.class));
+        } finally {
+            repository.setRandomControlIOExceptionRate(0.0);
+            repository.setRandomDataFileIOExceptionRate(0.0);
+        }
+
+        assertBusy(() -> assertThat(indexShard.getLocalCheckpoint(), greaterThanOrEqualTo(0L)));
+
+        bulkFuture.actionGet();
     }
 
     public void testAllTranslogOperationsAreWrittenToObjectStore() throws Exception {

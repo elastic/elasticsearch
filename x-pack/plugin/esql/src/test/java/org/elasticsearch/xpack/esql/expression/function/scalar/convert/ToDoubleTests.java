@@ -54,19 +54,13 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
             List.of()
         );
         // random strings that don't look like a double
-        TestCaseSupplier.forUnaryStrings(
-            suppliers,
-            evaluatorName.apply("String"),
-            DataTypes.DOUBLE,
-            bytesRef -> null,
-            bytesRef -> {
-                var exception = expectThrows(NumberFormatException.class, () -> Double.parseDouble(bytesRef.utf8ToString()));
-                return List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: " + exception
-                );
-            }
-        );
+        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("String"), DataTypes.DOUBLE, bytesRef -> null, bytesRef -> {
+            var exception = expectThrows(NumberFormatException.class, () -> Double.parseDouble(bytesRef.utf8ToString()));
+            return List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: " + exception
+            );
+        });
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("UnsignedLong"),

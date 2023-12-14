@@ -82,6 +82,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -132,26 +133,11 @@ public class IngestServiceTests extends ESTestCase {
         }
     };
 
-    private ThreadPool threadPool;
     private IngestService ingestService;
 
     @Before
     public void setup() {
-        threadPool = mock(ThreadPool.class);
-        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        Client client = mock(Client.class);
-        ingestService = new IngestService(
-            mock(ClusterService.class),
-            threadPool,
-            null,
-            null,
-            null,
-            List.of(DUMMY_PLUGIN),
-            client,
-            null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
-        );
+        ingestService = createIngestService();
     }
 
     public void testIngestPlugin() {
@@ -164,17 +150,7 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestService(
-                mock(ClusterService.class),
-                threadPool,
-                null,
-                null,
-                null,
-                List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
-                client,
-                null,
-                () -> DocumentParsingObserver.EMPTY_INSTANCE
-            )
+            () -> createIngestService(List.of(DUMMY_PLUGIN, DUMMY_PLUGIN))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
@@ -1962,17 +1938,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // Create ingest service:
         Client client = mock(Client.class);
-        IngestService ingestService = new IngestService(
-            mock(ClusterService.class),
-            threadPool,
-            null,
-            null,
-            null,
-            List.of(testPlugin),
-            client,
-            null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
-        );
+        IngestService ingestService = createIngestService(List.of(testPlugin));
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
         // Create pipeline and apply the resulting cluster state, which should update the counter in the right order:
@@ -2305,17 +2271,6 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        IngestService ingestService = new IngestService(
-            clusterService,
-            threadPool,
-            null,
-            null,
-            null,
-            List.of(DUMMY_PLUGIN),
-            client,
-            null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
-        );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -2548,6 +2503,118 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testPluginPipelinesUpdated() {
+        Processor processor = new TestProcessor("tag", "type", "description", (ingestDocument) -> {});
+        Pipeline ingestPluginPipeline = new Pipeline("test-pipeline-1", null, null, null, new CompoundProcessor(processor));
+        Pipeline aliasedIndexPipeline = new Pipeline("test-pipeline-2", null, null, null, new CompoundProcessor(processor));
+
+        // Ingest plugin that always return a pipeline
+        IngestPlugin ingestPluginWithPipeline = new IngestPlugin() {
+            public Optional<Pipeline> getIngestPipeline(IndexMetadata indexMetadata, Processor.Parameters parameters) {
+                return Optional.of(ingestPluginPipeline);
+            }
+        };
+
+        // Ingest plugin that returns a pipeline only when index has aliases
+        IngestPlugin ingestPluginForAliasedIndex = new IngestPlugin() {
+            public Optional<Pipeline> getIngestPipeline(IndexMetadata indexMetadata, Processor.Parameters parameters) {
+                if (indexMetadata.getAliases().isEmpty() == false) {
+                    return Optional.of(aliasedIndexPipeline);
+                }
+                return Optional.empty();
+            }
+        };
+
+        String indexName = "idx";
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+
+        ClusterState clusterStateWithIndex = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata))
+            .build();
+        ClusterState clusterStateWithoutIndex = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().build()).build();
+        ;
+
+        IngestService ingestService = createIngestService(List.of(ingestPluginWithPipeline, ingestPluginForAliasedIndex, DUMMY_PLUGIN));
+
+        // Initial state, no plugin pipelines without cluster state changes
+        assertThat(ingestService.getPluginsPipelines().size(), equalTo(0));
+
+        // Index is added - create plugin pipeline
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterStateWithIndex, clusterStateWithoutIndex));
+
+        assertThat(ingestService.getPluginsPipelines(indexName), equalTo(List.of(ingestPluginPipeline)));
+        assertThat(ingestService.getPluginsPipelines().size(), equalTo(1));
+
+        // Index is updated with an alias - update plugin pipeline
+        IndexMetadata.Builder aliasedIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("alias"));
+
+        ClusterState clusterStateWithAliasedIndex = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(aliasedIndexMetadata).build())
+            .build();
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterStateWithAliasedIndex, clusterStateWithIndex));
+
+        assertThat(ingestService.getPluginsPipelines(indexName), equalTo(List.of(ingestPluginPipeline, aliasedIndexPipeline)));
+        assertThat(ingestService.getPluginsPipelines().size(), equalTo(1));
+
+        // Index is removed - remove plugin pipeline
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterStateWithoutIndex, clusterStateWithAliasedIndex));
+
+        assertThat(ingestService.getPluginsPipelines().size(), equalTo(0));
+    }
+
+    public void testIngestPluginsContributePipelinesToIndices() {
+
+        Processor processor = new TestProcessor("tag", "type", "description", (ingestDocument) -> {});
+        Pipeline pipeline = new Pipeline("test-pipeline", null, null, null, new CompoundProcessor(processor));
+
+        IngestPlugin ingestPlugin = new IngestPlugin() {
+            public Optional<Pipeline> getIngestPipeline(IndexMetadata indexMetadata, Processor.Parameters parameters) {
+                return Optional.of(pipeline);
+            }
+        };
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        assertThat(ingestService.pipelines().size(), is(0));
+
+    }
+
+    public static IngestService createIngestService() {
+        return createIngestService(List.of(DUMMY_PLUGIN));
+    }
+
+    private static IngestService createIngestService(List<IngestPlugin> ingestPlugins) {
+        Client client = mock(Client.class);
+
+        return new IngestService(
+            mock(ClusterService.class),
+            createThreadPool(),
+            null,
+            null,
+            null,
+            ingestPlugins,
+            client,
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
+        );
+    }
+
+    private static ThreadPool createThreadPool() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        return threadPool;
+    }
+
     private static Tuple<String, Object> randomMapEntry() {
         return tuple(randomAlphaOfLength(5), randomObject());
     }
@@ -2596,12 +2663,9 @@ public class IngestServiceTests extends ESTestCase {
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         Client client = mock(Client.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         IngestService ingestService = new IngestService(
             mock(ClusterService.class),
-            threadPool,
+            createThreadPool(),
             null,
             null,
             null,

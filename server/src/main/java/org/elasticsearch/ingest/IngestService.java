@@ -500,7 +500,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private List<Pipeline> getPluginsPipelines(String id) {
+    List<Pipeline> getPluginsPipelines(String id) {
         if (id == null) {
             return null;
         }
@@ -1138,7 +1138,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         updatePluginPipelines(event);
     }
 
-    private synchronized void updatePluginPipelines(ClusterChangedEvent event) {
+    synchronized void updatePluginPipelines(ClusterChangedEvent event) {
 
         Map<String, List<Pipeline>> updatedPluginPipelines = new HashMap<>(pluginPipelines);
 
@@ -1170,6 +1170,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         pluginPipelines = Map.copyOf(updatedPluginPipelines);
+    }
+
+    Map<String, List<Pipeline>> getPluginsPipelines() {
+        return pluginPipelines;
     }
 
     synchronized void innerUpdatePipelines(IngestMetadata newIngestMetadata) {

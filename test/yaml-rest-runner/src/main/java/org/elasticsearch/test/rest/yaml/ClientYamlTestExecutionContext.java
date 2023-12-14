@@ -241,4 +241,9 @@ public class ClientYamlTestExecutionContext {
     public boolean clusterHasFeature(String featureId) {
         return clientYamlTestClient.clusterHasFeature(featureId);
     }
+
+    public boolean nodeHasFeature(String nodeName, String featureId) {
+        // TODO: node features from TestFeatureService/ESRestTestCase
+        return true;
+    }
 }

@@ -14,7 +14,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
-import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -89,7 +88,7 @@ public class DoSection implements ExecutableSection {
 
         DoSection doSection = new DoSection(parser.getTokenLocation());
         ApiCallSection apiCallSection = null;
-        NodeSelector nodeSelector = NodeSelector.ANY;
+        ContextNodeSelector nodeSelector = ContextNodeSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
         List<Pattern> expectedWarningsRegex = new ArrayList<>();
@@ -173,8 +172,8 @@ public class DoSection implements ExecutableSection {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             selectorName = parser.currentName();
                         } else {
-                            NodeSelector newSelector = buildNodeSelector(selectorName, parser);
-                            nodeSelector = nodeSelector == NodeSelector.ANY
+                            var newSelector = buildNodeSelector(selectorName, parser);
+                            nodeSelector = nodeSelector == ContextNodeSelector.ANY
                                 ? newSelector
                                 : new ComposeNodeSelector(nodeSelector, newSelector);
                         }
@@ -349,7 +348,7 @@ public class DoSection implements ExecutableSection {
                 apiCallSection.getParams(),
                 apiCallSection.getBodies(),
                 apiCallSection.getHeaders(),
-                apiCallSection.getNodeSelector()
+                apiCallSection.getNodeSelector().bind(executionContext)
             );
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
@@ -586,21 +585,22 @@ public class DoSection implements ExecutableSection {
         )
     );
 
-    private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
+    private static ContextNodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
         return switch (name) {
             case "attribute" -> parseAttributeValuesSelector(parser);
             case "version" -> parseVersionSelector(parser);
+            case "feature" -> parseFeatureSelector(parser);
             default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
         };
     }
 
-    private static NodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {
+    private static ContextNodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new XContentParseException(parser.getTokenLocation(), "expected START_OBJECT");
         }
         String key = null;
         XContentParser.Token token;
-        NodeSelector result = NodeSelector.ANY;
+        var result = ContextNodeSelector.ANY;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 key = parser.currentName();
@@ -613,10 +613,10 @@ public class DoSection implements ExecutableSection {
                  * like to hard fail if it is not so we wrap the selector so we
                  * can assert that the data is sniffed.
                  */
-                NodeSelector delegate = new HasAttributeNodeSelector(key, parser.text());
-                NodeSelector newSelector = new NodeSelector() {
+                var delegate = new HasAttributeNodeSelector(key, parser.text());
+                var newSelector = new ContextNodeSelector() {
                     @Override
-                    public void select(Iterable<Node> nodes) {
+                    public void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context) {
                         for (Node node : nodes) {
                             if (node.getAttributes() == null) {
                                 throw new IllegalStateException("expected [attributes] metadata to be set but got " + node);
@@ -630,7 +630,7 @@ public class DoSection implements ExecutableSection {
                         return delegate.toString();
                     }
                 };
-                result = result == NodeSelector.ANY ? newSelector : new ComposeNodeSelector(result, newSelector);
+                result = result == ContextNodeSelector.ANY ? newSelector : new ComposeNodeSelector(result, newSelector);
             } else {
                 throw new XContentParseException(parser.getTokenLocation(), "expected [" + key + "] to be a value");
             }
@@ -651,7 +651,7 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
+    private static ContextNodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
@@ -667,9 +667,9 @@ public class DoSection implements ExecutableSection {
             versionSelectorString = "version ranges " + acceptedVersionRange;
         }
 
-        return new NodeSelector() {
+        return new ContextNodeSelector() {
             @Override
-            public void select(Iterable<Node> nodes) {
+            public void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context) {
                 for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                     Node node = itr.next();
                     String versionString = node.getVersion();
@@ -689,21 +689,57 @@ public class DoSection implements ExecutableSection {
         };
     }
 
+    private static ContextNodeSelector parseFeatureSelector(XContentParser parser) throws IOException {
+        var token = parser.currentToken();
+        var features = new ArrayList<String>();
+        if (token.isValue()) {
+            features.add(parser.text());
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                features.add(parser.text());
+            }
+        } else {
+            throw new XContentParseException(parser.getTokenLocation(), "expected [feature] to be a value or an array");
+        }
+
+        return new ContextNodeSelector() {
+            @Override
+            public void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context) {
+                for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                    Node node = itr.next();
+                    String nodeName = node.getName();
+                    if (nodeName == null) {
+                        throw new IllegalStateException("expected [name] metadata to be set but got " + node);
+                    }
+                    var nodeHasFeatures = features.stream().allMatch(id -> context.nodeHasFeature(node.getName(), id));
+                    if (nodeHasFeatures == false) {
+                        itr.remove();
+                    }
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "features " + String.join(",", features);
+            }
+        };
+    }
+
     /**
      * Selector that composes two selectors, running the "right" most selector
      * first and then running the "left" selector on the results of the "right"
      * selector.
      */
-    private record ComposeNodeSelector(NodeSelector lhs, NodeSelector rhs) implements NodeSelector {
+    private record ComposeNodeSelector(ContextNodeSelector lhs, ContextNodeSelector rhs) implements ContextNodeSelector {
         private ComposeNodeSelector {
             Objects.requireNonNull(lhs, "lhs is required");
             Objects.requireNonNull(rhs, "rhs is required");
         }
 
         @Override
-        public void select(Iterable<Node> nodes) {
-            rhs.select(nodes);
-            lhs.select(nodes);
+        public void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context) {
+            rhs.select(nodes, context);
+            lhs.select(nodes, context);
         }
 
         @Override

@@ -12,7 +12,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
-import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Strings;
@@ -587,7 +586,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 index: test_index""");
 
         DoSection doSection = DoSection.parse(parser);
-        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
+        assertNotSame(ContextNodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
         Node v170 = nodeWithVersion("1.7.0");
         Node v521 = nodeWithVersion("5.2.1");
         Node v550 = nodeWithVersion("5.5.0");
@@ -597,9 +597,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         nodes.add(v521);
         nodes.add(v550);
         nodes.add(v612);
-        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        doSection.getApiCallSection().getNodeSelector().select(nodes, context);
         assertEquals(Arrays.asList(v521, v550), nodes);
-        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
         ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
         when(
             context.callApi(
@@ -607,7 +606,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 singletonMap("index", "test_index"),
                 emptyList(),
                 emptyMap(),
-                doSection.getApiCallSection().getNodeSelector()
+                doSection.getApiCallSection().getNodeSelector().bind(context)
             )
         ).thenReturn(mockResponse);
         when(context.esVersion()).thenReturn(VersionUtils.randomVersion(random()));
@@ -618,13 +617,16 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             singletonMap("index", "test_index"),
             emptyList(),
             emptyMap(),
-            doSection.getApiCallSection().getNodeSelector()
+            doSection.getApiCallSection().getNodeSelector().bind(context)
         );
 
         {
             List<Node> badNodes = new ArrayList<>();
             badNodes.add(new Node(new HttpHost("dummy")));
-            Exception e = expectThrows(IllegalStateException.class, () -> doSection.getApiCallSection().getNodeSelector().select(badNodes));
+            Exception e = expectThrows(
+                IllegalStateException.class,
+                () -> doSection.getApiCallSection().getNodeSelector().select(badNodes, context)
+            );
             assertEquals("expected [version] metadata to be set but got [host=http://dummy]", e.getMessage());
         }
     }
@@ -637,13 +639,13 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 index: test_index""");
 
         DoSection doSection = DoSection.parse(parser);
-        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        assertNotSame(ContextNodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
         Node nonSemantic = nodeWithVersion("abddef");
         List<Node> nodes = new ArrayList<>();
 
         var exception = expectThrows(
             XContentParseException.class,
-            () -> doSection.getApiCallSection().getNodeSelector().select(List.of(nonSemantic))
+            () -> doSection.getApiCallSection().getNodeSelector().select(List.of(nonSemantic), null)
         );
         assertThat(
             exception.getMessage(),
@@ -659,7 +661,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 index: test_index""");
 
         DoSection doSection = DoSection.parse(parser);
-        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        assertNotSame(ContextNodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
         Node v170 = nodeWithVersion("1.7.0");
         Node v521 = nodeWithVersion("5.2.1");
         Node v550 = nodeWithVersion("5.5.0");
@@ -671,7 +673,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         nodes.add(v550);
         nodes.add(oldCurrent);
         nodes.add(newCurrent);
-        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        doSection.getApiCallSection().getNodeSelector().select(nodes, null);
         assertEquals(List.of(oldCurrent, newCurrent), nodes);
     }
 
@@ -688,7 +690,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 index: test_index""");
 
         DoSection doSection = DoSection.parse(parser);
-        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        assertNotSame(ContextNodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
         Node hasAttr = nodeWithAttributes(singletonMap("attr", singletonList("val")));
         Node hasAttrWrongValue = nodeWithAttributes(singletonMap("attr", singletonList("notval")));
         Node notHasAttr = nodeWithAttributes(singletonMap("notattr", singletonList("val")));
@@ -697,13 +699,16 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             nodes.add(hasAttr);
             nodes.add(hasAttrWrongValue);
             nodes.add(notHasAttr);
-            doSection.getApiCallSection().getNodeSelector().select(nodes);
-            assertEquals(Arrays.asList(hasAttr), nodes);
+            doSection.getApiCallSection().getNodeSelector().select(nodes, null);
+            assertEquals(List.of(hasAttr), nodes);
         }
         {
             List<Node> badNodes = new ArrayList<>();
             badNodes.add(new Node(new HttpHost("dummy")));
-            Exception e = expectThrows(IllegalStateException.class, () -> doSection.getApiCallSection().getNodeSelector().select(badNodes));
+            Exception e = expectThrows(
+                IllegalStateException.class,
+                () -> doSection.getApiCallSection().getNodeSelector().select(badNodes, null)
+            );
             assertEquals("expected [attributes] metadata to be set but got [host=http://dummy]", e.getMessage());
         }
 
@@ -716,7 +721,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 index: test_index""");
 
         DoSection doSectionWithTwoAttributes = DoSection.parse(parser);
-        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        assertNotSame(ContextNodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
         Node hasAttr2 = nodeWithAttributes(singletonMap("attr2", singletonList("val2")));
         Map<String, List<String>> bothAttributes = new HashMap<>();
         bothAttributes.put("attr", singletonList("val"));
@@ -729,8 +734,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             nodes.add(notHasAttr);
             nodes.add(hasAttr2);
             nodes.add(hasBoth);
-            doSectionWithTwoAttributes.getApiCallSection().getNodeSelector().select(nodes);
-            assertEquals(Arrays.asList(hasBoth), nodes);
+            doSectionWithTwoAttributes.getApiCallSection().getNodeSelector().select(nodes, null);
+            assertEquals(List.of(hasBoth), nodes);
         }
     }
 
@@ -748,7 +753,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 index: test_index""");
 
         DoSection doSection = DoSection.parse(parser);
-        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        assertNotSame(ContextNodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
         Node both = nodeWithVersionAndAttributes("5.2.1", singletonMap("attr", singletonList("val")));
         Node badVersion = nodeWithVersionAndAttributes("5.1.1", singletonMap("attr", singletonList("val")));
         Node badAttr = nodeWithVersionAndAttributes("5.2.1", singletonMap("notattr", singletonList("val")));
@@ -756,8 +761,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         nodes.add(both);
         nodes.add(badVersion);
         nodes.add(badAttr);
-        doSection.getApiCallSection().getNodeSelector().select(nodes);
-        assertEquals(Arrays.asList(both), nodes);
+        doSection.getApiCallSection().getNodeSelector().select(nodes, null);
+        assertEquals(List.of(both), nodes);
     }
 
     private static Node nodeWithVersionAndAttributes(String version, Map<String, List<String>> attributes) {

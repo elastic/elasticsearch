@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.client.NodeSelector;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,7 +24,7 @@ public class ApiCallSection {
     private final Map<String, String> params = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
     private final List<Map<String, Object>> bodies = new ArrayList<>();
-    private NodeSelector nodeSelector = NodeSelector.ANY;
+    private ContextNodeSelector nodeSelector = ContextNodeSelector.ANY;
 
     public ApiCallSection(String api) {
         this.api = api;
@@ -72,14 +70,14 @@ public class ApiCallSection {
     /**
      * Selects the node on which to run this request.
      */
-    public NodeSelector getNodeSelector() {
+    ContextNodeSelector getNodeSelector() {
         return nodeSelector;
     }
 
     /**
      * Set the selector that decides which node can run this request.
      */
-    public void setNodeSelector(NodeSelector nodeSelector) {
+    void setNodeSelector(ContextNodeSelector nodeSelector) {
         this.nodeSelector = nodeSelector;
     }
 }

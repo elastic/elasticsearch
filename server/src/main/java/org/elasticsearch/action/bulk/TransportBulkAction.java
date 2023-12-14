@@ -1139,6 +1139,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
                 try {
                     IndexRequest errorDocument = new FailureStoreDocument(indexRequest, e, targetIndexName).convert();
+                    // This is a fresh index request! We need to do some preprocessing on it. If we do not, when this is returned to
+                    // the bulk action, the action will see that it hasn't been processed by ingest yet and attempt to ingest it again.
+                    errorDocument.isPipelineResolved(true);
+                    errorDocument.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+                    errorDocument.setFinalPipeline(IngestService.NOOP_PIPELINE_NAME);
                     bulkRequest.requests.set(slot, errorDocument);
                 } catch (IOException ex) {
                     // This is unlikely to happen because the conversion is so simple, but be defensive and attempt to report about it if

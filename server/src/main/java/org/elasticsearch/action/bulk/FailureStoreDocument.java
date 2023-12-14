@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -45,6 +46,7 @@ public class FailureStoreDocument {
         return new IndexRequest()
             .index(targetIndexName)
             .source(createSource())
+            .opType(DocWriteRequest.OpType.CREATE)
             .setWriteToFailureStore(true);
     }
 

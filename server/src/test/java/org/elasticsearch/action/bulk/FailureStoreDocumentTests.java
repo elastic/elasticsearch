@@ -9,6 +9,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -45,6 +46,7 @@ public class FailureStoreDocumentTests extends ESTestCase {
         assertThat(convertedRequest.id(), is(nullValue()));
         assertThat(convertedRequest.routing(), is(nullValue()));
         assertThat(convertedRequest.index(), is(equalTo(targetIndexName)));
+        assertThat(convertedRequest.opType(), is(DocWriteRequest.OpType.CREATE));
 
         // Original document content is no longer in same place
         assertThat("Expected original document to be modified", convertedRequest.sourceAsMap().get("key"), is(nullValue()));

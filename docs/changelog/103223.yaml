@@ -1,7 +1,7 @@
 pr: 103223
 summary: "[Synonyms] Mark Synonyms as GA"
 area: "Search"
-type: docs
+type: feature
 issues: []
 highlight:
   title: "GA Release of Synonyms API"

@@ -118,7 +118,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         }
 
         MultiSearchRequest multiRequest = new MultiSearchRequest();
-        IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
+        IndicesOptions indicesOptions = IndicesOptions.fromRequestWithFailureStore(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));

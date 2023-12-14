@@ -55,7 +55,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
                 "The [verbose] query parameter for [indices_segments_action] has no effect and is deprecated"
             );
         }
-        indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
+        indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, indicesSegmentsRequest.indicesOptions()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .segments(indicesSegmentsRequest, new RestChunkedToXContentListener<>(channel));

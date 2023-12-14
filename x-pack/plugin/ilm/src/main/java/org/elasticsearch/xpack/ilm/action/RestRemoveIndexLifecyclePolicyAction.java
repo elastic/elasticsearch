@@ -36,7 +36,7 @@ public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
         RemoveIndexLifecyclePolicyAction.Request changePolicyRequest = new RemoveIndexLifecyclePolicyAction.Request(indexes);
         changePolicyRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", changePolicyRequest.masterNodeTimeout()));
-        changePolicyRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, changePolicyRequest.indicesOptions()));
+        changePolicyRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(restRequest, changePolicyRequest.indicesOptions()));
 
         return channel -> client.execute(
             RemoveIndexLifecyclePolicyAction.INSTANCE,

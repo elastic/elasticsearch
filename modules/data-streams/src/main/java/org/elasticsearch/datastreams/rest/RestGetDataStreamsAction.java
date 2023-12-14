@@ -40,7 +40,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
             Strings.splitStringByCommaToArray(request.param("name"))
         );
         getDataStreamsRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        getDataStreamsRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataStreamsRequest.indicesOptions()));
+        getDataStreamsRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, getDataStreamsRequest.indicesOptions()));
         return channel -> client.execute(GetDataStreamAction.INSTANCE, getDataStreamsRequest, new RestToXContentListener<>(channel));
     }
 

@@ -37,7 +37,7 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
         ExplainLifecycleRequest explainLifecycleRequest = new ExplainLifecycleRequest();
         explainLifecycleRequest.indices(indexes);
-        explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
+        explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(restRequest, IndicesOptions.strictExpandOpen()));
         explainLifecycleRequest.onlyManaged(restRequest.paramAsBoolean("only_managed", false));
         explainLifecycleRequest.onlyErrors(restRequest.paramAsBoolean("only_errors", false));
         String masterNodeTimeout = restRequest.param("master_timeout");

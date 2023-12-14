@@ -87,7 +87,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             : IndicesOptions.strictExpandOpen();
         assert indicesStatsRequest.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed()
             : "IndicesStats default indices options changed";
-        indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
+        indicesStatsRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, defaultIndicesOption));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         // level parameter validation
         ClusterStatsLevel.of(request, ClusterStatsLevel.INDICES);

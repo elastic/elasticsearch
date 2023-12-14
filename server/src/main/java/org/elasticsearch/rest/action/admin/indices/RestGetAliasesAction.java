@@ -208,7 +208,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         getAliasesRequest.indices(indices);
-        getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
+        getAliasesRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, getAliasesRequest.indicesOptions()));
 
         if (request.hasParam("local")) {
             // consume this param just for validation

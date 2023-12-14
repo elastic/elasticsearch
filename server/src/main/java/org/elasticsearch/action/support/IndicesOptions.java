@@ -479,8 +479,23 @@ public record IndicesOptions(
             request.param("ignore_unavailable"),
             request.param("allow_no_indices"),
             request.param("ignore_throttled"),
-            DataStream.isFailureStoreEnabled() ? request.param("failure_store") : null,
+            null,
             defaultSettings
+        );
+    }
+
+    public static IndicesOptions fromRequestWithFailureStore(RestRequest request, IndicesOptions defaultSettings) {
+        if (request.hasParam("ignore_throttled")) {
+            DEPRECATION_LOGGER.warn(DeprecationCategory.API, "ignore_throttled_param", IGNORE_THROTTLED_DEPRECATION_MESSAGE);
+        }
+
+        return fromParameters(
+                request.param("expand_wildcards"),
+                request.param("ignore_unavailable"),
+                request.param("allow_no_indices"),
+                request.param("ignore_throttled"),
+                DataStream.isFailureStoreEnabled() ? request.param("failure_store") : null,
+                defaultSettings
         );
     }
 

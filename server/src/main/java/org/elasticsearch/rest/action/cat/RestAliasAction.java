@@ -54,7 +54,7 @@ public class RestAliasAction extends AbstractCatAction {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias")
             ? new GetAliasesRequest(Strings.commaDelimitedListToStringArray(request.param("alias")))
             : new GetAliasesRequest();
-        getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
+        getAliasesRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, getAliasesRequest.indicesOptions()));
 
         if (request.hasParam("local")) {
             // consume this param just for validation

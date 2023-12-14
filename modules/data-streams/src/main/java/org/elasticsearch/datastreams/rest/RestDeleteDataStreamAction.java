@@ -39,7 +39,7 @@ public class RestDeleteDataStreamAction extends BaseRestHandler {
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
             Strings.splitStringByCommaToArray(request.param("name"))
         );
-        deleteDataStreamRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteDataStreamRequest.indicesOptions()));
+        deleteDataStreamRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, deleteDataStreamRequest.indicesOptions()));
         return channel -> client.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, new RestToXContentListener<>(channel));
     }
 }

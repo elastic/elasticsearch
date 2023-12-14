@@ -40,7 +40,7 @@ public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
         ExplainDataStreamLifecycleAction.Request explainRequest = new ExplainDataStreamLifecycleAction.Request(indices);
         explainRequest.includeDefaults(restRequest.paramAsBoolean("include_defaults", false));
-        explainRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
+        explainRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(restRequest, IndicesOptions.strictExpandOpen()));
         String masterNodeTimeout = restRequest.param("master_timeout");
         if (masterNodeTimeout != null) {
             explainRequest.masterNodeTimeout(masterNodeTimeout);

@@ -41,7 +41,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("name"));
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             indices,
-            IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS)
+            IndicesOptions.fromRequestWithFailureStore(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS)
         );
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }

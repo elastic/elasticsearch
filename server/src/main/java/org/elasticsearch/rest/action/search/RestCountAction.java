@@ -63,7 +63,7 @@ public class RestCountAction extends BaseRestHandler {
             request.param("type");
         }
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
+        countRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         request.withContentOrSourceParamParserOrNull(parser -> {

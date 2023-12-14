@@ -51,7 +51,7 @@ public class RestRecoveryAction extends BaseRestHandler {
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
-        recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
+        recoveryRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, recoveryRequest.indicesOptions()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .recoveries(recoveryRequest, new RestChunkedToXContentListener<>(channel));

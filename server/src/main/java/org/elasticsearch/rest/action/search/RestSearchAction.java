@@ -215,7 +215,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
-        searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+        searchRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, searchRequest.indicesOptions()));
 
         validateSearchRequest(request, searchRequest);
 

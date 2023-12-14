@@ -43,7 +43,7 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indices);
-        openRequest.indicesOptions(IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS));
+        openRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS));
         openRequest.routing(request.param("routing"));
         openRequest.preference(request.param("preference"));
         openRequest.keepAlive(TimeValue.parseTimeValue(request.param("keep_alive"), null, "keep_alive"));

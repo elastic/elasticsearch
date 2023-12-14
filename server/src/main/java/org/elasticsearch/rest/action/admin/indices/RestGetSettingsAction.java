@@ -50,7 +50,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
         // This is required so the "flat_settings" parameter counts as consumed
         request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, false);
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(Strings.splitStringByCommaToArray(request.param("index")))
-            .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))
+            .indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, IndicesOptions.strictExpandOpen()))
             .humanReadable(request.hasParam("human"))
             .includeDefaults(renderDefaults)
             .names(names);

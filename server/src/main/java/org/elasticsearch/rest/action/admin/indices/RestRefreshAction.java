@@ -46,7 +46,7 @@ public class RestRefreshAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RefreshRequest refreshRequest = new RefreshRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        refreshRequest.indicesOptions(IndicesOptions.fromRequest(request, refreshRequest.indicesOptions()));
+        refreshRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, refreshRequest.indicesOptions()));
         return channel -> client.admin()
             .indices()
             .refresh(refreshRequest, new RestToXContentListener<>(channel, BaseBroadcastResponse::getStatus));

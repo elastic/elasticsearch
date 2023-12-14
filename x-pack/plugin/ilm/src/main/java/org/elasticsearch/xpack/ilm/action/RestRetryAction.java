@@ -39,7 +39,7 @@ public class RestRetryAction extends BaseRestHandler {
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.indices(indices);
-        request.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
+        request.indicesOptions(IndicesOptions.fromRequestWithFailureStore(restRequest, IndicesOptions.strictExpandOpen()));
         return channel -> client.execute(RetryAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -238,7 +238,7 @@ data streams with slow ingestion.
 ----
 POST my-data-stream/_rollover?lazy
 ----
-// TEST[setup:my_data_stream]
+// TEST[continued]
 
 :target: data stream
 :index: write index

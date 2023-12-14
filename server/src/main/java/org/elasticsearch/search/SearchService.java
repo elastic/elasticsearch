@@ -700,12 +700,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     builder.append(" | ");
                     builder.append(doc);
                 }
-                LogManager.getLogger(SearchService.class)
-                    .info(
-                        "ON SHARD: "
-                            + context.queryResult().getQueryIndex()
-                            + builder.toString()
-                    );
+                LogManager.getLogger(SearchService.class).info("ON SHARD: " + context.queryResult().getQueryIndex() + builder.toString());
                 return context.queryResult();
             }
         } catch (Exception e) {

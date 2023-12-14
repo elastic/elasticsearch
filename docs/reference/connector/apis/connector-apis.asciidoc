@@ -38,6 +38,7 @@ Use the following APIs to manage sync jobs:
 
 * <<create-connector-sync-job-api>>
 * <<list-connector-sync-jobs-api>>
+* <<set-connector-sync-job-stats-api>>
 
 
 include::create-connector-api.asciidoc[]
@@ -46,3 +47,4 @@ include::delete-connector-api.asciidoc[]
 include::get-connector-api.asciidoc[]
 include::list-connectors-api.asciidoc[]
 include::list-connector-sync-jobs-api.asciidoc[]
+include::set-connector-sync-job-stats-api.asciidoc[]

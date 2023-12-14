@@ -104,11 +104,12 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
         removeAllRemoteClusterConfiguration();
     }
 
-    public void testMigrateFromRcs1() throws Exception {
+    public void testUpgradeFromRcs1() throws Exception {
         // Setup RCS 1.0 and check that it works
         {
             configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), randomBoolean());
 
+            // TODO move me
             final Request putRoleRequest = new Request("POST", "/_security/role/read_remote_shared_logs");
             putRoleRequest.setJsonEntity("""
                 {
@@ -160,6 +161,75 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
                 // now that credentials are configured, we expect a successful connection
                 checkRemoteConnection("my_remote_cluster", fulfillingCluster, false, isProxyMode);
             }
+
+            assertOK(
+                performRequestWithRemoteSearchUser(
+                    new Request(
+                        "GET",
+                        String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean())
+                    )
+                )
+            );
+        }
+
+        removeAllRemoteClusterConfiguration();
+    }
+
+    public void testDowngradeToRcs1() throws Exception {
+        {
+            final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                {
+                  "search": [
+                    {
+                        "names": ["*"]
+                    }
+                  ]
+                }""");
+
+            final boolean isProxyMode = randomBoolean();
+            final boolean configureSettingsFirst = randomBoolean();
+            // it's valid to first configure remote cluster, then credentials
+            if (configureSettingsFirst) {
+                putRemoteClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
+            }
+
+            configureRemoteClusterCredentials("my_remote_cluster", (String) apiKeyMap.get("encoded"));
+
+            // also valid to configure credentials, then cluster
+            if (false == configureSettingsFirst) {
+                configureRemoteCluster("my_remote_cluster");
+            } else {
+                // now that credentials are configured, we expect a successful connection
+                checkRemoteConnection("my_remote_cluster", fulfillingCluster, false, isProxyMode);
+            }
+
+            assertOK(
+                performRequestWithRemoteSearchUser(
+                    new Request(
+                        "GET",
+                        String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean())
+                    )
+                )
+            );
+        }
+
+        {
+            removeAllRemoteClusterConfiguration();
+
+            configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), randomBoolean());
+
+            // TODO move me
+            final Request putRoleRequest = new Request("POST", "/_security/role/read_remote_shared_logs");
+            putRoleRequest.setJsonEntity("""
+                {
+                  "indices": [
+                    {
+                      "names": [ "shared-logs" ],
+                      "privileges": [ "read", "read_cross_cluster" ]
+                    }
+                  ]
+                }""");
+            performRequestAgainstFulfillingCluster(putRoleRequest);
 
             assertOK(
                 performRequestWithRemoteSearchUser(

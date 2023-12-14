@@ -37,4 +37,3 @@ build-tools-internal @elastic/es-delivery
 .ci @elastic/es-delivery
 .idea @elastic/es-delivery
 distribution @elastic/es-delivery
-

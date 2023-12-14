@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.ingest.IngestServiceTests;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
@@ -118,7 +119,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             threadPool,
             transportService,
             clusterService,
-            null,
+            IngestServiceTests.createIngestService(),
             null,
             mock(ActionFilters.class),
             indexNameExpressionResolver,

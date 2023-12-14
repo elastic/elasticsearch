@@ -508,6 +508,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return this.pluginPipelines.get(id);
     }
 
+    void setPluginsPipelines(String id, List<Pipeline> pipelines) {
+        this.pluginPipelines = Map.of(id, pipelines);
+    }
+
     public Map<String, Processor.Factory> getProcessorFactories() {
         return processorFactories;
     }

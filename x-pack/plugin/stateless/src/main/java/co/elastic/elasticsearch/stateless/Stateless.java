@@ -422,7 +422,7 @@ public class Stateless extends Plugin
 
         // autoscaling
         // memory
-        var indexMappingSizePublisher = new IndicesMappingSizePublisher(client, () -> clusterService.state().getMinTransportVersion());
+        var indexMappingSizePublisher = new IndicesMappingSizePublisher(client);
         var indicesMappingSizeCollector = setAndGet(
             this.indicesMappingSizeCollector,
             IndicesMappingSizeCollector.create(

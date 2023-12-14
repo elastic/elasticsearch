@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.metering.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,11 +37,7 @@ public class GetBlobStoreStatsNodeResponse extends BaseNodeResponse implements T
     public GetBlobStoreStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
         this.repositoryStats = new RepositoryStats(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_056)) {
-            this.obsRepositoryStats = new RepositoryStats(in);
-        } else {
-            this.obsRepositoryStats = RepositoryStats.EMPTY_STATS;
-        }
+        this.obsRepositoryStats = new RepositoryStats(in);
     }
 
     public GetBlobStoreStatsNodeResponse(DiscoveryNode node, RepositoryStats repositoryStats, RepositoryStats obsRepositoryStats) {
@@ -72,9 +67,7 @@ public class GetBlobStoreStatsNodeResponse extends BaseNodeResponse implements T
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         repositoryStats.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_056)) {
-            obsRepositoryStats.writeTo(out);
-        }
+        obsRepositoryStats.writeTo(out);
     }
 
     public RepositoryStats getRepositoryStats() {

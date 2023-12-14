@@ -17,17 +17,12 @@
 
 package co.elastic.elasticsearch.stateless.metering.action;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
@@ -37,7 +32,6 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingTestCase<GetBlobStoreStatsNodeResponse> {
 
@@ -130,20 +124,6 @@ public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingT
                 )
             )
         );
-    }
-
-    public void testSerializationForOldVersion() throws IOException {
-        final GetBlobStoreStatsNodeResponse instance = createTestInstance();
-        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_500_056);
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(oldVersion);
-            instance.writeTo(out);
-            final StreamInput in = out.bytes().streamInput();
-            in.setTransportVersion(oldVersion);
-            final GetBlobStoreStatsNodeResponse deserialized = new GetBlobStoreStatsNodeResponse(in);
-            assertThat(deserialized.getObsRepositoryStats(), is(RepositoryStats.EMPTY_STATS));
-        }
     }
 
     public static RepositoryStats randomRepositoryStats(Set<String> requestNames) {

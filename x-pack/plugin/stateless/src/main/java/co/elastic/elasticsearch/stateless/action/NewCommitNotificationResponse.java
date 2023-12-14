@@ -19,8 +19,6 @@ package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,8 +33,6 @@ import java.util.Set;
 public class NewCommitNotificationResponse extends ActionResponse {
     public static final NewCommitNotificationResponse EMPTY = new NewCommitNotificationResponse(Set.of());
 
-    private static final TransportVersion VERSION_SUPPORTING_NEW_COMMIT_NOTIFICATION_RESPONSE = TransportVersions.V_8_500_061;
-
     private final Set<PrimaryTermAndGeneration> primaryTermAndGenerationsInUse;
 
     public NewCommitNotificationResponse(Set<PrimaryTermAndGeneration> primaryTermAndGenerationsInUse) {
@@ -45,19 +41,13 @@ public class NewCommitNotificationResponse extends ActionResponse {
 
     public NewCommitNotificationResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NEW_COMMIT_NOTIFICATION_RESPONSE)) {
-            this.primaryTermAndGenerationsInUse = in.readCollectionAsImmutableSet(PrimaryTermAndGeneration::new);
-        } else {
-            this.primaryTermAndGenerationsInUse = Collections.emptySet();
-        }
+        this.primaryTermAndGenerationsInUse = in.readCollectionAsImmutableSet(PrimaryTermAndGeneration::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // Before this version we used ActionResponse.Empty as a response
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NEW_COMMIT_NOTIFICATION_RESPONSE)) {
-            out.writeCollection(primaryTermAndGenerationsInUse);
-        }
+        out.writeCollection(primaryTermAndGenerationsInUse);
     }
 
     public Set<PrimaryTermAndGeneration> getPrimaryTermAndGenerationsInUse() {

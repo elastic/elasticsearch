@@ -53,11 +53,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testSkipVersion() {
-        SkipSection section = new SkipSection(
-            List.of(new VersionSkipCriteria("6.0.0 - 6.1.0")),
-            Collections.emptyList(),
-            "foobar"
-        );
+        SkipSection section = new SkipSection(List.of(new VersionSkipCriteria("6.0.0 - 6.1.0")), Collections.emptyList(), "foobar");
         assertFalse(section.skip(versionOnlyContext(Version.CURRENT)));
         assertTrue(section.skip(versionOnlyContext(Version.fromString("6.0.0"))));
     }
@@ -73,11 +69,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testSkipTestFeatures() {
-        var section = new SkipSection(
-            randomBoolean() ? List.of() : List.of(context -> false),
-            Collections.singletonList("boom"),
-            "foobar"
-        );
+        var section = new SkipSection(randomBoolean() ? List.of() : List.of(context -> false), Collections.singletonList("boom"), "foobar");
         assertTrue(section.skip(versionOnlyContext(Version.CURRENT)));
     }
 
@@ -193,7 +185,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.testFeatures, hasSize(1));
-        assertThat(skipSectionBuilder.operatingSystems,  containsInAnyOrder("debian-9", "windows-95", "ms-dos"));
+        assertThat(skipSectionBuilder.operatingSystems, containsInAnyOrder("debian-9", "windows-95", "ms-dos"));
         assertThat(skipSectionBuilder.reason, is("see gh#xyz"));
     }
 

@@ -83,7 +83,6 @@ public class SkipSection {
         }
     }
 
-
     /**
      * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
      */

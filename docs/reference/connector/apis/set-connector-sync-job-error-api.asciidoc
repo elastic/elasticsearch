@@ -21,7 +21,7 @@ Sets a connector sync job error.
 
 Sets the `error` field for the specified connector sync job and sets its `status` to `error`.
 
-[[get-connector-sync-job-api-path-params]]
+[[set-connector-sync-job-error-api-path-params]]
 ==== {api-path-parms-title}
 
 `<connector_sync_job_id>`::

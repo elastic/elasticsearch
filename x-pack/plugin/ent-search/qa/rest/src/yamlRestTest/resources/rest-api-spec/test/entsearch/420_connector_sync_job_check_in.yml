@@ -34,7 +34,7 @@ setup:
       connector_sync_job.check_in:
         connector_sync_job_id: $sync-job-id-to-check-in
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
 
   - do:
       connector_sync_job.get:

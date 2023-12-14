@@ -126,7 +126,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 // sort by distance in reverse order, then parameter name for equal distances
                 int compare = a.v1().compareTo(b.v1());
                 if (compare != 0) return -compare;
-                return a.v2().compareTo(b.v2());
+                else return a.v2().compareTo(b.v2());
             });
             if (first == false) {
                 message.append(", ");

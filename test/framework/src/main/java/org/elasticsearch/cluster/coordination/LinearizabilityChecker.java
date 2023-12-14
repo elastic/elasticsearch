@@ -501,7 +501,7 @@ public class LinearizabilityChecker {
         private boolean addInternal(Object state, FixedBitSet bitSet) {
             long[] bits = bitSet.getBits();
             if (bits.length == 1) return addSmall(state, bits[0]);
-            return addLarge(state, bitSet);
+            else return addLarge(state, bitSet);
         }
 
         private boolean addSmall(Object state, long bits) {

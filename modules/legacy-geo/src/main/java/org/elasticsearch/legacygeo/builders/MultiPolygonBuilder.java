@@ -166,7 +166,7 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, Multi
             }
         }
         if (shapes.size() == 1) return shapes.get(0);
-        return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
+        else return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         // note: ShapeCollection is probably faster than a Multi* geom.
     }
 

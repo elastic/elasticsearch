@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 
 /**
@@ -20,6 +21,14 @@ public class ActionType<Response extends ActionResponse> {
 
     public static <T extends ActionResponse> ActionType<T> localOnly(String name) {
         return new ActionType<>(name, Writeable.Reader.localOnly());
+    }
+
+    public static ActionType<ActionResponse.Empty> emptyResponse(String name) {
+        return new ActionType<>(name, in -> ActionResponse.Empty.INSTANCE);
+    }
+
+    public static ActionType<AcknowledgedResponse> acknowledgedResponse(String name) {
+        return new ActionType<>(name, AcknowledgedResponse::readFrom);
     }
 
     /**

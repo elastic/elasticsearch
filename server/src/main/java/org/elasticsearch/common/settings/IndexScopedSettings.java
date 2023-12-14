@@ -193,7 +193,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MODE,
         IndexMetadata.INDEX_ROUTING_PATH,
         IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES,
-        IndexMetadata.DYNAMIC_DIMENSION_NAMES,
         IndexSettings.TIME_SERIES_START_TIME,
         IndexSettings.TIME_SERIES_END_TIME,
 

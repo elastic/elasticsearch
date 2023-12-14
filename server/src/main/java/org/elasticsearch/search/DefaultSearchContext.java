@@ -913,10 +913,11 @@ final class DefaultSearchContext extends SearchContext {
                 // If the TSDS supports dynamic metrics and dimensions, some dimensions (or even all of them) may not be included in the
                 // routing path. In this case, they can be retrieved from the index mapping as they're initialized through dynamic template
                 // fields with `time_series_dimension` annotations.
-                List<String> dynamicDimensions = indexService.mapperService().mappingLookup().getDimensions();
+                assert routingPaths.isEmpty();
+                List<String> dynamicDimensions = indexService.mapperService().mappingLookup().getNonMetricFieldsWithDocValues();
                 if (dynamicDimensions.isEmpty() == false) {
                     indexRouting = IndexRouting.fromIndexMetadataAndDynamicDimensions(indexService.getMetadata(), dynamicDimensions);
-                    routingPaths = IndexRouting.mergeDimensions(routingPaths, dynamicDimensions);
+                    routingPaths = dynamicDimensions;
                 }
             }
             return IdLoader.createTsIdLoader((IndexRouting.ExtractFromSource) indexRouting, routingPaths);

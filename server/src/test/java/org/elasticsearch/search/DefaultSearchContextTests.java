@@ -851,8 +851,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             .thenReturn(searchExecutionContext);
 
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-
+        IndexSettings indexSettings;
         MapperService mapperService;
         if (withDimension) {
             mapperService = createMapperService(
@@ -863,6 +862,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             );
             indexSettings = mapperService.getIndexSettings();
         } else {
+            indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             mapperService = mock(MapperService.class);
             when(mapperService.hasNested()).thenReturn(randomBoolean());
             when(indexService.mapperService()).thenReturn(mapperService);

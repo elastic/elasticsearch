@@ -28,17 +28,16 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -50,11 +49,9 @@ public abstract class IndexRouting {
      * Build the routing from {@link IndexMetadata} and dimensions fields from dynamic templates.
      */
     public static IndexRouting fromIndexMetadataAndDynamicTemplates(IndexMetadata metadata, Map<String, String> dynamicTemplates) {
-        if (false == metadata.getRoutingPaths().isEmpty() || false == dynamicTemplates.isEmpty()) {
-            List<String> dynamicDimensions = ExtractFromSource.getDynamicDimensions(metadata, dynamicTemplates);
-            if (false == metadata.getRoutingPaths().isEmpty() || false == dynamicDimensions.isEmpty()) {
-                return new ExtractFromSource(metadata, dynamicDimensions);
-            }
+        if (false == metadata.getRoutingPaths().isEmpty()
+            || (metadata.supportsTimesSeriesDynamicTemplates() && dynamicTemplates.isEmpty() == false)) {
+            return new ExtractFromSource(metadata, dynamicTemplates.keySet(), List.of());
         }
         if (metadata.isRoutingPartitionedIndex()) {
             return new Partitioned(metadata);
@@ -73,24 +70,7 @@ public abstract class IndexRouting {
      * Build the routing from {@link IndexMetadata} and provided dynamic dimensions.
      */
     public static IndexRouting fromIndexMetadataAndDynamicDimensions(IndexMetadata metadata, List<String> dynamicDimensions) {
-        return new ExtractFromSource(metadata, dynamicDimensions);
-    }
-
-    /**
-     * Merge dimensions from routing path with dynamic dimensions that get defined at runtime through dynamic templates.
-     */
-    public static List<String> mergeDimensions(List<String> fromRoutingPath, List<String> fromDynamicTemplates) {
-        if (fromDynamicTemplates.isEmpty()) {
-            return fromRoutingPath;
-        }
-        if (fromDynamicTemplates.size() > 1) {
-            // Sort and deduplicate dynamic dimensions so that they are always processed in the same order, regardless of their
-            // ordering in the dynamic template spec.
-            fromDynamicTemplates = fromDynamicTemplates.stream().sorted().distinct().collect(Collectors.toList());
-        }
-        List<String> combined = new ArrayList<>(fromRoutingPath);
-        combined.addAll(fromDynamicTemplates);
-        return combined;
+        return new ExtractFromSource(metadata, Set.of(), dynamicDimensions);
     }
 
     protected final String indexName;
@@ -274,38 +254,33 @@ public abstract class IndexRouting {
 
         private final XContentParserConfiguration parserConfig;
 
-        ExtractFromSource(IndexMetadata metadata, List<String> dynamicDimensions) {
+        private final Set<String> metricNames;
+
+        ExtractFromSource(IndexMetadata metadata, Set<String> metricNames, List<String> dimensionsFromMapping) {
             super(metadata);
+            this.metricNames = metricNames;
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            List<String> routingPaths = mergeDimensions(metadata.getRoutingPaths(), dynamicDimensions);
-            assert routingPaths.isEmpty() == false;
-            isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
-            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
-        }
-
-        static List<String> getDynamicDimensions(IndexMetadata metadata, Map<String, String> dynamicTemplates) {
-            List<String> dynamicDimensions = List.of();
-            if (dynamicTemplates.isEmpty() == false) {
-                List<String> dynamicDimensionNames = metadata.getDynamicDimensionNames();
-                if (dynamicDimensionNames.isEmpty() == false) {
-                    // Invert the dynamic template mapping to efficiently search for field type matches.
-                    Map<String, String> inverted = new TreeMap<>();
-                    for (var entry : dynamicTemplates.entrySet()) {
-                        inverted.put(entry.getValue(), entry.getKey());
+            List<String> routingPaths = metadata.getRoutingPaths();
+            if (metadata.supportsTimesSeriesDynamicTemplates()) {
+                assert routingPaths.isEmpty() : Arrays.toString(routingPaths.toArray());
+                if (metricNames.isEmpty()) {
+                    if (dimensionsFromMapping.isEmpty()) {
+                        throw new IllegalArgumentException(
+                            "time_series_dynamic_templates requires a dynamic template with metric fields to index documents"
+                        );
                     }
-
-                    dynamicDimensions = new ArrayList<>();
-                    for (String name : dynamicDimensionNames) {
-                        String dimension = inverted.get(name);
-                        if (dimension != null) {
-                            dynamicDimensions.add(dimension);
-                        }
-                    }
+                    routingPaths = dimensionsFromMapping;
                 }
             }
-            return dynamicDimensions;
+            if (routingPaths.isEmpty()) {
+                isRoutingPath = (name) -> this.metricNames.contains(name) == false;
+                parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, metricNames, true);
+            } else {
+                isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
+                this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
+            }
         }
 
         @Override

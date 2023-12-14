@@ -468,14 +468,16 @@ public final class MappingLookup {
     }
 
     /**
-     * Returns the names of the fields that are marked as dimensions.
+     * Returns the names of the fields that are not marked as metrics.
+     * Excludes fields starting with "_" or "@", these are presumably internal fields like `_id`  or `@timestamp`.
      * @return a list containing the matching field names.
      */
-    public List<String> getDimensions() {
+    public List<String> getNonMetricFieldsWithDocValues() {
         List<String> dimensions = new ArrayList<>();
         for (Mapper mapper : fieldMappers()) {
-            if (mapper instanceof FieldMapper fieldMapper) {
-                if (fieldMapper.fieldType().isDimension()) {
+            char firstChar = mapper.name().charAt(0);
+            if (firstChar != '_' && firstChar != '@' && mapper instanceof FieldMapper fieldMapper) {
+                if (fieldMapper.fieldType().getMetricType() == null && fieldMapper.fieldType().hasDocValues()) {
                     dimensions.add(fieldMapper.name());
                 }
             }

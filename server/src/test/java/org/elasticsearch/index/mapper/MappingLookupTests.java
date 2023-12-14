@@ -160,16 +160,32 @@ public class MappingLookupTests extends ESTestCase {
             public boolean isDimension() {
                 return true;
             }
+
+            @Override
+            public boolean hasDocValues() {
+                return true;
+            }
         };
         FieldMapper dimMapper1 = new FakeFieldMapper(dim1, "index1");
 
         FakeFieldType dim2 = new FakeFieldType("dim2") {
             @Override
-            public boolean isDimension() {
+            public boolean hasDocValues() {
                 return true;
             }
         };
         FieldMapper dimMapper2 = new FakeFieldMapper(dim2, "index1");
+
+        FakeFieldType dim3 = new FakeFieldType("_internal_field") {
+            @Override
+            public boolean isDimension() {
+                return true;
+            }
+        };
+        FieldMapper dimMapper3 = new FakeFieldMapper(dim3, "index1");
+
+        FakeFieldType timestamp = new FakeFieldType("@timestamp");
+        FieldMapper timestampMapper = new FakeFieldMapper(timestamp, "index1");
 
         MetricType metricType = randomFrom(MetricType.values());
         FakeFieldType metric = new FakeFieldType("metric") {
@@ -180,15 +196,20 @@ public class MappingLookupTests extends ESTestCase {
         };
         FieldMapper metricMapper = new FakeFieldMapper(metric, "index1");
 
-        FakeFieldType plain = new FakeFieldType("plain");
+        FakeFieldType plain = new FakeFieldType("plain") {
+            @Override
+            public boolean hasDocValues() {
+                return false;
+            }
+        };
         FieldMapper plainMapper = new FakeFieldMapper(plain, "index1");
 
         MappingLookup mappingLookup = createMappingLookup(
-            List.of(dimMapper1, dimMapper2, metricMapper, plainMapper),
+            List.of(dimMapper1, dimMapper2, dimMapper3, timestampMapper, metricMapper, plainMapper),
             emptyList(),
             emptyList()
         );
-        assertThat(mappingLookup.getDimensions(), containsInAnyOrder("dim1", "dim2"));
+        assertThat(mappingLookup.getNonMetricFieldsWithDocValues(), containsInAnyOrder("dim1", "dim2"));
     }
 
     public void testShadowingOnConstruction() {

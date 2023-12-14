@@ -909,7 +909,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
 
-        if (fieldType().isDimension()) {
+        if (fieldType().isDimension() || context.indexSettings().getIndexMetadata().supportsTimesSeriesDynamicTemplates()) {
             context.getDimensions().addString(fieldType().name(), binaryValue);
         }
 

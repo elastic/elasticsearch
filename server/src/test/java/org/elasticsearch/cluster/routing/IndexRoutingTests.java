@@ -36,7 +36,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -633,43 +632,37 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(routing, Map.of("foo", "cat", "bar", "dog"), Math.floorMod(hash(List.of("foo", "cat")), shards));
     }
 
-    public void testRoutingPathAndDynamicDimensions() throws IOException {
+    public void testRoutingPathIgnoreDynamicDimensions() throws IOException {
         int shards = between(2, 1000);
         IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(
-            buildMetadata(IndexVersion.current(), shards, "static1,static2"),
+            buildMetadata(IndexVersion.current(), shards, "static,common"),
             List.of("dynamic1", "dynamic2")
         );
         assertIndexShard(
             routing,
-            Map.of("static1", "dog", "static2", "puppy", "dynamic1", "kitty", "dynamic2", "cat"),
-            Math.floorMod(hash(List.of("dynamic1", "kitty", "dynamic2", "cat", "static1", "dog", "static2", "puppy")), shards)
+            Map.of("static", "dog", "dynamic", "kitty", "common", "cat"),
+            Math.floorMod(hash(List.of("common", "cat", "static", "dog")), shards)
         );
     }
 
-    public void testRoutingPathAndDynamicDimensionsWithDuplicates() throws IOException {
+    public void testDynamicDimensionsThrowNonEmptyRoutingPath() throws IOException {
         int shards = between(2, 1000);
-        IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(
-            buildMetadata(IndexVersion.current(), shards, "static,common"),
-            List.of("dynamic", "common")
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> IndexRouting.fromIndexMetadataAndDynamicDimensions(
+                IndexMetadata.builder("test")
+                    .settings(
+                        settings(IndexVersion.current()).put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true)
+                            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "static1,static2")
+                            .build()
+                    )
+                    .numberOfShards(shards)
+                    .numberOfReplicas(1)
+                    .build(),
+                List.of("dynamic1", "dynamic2")
+            )
         );
-        assertIndexShard(
-            routing,
-            Map.of("static", "dog", "dynamic", "kitty", "common", "cat"),
-            Math.floorMod(hash(List.of("common", "cat", "dynamic", "kitty", "static", "dog")), shards)
-        );
-    }
-
-    public void testRoutingPathAndDynamicDimensionsWithDuplicatesThroughPathMatch() throws IOException {
-        int shards = between(2, 1000);
-        IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(
-            buildMetadata(IndexVersion.current(), shards, "static,c*"),
-            List.of("dynamic", "common")
-        );
-        assertIndexShard(
-            routing,
-            Map.of("static", "dog", "dynamic", "kitty", "common", "cat"),
-            Math.floorMod(hash(List.of("common", "cat", "dynamic", "kitty", "static", "dog")), shards)
-        );
+        assertThat(e.getMessage(), equalTo("[static1, static2]"));
     }
 
     public void testDynamicDimensionsEmpty() throws IOException {
@@ -684,42 +677,14 @@ public class IndexRoutingTests extends ESTestCase {
     public void testDynamicTemplates() throws IOException {
         int shards = between(2, 1000);
         IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicTemplates(
-            IndexMetadata.builder("test")
-                .settings(settings(IndexVersion.current()).put(IndexMetadata.DYNAMIC_DIMENSION_NAMES.getKey(), "dynamic1,dynamic2"))
-                .numberOfShards(shards)
-                .numberOfReplicas(1)
-                .build(),
-            Map.of("dimension1", "dynamic1", "dimension2", "dynamic2")
+            buildMetadataNoPath(IndexVersion.current(), shards),
+            Map.of("metric1", "dynamic1", "metric2", "dynamic2")
         );
         assertIndexShard(
             routing,
-            Map.of("dimension1", "dog", "dimension2", "cat", "dimension3", "kitten"),
+            Map.of("dimension1", "dog", "dimension2", "cat", "metric1", "kitten", "metric2", "puppy"),
             Math.floorMod(hash(List.of("dimension1", "dog", "dimension2", "cat")), shards)
         );
-    }
-
-    public void testMergeDimensions() throws IOException {
-        List<String> fromRoutingPath = List.of("a", "b", "c");
-        List<String> fromDynamicTemplates = List.of("f", "e", "d", "f");
-        assertThat(IndexRouting.mergeDimensions(fromRoutingPath, fromDynamicTemplates), contains("a", "b", "c", "d", "e", "f"));
-    }
-
-    public void testMergeDimensionsSingleDynamicDimension() throws IOException {
-        List<String> fromRoutingPath = List.of("a", "b", "c");
-        List<String> fromDynamicTemplates = List.of("d");
-        assertThat(IndexRouting.mergeDimensions(fromRoutingPath, fromDynamicTemplates), contains("a", "b", "c", "d"));
-    }
-
-    public void testMergeDimensionsNoDynamicDimensions() throws IOException {
-        List<String> fromRoutingPath = List.of("a", "b", "c");
-        List<String> fromDynamicTemplates = List.of();
-        assertEquals(IndexRouting.mergeDimensions(fromRoutingPath, fromDynamicTemplates), fromRoutingPath);
-    }
-
-    public void testMergeDimensionsNoRoutingPath() throws IOException {
-        List<String> fromRoutingPath = List.of();
-        List<String> fromDynamicTemplates = List.of("f", "e", "d");
-        assertThat(IndexRouting.mergeDimensions(fromRoutingPath, fromDynamicTemplates), contains("d", "e", "f"));
     }
 
     /**
@@ -740,7 +705,11 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     private IndexMetadata buildMetadataNoPath(IndexVersion createdVersion, int shards) {
-        return IndexMetadata.builder("test").settings(settings(createdVersion)).numberOfShards(shards).numberOfReplicas(1).build();
+        return IndexMetadata.builder("test")
+            .settings(settings(createdVersion).put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true))
+            .numberOfShards(shards)
+            .numberOfReplicas(1)
+            .build();
     }
 
     private IndexMetadata buildMetadata(IndexVersion createdVersion, int shards, String path) {

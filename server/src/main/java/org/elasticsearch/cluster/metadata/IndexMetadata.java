@@ -498,13 +498,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.ServerlessPublic
     );
 
-    public static final Setting<List<String>> DYNAMIC_DIMENSION_NAMES = Setting.stringListSetting(
-        "index._dynamic_dimension_names",
-        Setting.Property.IndexScope,
-        Property.Final,
-        Property.ServerlessPublic
-    );
-
     public static final Setting<Boolean> TIME_SERIES_DYNAMIC_TEMPLATES = Setting.boolSetting(
         "index.time_series_dynamic_templates",
         false,
@@ -572,8 +565,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int routingPartitionSize;
     private final List<String> routingPaths;
 
-    private final List<String> dynamicDimensionNames;
-
     private final int numberOfShards;
     private final int numberOfReplicas;
 
@@ -615,6 +606,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
     private final boolean isHidden;
+
+    private final boolean supportsTimesSeriesDynamicTemplates;
 
     private final IndexLongFieldRange timestampRange;
 
@@ -676,11 +669,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int routingNumShards,
         final int routingPartitionSize,
         final List<String> routingPaths,
-        final List<String> dynamicDimensionNames,
         final ActiveShardCount waitForActiveShards,
         final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
         final boolean isHidden,
+        final boolean supportsTimesSeriesDynamicTemplates,
         final IndexLongFieldRange timestampRange,
         final int priority,
         final long creationDate,
@@ -728,12 +721,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.routingFactor = routingNumShards / numberOfShards;
         this.routingPartitionSize = routingPartitionSize;
         this.routingPaths = routingPaths;
-        this.dynamicDimensionNames = dynamicDimensionNames;
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
         assert isHidden == INDEX_HIDDEN_SETTING.get(settings);
         this.isHidden = isHidden;
+        this.supportsTimesSeriesDynamicTemplates = supportsTimesSeriesDynamicTemplates;
         this.timestampRange = timestampRange;
         this.priority = priority;
         this.creationDate = creationDate;
@@ -784,11 +777,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
-            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             this.timestampRange,
             this.priority,
             this.creationDate,
@@ -843,11 +836,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
-            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             this.timestampRange,
             this.priority,
             this.creationDate,
@@ -900,11 +893,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
-            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             this.timestampRange,
             this.priority,
             this.creationDate,
@@ -957,11 +950,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
-            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             timestampRange,
             this.priority,
             this.creationDate,
@@ -1010,11 +1003,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
-            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             this.timestampRange,
             this.priority,
             this.creationDate,
@@ -1119,8 +1112,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return routingPaths;
     }
 
-    public List<String> getDynamicDimensionNames() {
-        return dynamicDimensionNames;
+    public boolean supportsTimesSeriesDynamicTemplates() {
+        return supportsTimesSeriesDynamicTemplates;
     }
 
     public int getTotalNumberOfShards() {
@@ -2184,8 +2177,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final List<String> routingPaths = INDEX_ROUTING_PATH.get(settings);
 
-            final List<String> dynamicDimensionNames = DYNAMIC_DIMENSION_NAMES.get(settings);
-
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
             List<String> tierPreference;
@@ -2260,18 +2251,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 getRoutingNumShards(),
                 routingPartitionSize,
                 routingPaths,
-                dynamicDimensionNames,
                 waitForActiveShards,
                 rolloverInfos.build(),
                 isSystem,
                 INDEX_HIDDEN_SETTING.get(settings),
+                TIME_SERIES_DYNAMIC_TEMPLATES.get(settings),
                 timestampRange,
-                IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
+                INDEX_PRIORITY_SETTING.get(settings),
                 settings.getAsLong(SETTING_CREATION_DATE, -1L),
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
                 tierPreference,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings),
-                settings.get(IndexMetadata.LIFECYCLE_NAME), // n.b. lookup by name to get null-if-not-present semantics
+                settings.get(LIFECYCLE_NAME), // n.b. lookup by name to get null-if-not-present semantics
                 lifecycleExecutionState,
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,

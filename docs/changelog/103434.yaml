@@ -1,0 +1,5 @@
+pr: 103434
+summary: Lower the `look_ahead_time` setting's default and max value
+area: TSDB
+type: enhancement
+issues: []

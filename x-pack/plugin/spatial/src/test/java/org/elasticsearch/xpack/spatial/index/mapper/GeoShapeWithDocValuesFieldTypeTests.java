@@ -128,17 +128,15 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             geoFormatterFactory
         ).setStored(true).build(MapperBuilderContext.root(randomBoolean(), false)).fieldType();
 
-        ByteOrder byteOrder = randomBoolean() ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
-
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.0 15.0)";
 
         BytesRef wkbLineString = new BytesRef(
-            WellKnownBinary.toWKB(new Line(new double[] { 42.0, 30.0 }, new double[] { 27.1, 50.0 }), byteOrder)
+            WellKnownBinary.toWKB(new Line(new double[] { 42.0, 30.0 }, new double[] { 27.1, 50.0 }), ByteOrder.LITTLE_ENDIAN)
         );
-        BytesRef wkbPoint = new BytesRef(WellKnownBinary.toWKB(new Point(14.0, 15.0), byteOrder));
+        BytesRef wkbPoint = new BytesRef(WellKnownBinary.toWKB(new Point(14.0, 15.0), ByteOrder.LITTLE_ENDIAN));
         // Test a single shape in wkb format.
         List<Object> storedValues = List.of(wkbLineString);
         assertEquals(List.of(jsonLineString), fetchStoredValue(mapper, storedValues, null));

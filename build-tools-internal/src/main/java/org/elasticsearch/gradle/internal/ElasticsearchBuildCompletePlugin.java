@@ -89,6 +89,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
     private List<File> resolveProjectLogs(File projectDir) {
         var projectDirFiles = getFileOperations().fileTree(projectDir);
         projectDirFiles.include("**/*.hprof");
+        projectDirFiles.include("**/build/reports/configuration-cache/**/*.html");
         projectDirFiles.include("**/build/test-results/**/*.xml");
         projectDirFiles.include("**/build/testclusters/**");
         projectDirFiles.include("**/build/testrun/*/temp/**");

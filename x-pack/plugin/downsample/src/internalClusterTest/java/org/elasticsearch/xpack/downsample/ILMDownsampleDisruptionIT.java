@@ -194,7 +194,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
 
         final String targetIndex = "downsample-1h-" + sourceIndex;
         startDownsampleTaskViaIlm(sourceIndex, targetIndex, disruptionStart, disruptionEnd);
-        waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty(), 60, TimeUnit.SECONDS);
         ensureStableCluster(cluster.numDataAndMasterNodes());
         assertTargetIndex(cluster, targetIndex, indexedDocs);
     }

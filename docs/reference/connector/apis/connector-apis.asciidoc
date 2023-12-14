@@ -36,7 +36,9 @@ You can use these APIs to create, cancel, delete and update sync jobs.
 
 Use the following APIs to manage sync jobs:
 
+
 * <<cancel-connector-sync-job-api>>
+* <<check-in-connector-sync-job-api>>
 * <<create-connector-sync-job-api>>
 * <<delete-connector-sync-job-api>
 * <<get-connector-sync-job-api>>
@@ -44,6 +46,7 @@ Use the following APIs to manage sync jobs:
 
 
 include::cancel-connector-sync-job-api.asciidoc[]
+include::check-in-connector-sync-job-api.asciidoc[]
 include::create-connector-api.asciidoc[]
 include::create-connector-sync-job-api.asciidoc[]
 include::delete-connector-api.asciidoc[]

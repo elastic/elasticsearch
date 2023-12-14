@@ -194,8 +194,9 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString()));
         shardRelocationsTracker.reset();
 
-        // reduce disk size of node 0 so that only a single shard can be allocated
-        getTestFileStore(dataNodeName).setTotalSpace(shardSizes.getBiggestShardSize() + WATERMARK_BYTES + 1L);
+        // reduce disk size of node 0 so that only 1 of 2 smallest shards can be allocated
+        var usableSpace = shardSizes.sizes().get(1).size();
+        getTestFileStore(dataNodeName).setTotalSpace(usableSpace + WATERMARK_BYTES + 1L);
         refreshDiskUsage();
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("repo", "snap")
@@ -205,7 +206,11 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertThat(restoreInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(restoreInfo.failedShards(), is(0));
 
-        assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(shardSizes.getAllShardIds()));
+        assertBusyWithDiskUsageRefresh(
+            dataNode0Id,
+            indexName,
+            new ContainsExactlyOneOf<>(shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace))
+        );
         shardRelocationsTracker.assertRelocationCount(0);
     }
 
@@ -269,16 +274,12 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             return sizes.get(0).size();
         }
 
-        public long getBiggestShardSize() {
-            return sizes.get(sizes.size() - 1).size();
-        }
-
-        public Set<ShardId> getShardIdsSmallerOrEqual(long size) {
+        public Set<ShardId> getShardIdsWithSizeSmallerOrEqual(long size) {
             return sizes.stream().filter(entry -> entry.size <= size).map(ShardSize::shardId).collect(toSet());
         }
 
         public Set<ShardId> getSmallestShardIds() {
-            return getShardIdsSmallerOrEqual(getSmallestShardSize());
+            return getShardIdsWithSizeSmallerOrEqual(getSmallestShardSize());
         }
 
         public Set<ShardId> getAllShardIds() {

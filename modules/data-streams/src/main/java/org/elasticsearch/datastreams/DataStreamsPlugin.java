@@ -90,7 +90,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         Setting.Property.Dynamic
     );
 
-    public static final TimeValue LOOK_AHEAD_TIME_MAXIMUM = TimeValue.timeValueHours(2);
+    private static final TimeValue MAX_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2);
     public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
         "index.look_ahead_time",
         TimeValue.timeValueMinutes(30),
@@ -100,6 +100,15 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
+
+    public static TimeValue getLookAheadTime(Settings settings) {
+        TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(settings);
+        if (lookAheadTime.compareTo(DataStreamsPlugin.MAX_LOOK_AHEAD_TIME) > 0) {
+            lookAheadTime = DataStreamsPlugin.MAX_LOOK_AHEAD_TIME;
+        }
+        return lookAheadTime;
+    }
+
     public static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
     public static final Setting<TimeValue> LOOK_BACK_TIME = Setting.timeSetting(
         "index.look_back_time",

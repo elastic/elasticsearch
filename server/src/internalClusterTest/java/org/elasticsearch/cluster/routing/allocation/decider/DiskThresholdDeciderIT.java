@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
@@ -40,16 +39,14 @@ import org.hamcrest.TypeSafeMatcher;
 
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -112,11 +109,13 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
 
-        final ShardRelocationsTracker shardRelocationsTracker = new ShardRelocationsTracker();
+        final AtomicBoolean allowRelocations = new AtomicBoolean(true);
         final InternalClusterInfoService clusterInfoService = getInternalClusterInfoService();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
-            shardRelocationsTracker.process(event);
+            if (allowRelocations.get() == false) {
+                assertThat(numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING), equalTo(0));
+            }
         });
 
         final String dataNode0Id = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
@@ -134,7 +133,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         assertAcked(indicesAdmin().prepareDelete(indexName).get());
         updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString()));
-        shardRelocationsTracker.reset();
+        allowRelocations.set(false);
 
         // reduce disk size of node 0 so that no shards fit below the low watermark, forcing shards to be assigned to the other data node
         getTestFileStore(dataNodeName).setTotalSpace(shardSizes.getSmallestShardSize() + WATERMARK_BYTES - 1L);
@@ -148,14 +147,13 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertThat(restoreInfo.failedShards(), is(0));
 
         assertThat(getShardIds(dataNode0Id, indexName), empty());
-        shardRelocationsTracker.assertRelocationCount(0);
 
+        allowRelocations.set(true);
         updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         getTestFileStore(dataNodeName).setTotalSpace(shardSizes.getSmallestShardSize() + WATERMARK_BYTES);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(shardSizes.getSmallestShardIds()));
-        shardRelocationsTracker.assertRelocationCount(1);
     }
 
     public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleShards() throws Exception {
@@ -170,11 +168,13 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
 
-        final ShardRelocationsTracker shardRelocationsTracker = new ShardRelocationsTracker();
+        final AtomicBoolean allowRelocations = new AtomicBoolean(true);
         final InternalClusterInfoService clusterInfoService = getInternalClusterInfoService();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
-            shardRelocationsTracker.process(event);
+            if (allowRelocations.get() == false) {
+                assertThat(numberOfShardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING), equalTo(0));
+            }
         });
 
         final String dataNode0Id = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
@@ -192,7 +192,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         assertAcked(indicesAdmin().prepareDelete(indexName).get());
         updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString()));
-        shardRelocationsTracker.reset();
+        allowRelocations.set(false);
 
         // reduce disk size of node 0 so that only 1 of 2 smallest shards can be allocated
         var usableSpace = shardSizes.sizes().get(1).size();
@@ -211,7 +211,6 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             indexName,
             new ContainsExactlyOneOf<>(shardSizes.getShardIdsWithSizeSmallerOrEqual(usableSpace))
         );
-        shardRelocationsTracker.assertRelocationCount(0);
     }
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {
@@ -326,29 +325,6 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             final Set<ShardId> shardRoutings = getShardIds(nodeId, indexName);
             assertThat("Mismatching shard routings: " + shardRoutings, shardRoutings, matcher);
         }, 5L, TimeUnit.SECONDS);
-    }
-
-    private static final class ShardRelocationsTracker {
-        private int relocationCount;
-        private final Map<ShardId, Set<String>> relocations = new HashMap<>();
-
-        private void process(ClusterChangedEvent event) {
-            for (ShardRouting shard : shardsWithState(event.state().getRoutingNodes(), ShardRoutingState.RELOCATING)) {
-                boolean added = relocations.computeIfAbsent(shard.shardId(), ignored -> new LinkedHashSet<>())
-                    .add(shard.currentNodeId() + "-->" + shard.relocatingNodeId());
-                if (added) {
-                    relocationCount++;
-                }
-            }
-        }
-
-        private void reset() {
-            relocations.clear();
-        }
-
-        private void assertRelocationCount(int count) {
-            assertThat("Expected [" + count + "] relocations but recorded: " + relocations, relocationCount, equalTo(count));
-        }
     }
 
     private InternalClusterInfoService getInternalClusterInfoService() {

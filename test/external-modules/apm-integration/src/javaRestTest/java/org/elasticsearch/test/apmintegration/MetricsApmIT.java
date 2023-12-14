@@ -107,7 +107,7 @@ public class MetricsApmIT extends ESRestTestCase {
 
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
-        finished.await(30, TimeUnit.SECONDS);
+        assertTrue("Timeout when waiting for assertions to complete.", finished.await(30, TimeUnit.SECONDS));
         assertThat(sampleAssertions, Matchers.equalTo(Collections.emptyMap()));
     }
 

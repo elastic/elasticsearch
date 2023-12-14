@@ -59,11 +59,13 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
             evaluatorName.apply("String"),
             DataTypes.DOUBLE,
             bytesRef -> null,
-            bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.NumberFormatException: "
-                    + (bytesRef.utf8ToString().isEmpty() ? "empty String" : ("For input string: \"" + bytesRef.utf8ToString() + "\""))
-            )
+            bytesRef -> {
+                var exception = expectThrows(NumberFormatException.class, () -> Double.parseDouble(bytesRef.utf8ToString()));
+                return List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: " + exception
+                );
+            }
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,

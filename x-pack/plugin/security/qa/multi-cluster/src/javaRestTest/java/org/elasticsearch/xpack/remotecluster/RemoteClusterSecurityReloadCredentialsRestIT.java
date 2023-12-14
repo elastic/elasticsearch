@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -22,6 +23,16 @@ import java.util.Locale;
 import java.util.Map;
 
 public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemoteClusterSecurityTestCase {
+
+    @BeforeClass
+    public static void disableInFips() {
+        assumeFalse(
+            "Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload"
+                + "settings api call, requires TLS to be configured for the transport layer",
+            inFipsJvm()
+        );
+    }
+
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
     static {
         fulfillingCluster = ElasticsearchCluster.local()

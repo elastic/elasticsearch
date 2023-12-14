@@ -75,7 +75,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.action.settings.ReloadRemoteClusterCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -944,7 +944,7 @@ public class SecurityTests extends ESTestCase {
             ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
             listener.onResponse(ActionResponse.Empty.INSTANCE);
             return null;
-        }).when(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
+        }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
 
         security = new Security(settings, Collections.emptyList()) {
             @Override
@@ -961,7 +961,7 @@ public class SecurityTests extends ESTestCase {
         final Settings inputSettings = Settings.EMPTY;
         security.reload(inputSettings);
 
-        verify(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
+        verify(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
         verify(mockedRealms).stream();
     }
 
@@ -976,14 +976,14 @@ public class SecurityTests extends ESTestCase {
                 ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
                 listener.onFailure(new RuntimeException("failed remote cluster credentials reload"));
                 return null;
-            }).when(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
+            }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
         } else {
             doAnswer((inv) -> {
                 @SuppressWarnings("unchecked")
                 ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
                 return null;
-            }).when(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
+            }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
         }
 
         final Realms mockedRealms = mock(Realms.class);
@@ -1018,7 +1018,7 @@ public class SecurityTests extends ESTestCase {
             assertThat(exception.getSuppressed()[0].getMessage(), containsString("failed jwt realms reload"));
         }
         // Verify both called despite failure
-        verify(mockedClient).execute(eq(ReloadRemoteClusterCredentialsAction.INSTANCE), any(), any());
+        verify(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
         verify(mockedRealms).stream();
     }
 

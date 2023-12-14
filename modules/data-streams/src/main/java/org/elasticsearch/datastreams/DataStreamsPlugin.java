@@ -93,7 +93,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     private static final TimeValue MAX_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2);
     public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
         "index.look_ahead_time",
-        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueHours(2),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueDays(7), // is effectively 2h now.
         Setting.Property.IndexScope,
@@ -101,6 +101,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         Setting.Property.ServerlessPublic
     );
 
+    /**
+     * Returns the look ahead time and lowers it when it to 2 hours if it is configured to more than 2 hours.
+     */
     public static TimeValue getLookAheadTime(Settings settings) {
         TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(settings);
         if (lookAheadTime.compareTo(DataStreamsPlugin.MAX_LOOK_AHEAD_TIME) > 0) {

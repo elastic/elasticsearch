@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +28,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -144,16 +144,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      */
     public static void openExchange(
         TransportService transportService,
-        DiscoveryNode targetNode,
+        Transport.Connection connection,
         String sessionId,
         int exchangeBuffer,
         Executor responseExecutor,
         ActionListener<Void> listener
     ) {
         transportService.sendRequest(
-            targetNode,
+            connection,
             OPEN_EXCHANGE_ACTION_NAME,
             new OpenExchangeRequest(sessionId, exchangeBuffer),
+            TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> TransportResponse.Empty.INSTANCE, responseExecutor)
         );
     }
@@ -251,16 +252,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param parentTask       the parent task that initialized the ESQL request
      * @param exchangeId       the exchange ID
      * @param transportService the transport service
-     * @param remoteNode       the node where the remote exchange sink is located
+     * @param conn             the connection to the remote node where the remote exchange sink is located
      */
-    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, DiscoveryNode remoteNode) {
-        return new TransportRemoteSink(transportService, blockFactory, remoteNode, parentTask, exchangeId, executor);
+    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
+        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
     }
 
     record TransportRemoteSink(
         TransportService transportService,
         BlockFactory blockFactory,
-        DiscoveryNode node,
+        Transport.Connection connection,
         Task parentTask,
         String exchangeId,
         Executor responseExecutor
@@ -269,7 +270,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
             transportService.sendChildRequest(
-                node,
+                connection,
                 EXCHANGE_ACTION_NAME,
                 new ExchangeRequest(exchangeId, allSourcesFinished),
                 parentTask,

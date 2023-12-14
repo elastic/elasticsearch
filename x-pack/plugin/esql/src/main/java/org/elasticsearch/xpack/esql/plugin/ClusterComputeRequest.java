@@ -7,18 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -27,69 +22,59 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-final class DataNodeRequest extends TransportRequest implements IndicesRequest {
+final class ClusterComputeRequest extends TransportRequest implements IndicesRequest {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
+    private final String clusterAlias;
     private final String sessionId;
     private final EsqlConfiguration configuration;
-    private final String clusterAlias;
-    private final List<ShardId> shardIds;
-    private final Map<Index, AliasFilter> aliasFilters;
     private final PhysicalPlan plan;
 
-    private String[] indices; // lazily computed
+    private final String[] originalIndices;
+    private final String[] indices;
 
-    DataNodeRequest(
+    ClusterComputeRequest(
+        String clusterAlias,
         String sessionId,
         EsqlConfiguration configuration,
-        String clusterAlias,
-        List<ShardId> shardIds,
-        Map<Index, AliasFilter> aliasFilters,
-        PhysicalPlan plan
+        PhysicalPlan plan,
+        String[] indices,
+        String[] originalIndices
     ) {
+        this.clusterAlias = clusterAlias;
         this.sessionId = sessionId;
         this.configuration = configuration;
-        this.clusterAlias = clusterAlias;
-        this.shardIds = shardIds;
-        this.aliasFilters = aliasFilters;
         this.plan = plan;
+        this.indices = indices;
+        this.originalIndices = originalIndices;
     }
 
-    DataNodeRequest(StreamInput in) throws IOException {
+    ClusterComputeRequest(StreamInput in) throws IOException {
         super(in);
+        this.clusterAlias = in.readString();
         this.sessionId = in.readString();
         this.configuration = new EsqlConfiguration(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
-            this.clusterAlias = in.readString();
-        } else {
-            this.clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        }
-        this.shardIds = in.readCollectionAsList(ShardId::new);
-        this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
         this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
+        this.indices = in.readStringArray();
+        this.originalIndices = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(clusterAlias);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
-            out.writeString(clusterAlias);
-        }
-        out.writeCollection(shardIds);
-        out.writeMap(aliasFilters);
         new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
+        out.writeStringArray(indices);
+        out.writeStringArray(originalIndices);
     }
 
     @Override
     public String[] indices() {
-        if (indices == null) {
-            indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
-        }
         return indices;
     }
 
@@ -107,9 +92,13 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return new CancellableTask(id, type, action, "", parentTaskId, headers) {
             @Override
             public String getDescription() {
-                return DataNodeRequest.this.getDescription();
+                return ClusterComputeRequest.this.getDescription();
             }
         };
+    }
+
+    String clusterAlias() {
+        return clusterAlias;
     }
 
     String sessionId() {
@@ -120,23 +109,8 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return configuration;
     }
 
-    QueryPragmas pragmas() {
-        return configuration.pragmas();
-    }
-
-    String clusterAlias() {
-        return clusterAlias;
-    }
-
-    List<ShardId> shardIds() {
-        return shardIds;
-    }
-
-    /**
-     * Returns a map from index UUID to alias filters
-     */
-    Map<Index, AliasFilter> aliasFilters() {
-        return aliasFilters;
+    String[] originalIndices() {
+        return originalIndices;
     }
 
     PhysicalPlan plan() {
@@ -145,30 +119,30 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
 
     @Override
     public String getDescription() {
-        return "shards=" + shardIds + " plan=" + plan;
+        return "indices=" + Arrays.toString(indices) + " plan=" + plan;
     }
 
     @Override
     public String toString() {
-        return "DataNodeRequest{" + getDescription() + "}";
+        return "ClusterComputeRequest{" + getDescription() + "}";
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DataNodeRequest request = (DataNodeRequest) o;
-        return sessionId.equals(request.sessionId)
+        ClusterComputeRequest request = (ClusterComputeRequest) o;
+        return clusterAlias.equals(request.clusterAlias)
+            && sessionId.equals(request.sessionId)
             && configuration.equals(request.configuration)
-            && clusterAlias.equals(request.clusterAlias)
-            && shardIds.equals(request.shardIds)
-            && aliasFilters.equals(request.aliasFilters)
+            && Arrays.equals(indices, request.indices)
+            && Arrays.equals(originalIndices, request.originalIndices)
             && plan.equals(request.plan)
             && getParentTask().equals(request.getParentTask());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, clusterAlias, shardIds, aliasFilters, plan);
+        return Objects.hash(sessionId, configuration, Arrays.hashCode(indices), Arrays.hashCode(originalIndices), plan);
     }
 }

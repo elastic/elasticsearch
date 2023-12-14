@@ -12,6 +12,7 @@ import org.apache.http.HttpEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
@@ -52,6 +53,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final Integer lineNumber;
     private final CsvTestCase testCase;
 
+    protected static EsqlSpecTestCase currentSpec;
+
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
@@ -69,15 +72,29 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client());
-        }
+        currentSpec = this;
+        shouldSkipTest(testCase, testName);
+        loadTestDataIfNeeded(client());
     }
 
     @AfterClass
-    public static void wipeTestData() throws IOException {
+    public static void afterClass() throws IOException {
+        if (currentSpec != null) {
+            currentSpec.wipeTestData(client());
+            currentSpec = null;
+        }
+    }
+
+    protected void loadTestDataIfNeeded(RestClient client) throws IOException {
+        String indexName = CSV_DATASET_MAP.keySet().iterator().next();
+        if (indexExists(client, indexName) == false) {
+            loadDataSetIntoEs(client);
+        }
+    }
+
+    protected void wipeTestData(RestClient client) throws IOException {
         try {
-            adminClient().performRequest(new Request("DELETE", "/*"));
+            client.performRequest(new Request("DELETE", "/*"));
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -87,19 +104,18 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     public boolean logResults() {
-        return false;
+        return true;
     }
 
     public final void test() throws Throwable {
         try {
-            shouldSkipTest(testName);
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
         }
     }
 
-    protected void shouldSkipTest(String testName) {
+    protected void shouldSkipTest(CsvTestCase testCase, String testName) {
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
     }
 

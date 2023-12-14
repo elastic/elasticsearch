@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -497,8 +499,27 @@ public class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         List<String> warnings = new ArrayList<>(response.getWarnings());
         warnings.removeAll(mutedWarnings());
+        allowedWarnings = normalizeWarnings(warnings, allowedWarnings);
         assertMap(warnings, matchesList(allowedWarnings));
         return response.getEntity();
+    }
+
+    static final Pattern WARNING_LINE = Pattern.compile("(Line \\d+:)(\\d+)(:)");
+
+    static List<String> normalizeWarnings(List<String> actualWarnings, List<String> allowedWarnings) {
+        allowedWarnings = new ArrayList<>(allowedWarnings);
+        for (int i = 0; i < actualWarnings.size(); i++) {
+            Matcher matcher = WARNING_LINE.matcher(actualWarnings.get(i));
+            if (matcher.find()) {
+                String position = matcher.group(2);
+                Matcher replacer = WARNING_LINE.matcher(allowedWarnings.get(i));
+                if (replacer.find()) {
+                    String normalized = replacer.replaceAll("$1" + position + "$3");
+                    allowedWarnings.set(i, normalized);
+                }
+            }
+        }
+        return allowedWarnings;
     }
 
     private static Set<String> mutedWarnings() {

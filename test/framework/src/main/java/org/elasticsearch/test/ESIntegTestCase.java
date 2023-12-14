@@ -1726,9 +1726,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (forceRefresh) {
             assertNoFailures(indicesAdmin().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
         }
-        for (IndexRequestBuilder builder : builders) {
-            builder.request().decRef();
-        }
     }
 
     private final AtomicInteger dummmyDocIdGenerator = new AtomicInteger();

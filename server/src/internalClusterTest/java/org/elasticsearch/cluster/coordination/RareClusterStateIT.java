@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -284,7 +285,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // this request does not change the cluster state, because mapping is already created,
         // we don't await and cancel committed publication
-        ActionFuture<DocWriteResponse> docIndexResponse = prepareIndex("index").setId("1").setSource("field", 42).execute();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("1").setSource("field", 42);
+        ActionFuture<DocWriteResponse> docIndexResponse = indexRequestBuilder.execute();
+        indexRequestBuilder.request().decRef();
 
         // Wait a bit to make sure that the reason why we did not get a response
         // is that cluster state processing is blocked and not just that it takes
@@ -373,7 +376,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
             assertEquals(minVersion, maxVersion);
         });
 
-        final ActionFuture<DocWriteResponse> docIndexResponse = prepareIndex("index").setId("1").setSource("field", 42).execute();
+        IndexRequestBuilder indexRequestBuilder1 = prepareIndex("index").setId("1").setSource("field", 42);
+        final ActionFuture<DocWriteResponse> docIndexResponse = indexRequestBuilder1.execute();
 
         assertBusy(() -> assertTrue(client().prepareGet("index", "1").get().isExists()));
 
@@ -382,8 +386,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // if the dynamic mapping update is not applied on the replica yet.
         // this request does not change the cluster state, because the mapping is dynamic,
         // we need to await and cancel committed publication
+        IndexRequestBuilder indexRequestBuilder2 = prepareIndex("index").setId("2").setSource("field2", 42);
         ActionFuture<DocWriteResponse> dynamicMappingsFut = executeAndCancelCommittedPublication(
-            prepareIndex("index").setId("2").setSource("field2", 42)
+            indexRequestBuilder2
         );
 
         // ...and wait for second mapping to be available on master
@@ -413,6 +418,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
         assertEquals(2, docIndexResponse.get(10, TimeUnit.SECONDS).getShardInfo().getTotal()); // both shards should have succeeded
 
         assertThat(dynamicMappingsFut.get(30, TimeUnit.SECONDS).getResult(), equalTo(CREATED));
+        indexRequestBuilder1.request().decRef();
+        indexRequestBuilder2.request().decRef();
     }
 
 }

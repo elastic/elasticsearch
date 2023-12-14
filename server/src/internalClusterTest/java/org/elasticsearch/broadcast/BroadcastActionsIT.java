@@ -33,9 +33,9 @@ public class BroadcastActionsIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         logger.info("Running Cluster Health");
-        client().index(new IndexRequest("test").id("1").source(source("1", "test"))).actionGet();
+        index("test", "1", source("1", "test"));
         flush();
-        client().index(new IndexRequest("test").id("2").source(source("2", "test"))).actionGet();
+        index("test", "2", source("2", "test"));
         refresh();
 
         logger.info("Count");

@@ -372,6 +372,7 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTra
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.security.Provider;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1161,6 +1162,7 @@ public class Security extends Plugin
 
         // The following just apply in node mode
         settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
+        settingsList.add(XPackSettings.FIPS_REQUIRED_PROVIDERS);
 
         SSLService.registerSettings(settingsList);
         // IP Filter settings
@@ -1542,6 +1544,30 @@ public class Security extends Plugin
                 );
             }
         });
+
+        Set<String> foundProviders = new HashSet<>();
+        for (Provider provider : java.security.Security.getProviders()) {
+            foundProviders.add(provider.getName().toLowerCase(Locale.ROOT));
+            if (logger.isTraceEnabled()) {
+                logger.trace("Security Provider: " + provider.getName() + ", Version: " + provider.getVersionStr());
+                provider.entrySet().forEach(entry -> { logger.trace("\t" + entry.getKey()); });
+            }
+        }
+
+        final List<String> requiredProviders = XPackSettings.FIPS_REQUIRED_PROVIDERS.get(settings);
+        logger.info("JVM Security Providers " + foundProviders);
+        if (requiredProviders != null && requiredProviders.isEmpty() == false) {
+            List<String> unsatisfiedProviders = requiredProviders.stream()
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .filter(element -> foundProviders.contains(element) == false)
+                .toList();
+
+            if (unsatisfiedProviders.isEmpty() == false) {
+                String errorMessage = "Could not find required FIPS security provider " + unsatisfiedProviders;
+                logger.error(errorMessage);
+                validationErrors.add(errorMessage);
+            }
+        }
 
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();

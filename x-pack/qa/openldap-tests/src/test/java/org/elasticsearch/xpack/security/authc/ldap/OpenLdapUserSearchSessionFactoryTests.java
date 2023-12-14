@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -16,6 +18,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.OpenLdapTests;
+import org.elasticsearch.test.fixtures.idp.OpenLdapTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -31,6 +35,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.nio.file.Path;
 import java.text.MessageFormat;
@@ -44,15 +49,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
 
     private Settings globalSettings;
     private ThreadPool threadPool;
-    private static final String LDAPCACERT_PATH = "/ca_server.pem";
+
+    @ClassRule
+    public static final OpenLdapTestContainer openLdapContainer = new OpenLdapTestContainer();
 
     @Before
     public void init() {
-        Path caPath = getDataPath(LDAPCACERT_PATH);
+        Path caPath = openLdapContainer.getCaCertPath();
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
@@ -79,7 +87,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
             .put(
                 LdapTestCase.buildLdapSettings(
                     realmId,
-                    new String[] { OpenLdapTests.OPEN_LDAP_DNS_URL },
+                    new String[] { openLdapContainer.getLdapUrl() },
                     Strings.EMPTY_ARRAY,
                     groupSearchBase,
                     LdapSearchScope.ONE_LEVEL,

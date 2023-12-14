@@ -1945,14 +1945,19 @@ public class Security extends Plugin
      * See {@link TransportReloadRemoteClusterCredentialsAction} for more context.
      */
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
-        final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>();
+        // TODO we need to fork
+        final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>() {
+            @Override
+            protected boolean blockingAllowed() {
+                return true;
+            }
+        };
         getClient().execute(
             ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
             new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
             future
         );
-        assert future.isDone() : "expecting local-only action call to return immediately on invocation";
-        future.actionGet(0, TimeUnit.NANOSECONDS);
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

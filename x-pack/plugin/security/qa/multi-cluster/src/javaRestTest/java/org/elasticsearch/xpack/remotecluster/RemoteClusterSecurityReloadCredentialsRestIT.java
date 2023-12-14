@@ -22,6 +22,12 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+
 public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     @BeforeClass
@@ -95,10 +101,21 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
         );
     }
 
+    @SuppressWarnings("unchecked")
     private void configureRemoteClusterCredentials(String clusterAlias, String credentials) throws IOException {
         keystoreSettings.put("cluster.remote." + clusterAlias + ".credentials", credentials);
         queryCluster.updateStoredSecureSettings();
-        assertOK(adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        final Response reloadResponse = adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings"));
+        assertOK(reloadResponse);
+        final Map<String, Object> map = entityAsMap(reloadResponse);
+        assertThat(map.get("nodes"), instanceOf(Map.class));
+        final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
+        assertThat(nodes, is(not(anEmptyMap())));
+        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
+            assertThat(entry.getValue(), instanceOf(Map.class));
+            final Map<String, Object> node = (Map<String, Object>) entry.getValue();
+            assertThat(node.get("reload_exception"), nullValue());
+        }
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

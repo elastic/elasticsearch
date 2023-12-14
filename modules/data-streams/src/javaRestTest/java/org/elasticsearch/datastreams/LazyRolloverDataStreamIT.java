@@ -72,7 +72,7 @@ public class LazyRolloverDataStreamIT extends DisabledSecurityDataStreamTestCase
             assertThat(dataStreams.size(), is(1));
             Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
             assertThat(dataStream.get("name"), equalTo(dataStreamName));
-            assertThat(dataStream.get("rollover_needed"), is(false));
+            assertThat(dataStream.get("rollover_on_write"), is(false));
             assertThat(((List<Object>) dataStream.get("indices")).size(), is(2));
         }
     }
@@ -121,7 +121,7 @@ public class LazyRolloverDataStreamIT extends DisabledSecurityDataStreamTestCase
             assertThat(dataStreams.size(), is(1));
             Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
             assertThat(dataStream.get("name"), equalTo(dataStreamName));
-            assertThat(dataStream.get("rollover_needed"), is(true));
+            assertThat(dataStream.get("rollover_on_write"), is(true));
             assertThat(((List<Object>) dataStream.get("indices")).size(), is(1));
         }
 

@@ -847,3 +847,92 @@ median_duration:double | bucket:date
 3107561.0              |2023-10-23T12:00:00.000Z
 1756467.0              |2023-10-23T13:00:00.000Z
 ;
+
+dateExtract
+// tag::dateExtract[]
+ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")
+| EVAL year = DATE_EXTRACT("year", date)
+// end::dateExtract[]
+;
+
+// tag::dateExtract-result[]
+date:date                 | year:long
+2022-05-06T00:00:00.000Z  | 2022
+// end::dateExtract-result[]
+;
+
+docsDateExtractBusinessHours
+// tag::docsDateExtractBusinessHours[]
+FROM sample_data
+| WHERE DATE_EXTRACT("hour_of_day", @timestamp) < 9 AND DATE_EXTRACT("hour_of_day", @timestamp) >= 17
+// end::docsDateExtractBusinessHours[]
+;
+
+// tag::docsDateExtractBusinessHours-result[]
+@timestamp:date       |   client_ip:ip   |event_duration:long |       message:keyword
+// end::docsDateExtractBusinessHours-result[]
+;
+
+docsDateFormat
+// tag::docsDateFormat[]
+FROM employees
+| KEEP first_name, last_name, hire_date
+| EVAL hired = DATE_FORMAT("YYYY-MM-dd", hire_date)
+// end::docsDateFormat[]
+| SORT first_name
+| LIMIT 3
+;
+
+// tag::docsDateFormat-result[]
+first_name:keyword   |   last_name:keyword   | hire_date:date           | hired:keyword
+Alejandro      |McAlpine       |1991-06-26T00:00:00.000Z|1991-06-26     
+Amabile        |Gomatam        |1992-11-18T00:00:00.000Z|1992-11-18     
+Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-06-02     
+// end::docsDateFormat-result[]
+;
+
+docsDateTrunc
+// tag::docsDateTrunc[]
+FROM employees
+| KEEP first_name, last_name, hire_date
+| EVAL year_hired = DATE_TRUNC(1 year, hire_date)
+// end::docsDateTrunc[]
+| SORT first_name
+| LIMIT 3
+;
+
+// tag::docsDateTrunc-result[]
+first_name:keyword   |   last_name:keyword   | hire_date:date           | year_hired:date
+Alejandro      |McAlpine       |1991-06-26T00:00:00.000Z|1991-01-01T00:00:00.000Z
+Amabile        |Gomatam        |1992-11-18T00:00:00.000Z|1992-01-01T00:00:00.000Z
+Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-01-01T00:00:00.000Z
+// end::docsDateTrunc-result[]
+;
+
+docsDateTruncHistogram
+// tag::docsDateTruncHistogram[]
+FROM employees
+| EVAL year = DATE_TRUNC(1 year, hire_date)
+| STATS hires = COUNT(emp_no) BY year
+| SORT year
+// end::docsDateTruncHistogram[]
+;
+
+// tag::docsDateTruncHistogram-result[]
+hires:long     | year:date
+11             |1985-01-01T00:00:00.000Z
+11             |1986-01-01T00:00:00.000Z
+15             |1987-01-01T00:00:00.000Z
+9              |1988-01-01T00:00:00.000Z
+13             |1989-01-01T00:00:00.000Z
+12             |1990-01-01T00:00:00.000Z
+6              |1991-01-01T00:00:00.000Z
+8              |1992-01-01T00:00:00.000Z
+3              |1993-01-01T00:00:00.000Z
+4              |1994-01-01T00:00:00.000Z
+5              |1995-01-01T00:00:00.000Z
+1              |1996-01-01T00:00:00.000Z
+1              |1997-01-01T00:00:00.000Z
+1              |1999-01-01T00:00:00.000Z
+// end::docsDateTruncHistogram-result[]
+;

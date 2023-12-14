@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -382,7 +383,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             assertThat(
                 "No monitoring documents yet",
-                client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*").setSize(0).get().getHits().getTotalHits().value,
+                SearchResponseUtils.getTotalHitsValue(client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*").setSize(0)),
                 greaterThan(0L)
             );
         }, 30L, TimeUnit.SECONDS);

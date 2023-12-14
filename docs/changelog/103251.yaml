@@ -1,0 +1,5 @@
+pr: 103251
+summary: Wait for reroute before acking put-shutdown
+area: Infra/Node Lifecycle
+type: bug
+issues: []

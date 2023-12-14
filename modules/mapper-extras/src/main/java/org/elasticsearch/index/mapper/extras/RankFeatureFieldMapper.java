@@ -9,8 +9,6 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -41,18 +39,6 @@ import java.util.Set;
 public class RankFeatureFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "rank_feature";
-
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE;
-
-        static {
-            FieldType ft = new FieldType();
-            ft.setTokenized(false);
-            ft.setIndexOptions(IndexOptions.NONE);
-            ft.setOmitNorms(true);
-            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
-        }
-    }
 
     private static RankFeatureFieldType ft(FieldMapper in) {
         return ((RankFeatureFieldMapper) in).fieldType();

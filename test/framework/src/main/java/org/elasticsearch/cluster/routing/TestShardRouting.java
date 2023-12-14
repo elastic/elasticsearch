@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -18,11 +17,15 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collections;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.cluster.routing.AllocationId.newInitializing;
+import static org.elasticsearch.cluster.routing.AllocationId.newRelocation;
+import static org.elasticsearch.core.TimeValue.nsecToMSec;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
+import static org.elasticsearch.test.ESTestCase.randomUUID;
 import static org.junit.Assert.assertNotEquals;
 
 /**
@@ -270,8 +273,8 @@ public class TestShardRouting {
     public static AllocationId buildAllocationId(ShardRoutingState state) {
         return switch (state) {
             case UNASSIGNED -> null;
-            case INITIALIZING, STARTED -> AllocationId.newInitializing();
-            case RELOCATING -> AllocationId.newRelocation(AllocationId.newInitializing());
+            case INITIALIZING, STARTED -> newInitializing(randomUUID());
+            case RELOCATING -> newRelocation(newInitializing(randomUUID()));
         };
     }
 
@@ -297,16 +300,17 @@ public class TestShardRouting {
             if (randomBoolean()) {
                 delayed = true;
             }
-            lastAllocatedNodeId = randomAlphaOfLength(10);
+            lastAllocatedNodeId = randomIdentifier();
         }
         int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+        long unassignedTimeNanos = randomNonNegativeLong();
         return new UnassignedInfo(
             reason,
             message,
             null,
             failedAllocations,
-            System.nanoTime(),
-            System.currentTimeMillis(),
+            unassignedTimeNanos,
+            nsecToMSec(unassignedTimeNanos),
             delayed,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
             Collections.emptySet(),
@@ -321,10 +325,10 @@ public class TestShardRouting {
             RecoverySource.PeerRecoverySource.INSTANCE,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,
             new RecoverySource.SnapshotRecoverySource(
-                UUIDs.randomBase64UUID(),
-                new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
+                randomUUID(),
+                new Snapshot("repo", new SnapshotId(randomIdentifier(), randomUUID())),
                 IndexVersion.current(),
-                new IndexId("some_index", UUIDs.randomBase64UUID(random()))
+                new IndexId("some_index", randomUUID())
             )
         );
     }

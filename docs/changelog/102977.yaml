@@ -1,5 +1,0 @@
-pr: 102977
-summary: Track and use dynamic dimensions for routing
-area: TSDB
-type: enhancement
-issues: []

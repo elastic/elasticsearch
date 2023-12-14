@@ -972,9 +972,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField ROLLOVER_ON_WRITE_FIELD = new ParseField("rollover_on_write");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
-        "data_stream",
-        args -> new DataStream(
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
+        // Fields behind a feature flag need to be parsed last otherwise the parser will fail when the feature flag is disabled.
+        // Until the feature flag is removed we keep them separately to be mindful of this.
+        boolean failureStoreEnabled = DataStream.isFailureStoreEnabled() && args[11] != null && (boolean) args[11];
+        List<Index> failureStoreIndices = DataStream.isFailureStoreEnabled() && args[12] != null ? (List<Index>) args[12] : List.of();
+        return new DataStream(
             (String) args[0],
             (List<Index>) args[1],
             (Long) args[2],
@@ -985,11 +988,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[7] != null && (boolean) args[7],
             args[8] != null ? IndexMode.fromString((String) args[8]) : null,
             (DataStreamLifecycle) args[9],
-            DataStream.isFailureStoreEnabled() && args[11] != null && (boolean) args[11],
-            DataStream.isFailureStoreEnabled() && args[12] != null ? (List<Index>) args[12] : List.of(),
+            failureStoreEnabled,
+            failureStoreIndices,
             args[10] != null && (boolean) args[10]
-        )
-    );
+        );
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -1011,7 +1014,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_ON_WRITE_FIELD);
-        // The fields behind the feature flag should always be last, so the parser will not fail when the feature flag is disabled
+        // The fields behind the feature flag should always be last.
         if (DataStream.isFailureStoreEnabled()) {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
             PARSER.declareObjectArray(

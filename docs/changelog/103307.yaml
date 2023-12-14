@@ -1,5 +1,0 @@
-pr: 103307
-summary: Validate settings in `ReloadSecureSettings` API and fix failing CI due to warning in Secure Settings Validation
-area: Security
-type: bug
-issues: [ 100844 ]

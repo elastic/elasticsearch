@@ -140,7 +140,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 getFileSystemOperations().delete(spec -> spec.delete(uploadFile));
             }
             List<File> archiveContentFiles = parameters.getFilteredFiles().get();
-            if (archiveContentFiles.isEmpty() == false) {
+            if (archiveContentFiles.isEmpty()) {
                 System.out.println("No files to archive, skipping build artifact creation...");
                 return;
             }

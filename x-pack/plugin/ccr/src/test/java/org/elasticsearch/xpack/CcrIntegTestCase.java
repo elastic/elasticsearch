@@ -431,9 +431,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     {}""",
                 method,
                 leaderClient().admin().cluster().prepareState().get().getState(),
-                leaderClient().admin().cluster().preparePendingClusterTasks().get(),
+                ESIntegTestCase.getClusterPendingTasks(leaderClient()),
                 followerClient().admin().cluster().prepareState().get().getState(),
-                followerClient().admin().cluster().preparePendingClusterTasks().get()
+                ESIntegTestCase.getClusterPendingTasks(followerClient())
             );
             HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at timeout", ReferenceDocs.LOGGING);
             fail("timed out waiting for " + color + " state");

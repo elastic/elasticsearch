@@ -85,9 +85,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
@@ -440,18 +437,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Restores a snapshot.
      */
     RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot);
-
-    /**
-     * Returns a list of the pending cluster tasks, that are scheduled to be executed. This includes operations
-     * that update the cluster state (for example, a create index operation)
-     */
-    void pendingClusterTasks(PendingClusterTasksRequest request, ActionListener<PendingClusterTasksResponse> listener);
-
-    /**
-     * Returns a list of the pending cluster tasks, that are scheduled to be executed. This includes operations
-     * that update the cluster state (for example, a create index operation)
-     */
-    PendingClusterTasksRequestBuilder preparePendingClusterTasks();
 
     /**
      * Get snapshot status.

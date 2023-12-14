@@ -39,7 +39,7 @@ public class RestUpdateConnectorLastSyncStatsAction extends BaseRestHandler {
         return channel -> client.execute(
             UpdateConnectorLastSyncStatsAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, UpdateConnectorLastSyncStatsAction.Response::status, r -> null)
+            new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
         );
     }
 }

@@ -21,9 +21,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.get.MultiGetAction;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportClearScrollAction;
@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -84,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivile
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
+import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -112,16 +112,16 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 public class RBACEngine implements AuthorizationEngine {
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = StringMatcher.of(
-        ChangePasswordAction.NAME,
+        TransportChangePasswordAction.TYPE.name(),
         AuthenticateAction.NAME,
         HasPrivilegesAction.NAME,
         GetUserPrivilegesAction.NAME,
         GetApiKeyAction.NAME
     );
-    private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
-    private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
-    private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
-    private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
+    private static final String INDEX_SUB_REQUEST_PRIMARY = TransportIndexAction.NAME + "[p]";
+    private static final String INDEX_SUB_REQUEST_REPLICA = TransportIndexAction.NAME + "[r]";
+    private static final String DELETE_SUB_REQUEST_PRIMARY = TransportDeleteAction.NAME + "[p]";
+    private static final String DELETE_SUB_REQUEST_REPLICA = TransportDeleteAction.NAME + "[r]";
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
     private final Settings settings;
@@ -219,7 +219,7 @@ public class RBACEngine implements AuthorizationEngine {
                 }
 
                 final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username);
-                if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
+                if (sameUsername && TransportChangePasswordAction.TYPE.name().equals(action)) {
                     return checkChangePasswordAction(authentication);
                 }
 
@@ -253,13 +253,13 @@ public class RBACEngine implements AuthorizationEngine {
         switch (action) {
             case BulkAction.NAME:
             case SimulateBulkAction.NAME:
-            case IndexAction.NAME:
-            case DeleteAction.NAME:
+            case TransportIndexAction.NAME:
+            case TransportDeleteAction.NAME:
             case INDEX_SUB_REQUEST_PRIMARY:
             case INDEX_SUB_REQUEST_REPLICA:
             case DELETE_SUB_REQUEST_PRIMARY:
             case DELETE_SUB_REQUEST_REPLICA:
-            case MultiGetAction.NAME:
+            case TransportMultiGetAction.NAME:
             case MultiTermVectorsAction.NAME:
             case TransportMultiSearchAction.NAME:
             case "indices:data/read/mpercolate":

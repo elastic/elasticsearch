@@ -12,6 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,6 +43,10 @@ public class RestCancelConnectorSyncJobAction extends BaseRestHandler {
         CancelConnectorSyncJobAction.Request request = new CancelConnectorSyncJobAction.Request(
             restRequest.param(CONNECTOR_SYNC_JOB_ID_PARAM)
         );
-        return restChannel -> client.execute(CancelConnectorSyncJobAction.INSTANCE, request, new RestToXContentListener<>(restChannel));
+        return restChannel -> client.execute(
+            CancelConnectorSyncJobAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(restChannel, ConnectorUpdateActionResponse::status)
+        );
     }
 }

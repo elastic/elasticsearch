@@ -154,25 +154,27 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
                 listener.onFailure(new IllegalArgumentException(message));
             }
-            metadataDataStreamsService.setRolloverOnWrite(
-                rolloverRequest.getRolloverTarget(),
-                true,
-                rolloverRequest.ackTimeout(),
-                rolloverRequest.masterNodeTimeout(),
-                listener.map(
-                    response -> new RolloverResponse(
-                        trialSourceIndexName,
-                        trialRolloverIndexName,
-                        Map.of(),
-                        false,
-                        false,
-                        response.isAcknowledged(),
-                        false,
-                        response.isAcknowledged()
+            if (rolloverRequest.isDryRun() == false) {
+                metadataDataStreamsService.setRolloverOnWrite(
+                    rolloverRequest.getRolloverTarget(),
+                    true,
+                    rolloverRequest.ackTimeout(),
+                    rolloverRequest.masterNodeTimeout(),
+                    listener.map(
+                        response -> new RolloverResponse(
+                            trialSourceIndexName,
+                            trialRolloverIndexName,
+                            Map.of(),
+                            false,
+                            false,
+                            response.isAcknowledged(),
+                            false,
+                            response.isAcknowledged()
+                        )
                     )
-                )
-            );
-            return;
+                );
+                return;
+            }
         }
 
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())

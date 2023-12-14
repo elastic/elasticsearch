@@ -87,7 +87,7 @@ public class TaskResultsService {
         } catch (IOException e) {
             throw new ElasticsearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
         }
-        doStoreResult(STORE_BACKOFF_POLICY.iterator(), index, listener);
+        doStoreResult(STORE_BACKOFF_POLICY.iterator(), index, ActionListener.runAfter(listener, () -> index.request().decRef()));
     }
 
     private void doStoreResult(Iterator<TimeValue> backoff, IndexRequestBuilder index, ActionListener<Void> listener) {

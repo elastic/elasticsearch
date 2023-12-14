@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.Strings;
@@ -189,7 +190,9 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         for (int i = 0; i < numIndices; i++) {
             String indexName = Strings.format("index-%03d", i);
             assertAcked(client.admin().indices().prepareCreate(indexName).get());
-            client.prepareIndex(indexName).setSource("number", i, "foo", "bar").get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(indexName).setSource("number", i, "foo", "bar");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         client.admin().indices().prepareRefresh("index-*").get();
         ClusterSearchShardsResponse resp = client.admin().cluster().prepareSearchShards("index-*").get();

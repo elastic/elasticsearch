@@ -256,16 +256,17 @@ public class BulkProcessorIT extends ESIntegTestCase {
             for (int i = 1; i <= numDocs; i++) {
                 if (randomBoolean()) {
                     testDocs++;
-                    processor.add(
-                        new IndexRequest("test").id(Integer.toString(testDocs)).source(Requests.INDEX_CONTENT_TYPE, "field", "value")
-                    );
+                    IndexRequest indexRequest = new IndexRequest("test").id(Integer.toString(testDocs))
+                        .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+                    processor.add(indexRequest);
+                    indexRequest.decRef();
                     multiGetRequestBuilder.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
-                    processor.add(
-                        new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs))
-                            .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
-                    );
+                    IndexRequest indexRequest = new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs))
+                        .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+                    processor.add(indexRequest);
+                    indexRequest.decRef();
                 }
             }
         }
@@ -302,10 +303,10 @@ public class BulkProcessorIT extends ESIntegTestCase {
     private static MultiGetRequestBuilder indexDocs(Client client, BulkProcessor processor, int numDocs) throws Exception {
         MultiGetRequestBuilder multiGetRequestBuilder = client.prepareMultiGet();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(
-                new IndexRequest("test").id(Integer.toString(i))
-                    .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30))
-            );
+            IndexRequest indexRequest = new IndexRequest("test").id(Integer.toString(i))
+                .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30));
+            processor.add(indexRequest);
+            indexRequest.decRef();
             multiGetRequestBuilder.add("test", Integer.toString(i));
         }
         return multiGetRequestBuilder;

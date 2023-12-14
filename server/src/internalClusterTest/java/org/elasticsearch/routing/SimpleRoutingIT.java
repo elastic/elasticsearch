@@ -26,6 +26,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
@@ -258,14 +259,22 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).get().isExists(), equalTo(true));
         }
 
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1")
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2");
         try {
-            client().prepareUpdate(indexOrAlias(), "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").get();
+            updateRequestBuilder.get();
             fail("update with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
+        } finally {
+            updateRequestBuilder.request().decRef();
         }
 
-        client().prepareUpdate(indexOrAlias(), "1").setRouting(routingValue).setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").get();
+        updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1")
+            .setRouting(routingValue)
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2");
+        updateRequestBuilder.get();
+        updateRequestBuilder.request().decRef();
         indicesAdmin().prepareRefresh().get();
 
         for (int i = 0; i < 5; i++) {
@@ -446,18 +455,22 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
         }
 
-        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1")
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1")
             .setRouting(routingValue)
-            .setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1")
-            .get();
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+        UpdateResponse updateResponse = updateRequestBuilder.get();
+        updateRequestBuilder.request().decRef();
         assertThat(updateResponse.getId(), equalTo("1"));
         assertThat(updateResponse.getVersion(), equalTo(2L));
 
+        updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         try {
-            client().prepareUpdate(indexOrAlias(), "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value1").get();
+            updateRequestBuilder.get();
             fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
+        } finally {
+            updateRequestBuilder.request().decRef();
         }
 
         logger.info("--> verifying mget with ids [1,2], with routing [0], should succeed");

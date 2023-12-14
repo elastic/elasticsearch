@@ -159,6 +159,9 @@ public class AllocationIdIT extends ESIntegTestCase {
 
             indexRandom(true, false, true, Arrays.asList(builders));
             numDocs += numExtraDocs;
+            for (IndexRequestBuilder indexRequestBuilder : builders) {
+                indexRequestBuilder.request().decRef();
+            }
         }
 
         return numDocs;

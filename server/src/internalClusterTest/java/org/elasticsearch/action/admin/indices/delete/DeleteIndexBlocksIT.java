@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -44,12 +45,16 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
     public void testDeleteIndexOnIndexReadOnlyAllowDeleteSetting() {
         createIndex("test");
         ensureGreen("test");
-        prepareIndex("test").setId("1").setSource("foo", "bar").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
         try {
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true), "test");
             assertSearchHits(prepareSearch(), "1");
-            assertBlocked(prepareIndex("test").setId("2").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            indexRequestBuilder = prepareIndex("test").setId("2").setSource("foo", "bar");
+            assertBlocked(indexRequestBuilder, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            indexRequestBuilder.request().decRef();
             assertSearchHits(prepareSearch(), "1");
             assertAcked(indicesAdmin().prepareDelete("test"));
         } finally {
@@ -65,10 +70,9 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             createIndex("test");
             ensureGreen("test");
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true), "test");
-            ClusterBlockException e = expectThrows(
-                ClusterBlockException.class,
-                () -> prepareIndex("test").setId("1").setSource("foo", "bar").get()
-            );
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar");
+            ClusterBlockException e = expectThrows(ClusterBlockException.class, indexRequestBuilder::get);
+            indexRequestBuilder.request().decRef();
             assertEquals(
                 "index [test] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
                     + "index has read-only-allow-delete block];",
@@ -82,12 +86,16 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
     public void testDeleteIndexOnClusterReadOnlyAllowDeleteSetting() {
         createIndex("test");
         ensureGreen("test");
-        prepareIndex("test").setId("1").setSource("foo", "bar").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
         try {
             updateClusterSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
             assertSearchHits(prepareSearch(), "1");
-            assertBlocked(prepareIndex("test").setId("2").setSource("foo", "bar"), Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+            indexRequestBuilder = prepareIndex("test").setId("2").setSource("foo", "bar");
+            assertBlocked(indexRequestBuilder, Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+            indexRequestBuilder.request().decRef();
             assertBlocked(
                 indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2)),
                 Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK

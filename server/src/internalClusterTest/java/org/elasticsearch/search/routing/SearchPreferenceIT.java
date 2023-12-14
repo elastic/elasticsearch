@@ -55,7 +55,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(indexSettings(cluster().numDataNodes() + 2, 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
+            indexDoc("test", "" + i, "field1", "value1");
         }
         refresh();
         internalCluster().stopRandomDataNode();
@@ -97,7 +97,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        prepareIndex("test").setSource("field1", "value1").get();
+        indexDoc("test", null, "field1", "value1");
         refresh();
 
         final Client client = internalCluster().smartClient();
@@ -117,7 +117,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen();
 
-        prepareIndex("test").setSource("field1", "value1").get();
+        indexDoc("test", null, "field1", "value1");
         refresh();
 
         assertResponse(
@@ -156,7 +156,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        prepareIndex("test").setSource("field1", "value1").get();
+        indexDoc("test", null, "field1", "value1");
         refresh();
 
         final Client client = internalCluster().smartClient();
@@ -227,7 +227,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        prepareIndex("test").setSource("field1", "value1").get();
+        indexDoc("test", null, "field1", "value1");
         refresh();
 
         final String customPreference = randomAlphaOfLength(10);

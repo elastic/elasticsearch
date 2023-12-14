@@ -180,13 +180,16 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     @Override
     public boolean decRef() {
-        boolean success = refCounted.decRef();
-        if (refCounted.hasReferences() == false) {
+        assert refCounted.hasReferences() : "Attempt to decRef BulkShardRequest that is already closed";
+        boolean droppedToZero = refCounted.decRef();
+        if (droppedToZero) {
             for (BulkItemRequest item : items) {
-                success = (item == null || item.decRef()) && success;
+                if (item != null) {
+                    item.decRef();
+                }
             }
         }
-        return success;
+        return droppedToZero;
     }
 
     @Override
@@ -196,10 +199,14 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     @Override
     public void close() {
-        decRef();
+        boolean closed = decRef();
+        assert closed : "Attempted to close BulkShardRequest but it still has references";
     }
 
     private static class BulkRequestRefCounted extends AbstractRefCounted {
+        // BulkRequestRefCounted() {
+        // super(true);
+        // }
         @Override
         protected void closeInternal() {
             // nothing to close

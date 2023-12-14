@@ -10,6 +10,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -39,7 +40,8 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
         final var countDownLatch = new CountDownLatch(2);
 
         final var client = client();
-        client.prepareIndex("no-dot").setSource("{}", XContentType.JSON).execute(new ActionListener<>() {
+        IndexRequestBuilder indexRequestBuilder1 = client.prepareIndex("no-dot").setSource("{}", XContentType.JSON);
+        indexRequestBuilder1.execute(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 try {
@@ -66,7 +68,8 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
             }
         });
 
-        client.prepareIndex(".has-dot").setSource("{}", XContentType.JSON).execute(new ActionListener<>() {
+        IndexRequestBuilder indexRequestBuilder2 = client.prepareIndex(".has-dot").setSource("{}", XContentType.JSON);
+        indexRequestBuilder2.execute(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 try {
@@ -101,5 +104,7 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
 
         barrier.await(10, TimeUnit.SECONDS);
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        indexRequestBuilder1.request().decRef();
+        indexRequestBuilder2.request().decRef();
     }
 }

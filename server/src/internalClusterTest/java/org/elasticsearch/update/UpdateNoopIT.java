@@ -311,6 +311,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
             updateRequest.setDetectNoop(detectNoop);
         }
         UpdateResponse updateResponse = updateRequest.get();
+        updateRequest.request().decRef();
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getSeqNo(), equalTo(expectedSeqNo));
         assertThat(updateResponse.getVersion(), equalTo(expectedVersion));

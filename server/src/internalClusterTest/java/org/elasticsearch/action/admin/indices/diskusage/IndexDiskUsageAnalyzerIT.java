@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -115,7 +116,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            prepareIndex(index).setId("id-" + i).setSource(doc).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId("id-" + i).setSource(doc);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         final boolean forceNorms = randomBoolean();
         if (forceNorms) {
@@ -123,7 +126,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .startObject()
                 .field("english_text", "A long sentence to make sure that norms is non-zero")
                 .endObject();
-            prepareIndex(index).setId("id").setSource(doc).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId("id").setSource(doc);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         // Force merge to ensure that there are more than one numeric value to justify doc value.
         client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
@@ -167,7 +172,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setId("id-" + i).setSource(doc);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         Index index = clusterService().state().metadata().index(indexName).getIndex();
         List<ShardId> failedShards = randomSubsetOf(
@@ -203,7 +210,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                     .field("english_text", English.intToEnglish(value))
                     .field("value", value)
                     .endObject();
-                prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setId("id-" + i).setSource(doc);
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
             }
         }
 
@@ -237,7 +246,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .field("english_text", English.intToEnglish(value))
                 .field("value", value)
                 .endObject();
-            prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setId("id-" + i).setSource(doc);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         final Index index = resolveIndex(indexName);
         final List<ShardId> failingShards = randomSubsetOf(

@@ -40,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -261,7 +262,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     docWriteRequest.id()
                                 ),
                                 context,
-                                null
+                                null,
+                                () -> {}
                             );
                         }
                         finishRequest();
@@ -308,10 +310,19 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         // Translate update requests into index or delete requests which can be executed directly
         final UpdateHelper.Result updateResult;
+        final Runnable releaseRequest;
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             try {
                 updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
+                if (updateResult != null
+                    && updateResult.action() != updateRequest.doc()
+                    && updateResult.action() != updateRequest.upsertRequest()
+                    && updateResult.action() instanceof RefCounted refCounted) {
+                    releaseRequest = refCounted::decRef;
+                } else {
+                    releaseRequest = () -> {};
+                }
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
@@ -330,6 +341,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             context.setRequestToExecute(context.getCurrent());
             updateResult = null;
+            releaseRequest = () -> {};
         }
 
         assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
@@ -379,13 +391,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             } catch (Exception e) {
                 logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
                 assert result.getId() != null;
-                onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
+                onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult, releaseRequest);
                 return true;
             }
 
             mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(), new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
+                    releaseRequest.run();
                     context.markAsRequiringMappingUpdate();
                     waitForMappingUpdate.accept(ActionListener.runAfter(new ActionListener<>() {
                         @Override
@@ -403,7 +416,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 @Override
                 public void onFailure(Exception e) {
-                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
+                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult, releaseRequest);
                     // Requesting mapping update failed, so we don't have to wait for a cluster state update
                     assert context.isInitial();
                     itemDoneListener.onResponse(null);
@@ -411,7 +424,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             });
             return false;
         } else {
-            onComplete(result, context, updateResult);
+            onComplete(result, context, updateResult, releaseRequest);
         }
         return true;
     }
@@ -421,48 +434,62 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return isDelete ? primary.getFailedDeleteResult(e, version, id) : primary.getFailedIndexResult(e, version, id);
     }
 
-    private static void onComplete(Engine.Result r, BulkPrimaryExecutionContext context, UpdateHelper.Result updateResult) {
-        context.markOperationAsExecuted(r);
-        final DocWriteRequest<?> docWriteRequest = context.getCurrent();
-        final DocWriteRequest.OpType opType = docWriteRequest.opType();
-        final boolean isUpdate = opType == DocWriteRequest.OpType.UPDATE;
-        final BulkItemResponse executionResult = context.getExecutionResult();
-        final boolean isFailed = executionResult.isFailed();
-        if (isUpdate
-            && isFailed
-            && isConflictException(executionResult.getFailure().getCause())
-            && context.getUpdateRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
-            context.resetForUpdateRetry();
-            return;
-        }
-        final BulkItemResponse response;
-        if (isUpdate) {
-            response = processUpdateResponse((UpdateRequest) docWriteRequest, context.getConcreteIndex(), executionResult, updateResult);
-        } else {
-            if (isFailed) {
-                final Exception failure = executionResult.getFailure().getCause();
-                Level level;
-                if (TransportShardBulkAction.isConflictException(failure)) {
-                    level = Level.TRACE;
-                } else {
-                    level = Level.DEBUG;
-                }
-                logger.log(
-                    level,
-                    () -> Strings.format(
-                        "%s failed to execute bulk item (%s) %s",
-                        context.getPrimary().shardId(),
-                        opType.getLowercase(),
-                        docWriteRequest
-                    ),
-                    failure
-                );
-
+    private static void onComplete(
+        Engine.Result r,
+        BulkPrimaryExecutionContext context,
+        UpdateHelper.Result updateResult,
+        Runnable onComplete
+    ) {
+        try {
+            context.markOperationAsExecuted(r);
+            final DocWriteRequest<?> docWriteRequest = context.getCurrent();
+            final DocWriteRequest.OpType opType = docWriteRequest.opType();
+            final boolean isUpdate = opType == DocWriteRequest.OpType.UPDATE;
+            final BulkItemResponse executionResult = context.getExecutionResult();
+            final boolean isFailed = executionResult.isFailed();
+            if (isUpdate
+                && isFailed
+                && isConflictException(executionResult.getFailure().getCause())
+                && context.getUpdateRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
+                context.resetForUpdateRetry();
+                return;
             }
-            response = executionResult;
+            final BulkItemResponse response;
+            if (isUpdate) {
+                response = processUpdateResponse(
+                    (UpdateRequest) docWriteRequest,
+                    context.getConcreteIndex(),
+                    executionResult,
+                    updateResult
+                );
+            } else {
+                if (isFailed) {
+                    final Exception failure = executionResult.getFailure().getCause();
+                    Level level;
+                    if (TransportShardBulkAction.isConflictException(failure)) {
+                        level = Level.TRACE;
+                    } else {
+                        level = Level.DEBUG;
+                    }
+                    logger.log(
+                        level,
+                        () -> Strings.format(
+                            "%s failed to execute bulk item (%s) %s",
+                            context.getPrimary().shardId(),
+                            opType.getLowercase(),
+                            docWriteRequest
+                        ),
+                        failure
+                    );
+
+                }
+                response = executionResult;
+            }
+            context.markAsCompleted(response);
+            assert context.isInitial();
+        } finally {
+            onComplete.run();
         }
-        context.markAsCompleted(response);
-        assert context.isInitial();
     }
 
     private static boolean isConflictException(final Exception e) {

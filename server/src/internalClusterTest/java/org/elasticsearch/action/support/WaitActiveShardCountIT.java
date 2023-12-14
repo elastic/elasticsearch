@@ -11,6 +11,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Strings;
@@ -34,13 +35,16 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertAcked(createIndexResponse);
 
         // indexing, by default, will work (waiting for one shard copy only)
-        prepareIndex("test").setId("1").setSource(source("1", "test"), XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource(source("1", "test"), XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         try {
-            prepareIndex("test").setId("1")
+            indexRequestBuilder = prepareIndex("test").setId("1")
                 .setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(2) // wait for 2 active shard copies
-                .setTimeout(timeValueMillis(100))
-                .get();
+                .setTimeout(timeValueMillis(100));
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
             fail("can't index, does not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -63,18 +67,20 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         // this should work, since we now have two
-        prepareIndex("test").setId("1")
+        indexRequestBuilder = prepareIndex("test").setId("1")
             .setSource(source("1", "test"), XContentType.JSON)
             .setWaitForActiveShards(2)
-            .setTimeout(timeValueSeconds(1))
-            .get();
+            .setTimeout(timeValueSeconds(1));
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         try {
-            prepareIndex("test").setId("1")
+            indexRequestBuilder = prepareIndex("test").setId("1")
                 .setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
-                .setTimeout(timeValueMillis(100))
-                .get();
+                .setTimeout(timeValueMillis(100));
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
             fail("can't index, not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -100,11 +106,12 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         // this should work, since we now have all shards started
-        prepareIndex("test").setId("1")
+        indexRequestBuilder = prepareIndex("test").setId("1")
             .setSource(source("1", "test"), XContentType.JSON)
             .setWaitForActiveShards(ActiveShardCount.ALL)
-            .setTimeout(timeValueSeconds(1))
-            .get();
+            .setTimeout(timeValueSeconds(1));
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
     }
 
     private String source(String id, String nameValue) {

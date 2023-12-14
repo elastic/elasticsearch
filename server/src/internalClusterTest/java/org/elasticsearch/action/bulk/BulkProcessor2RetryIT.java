@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -151,11 +152,10 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
 
     private static void indexDocs(BulkProcessor2 processor, int numDocs) {
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(
-                prepareIndex(INDEX_NAME).setId(Integer.toString(i))
-                    .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
-                    .request()
-            );
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(INDEX_NAME).setId(Integer.toString(i))
+                .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30));
+            processor.add(indexRequestBuilder.request());
+            indexRequestBuilder.request().decRef();
         }
     }
 

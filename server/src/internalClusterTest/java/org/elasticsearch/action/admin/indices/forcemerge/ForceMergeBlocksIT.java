@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -43,7 +44,9 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            prepareIndex("test").setId("" + i).setSource("test", "init").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("" + i).setSource("test", "init");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         // Request is not blocked

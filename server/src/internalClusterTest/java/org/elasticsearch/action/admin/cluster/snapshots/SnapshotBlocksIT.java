@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -46,11 +47,15 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            prepareIndex(INDEX_NAME).setSource("test", "init").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(INDEX_NAME).setSource("test", "init");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            prepareIndex(OTHER_INDEX_NAME).setSource("test", "init").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(OTHER_INDEX_NAME).setSource("test", "init");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         logger.info("--> register a repository");

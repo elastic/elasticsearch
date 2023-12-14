@@ -17,6 +17,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -129,6 +130,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         indexRequest.source("field", "value");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
         DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         TaskId parentTaskId = new TaskId("node", randomNonNegativeLong());
 
@@ -180,6 +182,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             indexRequest.source("date", "1970-01-01");
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
             DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         {
@@ -188,6 +191,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             indexRequest.source("date", "1982-01-01");
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
             DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         {
@@ -254,6 +258,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             indexRequest.id("1");
             indexRequest.source("price", 10);
             DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         {
@@ -261,6 +266,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             indexRequest.id("2");
             indexRequest.source("price", 100);
             DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         indicesAdmin().prepareRefresh("test").get();
@@ -425,9 +431,15 @@ public class TransportSearchIT extends ESIntegTestCase {
                 }
             }
         });
-        prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
-        prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
-        prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("created_date", "2020-01-01");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        indexRequestBuilder = prepareIndex("test").setId("2").setSource("created_date", "2020-01-02");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        indexRequestBuilder = prepareIndex("test").setId("3").setSource("created_date", "2020-01-03");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertBusy(
             () -> assertResponse(
                 prepareSearch("test").setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
@@ -553,7 +565,9 @@ public class TransportSearchIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", numberOfShards).build());
 
         for (int i = 0; i < numberOfDocs; i++) {
-            DocWriteResponse indexResponse = prepareIndex(indexName).setSource("number", randomInt()).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource("number", randomInt());
+            DocWriteResponse indexResponse = indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         indicesAdmin().prepareRefresh(indexName).get();

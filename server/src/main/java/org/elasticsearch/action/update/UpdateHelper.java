@@ -53,7 +53,10 @@ public class UpdateHelper {
     }
 
     /**
-     * Prepares an update request by converting it into an index or delete request or an update response (no action).
+     * Prepares an update request by converting it into an index or delete request or an update response (no action). The caller must be
+     * very careful with the response from this method, because sometimes it contains a new index request that must be decRef'd when the
+     * client is finished with it, and sometimes it contains a reference to an index request already referenced from the update request.
+     * It is unfortunately on the client to check whether or not this IndexRequest is the same as one already on the input UpdateRequest.
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) throws IOException {
         final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm());

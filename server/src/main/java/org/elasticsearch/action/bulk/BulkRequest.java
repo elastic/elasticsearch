@@ -482,15 +482,15 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public boolean decRef() {
-        boolean success = refCounted.decRef();
-        if (refCounted.hasReferences() == false) {
+        boolean droppedToZero = refCounted.decRef();
+        if (droppedToZero) {
             for (DocWriteRequest<?> request : requests) {
                 if (request instanceof RefCounted refCountedRequest) {
-                    success = refCountedRequest.decRef() && success;
+                    refCountedRequest.decRef();
                 }
             }
         }
-        return success;
+        return droppedToZero;
     }
 
     @Override
@@ -500,7 +500,8 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public void close() {
-        decRef();
+        boolean closed = decRef();
+        assert closed : "Attempted to close BulkRequest but it still has references";
     }
 
     private static class BulkRequestRefCounted extends AbstractRefCounted {

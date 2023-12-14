@@ -29,7 +29,7 @@ public class ListenerActionIT extends ESIntegTestCase {
             request.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         }
 
-        client.index(request, new ActionListener<DocWriteResponse>() {
+        client.index(request, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 threadName.set(Thread.currentThread().getName());
@@ -42,7 +42,7 @@ public class ListenerActionIT extends ESIntegTestCase {
                 failure.set(e);
                 latch.countDown();
             }
-        });
+        }, request::decRef));
 
         latch.await();
 

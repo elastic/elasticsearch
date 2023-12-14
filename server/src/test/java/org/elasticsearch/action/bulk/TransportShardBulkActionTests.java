@@ -551,8 +551,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
         writeRequest.decRef();
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
-
         Exception err = new ElasticsearchException("I'm dead <(x.x)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0, "id");
         IndexShard shard = mock(IndexShard.class);
@@ -562,9 +560,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.indexSettings()).thenReturn(indexSettings);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
-            new UpdateHelper.Result(
-                updateResponse,
+        when(updateHelper.prepare(any(), eq(shard), any())).thenAnswer(
+            invocation -> new UpdateHelper.Result(
+                new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
                 Collections.singletonMap("field", "value"),
                 Requests.INDEX_CONTENT_TYPE
@@ -602,7 +600,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             assertThat(failure.getCause(), equalTo(err));
             assertThat(failure.getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         }
-        updateResponse.decRef();
         primaryRequest.decRef();
     }
 
@@ -614,8 +611,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
         writeRequest.decRef();
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
-
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0, "id");
         IndexShard shard = mock(IndexShard.class);
@@ -625,9 +620,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.indexSettings()).thenReturn(indexSettings);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
-            new UpdateHelper.Result(
-                updateResponse,
+        when(updateHelper.prepare(any(), eq(shard), any())).thenAnswer(
+            invocation -> new UpdateHelper.Result(
+                new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
                 Collections.singletonMap("field", "value"),
                 Requests.INDEX_CONTENT_TYPE
@@ -666,8 +661,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             assertThat(failure.getCause(), equalTo(err));
             assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
         }
-        updateResponse.decRef();
-        primaryRequest.decRef();
+        assert primaryRequest.decRef();
     }
 
     public void testUpdateRequestWithSuccess() throws Exception {
@@ -675,8 +669,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         UpdateRequest writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
         writeRequest.decRef();
-
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
         boolean created = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
@@ -689,9 +681,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.shardId()).thenReturn(shardId);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
-            new UpdateHelper.Result(
-                updateResponse,
+        when(updateHelper.prepare(any(), eq(shard), any())).thenAnswer(
+            invocation -> new UpdateHelper.Result(
+                new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 created ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
                 Collections.singletonMap("field", "value"),
                 Requests.INDEX_CONTENT_TYPE
@@ -716,7 +708,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
             // Check that the translog is successfully advanced
             assertThat(context.getLocationToSync(), equalTo(resultLocation));
-            assertThat(bulkShardRequest.items()[0].request(), equalTo(updateResponse));
             // Since this was not a conflict failure, the primary response
             // should be filled out with the failure information
             BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
@@ -727,7 +718,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             assertThat(response.status(), equalTo(created ? RestStatus.CREATED : RestStatus.OK));
             assertThat(response.getSeqNo(), equalTo(13L));
         }
-        updateResponse.decRef();
         primaryRequest.decRef();
     }
 
@@ -910,8 +900,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
         writeRequest.decRef();
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
-
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
         Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0, "id");
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(
@@ -938,9 +926,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.getBulkOperationListener()).thenReturn(mock(ShardBulkStats.class));
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
-            new UpdateHelper.Result(
-                updateResponse,
+        when(updateHelper.prepare(any(), eq(shard), any())).thenAnswer(
+            invocation -> new UpdateHelper.Result(
+                new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
                 Collections.singletonMap("field", "value"),
                 Requests.INDEX_CONTENT_TYPE
@@ -973,7 +961,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             );
             latch.await();
         }
-        updateResponse.decRef();
         primaryRequest.decRef();
     }
 

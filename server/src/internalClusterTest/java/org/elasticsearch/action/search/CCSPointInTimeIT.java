@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -65,7 +66,9 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
     void indexDocs(Client client, String index, int numDocs) {
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client.prepareIndex(index).setId(id).setSource("value", i).get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index).setId(id).setSource("value", i);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         client.admin().indices().prepareRefresh(index).get();
     }
@@ -89,11 +92,15 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         String pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
         try {
             if (randomBoolean()) {
-                localClient.prepareIndex("local_test").setId("local_new").setSource().get();
+                IndexRequestBuilder indexRequestBuilder = localClient.prepareIndex("local_test").setId("local_new").setSource();
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
                 localClient.admin().indices().prepareRefresh().get();
             }
             if (randomBoolean()) {
-                remoteClient.prepareIndex("remote_test").setId("remote_new").setSource().get();
+                IndexRequestBuilder indexRequestBuilder = remoteClient.prepareIndex("remote_test").setId("remote_new").setSource();
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
                 remoteClient.admin().indices().prepareRefresh().get();
             }
             assertNoFailuresAndResponse(
@@ -148,11 +155,15 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         String pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
         try {
             if (randomBoolean()) {
-                localClient.prepareIndex("local_test").setId("local_new").setSource().get();
+                IndexRequestBuilder indexRequestBuilder = localClient.prepareIndex("local_test").setId("local_new").setSource();
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
                 localClient.admin().indices().prepareRefresh().get();
             }
             if (randomBoolean()) {
-                remoteClient.prepareIndex("remote_test").setId("remote_new").setSource().get();
+                IndexRequestBuilder indexRequestBuilder = remoteClient.prepareIndex("remote_test").setId("remote_new").setSource();
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
                 remoteClient.admin().indices().prepareRefresh().get();
             }
             // shardId 0 means to throw the Exception only on shard 0; all others should work

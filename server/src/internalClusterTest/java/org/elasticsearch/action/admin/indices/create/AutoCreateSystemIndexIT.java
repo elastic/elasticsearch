@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -115,8 +116,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
-
-        DocWriteResponse response = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON);
+        DocWriteResponse response = indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 
@@ -135,7 +137,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 
-        DocWriteResponse response = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON);
+        DocWriteResponse response = indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 

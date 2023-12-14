@@ -900,7 +900,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest>
 
     @Override
     public boolean decRef() {
-        // new RuntimeException("decRef").printStackTrace(System.out);
+        assert hasReferences() : "Attempt to decRef IndexRequest that is already closed";
         return refCounted.decRef();
     }
 
@@ -911,11 +911,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest>
 
     @Override
     public void close() {
-        decRef();
+        boolean closed = decRef();
+        assert closed : "Attempted to close IndexRequest but it still has references";
     }
 
     private static class IndexRequestRefCounted extends AbstractRefCounted {
-
         @Override
         protected void closeInternal() {
             // nothing to close

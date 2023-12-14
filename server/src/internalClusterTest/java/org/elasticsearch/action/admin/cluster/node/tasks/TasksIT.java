@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -306,7 +307,10 @@ public class TasksIT extends ESIntegTestCase {
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
         indicesAdmin().preparePutMapping("test").setSource("foo", "type=keyword").get();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            bulkRequestBuilder.add(prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("test_id")
+                .setSource("{\"foo\": \"bar\"}", XContentType.JSON);
+            bulkRequestBuilder.add(indexRequestBuilder).get();
+            indexRequestBuilder.request().decRef();
         }
 
         // the bulk operation should produce one main task
@@ -356,10 +360,11 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(TransportSearchAction.TYPE.name() + "[*]");  // shard task
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
-        prepareIndex("test").setId("test_id")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("test_id")
             .setSource("{\"foo\": \"bar\"}", XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         Map<String, String> headers = new HashMap<>();
         headers.put(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id");
@@ -450,7 +455,9 @@ public class TasksIT extends ESIntegTestCase {
             }
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
             index = new Thread(() -> {
-                DocWriteResponse indexResponse = prepareIndex("test").setSource("test", "test").get();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setSource("test", "test");
+                DocWriteResponse indexResponse = indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
                 assertArrayEquals(ReplicationResponse.NO_FAILURES, indexResponse.getShardInfo().getFailures());
             });
             index.start();

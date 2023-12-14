@@ -130,7 +130,9 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
     private static void indexData(String index) {
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             for (int i = 0; i < randomIntBetween(5, 32); i++) {
-                bulkRequestBuilder.add(new IndexRequest(index).id(String.valueOf(i)).source("field", "foo " + i));
+                IndexRequest indexRequest = new IndexRequest(index).id(String.valueOf(i)).source("field", "foo " + i);
+                bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             var bulkResponse = bulkRequestBuilder.get();
             assertFalse(bulkResponse.hasFailures());

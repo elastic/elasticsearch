@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +50,9 @@ public class SearchShardsIT extends ESIntegTestCase {
             );
             int numDocs = randomIntBetween(1, 10);
             for (int j = 0; j < numDocs; j++) {
-                prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setSource("value", i).setId(Integer.toString(i));
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
             }
             indicesAdmin().prepareRefresh(index).get();
         }
@@ -117,7 +120,9 @@ public class SearchShardsIT extends ESIntegTestCase {
             );
             int numDocs = randomIntBetween(10, 1000);
             for (int j = 0; j < numDocs; j++) {
-                prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setSource("value", i).setId(Integer.toString(i));
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
             }
             indicesAdmin().prepareRefresh(index).get();
         }
@@ -172,7 +177,9 @@ public class SearchShardsIT extends ESIntegTestCase {
                 totalShards += numShards;
                 int numDocs = randomIntBetween(10, 100);
                 for (int j = 0; j < numDocs; j++) {
-                    prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setSource("value", i).setId(Integer.toString(i));
+                    indexRequestBuilder.get();
+                    indexRequestBuilder.request().decRef();
                 }
                 indicesAdmin().prepareRefresh(index).get();
             }

@@ -87,30 +87,34 @@ public class IndexAliasesIT extends ESIntegTestCase {
             assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias1", false));
         });
 
-        logger.info("--> indexing against [alias1], should fail now");
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().index(new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON)).actionGet()
-        );
-        assertThat(
-            exception.getMessage(),
-            equalTo(
-                "no write index is defined for alias [alias1]."
-                    + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
-                    + " indices without one being designated as a write index"
-            )
-        );
+        {
+            logger.info("--> indexing against [alias1], should fail now");
+            IndexRequest indexRequest = new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON);
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().index(indexRequest).actionGet()
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "no write index is defined for alias [alias1]."
+                        + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                        + " indices without one being designated as a write index"
+                )
+            );
+            indexRequest.decRef();
+        }
 
         assertAliasesVersionIncreases("test", () -> {
             logger.info("--> aliasing index [test] with [alias1]");
             assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias1"));
         });
 
-        logger.info("--> indexing against [alias1], should work now");
-        DocWriteResponse indexResponse = client().index(new IndexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON))
-            .actionGet();
-        assertThat(indexResponse.getIndex(), equalTo("test"));
-
+        {
+            logger.info("--> indexing against [alias1], should work now");
+            DocWriteResponse indexResponse = indexDoc("alias1", "1", source("1", "test"), XContentType.JSON);
+            assertThat(indexResponse.getIndex(), equalTo("test"));
+        }
         logger.info("--> creating index [test_x]");
         createIndex("test_x");
 
@@ -121,48 +125,57 @@ public class IndexAliasesIT extends ESIntegTestCase {
             assertAcked(indicesAdmin().prepareAliases().addAlias("test_x", "alias1"));
         });
 
-        logger.info("--> indexing against [alias1], should fail now");
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().index(new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON)).actionGet()
-        );
-        assertThat(
-            exception.getMessage(),
-            equalTo(
-                "no write index is defined for alias [alias1]."
-                    + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
-                    + " indices without one being designated as a write index"
-            )
-        );
+        {
+            logger.info("--> indexing against [alias1], should fail now");
+            IndexRequest indexRequest = new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON);
+            Exception exception = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "no write index is defined for alias [alias1]."
+                        + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                        + " indices without one being designated as a write index"
+                )
+            );
+            indexRequest.decRef();
+        }
 
-        logger.info("--> deleting against [alias1], should fail now");
-        exception = expectThrows(IllegalArgumentException.class, () -> client().delete(new DeleteRequest("alias1").id("1")).actionGet());
-        assertThat(
-            exception.getMessage(),
-            equalTo(
-                "no write index is defined for alias [alias1]."
-                    + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
-                    + " indices without one being designated as a write index"
-            )
-        );
+        {
+            logger.info("--> deleting against [alias1], should fail now");
+            Exception exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().delete(new DeleteRequest("alias1").id("1")).actionGet()
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "no write index is defined for alias [alias1]."
+                        + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                        + " indices without one being designated as a write index"
+                )
+            );
+        }
 
         assertAliasesVersionIncreases("test_x", () -> {
             logger.info("--> remove aliasing index [test_x] with [alias1]");
             assertAcked(indicesAdmin().prepareAliases().removeAlias("test_x", "alias1"));
         });
 
-        logger.info("--> indexing against [alias1], should work now");
-        indexResponse = client().index(new IndexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
-        assertThat(indexResponse.getIndex(), equalTo("test"));
-
+        {
+            logger.info("--> indexing against [alias1], should work now");
+            DocWriteResponse indexResponse = indexDoc("alias1", "1", source("1", "test"), XContentType.JSON);
+            assertThat(indexResponse.getIndex(), equalTo("test"));
+        }
         assertAliasesVersionIncreases("test_x", () -> {
             logger.info("--> add index [test_x] with [alias1] as write-index");
             assertAcked(indicesAdmin().prepareAliases().addAlias("test_x", "alias1", true));
         });
 
-        logger.info("--> indexing against [alias1], should work now");
-        indexResponse = client().index(new IndexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
-        assertThat(indexResponse.getIndex(), equalTo("test_x"));
+        {
+            logger.info("--> indexing against [alias1], should work now");
+            DocWriteResponse indexResponse = indexDoc("alias1", "1", source("1", "test"), XContentType.JSON);
+            assertThat(indexResponse.getIndex(), equalTo("test_x"));
+        }
 
         logger.info("--> deleting against [alias1], should fail now");
         DeleteResponse deleteResponse = client().delete(new DeleteRequest("alias1").id("1")).actionGet();
@@ -173,9 +186,11 @@ public class IndexAliasesIT extends ESIntegTestCase {
             assertAcked(indicesAdmin().prepareAliases().removeAlias("test", "alias1").addAlias("test_x", "alias1"));
         });
 
-        logger.info("--> indexing against [alias1], should work against [test_x]");
-        indexResponse = client().index(new IndexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
-        assertThat(indexResponse.getIndex(), equalTo("test_x"));
+        {
+            logger.info("--> indexing against [alias1], should work against [test_x]");
+            DocWriteResponse indexResponse = indexDoc("alias1", "1", source("1", "test"), XContentType.JSON);
+            assertThat(indexResponse.getIndex(), equalTo("test_x"));
+        }
     }
 
     public void testFailedFilter() throws Exception {
@@ -253,20 +268,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
 
         logger.info("--> indexing against [test]");
-        client().index(
-            new IndexRequest("test").id("1").source(source("1", "foo test"), XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-        ).actionGet();
-        client().index(
-            new IndexRequest("test").id("2").source(source("2", "bar test"), XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-        ).actionGet();
-        client().index(
-            new IndexRequest("test").id("3").source(source("3", "baz test"), XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-        ).actionGet();
-        client().index(
-            new IndexRequest("test").id("4")
-                .source(source("4", "something else"), XContentType.JSON)
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        indexDoc("test", "1", source("1", "foo test"), XContentType.JSON);
+        indexDoc("test", "2", source("2", "bar test"), XContentType.JSON);
+        indexDoc("test", "3", source("3", "baz test"), XContentType.JSON);
+        indexDoc("test", "4", source("4", "something else"), XContentType.JSON);
 
         logger.info("--> checking single filtering alias search");
         assertResponse(
@@ -382,16 +387,16 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
 
         logger.info("--> indexing against [test1]");
-        client().index(new IndexRequest("test1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test1").id("2").source(source("2", "bar test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test1").id("3").source(source("3", "baz test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test1").id("4").source(source("4", "something else"), XContentType.JSON)).get();
+        indexDoc("test1", "1", source("1", "foo test"), XContentType.JSON);
+        indexDoc("test1", "2", source("2", "bar test"), XContentType.JSON);
+        indexDoc("test1", "3", source("3", "baz test"), XContentType.JSON);
+        indexDoc("test1", "4", source("4", "something else"), XContentType.JSON);
 
         logger.info("--> indexing against [test2]");
-        client().index(new IndexRequest("test2").id("5").source(source("5", "foo test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test2").id("6").source(source("6", "bar test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test2").id("7").source(source("7", "baz test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test2").id("8").source(source("8", "something else"), XContentType.JSON)).get();
+        indexDoc("test2", "5", source("5", "foo test"), XContentType.JSON);
+        indexDoc("test2", "6", source("6", "bar test"), XContentType.JSON);
+        indexDoc("test2", "7", source("7", "baz test"), XContentType.JSON);
+        indexDoc("test2", "8", source("8", "something else"), XContentType.JSON);
 
         refresh();
 
@@ -493,17 +498,18 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
 
         logger.info("--> indexing against [test1]");
-        client().index(new IndexRequest("test1").id("11").source(source("11", "foo test1"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test1").id("12").source(source("12", "bar test1"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test1").id("13").source(source("13", "baz test1"), XContentType.JSON)).get();
 
-        client().index(new IndexRequest("test2").id("21").source(source("21", "foo test2"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test2").id("22").source(source("22", "bar test2"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test2").id("23").source(source("23", "baz test2"), XContentType.JSON)).get();
+        indexDoc("test1", "11", source("11", "foo test1"), XContentType.JSON);
+        indexDoc("test1", "12", source("12", "bar test1"), XContentType.JSON);
+        indexDoc("test1", "13", source("13", "baz test1"), XContentType.JSON);
 
-        client().index(new IndexRequest("test3").id("31").source(source("31", "foo test3"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test3").id("32").source(source("32", "bar test3"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test3").id("33").source(source("33", "baz test3"), XContentType.JSON)).get();
+        indexDoc("test2", "21", source("21", "foo test2"), XContentType.JSON);
+        indexDoc("test2", "22", source("22", "bar test2"), XContentType.JSON);
+        indexDoc("test2", "23", source("23", "baz test2"), XContentType.JSON);
+
+        indexDoc("test3", "31", source("31", "foo test3"), XContentType.JSON);
+        indexDoc("test3", "32", source("32", "bar test3"), XContentType.JSON);
+        indexDoc("test3", "33", source("33", "baz test3"), XContentType.JSON);
 
         refresh();
 
@@ -598,16 +604,16 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
 
         logger.info("--> indexing against [test1]");
-        client().index(new IndexRequest("test1").id("1").source(source("1", "foo test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test1").id("2").source(source("2", "bar test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test1").id("3").source(source("3", "baz test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test1").id("4").source(source("4", "something else"), XContentType.JSON)).get();
+        indexDoc("test1", "1", source("1", "foo test"), XContentType.JSON);
+        indexDoc("test1", "2", source("2", "bar test"), XContentType.JSON);
+        indexDoc("test1", "3", source("3", "baz test"), XContentType.JSON);
+        indexDoc("test1", "4", source("4", "something else"), XContentType.JSON);
 
         logger.info("--> indexing against [test2]");
-        client().index(new IndexRequest("test2").id("5").source(source("5", "foo test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test2").id("6").source(source("6", "bar test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test2").id("7").source(source("7", "baz test"), XContentType.JSON)).get();
-        client().index(new IndexRequest("test2").id("8").source(source("8", "something else"), XContentType.JSON)).get();
+        indexDoc("test2", "5", source("5", "foo test"), XContentType.JSON);
+        indexDoc("test2", "6", source("6", "bar test"), XContentType.JSON);
+        indexDoc("test2", "7", source("7", "baz test"), XContentType.JSON);
+        indexDoc("test2", "8", source("8", "something else"), XContentType.JSON);
 
         refresh();
 
@@ -694,7 +700,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             final String aliasName = "alias" + i;
             assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", aliasName)));
-            client().index(new IndexRequest(aliasName).id("1").source(source("1", "test"), XContentType.JSON)).get();
+            indexDoc(aliasName, "1", source("1", "test"), XContentType.JSON);
         }
     }
 
@@ -707,7 +713,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             final String aliasName = "alias" + i;
             assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", aliasName)));
-            client().index(new IndexRequest(aliasName).id("1").source(source("1", "test"), XContentType.JSON)).get();
+            indexDoc(aliasName, "1", source("1", "test"), XContentType.JSON);
         }
     }
 
@@ -726,7 +732,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 @Override
                 public void run() {
                     assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", aliasName)));
-                    client().index(new IndexRequest(aliasName).id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
+                    indexDoc(aliasName, "1", source("1", "test"), XContentType.JSON);
                 }
             });
         }
@@ -1318,13 +1324,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         // Put a couple docs in each index directly
-        DocWriteResponse res = client().index(new IndexRequest(nonWriteIndex).id("1").source(source("1", "nonwrite"), XContentType.JSON))
-            .get();
+        DocWriteResponse res = indexDoc(nonWriteIndex, "1", source("1", "nonwrite"), XContentType.JSON);
         assertThat(res.status().getStatus(), equalTo(201));
-        res = client().index(new IndexRequest(writeIndex).id("2").source(source("2", "writeindex"), XContentType.JSON)).get();
+        res = indexDoc(writeIndex, "2", source("2", "writeindex"), XContentType.JSON);
         assertThat(res.status().getStatus(), equalTo(201));
         // And through the alias
-        res = client().index(new IndexRequest(alias).id("3").source(source("3", "through alias"), XContentType.JSON)).get();
+        res = indexDoc(alias, "3", source("3", "through alias"), XContentType.JSON);
         assertThat(res.status().getStatus(), equalTo(201));
 
         refresh(writeIndex, nonWriteIndex);
@@ -1445,4 +1450,17 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(afterAliasesVersion, equalTo(beforeAliasesVersion));
     }
 
+    private DocWriteResponse indexDoc(String index, String id, String source, XContentType contentType) {
+        IndexRequest indexRequest = new IndexRequest(index);
+        try {
+            if (id != null) {
+                indexRequest.id(id);
+            }
+            indexRequest.source(source, contentType);
+            indexRequest.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+            return client().index(indexRequest).actionGet();
+        } finally {
+            indexRequest.decRef();
+        }
+    }
 }

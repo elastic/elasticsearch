@@ -9,6 +9,7 @@ package org.elasticsearch.validate;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -138,7 +139,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .get();
 
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setSource("foo", "text", "bar", i, "baz", "blort").setId(Integer.toString(i)).get();
+            indexDocs("test", Integer.toString(i), "foo", "text", "bar", i, "baz", "blort");
         }
         refresh();
 
@@ -183,7 +184,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plus(1, ChronoUnit.MONTHS));
         String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minus(1, ChronoUnit.MONTHS));
 
-        prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+        indexDocs("test", "1", "past", aMonthAgo, "future", aMonthFromNow);
 
         refresh();
 
@@ -247,10 +248,10 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .setMapping("field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
             .get();
-        prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
-        prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
-        prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
+        indexDocs("test", "1", "field", "quick lazy huge brown pidgin");
+        indexDocs("test", "2", "field", "the quick brown fox");
+        indexDocs("test", "3", "field", "the quick lazy huge brown fox jumps over the tree");
+        indexDocs("test", "4", "field", "the lazy dog quacks like a duck");
         refresh();
 
         // prefix queries
@@ -293,10 +294,10 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .get();
         // We are relying on specific routing behaviors for the result to be right, so
         // we cannot randomize the number of shards or change ids here.
-        prepareIndex("test").setId("1").setSource("field", "quick lazy huge brown pidgin").get();
-        prepareIndex("test").setId("2").setSource("field", "the quick brown fox").get();
-        prepareIndex("test").setId("3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
-        prepareIndex("test").setId("4").setSource("field", "the lazy dog quacks like a duck").get();
+        indexDocs("test", "1", "field", "quick lazy huge brown pidgin");
+        indexDocs("test", "2", "field", "the quick brown fox");
+        indexDocs("test", "3", "field", "the quick lazy huge brown fox jumps over the tree");
+        indexDocs("test", "4", "field", "the lazy dog quacks like a duck");
         refresh();
 
         // prefix queries
@@ -371,11 +372,20 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .setMapping("user", "type=integer", "followers", "type=integer")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
             .get();
-        prepareIndex("twitter").setId("1").setSource("followers", new int[] { 1, 2, 3 }).get();
+        indexDocs("twitter", "1", "followers", new int[] { 1, 2, 3 });
         refresh();
 
         TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "1", "followers"));
         ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("twitter").setQuery(termsLookupQuery).setExplain(true).get();
         assertThat(response.isValid(), is(true));
+    }
+
+    private void indexDocs(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId(id).setSource(source);
+        try {
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

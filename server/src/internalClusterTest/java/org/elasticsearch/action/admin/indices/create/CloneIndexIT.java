@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -39,7 +40,12 @@ public class CloneIndexIT extends ESIntegTestCase {
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("source").setSource(
+                "{\"foo\" : \"bar\", \"i\" : " + i + "}",
+                XContentType.JSON
+            );
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         internalCluster().ensureAtLeastNumDataNodes(2);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
@@ -89,7 +95,12 @@ public class CloneIndexIT extends ESIntegTestCase {
             }
 
             for (int i = docs; i < 2 * docs; i++) {
-                prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("target").setSource(
+                    "{\"foo\" : \"bar\", \"i\" : " + i + "}",
+                    XContentType.JSON
+                );
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
             }
             flushAndRefresh();
             assertHitCount(prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")), 2 * docs);

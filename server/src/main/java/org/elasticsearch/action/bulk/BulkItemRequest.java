@@ -134,11 +134,12 @@ public class BulkItemRequest implements Writeable, Accountable, RefCounted, Rele
 
     @Override
     public boolean decRef() {
-        boolean success = refCounted.decRef();
-        if (refCounted.hasReferences() == false && this.request instanceof RefCounted refCountedRequest) {
-            success = refCountedRequest.decRef() && success;
+        assert refCounted.hasReferences() : "Attempt to decRef BulkItemRequest that is already closed";
+        boolean droppedToZero = refCounted.decRef();
+        if (droppedToZero && this.request instanceof RefCounted refCountedRequest) {
+            refCountedRequest.decRef();
         }
-        return success;
+        return droppedToZero;
     }
 
     @Override
@@ -148,7 +149,8 @@ public class BulkItemRequest implements Writeable, Accountable, RefCounted, Rele
 
     @Override
     public void close() {
-        decRef();
+        boolean closed = decRef();
+        assert closed : "Attempt to close BulkItemRequest but it still has references";
     }
 
     private static class BulkItemRequestRefCounted extends AbstractRefCounted {

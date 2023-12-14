@@ -9,6 +9,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -43,7 +44,9 @@ public class RejectionActionIT extends ESIntegTestCase {
 
     public void testSimulatedSearchRejectionLoad() throws Throwable {
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "1").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i)).setSource("field", "1");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         int numberOfAsyncOps = randomIntBetween(200, 700);

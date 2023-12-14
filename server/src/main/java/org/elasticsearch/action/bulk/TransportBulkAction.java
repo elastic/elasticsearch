@@ -696,7 +696,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {
-                        try (bulkShardRequest) {
+                        try {
                             for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
                                 // we may have no response if item failed
                                 if (bulkItemResponse.getResponse() != null) {
@@ -705,12 +705,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                             }
                             maybeFinishHim();
+                        } finally {
+                            bulkShardRequest.decRef();
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        try (bulkShardRequest) {
+                        try {
                             // create failures for all relevant requests
                             for (BulkItemRequest request : requests) {
                                 final String indexName = request.index();
@@ -719,6 +721,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
                             }
                             maybeFinishHim();
+                        } finally {
+                            bulkShardRequest.decRef();
                         }
                     }
 

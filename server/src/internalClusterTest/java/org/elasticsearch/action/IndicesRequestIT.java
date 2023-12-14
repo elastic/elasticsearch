@@ -54,6 +54,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
@@ -214,6 +215,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(indexRequest, indexShardActions);
+        indexRequest.decRef();
     }
 
     public void testDelete() {
@@ -236,13 +238,16 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
-        prepareIndex(indexOrAlias).setId("id").setSource("field", "value").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexOrAlias).setId("id").setSource("field", "value");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
+        updateRequest.decRef();
     }
 
     public void testUpdateUpsert() {
@@ -261,6 +266,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
+        updateRequest.decRef();
     }
 
     public void testUpdateDelete() {
@@ -272,7 +278,9 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
-        prepareIndex(indexOrAlias).setId("id").setSource("field", "value").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexOrAlias).setId("id").setSource("field", "value");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").script(
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op='delete'", Collections.emptyMap())
         );
@@ -281,6 +289,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
+        updateRequest.decRef();
     }
 
     public void testBulk() {
@@ -292,7 +301,9 @@ public class IndicesRequestIT extends ESIntegTestCase {
             int numIndexRequests = iterations(1, 10);
             for (int i = 0; i < numIndexRequests; i++) {
                 String indexOrAlias = randomIndexOrAlias();
-                bulkRequest.add(new IndexRequest(indexOrAlias).id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+                IndexRequest indexRequest = new IndexRequest(indexOrAlias).id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+                bulkRequest.add(indexRequest);
+                indexRequest.decRef();
                 indicesOrAliases.add(indexOrAlias);
             }
             int numDeleteRequests = iterations(1, 10);
@@ -304,7 +315,9 @@ public class IndicesRequestIT extends ESIntegTestCase {
             int numUpdateRequests = iterations(1, 10);
             for (int i = 0; i < numUpdateRequests; i++) {
                 String indexOrAlias = randomIndexOrAlias();
-                bulkRequest.add(new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1"));
+                UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+                bulkRequest.add(updateRequest);
+                updateRequest.decRef();
                 indicesOrAliases.add(indexOrAlias);
             }
 
@@ -564,7 +577,9 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
-            prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         refresh();
 
@@ -594,7 +609,9 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
-            prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         refresh();
 

@@ -157,14 +157,7 @@ final class ElasticServiceAccounts {
             new String[] { "monitor", "manage_own_api_key" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(
-                        "logs-*",
-                        "metrics-*",
-                        "traces-*",
-                        ".logs-endpoint.diagnostic.collection-*",
-                        ".logs-endpoint.action.responses-*",
-                        ".logs-endpoint.heartbeat-*"
-                    )
+                    .indices("logs-*", "metrics-*", "traces-*")
                     .privileges("write", "create_index", "auto_configure")
                     .build(), },
             null,

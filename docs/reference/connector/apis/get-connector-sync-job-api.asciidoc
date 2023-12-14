@@ -10,7 +10,7 @@ Retrieves the details about a connector sync job.
 [[get-connector-sync-job-api-request]]
 ==== {api-request-title}
 
-`GET _connector/_sync_job`
+`GET _connector/_sync_job/<connector_sync_job_id>`
 
 [[get-connector-sync-job-api-prereq]]
 ==== {api-prereq-title}

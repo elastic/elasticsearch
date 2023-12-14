@@ -31,7 +31,9 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
@@ -860,7 +862,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
             for (Client client : clients()) {
                 ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
                 assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
-                PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
+                PendingClusterTasksResponse pendingTasks = client.execute(
+                    TransportPendingClusterTasksAction.TYPE,
+                    new PendingClusterTasksRequest().local(true)
+                ).get();
                 assertThat(
                     "client " + client + " still has pending tasks " + pendingTasks,
                     pendingTasks.pendingTasks(),
@@ -977,7 +982,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try (var listeners = new RefCountingListener(detailsFuture)) {
                 clusterAdmin().prepareAllocationExplain().execute(listeners.acquire(allocationExplainRef::set));
                 clusterAdmin().prepareState().execute(listeners.acquire(clusterStateRef::set));
-                clusterAdmin().preparePendingClusterTasks().execute(listeners.acquire(pendingTasksRef::set));
+                client().execute(
+                    TransportPendingClusterTasksAction.TYPE,
+                    new PendingClusterTasksRequest(),
+                    listeners.acquire(pendingTasksRef::set)
+                );
                 clusterAdmin().prepareNodesHotThreads()
                     .setThreads(9999)
                     .setIgnoreIdleThreads(false)
@@ -1039,7 +1048,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 "waitForRelocation timed out (status={}), cluster state:\n{}\n{}",
                 status,
                 clusterAdmin().prepareState().get().getState(),
-                clusterAdmin().preparePendingClusterTasks().get()
+                getClusterPendingTasks()
             );
             assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
         }
@@ -1047,6 +1056,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
             assertThat(actionGet.getStatus(), equalTo(status));
         }
         return actionGet.getStatus();
+    }
+
+    public static PendingClusterTasksResponse getClusterPendingTasks() {
+        return getClusterPendingTasks(client());
+    }
+
+    public static PendingClusterTasksResponse getClusterPendingTasks(Client client) {
+        try {
+            return client.execute(TransportPendingClusterTasksAction.TYPE, new PendingClusterTasksRequest()).get(10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            return fail(e);
+        }
     }
 
     /**
@@ -1145,11 +1166,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Prints the current cluster state as debug logging.
      */
     public void logClusterState() {
-        logger.debug(
-            "cluster state:\n{}\n{}",
-            clusterAdmin().prepareState().get().getState(),
-            clusterAdmin().preparePendingClusterTasks().get()
-        );
+        logger.debug("cluster state:\n{}\n{}", clusterAdmin().prepareState().get().getState(), getClusterPendingTasks());
     }
 
     protected void ensureClusterSizeConsistency() {

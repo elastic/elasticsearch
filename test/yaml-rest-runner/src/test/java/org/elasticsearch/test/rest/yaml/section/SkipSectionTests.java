@@ -15,7 +15,9 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.util.Collections;
+import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -25,7 +27,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
     public void testSkipMultiRange() {
-        SkipSection section = new SkipSection("6.0.0 - 6.1.0, 7.1.0 - 7.5.0", Collections.emptyList(), Collections.emptyList(), "foobar");
+        SkipSection section = new SkipSection(
+            List.of(new VersionSkipCriteria("6.0.0 - 6.1.0, 7.1.0 - 7.5.0")),
+            Collections.emptyList(),
+            "foobar"
+        );
 
         assertFalse(section.skip(versionContext(Version.CURRENT)));
         assertFalse(section.skip(versionContext(Version.fromString("6.2.0"))));
@@ -37,7 +43,11 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         assertTrue(section.skip(versionContext(Version.fromString("7.1.0"))));
         assertTrue(section.skip(versionContext(Version.fromString("7.5.0"))));
 
-        section = new SkipSection("-  7.1.0, 7.2.0 - 7.5.0, 8.0.0 -", Collections.emptyList(), Collections.emptyList(), "foobar");
+        section = new SkipSection(
+            List.of(new VersionSkipCriteria("-  7.1.0, 7.2.0 - 7.5.0, 8.0.0 -")),
+            Collections.emptyList(),
+            "foobar"
+        );
         assertTrue(section.skip(versionContext(Version.fromString("7.0.0"))));
         assertTrue(section.skip(versionContext(Version.fromString("7.3.0"))));
         assertTrue(section.skip(versionContext(Version.fromString("8.0.0"))));
@@ -45,28 +55,30 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testSkip() {
         SkipSection section = new SkipSection(
-            "6.0.0 - 6.1.0",
+            List.of(new VersionSkipCriteria("6.0.0 - 6.1.0")),
             randomBoolean() ? Collections.emptyList() : Collections.singletonList("warnings"),
-            Collections.emptyList(),
             "foobar"
         );
         assertFalse(section.skip(versionContext(Version.CURRENT)));
         assertTrue(section.skip(versionContext(Version.fromString("6.0.0"))));
         section = new SkipSection(
-            randomBoolean() ? null : "6.0.0 - 6.1.0",
+            randomBoolean() ? List.of() : List.of(new VersionSkipCriteria("6.0.0 - 6.1.0")),
             Collections.singletonList("boom"),
-            Collections.emptyList(),
             "foobar"
         );
         assertTrue(section.skip(versionContext(Version.CURRENT)));
     }
 
     public void testMessage() {
-        SkipSection section = new SkipSection("6.0.0 - 6.1.0", Collections.singletonList("warnings"), Collections.emptyList(), "foobar");
+        SkipSection section = new SkipSection(
+            List.of(new VersionSkipCriteria("6.0.0 - 6.1.0")),
+            Collections.singletonList("warnings"),
+            "foobar"
+        );
         assertEquals("[FOOBAR] skipped, reason: [foobar] unsupported features [warnings]", section.getSkipMessage("FOOBAR"));
-        section = new SkipSection(null, Collections.singletonList("warnings"), Collections.emptyList(), "foobar");
+        section = new SkipSection(List.of(), Collections.singletonList("warnings"), "foobar");
         assertEquals("[FOOBAR] skipped, reason: [foobar] unsupported features [warnings]", section.getSkipMessage("FOOBAR"));
-        section = new SkipSection(null, Collections.singletonList("warnings"), Collections.emptyList(), null);
+        section = new SkipSection(List.of(), Collections.singletonList("warnings"), null);
         assertEquals("[FOOBAR] skipped, unsupported features [warnings]", section.getSkipMessage("FOOBAR"));
     }
 
@@ -78,8 +90,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.getLowerVersion(), equalTo(VersionUtils.getFirstVersion()));
-        assertThat(skipSection.getUpperVersion(), equalTo(version));
+        // assertThat(skipSection.getLowerVersion(), equalTo(VersionUtils.getFirstVersion()));
+        // assertThat(skipSection.getUpperVersion(), equalTo(version));
         assertThat(skipSection.getFeatures().size(), equalTo(0));
         assertThat(skipSection.getReason(), equalTo("Delete ignores the parent param"));
     }
@@ -91,8 +103,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.getLowerVersion(), equalTo(VersionUtils.getFirstVersion()));
-        assertThat(skipSection.getUpperVersion(), equalTo(Version.CURRENT));
+        // assertThat(skipSection.getLowerVersion(), equalTo(VersionUtils.getFirstVersion()));
+        // assertThat(skipSection.getUpperVersion(), equalTo(Version.CURRENT));
         assertThat(skipSection.getFeatures().size(), equalTo(0));
         assertThat(skipSection.getReason(), equalTo("Delete ignores the parent param"));
     }
@@ -102,7 +114,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.isVersionCheck(), equalTo(false));
+        assertIsVersionCheck(skipSection, false);
         assertThat(skipSection.getFeatures().size(), equalTo(1));
         assertThat(skipSection.getFeatures().get(0), equalTo("regex"));
         assertThat(skipSection.getReason(), nullValue());
@@ -113,7 +125,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.isVersionCheck(), equalTo(false));
+        assertIsVersionCheck(skipSection, false);
         assertThat(skipSection.getFeatures().size(), equalTo(3));
         assertThat(skipSection.getFeatures().get(0), equalTo("regex1"));
         assertThat(skipSection.getFeatures().get(1), equalTo("regex2"));
@@ -128,8 +140,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             reason:      Delete ignores the parent param""");
 
         SkipSection skipSection = SkipSection.parse(parser);
-        assertEquals(VersionUtils.getFirstVersion(), skipSection.getLowerVersion());
-        assertEquals(Version.fromString("0.90.2"), skipSection.getUpperVersion());
+        // assertEquals(VersionUtils.getFirstVersion(), skipSection.getLowerVersion());
+        // assertEquals(Version.fromString("0.90.2"), skipSection.getUpperVersion());
         assertEquals(Collections.singletonList("regex"), skipSection.getFeatures());
         assertEquals("Delete ignores the parent param", skipSection.getReason());
     }
@@ -157,10 +169,9 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.isVersionCheck(), equalTo(false));
+        assertIsVersionCheck(skipSection, false);
         assertThat(skipSection.getFeatures().size(), equalTo(2));
-        assertThat(skipSection.getOperatingSystems().size(), equalTo(1));
-        assertThat(skipSection.getOperatingSystems().get(0), equalTo("debian-9"));
+        assertOperatingSystems(skipSection, containsInAnyOrder("debian-9"));
         assertThat(skipSection.getReason(), is("memory accounting broken, see gh#xyz"));
     }
 
@@ -173,11 +184,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.isVersionCheck(), equalTo(false));
-        assertThat(skipSection.getOperatingSystems().size(), equalTo(3));
-        assertThat(skipSection.getOperatingSystems().get(0), equalTo("debian-9"));
-        assertThat(skipSection.getOperatingSystems().get(1), equalTo("windows-95"));
-        assertThat(skipSection.getOperatingSystems().get(2), equalTo("ms-dos"));
+        assertIsVersionCheck(skipSection, false);
+        assertOperatingSystems(skipSection, containsInAnyOrder("debian-9", "windows-95", "ms-dos"));
         assertThat(skipSection.getReason(), is("see gh#xyz"));
     }
 

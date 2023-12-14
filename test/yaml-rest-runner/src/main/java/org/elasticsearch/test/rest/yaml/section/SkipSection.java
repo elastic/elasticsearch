@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.yaml.Features;
@@ -26,13 +25,6 @@ import java.util.List;
  * - an operating system (full name, including specific Linux distributions) that might show a certain behavior
  */
 public class SkipSection {
-    public interface SkipSectionContext {
-        Version getMinimumNodeVersion();
-
-        boolean clusterIsRunningOs(String osName);
-
-        boolean clusterHasFeature(String featureId);
-    }
 
     /**
      * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
@@ -76,20 +68,31 @@ public class SkipSection {
         }
 
         public SkipSection build(XContentLocation contentLocation) {
-            if ((Strings.hasLength(version) == false) && testFeatures.isEmpty() && operatingSystems.isEmpty()) {
-                throw new ParsingException(contentLocation, "version, features or os is mandatory within skip section");
+            List<SkipCriteria> skipCriteriaList = new ArrayList<>();
+            if (Strings.hasLength(version)) {
+                skipCriteriaList.add(new VersionSkipCriteria(version));
+            }
+            if (operatingSystems.isEmpty() == false) {
+                skipCriteriaList.add(new OsSkipCriteria(operatingSystems));
+            }
+
+            if (skipCriteriaList.isEmpty() && testFeatures.isEmpty()) {
+                throw new ParsingException(
+                    contentLocation,
+                    "At least one criteria (version, test features, os) is mandatory within a skip section"
+                );
             }
             if (Strings.hasLength(version) && Strings.hasLength(reason) == false) {
                 throw new ParsingException(contentLocation, "reason is mandatory within skip version section");
             }
             if (operatingSystems.isEmpty() == false && Strings.hasLength(reason) == false) {
-                throw new ParsingException(contentLocation, "reason is mandatory within skip version section");
+                throw new ParsingException(contentLocation, "reason is mandatory within skip os section");
             }
             // make feature "skip_os" mandatory if os is given, this is a temporary solution until language client tests know about os
             if (operatingSystems.isEmpty() == false && testFeatures.contains("skip_os") == false) {
                 throw new ParsingException(contentLocation, "if os is specified, feature skip_os must be set");
             }
-            return new SkipSection(version, testFeatures, operatingSystems, reason);
+            return new SkipSection(skipCriteriaList, testFeatures, reason);
         }
     }
 
@@ -146,41 +149,24 @@ public class SkipSection {
 
     public static final SkipSection EMPTY = new SkipSection();
 
-    private final List<VersionRange> versionRanges;
-    private final List<String> features;
-    private final List<String> operatingSystems;
+    private final List<SkipCriteria> skipCriteriaList;
+    private final List<String> testFeatures;
     private final String reason;
 
     private SkipSection() {
-        this.versionRanges = new ArrayList<>();
-        this.features = new ArrayList<>();
-        this.operatingSystems = new ArrayList<>();
+        this.skipCriteriaList = new ArrayList<>();
+        this.testFeatures = new ArrayList<>();
         this.reason = null;
     }
 
-    public SkipSection(String versionRange, List<String> features, List<String> operatingSystems, String reason) {
-        assert features != null;
-        this.versionRanges = VersionRange.parseVersionRanges(versionRange);
-        assert versionRanges.isEmpty() == false;
-        this.features = features;
-        this.operatingSystems = operatingSystems;
+    public SkipSection(List<SkipCriteria> skipCriteriaList, List<String> testFeatures, String reason) {
+        this.skipCriteriaList = skipCriteriaList;
+        this.testFeatures = testFeatures;
         this.reason = reason;
     }
 
-    public Version getLowerVersion() {
-        return versionRanges.get(0).lower();
-    }
-
-    public Version getUpperVersion() {
-        return versionRanges.get(versionRanges.size() - 1).upper();
-    }
-
     public List<String> getFeatures() {
-        return features;
-    }
-
-    public List<String> getOperatingSystems() {
-        return operatingSystems;
+        return testFeatures;
     }
 
     public String getReason() {
@@ -191,13 +177,10 @@ public class SkipSection {
         if (isEmpty()) {
             return false;
         }
-        return versionRanges.stream().anyMatch(range -> range.contains(context.getMinimumNodeVersion()))
-            || Features.areAllSupported(features) == false
-            || operatingSystems.stream().anyMatch(context::clusterIsRunningOs);
-    }
-
-    public boolean isVersionCheck() {
-        return features.isEmpty() && operatingSystems.isEmpty();
+        if (Features.areAllSupported(testFeatures) == false) {
+            return true;
+        }
+        return skipCriteriaList.stream().anyMatch(c -> c.skip(context));
     }
 
     public boolean isEmpty() {
@@ -210,7 +193,7 @@ public class SkipSection {
         if (reason != null) {
             messageBuilder.append(" reason: [").append(getReason()).append("]");
         }
-        if (features.isEmpty() == false) {
+        if (testFeatures.isEmpty() == false) {
             messageBuilder.append(" unsupported features ").append(getFeatures());
         }
         return messageBuilder.toString();

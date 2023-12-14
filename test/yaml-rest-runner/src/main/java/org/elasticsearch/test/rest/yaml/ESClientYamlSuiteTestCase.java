@@ -37,7 +37,8 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
-import org.elasticsearch.test.rest.yaml.section.SkipSection;
+import org.elasticsearch.test.rest.yaml.section.SkipSectionContext;
+import org.elasticsearch.test.rest.yaml.section.VersionRange;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -610,16 +611,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return testCandidate;
     }
 
-    private static class SkipSectionContextAdapter implements SkipSection.SkipSectionContext {
+    private static class SkipSectionContextAdapter implements SkipSectionContext {
         private final ClientYamlTestExecutionContext executionContext;
 
         SkipSectionContextAdapter(ClientYamlTestExecutionContext executionContext) {
             this.executionContext = executionContext;
-        }
-
-        @Override
-        public Version getMinimumNodeVersion() {
-            return executionContext.esVersion();
         }
 
         @Override
@@ -630,6 +626,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         @Override
         public boolean clusterHasFeature(String featureId) {
             return executionContext.clusterHasFeature(featureId);
+        }
+
+        @Override
+        public boolean clusterVersionInRange(VersionRange range) {
+            return range.contains(executionContext.esVersion());
         }
     }
 }

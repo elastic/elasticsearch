@@ -12,8 +12,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -41,13 +47,8 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTes
         return ExecutableSection.XCONTENT_REGISTRY;
     }
 
-    protected static SkipSection.SkipSectionContext versionContext(Version version) {
-        return new SkipSection.SkipSectionContext() {
-            @Override
-            public Version getMinimumNodeVersion() {
-                return version;
-            }
-
+    protected static SkipSectionContext versionContext(Version version) {
+        return new SkipSectionContext() {
             @Override
             public boolean clusterIsRunningOs(String osName) {
                 throw new UnsupportedOperationException();
@@ -57,6 +58,51 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTes
             public boolean clusterHasFeature(String featureId) {
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public boolean clusterVersionInRange(VersionRange range) {
+                return range.contains(version);
+            }
         };
+    }
+
+    private static class TestSkipSectionContext implements SkipSectionContext {
+        List<String> operatingSystems = new ArrayList<>();
+        List<String> clusterFeatures = new ArrayList<>();
+        List<VersionRange> versionRanges = new ArrayList<>();
+
+        @Override
+        public boolean clusterIsRunningOs(String osName) {
+            operatingSystems.add(osName);
+            return false;
+        }
+
+        @Override
+        public boolean clusterHasFeature(String featureId) {
+            clusterFeatures.add(featureId);
+            return false;
+        }
+
+        @Override
+        public boolean clusterVersionInRange(VersionRange range) {
+            versionRanges.add(range);
+            return false;
+        }
+    }
+
+    protected void assertIsVersionCheck(SkipSection skipSection, boolean isVersionCheck) {
+        var context = new TestSkipSectionContext();
+        skipSection.skip(context);
+        if (isVersionCheck) {
+            assertThat(context.versionRanges, not(emptyIterable()));
+        } else {
+            assertThat(context.versionRanges, emptyIterable());
+        }
+    }
+
+    protected void assertOperatingSystems(SkipSection skipSection, Matcher<Iterable<? extends String>> matcher) {
+        var context = new TestSkipSectionContext();
+        skipSection.skip(context);
+        assertThat(context.operatingSystems, matcher);
     }
 }

@@ -1,5 +1,5 @@
 [[cancel-connector-sync-job-api]]
-=== Cancel connector sync job api
+=== Cancel connector sync job API
 ++++
 <titleabbrev>Cancel connector sync job</titleabbrev>
 ++++

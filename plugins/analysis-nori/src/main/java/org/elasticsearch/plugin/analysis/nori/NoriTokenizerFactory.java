@@ -80,7 +80,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
      * that the duplicate check feature is supported.
      */
     private static boolean isSupportDuplicateCheck(IndexSettings indexSettings) {
-        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.USER_DICT_CHECK_DUPLICATE);
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES_VERSION_8_13);
     }
 
     public static KoreanTokenizer.DecompoundMode getMode(Settings settings) {

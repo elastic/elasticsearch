@@ -508,6 +508,7 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     public void testReloadClientSecret() throws Exception {
+        assumeFalse("Cannot run in FIPS mode because this test tampers with the keystore", inFipsJvm());
         final String principal = SERVICE_SUBJECT.get();
         final String username = getUsernameFromPrincipal(principal);
         final List<String> roles = randomRoles();

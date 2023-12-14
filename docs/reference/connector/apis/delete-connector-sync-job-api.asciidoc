@@ -29,10 +29,10 @@ This is a destructive action that is not recoverable.
 [[delete-connector-sync-job-api-response-codes]]
 ==== {api-response-codes-title}
 
-`400`:
+`400`::
 The `connector_sync_job_id` was not provided.
 
-`404`:
+`404`::
 No connector sync job matching `connector_sync_job_id` could be found.
 
 [[delete-connector-sync-job-api-example]]

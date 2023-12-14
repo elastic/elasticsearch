@@ -49,7 +49,8 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
         "ABORTED",
         "MISSING",
         "WAITING",
-        "QUEUED" };
+        "QUEUED",
+        "PAUSED_FOR_NODE_REMOVAL" };
 
     @Override
     protected ClusterSnapshotStats createTestInstance() {
@@ -370,7 +371,9 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                                 SnapshotsInProgress.ShardState.WAITING,
                                 0,
                                 SnapshotsInProgress.ShardState.QUEUED,
-                                1
+                                1,
+                                SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
+                                0
                             )
                         )
                     )

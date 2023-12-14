@@ -1178,23 +1178,30 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     snapshotChanged = true;
                     shards.put(shardId, knownFailure);
                 }
-            } else if (shardStatus.state() == ShardState.WAITING) {
+            } else if (shardStatus.state() == ShardState.WAITING || shardStatus.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
                 IndexRoutingTable indexShardRoutingTable = routingTable.index(shardId.getIndex());
                 if (indexShardRoutingTable != null) {
                     IndexShardRoutingTable shardRouting = indexShardRoutingTable.shard(shardId.id());
                     if (shardRouting != null && shardRouting.primaryShard() != null) {
-                        if (nodeIdRemovalPredicate.test(shardRouting.primaryShard().currentNodeId())) {
-                            // Shard that we are waiting for is on a node marked for removal, keep it as WAITING
-                            shards.put(shardId, shardStatus);
+                        final var primaryNodeId = shardRouting.primaryShard().currentNodeId();
+                        if (nodeIdRemovalPredicate.test(primaryNodeId)) {
+                            if (shardStatus.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                                // Shard that we are waiting for is on a node marked for removal, keep it as PAUSED_FOR_REMOVAL
+                                shards.put(shardId, shardStatus);
+                            } else {
+                                // Shard that we are waiting for is on a node marked for removal, move it to PAUSED_FOR_REMOVAL
+                                snapshotChanged = true;
+                                shards.put(
+                                    shardId,
+                                    new ShardSnapshotStatus(primaryNodeId, ShardState.PAUSED_FOR_NODE_REMOVAL, shardStatus.generation())
+                                );
+                            }
                             continue;
                         } else if (shardRouting.primaryShard().started()) {
                             // Shard that we were waiting for has started on a node, let's process it
                             snapshotChanged = true;
                             logger.trace("starting shard that we were waiting for [{}] on node [{}]", shardId, shardStatus.nodeId());
-                            shards.put(
-                                shardId,
-                                new ShardSnapshotStatus(shardRouting.primaryShard().currentNodeId(), shardStatus.generation())
-                            );
+                            shards.put(shardId, new ShardSnapshotStatus(primaryNodeId, shardStatus.generation()));
                             continue;
                         } else if (shardRouting.primaryShard().initializing() || shardRouting.primaryShard().relocating()) {
                             // Shard that we were waiting for hasn't started yet or still relocating - will continue to wait
@@ -1247,7 +1254,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 if (entry.state() == State.STARTED && entry.isClone() == false) {
                     for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardsByRepoShardId().entrySet()) {
                         final ShardState state = shardStatus.getValue().state();
-                        if (state != ShardState.WAITING && state != ShardState.QUEUED) {
+                        if (state != ShardState.WAITING && state != ShardState.QUEUED && state != ShardState.PAUSED_FOR_NODE_REMOVAL) {
                             continue;
                         }
                         final RepositoryShardId shardId = shardStatus.getKey();
@@ -1256,7 +1263,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 .getRoutingTable()
                                 .index(entry.indexByName(shardId.indexName()));
                             if (indexShardRoutingTable == null) {
-                                // index got removed concurrently and we have to fail WAITING or QUEUED state shards
+                                // index got removed concurrently and we have to fail WAITING, QUEUED and PAUSED_FOR_REMOVAL state shards
                                 return true;
                             }
                             ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.shardId()).primaryShard();
@@ -2924,8 +2931,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         ShardSnapshotStatus shardSnapshotStatus;
         if (primary == null || primary.assignedToNode() == false) {
             shardSnapshotStatus = new ShardSnapshotStatus(null, ShardState.MISSING, shardRepoGeneration, "primary shard is not allocated");
-        } else if (nodeIdRemovalPredicate.test(primary.currentNodeId()) || primary.relocating() || primary.initializing()) {
+        } else if (primary.relocating() || primary.initializing()) {
             shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
+        } else if (nodeIdRemovalPredicate.test(primary.currentNodeId())) {
+            shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.PAUSED_FOR_NODE_REMOVAL, shardRepoGeneration);
         } else if (primary.started() == false) {
             shardSnapshotStatus = new ShardSnapshotStatus(
                 primary.currentNodeId(),
@@ -3275,7 +3284,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
 
                 final ShardSnapshotStatus updatedState;
-                if (existing.state() == ShardState.ABORTED && updateSnapshotState.updatedState.state() == ShardState.WAITING) {
+                if (existing.state() == ShardState.ABORTED
+                    && updateSnapshotState.updatedState.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
                     // concurrently pausing the shard snapshot due to node shutdown and aborting the snapshot - this shard is no longer
                     // actively snapshotting but we don't want it to resume, so mark it as FAILED since it didn't complete
                     updatedState = new ShardSnapshotStatus(

@@ -101,7 +101,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                     continue;
                 }
 
-                if (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.WAITING
+                if (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL
                     && snapshotsInProgress.isNodeIdForRemoval(shardRouting.currentNodeId())) {
                     // this shard snapshot is paused pending the removal of its assigned node
                     continue;

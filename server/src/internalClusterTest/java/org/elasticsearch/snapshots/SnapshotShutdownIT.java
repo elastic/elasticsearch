@@ -279,9 +279,9 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                             .anyMatch(
                                 shardEntry -> shardEntry.getKey().getIndexName().equals(indexName)
                                     && switch (shardEntry.getValue().state()) {
-                                        case INIT, WAITING -> false;
+                                        case INIT, PAUSED_FOR_NODE_REMOVAL -> false;
                                         case SUCCESS -> true;
-                                        case FAILED, ABORTED, MISSING, QUEUED -> throw new AssertionError(shardEntry.toString());
+                                        case FAILED, ABORTED, MISSING, QUEUED, WAITING -> throw new AssertionError(shardEntry.toString());
                                     }
                             )
                     )
@@ -418,8 +418,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 .toList();
             assertThat(shardSnapshotStatuses, hasSize(1));
             final var shardState = shardSnapshotStatuses.iterator().next().state();
-            assertThat(shardState, oneOf(SnapshotsInProgress.ShardState.INIT, SnapshotsInProgress.ShardState.WAITING));
-            return shardState == SnapshotsInProgress.ShardState.WAITING;
+            assertThat(shardState, oneOf(SnapshotsInProgress.ShardState.INIT, SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL));
+            return shardState == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL;
         });
     }
 

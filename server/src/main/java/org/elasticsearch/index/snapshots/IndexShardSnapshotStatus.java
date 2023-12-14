@@ -215,7 +215,7 @@ public class IndexShardSnapshotStatus {
         if (newStage == Stage.PAUSED && stage.compareAndSet(Stage.PAUSING, Stage.PAUSED)) {
             this.totalTime = Math.max(0L, endTime - startTime);
             this.failure = failure;
-            return SnapshotsInProgress.ShardState.WAITING;
+            return SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL;
         }
 
         moveToFailed(endTime, failure);

@@ -508,7 +508,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         /**
          * Shard snapshot is waiting for another shard snapshot for the same shard and to the same repository to finish.
          */
-        QUEUED((byte) 7, false, false);
+        QUEUED((byte) 7, false, false),
+        /**
+         * Primary shard is assigned to a node which is marked for removal from the cluster (or which was previously marked for removal and
+         * we're still waiting for its other shards to pause).
+         */
+        PAUSED_FOR_NODE_REMOVAL((byte) 8, false, false);
 
         private final byte value;
 
@@ -539,6 +544,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 case 5 -> MISSING;
                 case 6 -> WAITING;
                 case 7 -> QUEUED;
+                case 8 -> PAUSED_FOR_NODE_REMOVAL;
                 default -> throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
             };
         }
@@ -650,7 +656,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private boolean assertConsistent() {
             // If the state is failed we have to have a reason for this failure
             assert state.failed() == false || reason != null;
-            assert (state != ShardState.INIT && state != ShardState.WAITING) || nodeId != null : "Null node id for state [" + state + "]";
+            assert (state != ShardState.INIT && state != ShardState.WAITING && state != ShardState.PAUSED_FOR_NODE_REMOVAL)
+                || nodeId != null : "Null node id for state [" + state + "]";
             assert state != ShardState.QUEUED || (nodeId == null && generation == null && reason == null)
                 : "Found unexpected non-null values for queued state shard nodeId[" + nodeId + "][" + generation + "][" + reason + "]";
             assert state == ShardState.SUCCESS || shardSnapshotResult == null;
@@ -695,10 +702,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         /**
          * Checks if this shard snapshot is actively executing.
          * A shard is defined as actively executing if it either is in a state that may write to the repository
-         * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or about to write to it in state {@link ShardState#WAITING}.
+         * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or about to write to it in state {@link ShardState#WAITING} or
+         * {@link ShardState#PAUSED_FOR_NODE_REMOVAL}.
          */
         public boolean isActive() {
-            return state == ShardState.INIT || state == ShardState.ABORTED || state == ShardState.WAITING;
+            return switch (state) {
+                case INIT, ABORTED, WAITING, PAUSED_FOR_NODE_REMOVAL -> true;
+                case SUCCESS, FAILED, MISSING, QUEUED -> false;
+            };
         }
 
         @Override

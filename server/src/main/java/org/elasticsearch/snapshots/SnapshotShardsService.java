@@ -341,7 +341,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 notifyUnsuccessfulSnapshotShard(
                     entry.snapshot(),
                     shardId,
-                    ShardState.WAITING,
+                    ShardState.PAUSED_FOR_NODE_REMOVAL,
                     "paused",
                     masterShardSnapshotStatus.generation()
                 );
@@ -611,7 +611,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                             notifyUnsuccessfulSnapshotShard(
                                 snapshot.snapshot(),
                                 shardId,
-                                ShardState.WAITING,
+                                ShardState.PAUSED_FOR_NODE_REMOVAL,
                                 indexShardSnapshotStatus.getFailure(),
                                 localShard.getValue().generation()
                             );
@@ -642,7 +642,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final String failure,
         final ShardGeneration generation
     ) {
-        assert shardState == ShardState.FAILED || shardState == ShardState.WAITING : shardState;
+        assert shardState == ShardState.FAILED || shardState == ShardState.PAUSED_FOR_NODE_REMOVAL : shardState;
         sendSnapshotShardUpdate(
             snapshot,
             shardId,

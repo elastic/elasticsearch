@@ -247,7 +247,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
                             shardId,
                             new SnapshotsInProgress.ShardSnapshotStatus(
                                 nodeId,
-                                SnapshotsInProgress.ShardState.WAITING,
+                                SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
                                 ShardGeneration.newGeneration(random())
                             ),
                             new ShardId(otherIndex, randomUUID(), 0),

@@ -48,7 +48,7 @@ Pipeline configuration must include the following attributes:
 ==== {api-response-codes-title}
 
 `200`::
-Connector `pipeline`` field was successfully updated.
+Connector `pipeline` field was successfully updated.
 
 `400`::
 The `connector_id` was not provided or the request payload was malformed.

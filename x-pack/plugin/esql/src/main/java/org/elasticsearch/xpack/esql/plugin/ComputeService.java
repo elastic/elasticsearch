@@ -299,6 +299,7 @@ public class ComputeService {
 
     private void acquireSearchContexts(
         List<ShardId> shardIds,
+        EsqlConfiguration configuration,
         Map<Index, AliasFilter> aliasFilters,
         ActionListener<List<SearchContext>> listener
     ) {
@@ -322,11 +323,12 @@ public class ComputeService {
                             try {
                                 for (IndexShard shard : targetShards) {
                                     var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
-                                    ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shard.shardId(), 0, aliasFilter);
-                                    SearchContext context = searchService.createSearchContext(
-                                        shardSearchLocalRequest,
-                                        SearchService.NO_TIMEOUT
+                                    var shardRequest = new ShardSearchRequest(
+                                        shard.shardId(),
+                                        configuration.absoluteStartedTimeInMillis(),
+                                        aliasFilter
                                     );
+                                    SearchContext context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
                                     searchContexts.add(context);
                                 }
                                 for (SearchContext searchContext : searchContexts) {
@@ -453,7 +455,8 @@ public class ComputeService {
             final var exchangeSink = exchangeService.getSinkHandler(sessionId);
             parentTask.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException("task cancelled")));
             final ActionListener<Void> listener = new ChannelActionListener<>(channel).map(nullValue -> new DataNodeResponse());
-            acquireSearchContexts(request.shardIds(), request.aliasFilters(), ActionListener.wrap(searchContexts -> {
+            final EsqlConfiguration configuration = request.configuration();
+            acquireSearchContexts(request.shardIds(), configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 var computeContext = new ComputeContext(sessionId, searchContexts, request.configuration(), null, exchangeSink);
                 runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(unused -> {
                     // don't return until all pages are fetched

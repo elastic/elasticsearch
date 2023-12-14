@@ -159,7 +159,8 @@ public class ComputeService {
             );
             return;
         }
-        QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);
+        // TODO we need a lambda to identify exact subfields usage
+        QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan, x -> true);
 
         LOGGER.debug("Sending data node plan\n{}\n with filter [{}]", dataNodePlan, requestFilter);
 

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -43,6 +44,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
@@ -131,12 +133,16 @@ public class PlannerUtils {
 
     /**
      * Extracts the ES query provided by the filter parameter
+     * @param plan
+     * @param hasIdenticalDelegate a lambda that given a field attribute sayis if it has
+     *                             a synthetic source delegate with the exact same value
+     * @return
      */
-    public static QueryBuilder requestFilter(PhysicalPlan plan) {
-        return detectFilter(plan, "@timestamp");
+    public static QueryBuilder requestFilter(PhysicalPlan plan, Function<FieldAttribute, Boolean> hasIdenticalDelegate) {
+        return detectFilter(plan, "@timestamp", hasIdenticalDelegate);
     }
 
-    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName) {
+    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, Function<FieldAttribute, Boolean> hasIdenticalDelegate) {
         // first position is the REST filter, the second the query filter
         var requestFilter = new QueryBuilder[] { null, null };
 
@@ -157,7 +163,7 @@ public class PlannerUtils {
                         boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
+                        if (matchesField && refs.isEmpty() && canPushToSource(exp, hasIdenticalDelegate)) {
                             matches.add(exp);
                         }
                     }

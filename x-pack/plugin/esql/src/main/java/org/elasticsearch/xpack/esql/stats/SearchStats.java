@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -46,6 +47,7 @@ public class SearchStats {
         private Boolean exists;
         private Object min, max;
         private Boolean singleValue;
+        private Boolean hasIdenticalDelegate;
     }
 
     private static final int CACHE_SIZE = 32;
@@ -108,6 +110,28 @@ public class SearchStats {
             }
         }
         return stat.exists;
+    }
+
+    public boolean hasIdenticalDelegate(String field) {
+        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        if (stat.hasIdenticalDelegate == null) {
+            stat.hasIdenticalDelegate = true;
+            for (SearchContext context : contexts) {
+                if (context.getSearchExecutionContext().isFieldMapped(field)) {
+                    MappedFieldType type = context.getSearchExecutionContext().getFieldType(field);
+                    if (type instanceof TextFieldMapper.TextFieldType t) {
+                        if (t.isSyntheticSourceDelegateIdentical() == false) {
+                            stat.hasIdenticalDelegate = false;
+                            break;
+                        }
+                    } else {
+                        stat.hasIdenticalDelegate = false;
+                        break;
+                    }
+                }
+            }
+        }
+        return stat.hasIdenticalDelegate;
     }
 
     public byte[] min(String field, DataType dataType) {

@@ -139,6 +139,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             if (uploadFile.exists()) {
                 getFileSystemOperations().delete(spec -> spec.delete(uploadFile));
             }
+            List<File> archiveContentFiles = parameters.getFilteredFiles().get();
+            if (archiveContentFiles.isEmpty() == false) {
+                System.out.println("No files to archive, skipping build artifact creation...");
+                return;
+            }
             uploadFile.getParentFile().mkdirs();
             createBuildArchiveTar(parameters.getFilteredFiles().get(), parameters.getProjectDir().get(), uploadFile);
             if (uploadFile.exists() && "true".equals(System.getenv("BUILDKITE"))) {

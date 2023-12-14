@@ -67,6 +67,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
@@ -228,13 +229,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         shardSyncStates.values().forEach((s) -> s.close(true));
     }
 
-    public void register(ShardId shardId, long primaryTerm) {
+    public void register(ShardId shardId, long primaryTerm, LongConsumer persistedSeqNoConsumer) {
         var previous = shardSyncStates.put(
             shardId,
             new ShardSyncState(
                 shardId,
                 primaryTerm,
                 () -> currentPrimaryTerm.applyAsLong(shardId),
+                persistedSeqNoConsumer,
                 threadPool.getThreadContext(),
                 bigArrays
             )

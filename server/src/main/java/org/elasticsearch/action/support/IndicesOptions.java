@@ -100,9 +100,10 @@ public record IndicesOptions(
         EXCLUDE,
         ONLY;
 
+        @Nullable
         public static FailureStoreState parseParameter(Object value) {
             if (value == null) {
-                return EXCLUDE;
+                return null;
             }
             return switch ((String) value) {
                 case "include" -> INCLUDE;
@@ -266,17 +267,17 @@ public record IndicesOptions(
     }
 
     /**
-     * @return whether failure store indices need to be included
+     * @return whether normal data stream backing indices need to be included
      */
-    public boolean includeFailureStore() {
-        return FailureStoreState.INCLUDE.equals(failureStoreState);
+    public boolean expandToNormalBackingIndices() {
+        return failureStoreState == null || failureStoreState.equals(FailureStoreState.ONLY) == false;
     }
 
     /**
-     * @return whether only failure store indices need to be included
+     * @return whether failure store indices need to be included
      */
-    public boolean onlyFailureStore() {
-        return FailureStoreState.ONLY.equals(failureStoreState);
+    public boolean expandToFailureStoreIndices() {
+        return failureStoreState != null && failureStoreState.equals(FailureStoreState.EXCLUDE) == false;
     }
 
     /**
@@ -409,7 +410,7 @@ public record IndicesOptions(
             forbidClosedIndices,
             ignoreAliases,
             ignoreThrottled,
-            false,
+            true,
             false
         );
     }
@@ -424,8 +425,8 @@ public record IndicesOptions(
         boolean forbidClosedIndices,
         boolean ignoreAliases,
         boolean ignoreThrottled,
-        boolean includeFailureStore,
-        boolean onlyFailureStore
+        boolean expandToNormalBackingIndices,
+        boolean expandToFailureStoreIndices
     ) {
         final EnumSet<Option> opts = EnumSet.noneOf(Option.class);
         final EnumSet<WildcardStates> wildcards = EnumSet.noneOf(WildcardStates.class);
@@ -458,12 +459,12 @@ public record IndicesOptions(
             opts.add(Option.IGNORE_THROTTLED);
         }
         if (DataStream.isFailureStoreEnabled()) {
-            if (onlyFailureStore) {
-                failureStoreState = FailureStoreState.ONLY;
-            } else if (includeFailureStore) {
+            if (expandToNormalBackingIndices && expandToFailureStoreIndices) {
                 failureStoreState = FailureStoreState.INCLUDE;
-            } else {
+            } else if (expandToFailureStoreIndices) {
                 failureStoreState = FailureStoreState.EXCLUDE;
+            } else {
+                failureStoreState = FailureStoreState.ONLY;
             }
         }
         return new IndicesOptions(opts, wildcards, failureStoreState);
@@ -566,8 +567,8 @@ public record IndicesOptions(
             defaultSettings.forbidClosedIndices(),
             defaultSettings.ignoreAliases(),
             nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled()),
-            FailureStoreState.INCLUDE.equals(failureStore),
-            FailureStoreState.ONLY.equals(failureStore)
+            failureStore == null || FailureStoreState.ONLY.equals(failureStore) == false,
+            failureStore != null && FailureStoreState.EXCLUDE.equals(failureStore) == false
         );
     }
 
@@ -683,8 +684,8 @@ public record IndicesOptions(
             false,
             false,
             ignoreThrottled,
-            FailureStoreState.INCLUDE.equals(failureStoreState),
-            FailureStoreState.ONLY.equals(failureStoreState)
+            failureStoreState == null || failureStoreState.equals(FailureStoreState.ONLY) == false,
+            failureStoreState != null && FailureStoreState.EXCLUDE.equals(failureStoreState) == false
         );
     }
 
@@ -799,7 +800,10 @@ public record IndicesOptions(
             + ", ignore_throttled="
             + ignoreThrottled()
             + (DataStream.isFailureStoreEnabled()
-                ? ", include_failure_store=" + includeFailureStore() + ", only_failure_store=" + onlyFailureStore()
+                ? ", expand_to_normal_backing_indices="
+                    + expandToNormalBackingIndices()
+                    + ", expand_to_failure_store_indices="
+                    + expandToFailureStoreIndices()
                 : "")
             + ']';
     }

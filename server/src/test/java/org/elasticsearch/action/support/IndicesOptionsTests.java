@@ -181,12 +181,12 @@ public class IndicesOptionsTests extends ESTestCase {
         boolean allowNoIndices = randomBoolean();
         String allowNoIndicesString = Boolean.toString(allowNoIndices);
 
-        final boolean includeFailureStore = randomBoolean();
-        final boolean onlyFailureStore = includeFailureStore == false && randomBoolean();
+        final boolean expandToNormalBackingIndices = randomBoolean();
+        final boolean expandToFailureStoreIndices = randomBoolean();
         String failureStore;
-        if (includeFailureStore) {
+        if (expandToNormalBackingIndices && expandToFailureStoreIndices) {
             failureStore = "include";
-        } else if (onlyFailureStore) {
+        } else if (expandToFailureStoreIndices) {
             failureStore = "only";
         } else {
             failureStore = "exclude";
@@ -219,8 +219,8 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(expandWildcardsHidden, updatedOptions.expandWildcardsHidden());
         assertEquals(ignoreUnavailable, updatedOptions.ignoreUnavailable());
         assertEquals(allowNoIndices, updatedOptions.allowNoIndices());
-        assertEquals(includeFailureStore, updatedOptions.includeFailureStore());
-        assertEquals(onlyFailureStore, updatedOptions.onlyFailureStore());
+        assertEquals(expandToNormalBackingIndices, updatedOptions.expandToNormalBackingIndices());
+        assertEquals(expandToFailureStoreIndices, updatedOptions.expandToFailureStoreIndices());
         assertEquals(defaultOptions.allowAliasesToMultipleIndices(), updatedOptions.allowAliasesToMultipleIndices());
         assertEquals(defaultOptions.forbidClosedIndices(), updatedOptions.forbidClosedIndices());
         assertEquals(defaultOptions.ignoreAliases(), updatedOptions.ignoreAliases());

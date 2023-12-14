@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -135,7 +134,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
     public void testIndexMappingRequestAreRetried() {
         CountDownLatch published = new CountDownLatch(1);
         AtomicInteger attempts = new AtomicInteger(randomIntBetween(2, 5));
-        publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool), () -> TransportVersions.V_8_500_050) {
+        publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool)) {
             @Override
             public void publishIndicesMappingSize(HeapMemoryUsage heapMemoryUsage, ActionListener<ActionResponse.Empty> listener) {
                 if (attempts.decrementAndGet() == 0) {
@@ -158,7 +157,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
 
     public void testIndexMappingRetryRequestAreCancelledAfterTimeout() {
         var unableToPublishMetricsLatch = new CountDownLatch(1);
-        publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool), () -> TransportVersions.V_8_500_050) {
+        publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool)) {
             @Override
             public void publishIndicesMappingSize(HeapMemoryUsage heapMemoryUsage, ActionListener<ActionResponse.Empty> listener) {
                 logger.info("Publishing {}", heapMemoryUsage);

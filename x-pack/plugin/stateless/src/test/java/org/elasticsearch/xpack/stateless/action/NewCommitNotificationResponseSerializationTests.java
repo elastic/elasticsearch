@@ -19,14 +19,11 @@ package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class NewCommitNotificationResponseSerializationTests extends AbstractWireSerializingTestCase<NewCommitNotificationResponse> {
 
@@ -52,11 +49,5 @@ public class NewCommitNotificationResponseSerializationTests extends AbstractWir
                 .map(PrimaryTermAndGenerationTests::mutatePrimaryTermAndGeneration)
                 .collect(Collectors.toSet())
         );
-    }
-
-    public void testBwCSerialization() throws Exception {
-        var testInstance = createTestInstance();
-        var bwcReadInstance = copyInstance(testInstance, TransportVersions.V_8_500_060);
-        assertThat(bwcReadInstance, equalTo(NewCommitNotificationResponse.EMPTY));
     }
 }

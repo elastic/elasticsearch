@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.remotecluster;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -67,7 +68,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testCredentialsReload() throws Exception {
+    public void testFirstTimeSetup() throws Exception {
         final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
             {
               "search": [
@@ -99,12 +100,110 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
                 new Request("GET", String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean()))
             )
         );
+
+        removeAllRemoteClusterConfiguration();
     }
 
-    @SuppressWarnings("unchecked")
+    public void testMigrateFromRcs1() throws Exception {
+        // Setup RCS 1.0 and check that it works
+        {
+            configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), randomBoolean());
+
+            final Request putRoleRequest = new Request("POST", "/_security/role/read_remote_shared_logs");
+            putRoleRequest.setJsonEntity("""
+                {
+                  "indices": [
+                    {
+                      "names": [ "shared-logs" ],
+                      "privileges": [ "read", "read_cross_cluster" ]
+                    }
+                  ]
+                }""");
+            performRequestAgainstFulfillingCluster(putRoleRequest);
+
+            assertOK(
+                performRequestWithRemoteSearchUser(
+                    new Request(
+                        "GET",
+                        String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean())
+                    )
+                )
+            );
+        }
+
+        // Now migrate to RCS 2.0
+        {
+            removeRemoteCluster();
+
+            final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                {
+                  "search": [
+                    {
+                        "names": ["*"]
+                    }
+                  ]
+                }""");
+
+            final boolean isProxyMode = randomBoolean();
+            final boolean configureSettingsFirst = randomBoolean();
+            // it's valid to first configure remote cluster, then credentials
+            if (configureSettingsFirst) {
+                putRemoteClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
+            }
+
+            configureRemoteClusterCredentials("my_remote_cluster", (String) apiKeyMap.get("encoded"));
+
+            // also valid to configure credentials, then cluster
+            if (false == configureSettingsFirst) {
+                configureRemoteCluster("my_remote_cluster");
+            } else {
+                // now that credentials are configured, we expect a successful connection
+                checkRemoteConnection("my_remote_cluster", fulfillingCluster, false, isProxyMode);
+            }
+
+            assertOK(
+                performRequestWithRemoteSearchUser(
+                    new Request(
+                        "GET",
+                        String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean())
+                    )
+                )
+            );
+        }
+
+        removeAllRemoteClusterConfiguration();
+    }
+
+    private void removeAllRemoteClusterConfiguration() throws IOException {
+        removeRemoteCluster();
+        removeRemoteClusterCredentials("my_remote_cluster");
+    }
+
+    private void removeRemoteCluster() throws IOException {
+        updateClusterSettings(
+            Settings.builder()
+                .putNull("cluster.remote.my_remote_cluster.mode")
+                .putNull("cluster.remote.my_remote_cluster.skip_unavailable")
+                .putNull("cluster.remote.my_remote_cluster.proxy_address")
+                .putNull("cluster.remote.my_remote_cluster.seeds")
+                .build()
+        );
+    }
+
     private void configureRemoteClusterCredentials(String clusterAlias, String credentials) throws IOException {
         keystoreSettings.put("cluster.remote." + clusterAlias + ".credentials", credentials);
         queryCluster.updateStoredSecureSettings();
+        reloadSecureSettings();
+    }
+
+    private void removeRemoteClusterCredentials(String clusterAlias) throws IOException {
+        keystoreSettings.remove("cluster.remote." + clusterAlias + ".credentials");
+        queryCluster.updateStoredSecureSettings();
+        reloadSecureSettings();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void reloadSecureSettings() throws IOException {
         final Response reloadResponse = adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings"));
         assertOK(reloadResponse);
         final Map<String, Object> map = entityAsMap(reloadResponse);

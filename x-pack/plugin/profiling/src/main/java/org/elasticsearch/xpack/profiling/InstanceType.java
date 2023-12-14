@@ -23,9 +23,9 @@ final class InstanceType implements ToXContentObject {
     final String name;
 
     InstanceType(String provider, String region, String name) {
-        this.provider = provider;
-        this.region = region;
-        this.name = name;
+        this.provider = provider != null ? provider : "";
+        this.region = region != null ? region : "";
+        this.name = name != null ? name : "";
     }
 
     /**
@@ -49,9 +49,6 @@ final class InstanceType implements ToXContentObject {
         String region = (String) source.get("ec2.placement.region");
         if (region != null) {
             String instanceType = (String) source.get("ec2.instance_type");
-            if (instanceType == null) {
-                instanceType = "";
-            }
             return new InstanceType("aws", region, instanceType);
         }
 
@@ -67,7 +64,7 @@ final class InstanceType implements ToXContentObject {
             }
 
             // Support for instance type is planned for 8.13.
-            return new InstanceType("gcp", region, "");
+            return new InstanceType("gcp", region, null);
         }
 
         // Check and handle Azure.
@@ -75,7 +72,7 @@ final class InstanceType implements ToXContentObject {
         if (region != null) {
             // example: "azure.compute.location": "eastus2"
             // Support for instance type is planned for 8.13.
-            return new InstanceType("azure", region, "");
+            return new InstanceType("azure", region, null);
         }
 
         // Support for configured tags (ECS).
@@ -85,7 +82,8 @@ final class InstanceType implements ToXContentObject {
         // "cloud_environment:qa",
         // "cloud_region:eu-west-1",
         // ],
-        String provider = "";
+        String provider = null;
+        region = null;
         List<String> tags = listOf(source.get("profiling.host.tags"));
         for (String tag : tags) {
             String[] kv = tag.toLowerCase(Locale.ROOT).split(":", 2);
@@ -100,7 +98,7 @@ final class InstanceType implements ToXContentObject {
             }
         }
 
-        return new InstanceType(provider, region, "");
+        return new InstanceType(provider, region, null);
     }
 
     @SuppressWarnings("unchecked")
@@ -133,7 +131,7 @@ final class InstanceType implements ToXContentObject {
             return false;
         }
         InstanceType that = (InstanceType) o;
-        return Objects.equals(provider, that.provider) && Objects.equals(region, that.region) && Objects.equals(name, that.name);
+        return provider.equals(that.provider) && region.equals(that.region) && name.equals(that.name);
     }
 
     @Override
@@ -143,6 +141,6 @@ final class InstanceType implements ToXContentObject {
 
     @Override
     public String toString() {
-        return name + " in region " + region;
+        return "provider '" + name + "' in region '" + region + "'";
     }
 }

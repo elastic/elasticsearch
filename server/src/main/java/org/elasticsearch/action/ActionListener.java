@@ -146,15 +146,6 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * @deprecated in favour of {@link #running(Runnable)} because this implementation doesn't "wrap" exceptions from {@link #onResponse}
-     * into {@link #onFailure}.
-     */
-    @Deprecated(forRemoval = true)
-    static <Response> ActionListener<Response> wrap(Runnable runnable) {
-        return running(runnable);
-    }
-
-    /**
      * Creates a listener that executes the appropriate consumer when the response (or failure) is received. This listener is "wrapped" in
      * the sense that an exception from the {@code onResponse} consumer is passed into the {@code onFailure} consumer.
      * <p>
@@ -189,29 +180,6 @@ public interface ActionListener<Response> {
             @Override
             public String toString() {
                 return "WrappedActionListener{" + onResponse + "}{" + onFailure + "}";
-            }
-        };
-    }
-
-    /**
-     * Adds a wrapper around a listener which catches exceptions thrown by its {@link #onResponse} method and feeds them to its
-     * {@link #onFailure} method.
-     */
-    static <DelegateResponse, Response extends DelegateResponse> ActionListener<Response> wrap(ActionListener<DelegateResponse> delegate) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Response response) {
-                ActionListener.run(delegate, l -> l.onResponse(response));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                safeOnFailure(delegate, e);
-            }
-
-            @Override
-            public String toString() {
-                return "wrapped{" + delegate + "}";
             }
         };
     }

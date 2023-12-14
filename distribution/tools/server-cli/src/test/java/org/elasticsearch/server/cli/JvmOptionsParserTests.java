@@ -53,7 +53,6 @@ public class JvmOptionsParserTests extends ESTestCase {
         try (StringReader sr = new StringReader("-Xms1g\n-Xmx1g"); BufferedReader br = new BufferedReader(sr)) {
             assertExpectedJvmOptions(randomIntBetween(8, Integer.MAX_VALUE), br, Arrays.asList("-Xms1g", "-Xmx1g"));
         }
-
     }
 
     public void testSingleVersionOption() throws IOException {
@@ -351,25 +350,30 @@ public class JvmOptionsParserTests extends ESTestCase {
 
     public void testNodeProcessorsActiveCount() {
         {
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY);
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, Map.of());
             assertThat(jvmOptions, not(hasItem(containsString("-XX:ActiveProcessorCount="))));
         }
         {
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings);
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, Map.of());
             assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
         }
         {
             // check rounding
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build();
-            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings);
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, Map.of());
             assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
         }
         {
             // check validation
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 10000).build();
-            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings));
+            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, Map.of()));
             assertThat(e.getMessage(), containsString("setting [node.processors] must be <="));
         }
+    }
+
+    public void testCommandLineDistributionType() {
+        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, Map.of("es.distribution.type", "testdistro"));
+        assertThat(jvmOptions, hasItem("-Des.distribution.type=testdistro"));
     }
 }

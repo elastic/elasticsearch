@@ -11,10 +11,13 @@ package org.elasticsearch.action.admin;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -42,6 +45,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
+
+    private static final String VALID_SECURE_SETTING_NAME = "some.setting.that.exists";
 
     @BeforeClass
     public static void disableInFips() {
@@ -350,9 +355,46 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         }
     }
 
+    public void testInvalidKeyInSettings() throws Exception {
+        final Environment environment = internalCluster().getInstance(Environment.class);
+
+        try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
+            keyStoreWrapper.setString(VALID_SECURE_SETTING_NAME, new char[0]);
+            keyStoreWrapper.save(environment.configFile(), new char[0], false);
+        }
+
+        PlainActionFuture<NodesReloadSecureSettingsResponse> actionFuture = new PlainActionFuture<>();
+        clusterAdmin().prepareReloadSecureSettings()
+            .setSecureStorePassword(new SecureString(new char[0]))
+            .setNodesIds(Strings.EMPTY_ARRAY)
+            .execute(actionFuture);
+
+        actionFuture.get().getNodes().forEach(nodeResponse -> assertThat(nodeResponse.reloadException(), nullValue()));
+
+        try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
+            assertThat(keyStoreWrapper, notNullValue());
+            keyStoreWrapper.setString("some.setting.that.does.not.exist", new char[0]);
+            keyStoreWrapper.save(environment.configFile(), new char[0], false);
+        }
+
+        actionFuture = new PlainActionFuture<>();
+        clusterAdmin().prepareReloadSecureSettings()
+            .setSecureStorePassword(new SecureString(new char[0]))
+            .setNodesIds(Strings.EMPTY_ARRAY)
+            .execute(actionFuture);
+
+        actionFuture.get()
+            .getNodes()
+            .forEach(nodeResponse -> assertThat(nodeResponse.reloadException(), instanceOf(IllegalArgumentException.class)));
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final List<Class<? extends Plugin>> plugins = Arrays.asList(MockReloadablePlugin.class, MisbehavingReloadablePlugin.class);
+        final List<Class<? extends Plugin>> plugins = Arrays.asList(
+            MockWithSecureSettingPlugin.class,
+            MockReloadablePlugin.class,
+            MisbehavingReloadablePlugin.class
+        );
         // shuffle as reload is called in order
         Collections.shuffle(plugins, random());
         return plugins;
@@ -454,5 +496,11 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
             this.shouldThrow = shouldThrow;
         }
     }
+
+    public static class MockWithSecureSettingPlugin extends Plugin {
+        public List<Setting<?>> getSettings() {
+            return List.of(SecureSetting.secureString(VALID_SECURE_SETTING_NAME, null));
+        }
+    };
 
 }

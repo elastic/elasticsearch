@@ -40,7 +40,7 @@ public class CO2CalculatorTests extends ESTestCase {
                     new InstanceType(
                         "gcp",
                         "europe-west1",
-                        "" // Doesn't matter for unknown datacenters.
+                        null // Doesn't matter for unknown datacenters.
                     ),
                     "x86_64"
                 )
@@ -51,7 +51,7 @@ public class CO2CalculatorTests extends ESTestCase {
                     new InstanceType(
                         "azure",
                         "northcentralus",
-                        "" // Doesn't matter for unknown datacenters.
+                        null // Doesn't matter for unknown datacenters.
                     ),
                     "aarch64"
                 )
@@ -62,7 +62,7 @@ public class CO2CalculatorTests extends ESTestCase {
                     new InstanceType(
                         "on-prem-provider",
                         "on-prem-region",
-                        "" // Doesn't matter for unknown datacenters.
+                        null // Doesn't matter for unknown datacenters.
                     ),
                     "aarch64"
                 )

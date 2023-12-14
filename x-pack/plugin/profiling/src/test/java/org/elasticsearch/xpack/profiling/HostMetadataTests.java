@@ -48,7 +48,9 @@ public class HostMetadataTests extends ESTestCase {
             "/",
             "projects/123456789/zones/" + regions[2] + "-b",
             "projects/123456789/zones/" + regions[3],
-            "projects/123456789/zones/" + regions[4] + "-b-c" };
+            "projects/123456789/zones/" + regions[4] + "-b-c",
+            randomAlphaOfLength(10) // keep the random value as last array entry
+        };
 
         for (int i = 0; i < regions.length; i++) {
             String region = regions[i];
@@ -67,7 +69,9 @@ public class HostMetadataTests extends ESTestCase {
             assertEquals(hostID, host.hostID);
             assertEquals(machine, host.profilingHostMachine);
             assertEquals(provider, host.instanceType.provider);
-            assertEquals(region, host.instanceType.region);
+            if (i < zones.length - 1) {
+                assertEquals(region, host.instanceType.region);
+            }
             assertEquals("", host.instanceType.name);
         }
     }
@@ -116,6 +120,26 @@ public class HostMetadataTests extends ESTestCase {
         assertEquals(machine, host.profilingHostMachine);
         assertEquals(provider, host.instanceType.provider);
         assertEquals(region, host.instanceType.region);
+        assertEquals("", host.instanceType.name);
+    }
+
+    public void testCreateFromSourceNoProvider() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+
+        // tag::noformat
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
+                "host.id", hostID,
+                "profiling.host.machine", machine
+            )
+        );
+        // end::noformat
+
+        assertEquals(hostID, host.hostID);
+        assertEquals(machine, host.profilingHostMachine);
+        assertEquals("", host.instanceType.provider);
+        assertEquals("", host.instanceType.region);
         assertEquals("", host.instanceType.name);
     }
 }

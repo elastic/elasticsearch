@@ -100,10 +100,7 @@ public class ConnectorIndexService {
 
             clientWithOrigin.index(
                 indexRequest,
-                ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new PostConnectorAction.Response(indexResponse.getId())),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(new PostConnectorAction.Response(indexResponse.getId())))
             );
         } catch (Exception e) {
             listener.onFailure(e);

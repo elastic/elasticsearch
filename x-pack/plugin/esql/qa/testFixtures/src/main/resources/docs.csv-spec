@@ -569,12 +569,11 @@ message:keyword  | ts:keyword | level:keyword
 // end::dissectRightPaddingModifier-result[]
 ;
 
-dissectEmptyRightPaddingModifier
+dissectEmptyRightPaddingModifier#[skip:-8.11.2, reason:Support for empty right padding modifiers introduced in 8.11.2]
 // tag::dissectEmptyRightPaddingModifier[]
 ROW message="[1998-08-10T17:15:42]          [WARN]"
 | DISSECT message "[%{ts}]%{->}[%{level}]"
 // end::dissectEmptyRightPaddingModifier[]
-| KEEP message, ts, level
 ;
 
 // tag::dissectEmptyRightPaddingModifier-result[]

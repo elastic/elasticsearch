@@ -335,7 +335,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     .findAny()
                     .orElseThrow(() -> new SnapshotMissingException(repositoryName, request.source()));
                 final SnapshotDeletionsInProgress deletionsInProgress = SnapshotDeletionsInProgress.get(currentState);
-                if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(sourceSnapshotId))) {
+                if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.snapshots().contains(sourceSnapshotId))) {
                     throw new ConcurrentSnapshotExecutionException(
                         repositoryName,
                         sourceSnapshotId.getName(),
@@ -626,8 +626,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         new ShardSnapshotStatus(
                             localNodeId,
                             ShardState.FAILED,
-                            "failed to clone shard snapshot",
-                            shardStatusBefore.generation()
+                            shardStatusBefore.generation(),
+                            "failed to clone shard snapshot"
                         ),
                         ActionListener.runBefore(
                             ActionListener.wrap(
@@ -1187,8 +1187,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ShardSnapshotStatus failedState = new ShardSnapshotStatus(
                     shardStatus.nodeId(),
                     ShardState.FAILED,
-                    "shard is unassigned",
-                    shardStatus.generation()
+                    shardStatus.generation(),
+                    "shard is unassigned"
                 );
                 shards.put(shardId, failedState);
                 knownFailures.put(shardEntry.getKey(), failedState);
@@ -1202,8 +1202,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     final ShardSnapshotStatus failedState = new ShardSnapshotStatus(
                         shardStatus.nodeId(),
                         ShardState.FAILED,
-                        "node left the cluster during snapshot",
-                        shardStatus.generation()
+                        shardStatus.generation(),
+                        "node left the cluster during snapshot"
                     );
                     shards.put(shardId, failedState);
                     knownFailures.put(shardEntry.getKey(), failedState);
@@ -1901,7 +1901,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         List<SnapshotDeletionsInProgress.Entry> updatedEntries = new ArrayList<>(deletions.getEntries().size());
         for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries()) {
             if (entry.repository().equals(repository)) {
-                final List<SnapshotId> updatedSnapshotIds = new ArrayList<>(entry.getSnapshots());
+                final List<SnapshotId> updatedSnapshotIds = new ArrayList<>(entry.snapshots());
                 if (updatedSnapshotIds.removeAll(snapshotIds)) {
                     changed = true;
                     updatedEntries.add(entry.withSnapshots(updatedSnapshotIds));
@@ -2067,7 +2067,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         .filter(
                             entry -> entry.repository().equals(repositoryName)
                                 && entry.state() == SnapshotDeletionsInProgress.State.STARTED
-                                && entry.getSnapshots().containsAll(snapshotIds)
+                                && entry.snapshots().containsAll(snapshotIds)
                         )
                         .findFirst();
                     if (foundDuplicate.isPresent()) {
@@ -2076,8 +2076,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         return currentState;
                     }
                     newDelete = new SnapshotDeletionsInProgress.Entry(
-                        List.copyOf(snapshotIdsRequiringCleanup),
                         repositoryName,
+                        List.copyOf(snapshotIdsRequiringCleanup),
                         threadPool.absoluteTimeInMillis(),
                         repositoryData.getGenId(),
                         updatedSnapshots.forRepo(repositoryName).stream().noneMatch(SnapshotsService::isWritingToRepository)
@@ -2363,7 +2363,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     ) {
         if (repositoryOperations.startDeletion(deleteEntry.uuid())) {
             assert currentlyFinalizing.contains(deleteEntry.repository());
-            final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
+            final List<SnapshotId> snapshotIds = deleteEntry.snapshots();
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : "incorrect state for entry [" + deleteEntry + "]";
             if (snapshotIds.isEmpty()) {
                 // this deletion overlapped one or more deletions that were successfully processed and there is no remaining snapshot to
@@ -2415,7 +2415,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         logger.warn(() -> {
                             final StringBuilder sb = new StringBuilder("failed to complete snapshot deletion for [");
                             Strings.collectionToDelimitedStringWithLimit(
-                                deleteEntry.getSnapshots().stream().map(SnapshotId::getName).toList(),
+                                deleteEntry.snapshots().stream().map(SnapshotId::getName).toList(),
                                 ",",
                                 "",
                                 "",
@@ -2461,7 +2461,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             protected SnapshotDeletionsInProgress filterDeletions(SnapshotDeletionsInProgress deletions) {
                 final SnapshotDeletionsInProgress updatedDeletions = deletionsWithoutSnapshots(
                     deletions,
-                    deleteEntry.getSnapshots(),
+                    deleteEntry.snapshots(),
                     deleteEntry.repository()
                 );
                 return updatedDeletions == null ? deletions : updatedDeletions;
@@ -2469,7 +2469,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             @Override
             protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
-                assert repositoryData.getSnapshotIds().stream().noneMatch(deleteEntry.getSnapshots()::contains)
+                assert repositoryData.getSnapshotIds().stream().noneMatch(deleteEntry.snapshots()::contains)
                     : "Repository data contained snapshot ids "
                         + repositoryData.getSnapshotIds()
                         + " that should should been deleted by ["
@@ -2890,15 +2890,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private static ShardSnapshotStatus initShardSnapshotStatus(ShardGeneration shardRepoGeneration, ShardRouting primary) {
         ShardSnapshotStatus shardSnapshotStatus;
         if (primary == null || primary.assignedToNode() == false) {
-            shardSnapshotStatus = new ShardSnapshotStatus(null, ShardState.MISSING, "primary shard is not allocated", shardRepoGeneration);
+            shardSnapshotStatus = new ShardSnapshotStatus(null, ShardState.MISSING, shardRepoGeneration, "primary shard is not allocated");
         } else if (primary.relocating() || primary.initializing()) {
             shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
         } else if (primary.started() == false) {
             shardSnapshotStatus = new ShardSnapshotStatus(
                 primary.currentNodeId(),
                 ShardState.MISSING,
-                "primary shard hasn't been started yet",
-                shardRepoGeneration
+                shardRepoGeneration,
+                "primary shard hasn't been started yet"
             );
         } else {
             shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);

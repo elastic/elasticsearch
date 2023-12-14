@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.IngestServiceTests;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
@@ -61,6 +62,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.IntConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
@@ -68,9 +70,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -225,7 +230,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             return null;
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
-        ingestService = mock(IngestService.class);
+        ingestService = spy(IngestServiceTests.createIngestService());
+        doNothing().when(ingestService).executeBulkRequest(
+            anyInt(),
+            any(),
+            any(),
+            any(),
+            any(),
+            any()
+        );
         action = new TestTransportBulkAction();
         singleItemBulkWriteAction = new TestSingleItemBulkWriteAction(action);
         reset(transportService); // call on construction of action
@@ -238,7 +251,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         bulkRequest.add(indexRequest);
         ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
         assertTrue(action.isExecuted);
-        verifyNoMoreInteractions(ingestService);
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
     }
 
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
@@ -246,7 +259,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         indexRequest.source(Collections.emptyMap());
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
         assertTrue(action.isExecuted);
-        verifyNoMoreInteractions(ingestService);
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
     }
 
     public void testIngestLocal() throws Exception {
@@ -294,7 +307,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verifyNoMoreInteractions(transportService);
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
     }
 
     public void testSingleItemBulkActionIngestLocal() throws Exception {
@@ -606,8 +619,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             })
         );
         assertEquals(IngestService.NOOP_PIPELINE_NAME, indexRequest.getPipeline());
-        verifyNoMoreInteractions(ingestService);
-
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
     }
 
     public void testFindDefaultPipelineFromTemplateMatch() {

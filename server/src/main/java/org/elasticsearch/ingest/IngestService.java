@@ -252,20 +252,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      *
      * @param originalRequest Original write request received.
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
-     * @param metadata        Cluster metadata from where the pipeline information could be derived.
      */
     public void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
-        final IndexRequest indexRequest,
-        final Metadata metadata
+        final IndexRequest indexRequest
     ) {
-        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
+        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, System.currentTimeMillis());
     }
 
     void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
-        final Metadata metadata,
         final long epochMillis
     ) {
         if (indexRequest.isPipelineResolved()) {
@@ -274,7 +271,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         String requestPipeline = indexRequest.getPipeline();
 
-        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
+        Metadata metadata = state.metadata();
+        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, epochMillis) //
             .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata))
             .orElse(Pipelines.NO_PIPELINES_DEFINED);
 
@@ -954,7 +952,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     // clear the current pipeline, then re-resolve the pipelines for this request
                     indexRequest.setPipeline(null);
                     indexRequest.isPipelineResolved(false);
-                    resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata());
+                    resolvePipelinesAndUpdateIndexRequest(null, indexRequest);
                     newPipelines = getAndResetPipelines(indexRequest);
 
                     // for backwards compatibility, when a pipeline changes the target index for a document without using the reroute
@@ -1360,11 +1358,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private Optional<Pipelines> resolvePipelinesFromMetadata(
         DocWriteRequest<?> originalRequest,
         IndexRequest indexRequest,
-        Metadata metadata,
         long epochMillis
     ) {
         IndexMetadata indexMetadata = null;
         // start to look for default or final pipelines via settings found in the cluster metadata
+        Metadata metadata = state.metadata();
         if (originalRequest != null) {
             indexMetadata = metadata.indices()
                 .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
@@ -1390,12 +1388,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         final Settings settings = indexMetadata.getSettings();
-        List<Pipeline> pluginsPipelines = getPluginsPipelines(indexName);
+        String writeIndexName = indexMetadata.getIndex().getName();
+        List<Pipeline> pluginsPipelines = getPluginsPipelines(writeIndexName);
         return Optional.of(
             new Pipelines(
                 IndexSettings.DEFAULT_PIPELINE.get(settings),
                 IndexSettings.FINAL_PIPELINE.get(settings),
-                pluginsPipelines == null ? NOOP_PIPELINE_NAME : indexName
+                pluginsPipelines == null ? NOOP_PIPELINE_NAME : writeIndexName
             )
         );
     }
@@ -1452,7 +1451,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * <p>
      * This method assumes that the pipelines are beforehand resolved.
      */
-    public boolean hasPipeline(IndexRequest indexRequest) {
+    public static boolean hasPipeline(IndexRequest indexRequest) {
         assert indexRequest.isPipelineResolved();
         assert indexRequest.getPipeline() != null;
         assert indexRequest.getFinalPipeline() != null;

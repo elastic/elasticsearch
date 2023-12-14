@@ -303,12 +303,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final long startTime = relativeTime();
 
         boolean hasIndexRequestsWithPipelines = false;
-        final Metadata metadata = clusterService.state().getMetadata();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                ingestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
-                hasIndexRequestsWithPipelines |= ingestService.hasPipeline(indexRequest);
+                ingestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest);
+                hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 
             if (actionRequest instanceof IndexRequest ir) {

@@ -26,6 +26,9 @@ Use the following APIs to manage connectors:
 * <<delete-connector-api>>
 * <<get-connector-api>>
 * <<list-connector-api>>
+* <<check-in-connector-api>>
+* <<update-connector-pipeline-api>>
+* <<update-connector-scheduling-api>>
 
 
 [discrete]
@@ -40,9 +43,12 @@ Use the following APIs to manage sync jobs:
 * <<list-connector-sync-jobs-api>>
 
 
+include::check-in-connector-api.asciidoc[]
 include::create-connector-api.asciidoc[]
 include::create-connector-sync-job-api.asciidoc[]
 include::delete-connector-api.asciidoc[]
 include::get-connector-api.asciidoc[]
 include::list-connectors-api.asciidoc[]
 include::list-connector-sync-jobs-api.asciidoc[]
+include::update-connector-pipeline-api.asciidoc[]
+include::update-connector-scheduling-api.asciidoc[]

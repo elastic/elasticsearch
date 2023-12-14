@@ -1404,7 +1404,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (v2Template != null) {
             final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
             return Optional.of(
-                new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings), null)
+                new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings), NOOP_PIPELINE_NAME)
             );
         }
 

@@ -9,8 +9,8 @@
 package org.elasticsearch.cluster;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -113,7 +113,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         );
 
         logger.info("--> closing master node (1)");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNodeName)).get();
+        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(masterNodeName)).get();
         // removing the master from the voting configuration immediately triggers the master to step down
         assertBusy(() -> {
             assertThat(

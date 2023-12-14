@@ -220,11 +220,11 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitGrouping(EsqlBaseParser.GroupingContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#sourceIdentifier}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#fromIdentifier}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitSourceIdentifier(EsqlBaseParser.SourceIdentifierContext ctx);
+  T visitFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
@@ -232,11 +232,23 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitIdentifier(EsqlBaseParser.IdentifierContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#identifierPattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx);
   /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.

@@ -14,8 +14,8 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheActio
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -502,14 +502,14 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testDeleteIndex() {
-        interceptTransportActions(DeleteIndexAction.NAME);
+        interceptTransportActions(TransportDeleteIndexAction.TYPE.name());
 
         String[] randomIndicesOrAliases = randomUniqueIndices();
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(randomIndicesOrAliases);
         assertAcked(internalCluster().coordOnlyNodeClient().admin().indices().delete(deleteIndexRequest).actionGet());
 
         clearInterceptedActions();
-        assertSameIndices(deleteIndexRequest, DeleteIndexAction.NAME);
+        assertSameIndices(deleteIndexRequest, TransportDeleteIndexAction.TYPE.name());
     }
 
     public void testGetMappings() {

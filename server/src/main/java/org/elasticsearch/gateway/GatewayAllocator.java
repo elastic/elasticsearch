@@ -261,7 +261,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                         client.executeLocally(
                             TransportNodesListGatewayStartedShards.TYPE,
                             new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes),
-                            ActionListener.wrap(listener)
+                            listener.safeMap(r -> r) // weaken type
                         );
                     }
                 }
@@ -308,7 +308,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                         client.executeLocally(
                             TransportNodesListShardStoreMetadata.TYPE,
                             new TransportNodesListShardStoreMetadata.Request(shardId, customDataPath, nodes),
-                            ActionListener.wrap(listener)
+                            listener.safeMap(r -> r) // weaken type
                         );
                     }
                 }

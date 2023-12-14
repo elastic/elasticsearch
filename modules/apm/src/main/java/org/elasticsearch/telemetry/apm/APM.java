@@ -73,7 +73,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         final APMMeterService apmMeter = new APMMeterService(settings);
         apmAgentSettings.addClusterSettingsListeners(services.clusterService(), telemetryProvider.get(), apmMeter);
         logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
-        logger.info("Sending apm traces is {}", APMAgentSettings.APM_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
+        logger.info("Sending apm tracing is {}", APMAgentSettings.APM_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
         return List.of(apmTracer, apmMeter);
     }

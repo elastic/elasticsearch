@@ -83,6 +83,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * {@link #smallEnoughToCircuitBreak} and assert that it breaks
      * in a sane way.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101824")
     public final void testSimpleCircuitBreaking() {
         /*
          * We build two CircuitBreakers - one for the input blocks and one for the operation itself.

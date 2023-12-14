@@ -153,7 +153,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         this.error = error;
         this.features = features;
         this.filtering = Objects.requireNonNull(filtering, "[filtering] cannot be null");
-        this.indexName = Objects.requireNonNull(indexName, "[index_name] cannot be null");
+        this.indexName = indexName;
         this.isNative = isNative;
         this.language = language;
         this.lastSeen = lastSeen;

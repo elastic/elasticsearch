@@ -1,40 +1,27 @@
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.Architecture
-import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
 
-apply plugin: 'elasticsearch.test.fixtures'
-
-dockerCompose {
-  composeAdditionalArgs = ['--compatibility']
+configurations.all {
+  transitive = false
 }
 
-tasks.named("preProcessFixture").configure {
-  file("${testFixturesDir}/shared/oidc").mkdirs()
-}
+dependencies {
+  testImplementation project(':test:framework')
 
-tasks.register("copyFiles", Sync) {
-  from file("oidc/override.properties.template")
-  into "${buildDir}/config"
-  doLast {
-    file("${buildDir}/config").setReadable(true, false)
-    file("${buildDir}/config/override.properties.template").setReadable(true, false)
-  }
-}
+  api project(':test:fixtures:testcontainer-utils')
+  api "junit:junit:${versions.junit}"
+  api "org.testcontainers:testcontainers:${versions.testcontainer}"
+  implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
 
-tasks.named("postProcessFixture").configure {
-  dependsOn "copyFiles"
-  inputs.dir("${testFixturesDir}/shared/oidc")
-  File confTemplate = file("${buildDir}/config/override.properties.template")
-  File confFile = file("${testFixturesDir}/shared/oidc/override.properties")
-  outputs.file(confFile)
-  doLast {
-    assert confTemplate.exists()
-    String confContents = confTemplate.text
-      .replace("\${MAPPED_PORT}", "${ext."test.fixtures.oidc-provider.tcp.8080"}")
-    confFile.text = confContents
-  }
-}
+  runtimeOnly "com.github.docker-java:docker-java-transport-zerodep:${versions.dockerJava}"
+  runtimeOnly "com.github.docker-java:docker-java-transport:${versions.dockerJava}"
+  runtimeOnly "com.github.docker-java:docker-java-core:${versions.dockerJava}"
+  runtimeOnly "org.apache.commons:commons-compress:${versions.commonsCompress}"
+  runtimeOnly "org.rnorth.duct-tape:duct-tape:${versions.ductTape}"
 
-tasks.named('composePull').configure {
-  enabled = false // this task fails due to docker-compose oddities
+  // ensure we have proper logging during when used in tests
+  runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  runtimeOnly "org.hamcrest:hamcrest:${versions.hamcrest}"
 }

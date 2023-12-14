@@ -36,6 +36,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -87,6 +88,20 @@ public class IndexEngine extends InternalEngine {
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         this.closedReadersForGenerationConsumer = closedReadersForGenerationConsumer;
         this.openReadersPerGeneration.put(getLastCommittedSegmentInfos().getGeneration(), 1L);
+    }
+
+    @Override
+    protected LongConsumer translogPersistedSeqNoConsumer() {
+        return seqNo -> {};
+    }
+
+    public LongConsumer objectStorePersistedSeqNoConsumer() {
+        return seqNo -> {
+            final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
+            if (tracker != null) {
+                tracker.markSeqNoAsPersisted(seqNo);
+            }
+        };
     }
 
     @Override

@@ -33,7 +33,7 @@ Checks in a connector sync job and sets `last_seen` to the time right before upd
 `200`::
 Connector sync job was successfully checked in.
 
-`404`:
+`404`::
 No connector sync job matching `connector_sync_job_id` could be found.
 
 [[check-in-connector-sync-job-api-example]]

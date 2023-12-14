@@ -121,7 +121,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
     public void testNoriAnalyzerDuplicateUserDictRule() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "nori")
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_13_0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.USER_DICT_CHECK_DUPLICATE)
             .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++", "C쁠쁠", "세종", "세종", "세종시 세종 시")
             .build();
 

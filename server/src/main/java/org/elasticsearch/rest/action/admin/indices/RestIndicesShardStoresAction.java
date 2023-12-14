@@ -54,7 +54,9 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
         indicesShardStoresRequest.maxConcurrentShardRequests(
             request.paramAsInt("max_concurrent_shard_requests", indicesShardStoresRequest.maxConcurrentShardRequests())
         );
-        indicesShardStoresRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, indicesShardStoresRequest.indicesOptions()));
+        indicesShardStoresRequest.indicesOptions(
+            IndicesOptions.fromRequestWithFailureStore(request, indicesShardStoresRequest.indicesOptions())
+        );
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .shardStores(indicesShardStoresRequest, new RestChunkedToXContentListener<>(channel));

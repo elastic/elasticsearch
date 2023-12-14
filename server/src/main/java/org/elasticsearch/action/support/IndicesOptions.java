@@ -490,12 +490,12 @@ public record IndicesOptions(
         }
 
         return fromParameters(
-                request.param("expand_wildcards"),
-                request.param("ignore_unavailable"),
-                request.param("allow_no_indices"),
-                request.param("ignore_throttled"),
-                DataStream.isFailureStoreEnabled() ? request.param("failure_store") : null,
-                defaultSettings
+            request.param("expand_wildcards"),
+            request.param("ignore_unavailable"),
+            request.param("allow_no_indices"),
+            request.param("ignore_throttled"),
+            DataStream.isFailureStoreEnabled() ? request.param("failure_store") : null,
+            defaultSettings
         );
     }
 
@@ -524,6 +524,16 @@ public record IndicesOptions(
             || "allow_no_indices".equals(name)
             || "allowNoIndices".equals(name)
             || DataStream.isFailureStoreEnabled() && "failure_store".equals(name);
+    }
+
+    public static IndicesOptions fromParameters(
+        Object wildcardsString,
+        Object ignoreUnavailableString,
+        Object allowNoIndicesString,
+        Object ignoreThrottled,
+        IndicesOptions defaultSettings
+    ) {
+        return fromParameters(wildcardsString, ignoreUnavailableString, allowNoIndicesString, ignoreThrottled, null, defaultSettings);
     }
 
     public static IndicesOptions fromParameters(

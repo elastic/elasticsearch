@@ -46,7 +46,9 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
-        clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, clusterSearchShardsRequest.indicesOptions()));
+        clusterSearchShardsRequest.indicesOptions(
+            IndicesOptions.fromRequestWithFailureStore(request, clusterSearchShardsRequest.indicesOptions())
+        );
         return channel -> client.admin().cluster().searchShards(clusterSearchShardsRequest, new RestToXContentListener<>(channel));
     }
 }

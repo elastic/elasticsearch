@@ -201,8 +201,8 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-                randomBoolean(),
-                randomBoolean()
+            randomBoolean(),
+            randomBoolean()
         );
 
         IndicesOptions updatedOptions = IndicesOptions.fromParameters(

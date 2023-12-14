@@ -38,7 +38,9 @@ public class RestDataStreamsStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         DataStreamsStatsAction.Request dataStreamsStatsRequest = new DataStreamsStatsAction.Request();
         dataStreamsStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
-        dataStreamsStatsRequest.indicesOptions(IndicesOptions.fromRequestWithFailureStore(request, dataStreamsStatsRequest.indicesOptions()));
+        dataStreamsStatsRequest.indicesOptions(
+            IndicesOptions.fromRequestWithFailureStore(request, dataStreamsStatsRequest.indicesOptions())
+        );
         return channel -> client.execute(DataStreamsStatsAction.INSTANCE, dataStreamsStatsRequest, new RestToXContentListener<>(channel));
     }
 

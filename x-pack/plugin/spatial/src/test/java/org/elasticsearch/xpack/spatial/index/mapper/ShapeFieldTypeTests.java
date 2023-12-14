@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 
-import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +34,10 @@ public class ShapeFieldTypeTests extends FieldTypeTestCase {
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.3 15.0)";
         String wktMalformed = "POINT foo";
-        byte[] wkbLine = WellKnownBinary.toWKB(WellKnownText.fromWKT(StandardValidator.NOOP, false, wktLineString), ByteOrder.LITTLE_ENDIAN);
+        byte[] wkbLine = WellKnownBinary.toWKB(
+            WellKnownText.fromWKT(StandardValidator.NOOP, false, wktLineString),
+            ByteOrder.LITTLE_ENDIAN
+        );
         byte[] wkbPoint = WellKnownBinary.toWKB(WellKnownText.fromWKT(StandardValidator.NOOP, false, wktPoint), ByteOrder.LITTLE_ENDIAN);
 
         // Test a single shape in geojson format.

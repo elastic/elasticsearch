@@ -55,10 +55,13 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.0 15.0)";
         String wktMalformed = "POINT foo";
-        byte[] wkbLine = WellKnownBinary.toWKB(WellKnownText.fromWKT(StandardValidator.NOOP, false, wktLineString), ByteOrder.LITTLE_ENDIAN);
+        byte[] wkbLine = WellKnownBinary.toWKB(
+            WellKnownText.fromWKT(StandardValidator.NOOP, false, wktLineString),
+            ByteOrder.LITTLE_ENDIAN
+        );
         byte[] wkbPoint = WellKnownBinary.toWKB(WellKnownText.fromWKT(StandardValidator.NOOP, false, wktPoint), ByteOrder.LITTLE_ENDIAN);
 
-            // Test a single shape in geojson format.
+        // Test a single shape in geojson format.
         Object sourceValue = jsonLineString;
         assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));

@@ -264,7 +264,7 @@ class MutableSearchResponse {
             return new AsyncStatusResponse(
                 asyncExecutionId,
                 frozen == false,
-                frozen == false,
+                isPartial,
                 startTime,
                 expirationTime,
                 startTime + latestFullResponse.getTook().millis(),

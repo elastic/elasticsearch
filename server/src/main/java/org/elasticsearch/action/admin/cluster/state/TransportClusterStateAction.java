@@ -128,7 +128,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         }
 
                         if (acceptableClusterStatePredicate.test(newState)) {
-                            executor.execute(ActionRunnable.supply(listener, () -> buildResponse(request, newState)));
+                            threadPool.executor(executor).execute(ActionRunnable.supply(listener, () -> buildResponse(request, newState)));
                         } else {
                             listener.onFailure(
                                 new NotMasterException(
@@ -158,8 +158,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     }
 
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
-        ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT); // too heavy to construct & serialize cluster state without forking
-
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());

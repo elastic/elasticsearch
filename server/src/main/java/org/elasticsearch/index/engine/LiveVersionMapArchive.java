@@ -39,6 +39,14 @@ public interface LiveVersionMapArchive {
         return false;
     }
 
+    /**
+     * Returns how much memory is currently being used by the archive and would be freed up after
+     * unpromotables are refreshed.
+     */
+    default long getMemoryBytesUsed() {
+        return 0L;
+    }
+
     LiveVersionMapArchive NOOP_ARCHIVE = new LiveVersionMapArchive() {
         @Override
         public void afterRefresh(LiveVersionMap.VersionLookup old) {}

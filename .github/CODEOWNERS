@@ -23,5 +23,6 @@ x-pack/plugin/core/src/main/resources/fleet-* @elastic/fleet
 # Kibana Security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/KibanaOwnedReservedRoleDescriptors.java @elastic/kibana-security
 
-# APM
-x-pack/plugin/apm-data @elastic/apm-server
+# APM Data index templates, etc.
+x-pack/plugin/apm-data/src/main/resources @elastic/apm-server
+x-pack/plugin/apm-data/src/yamlRestTest/resources @elastic/apm-server

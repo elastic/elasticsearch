@@ -137,6 +137,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         assertThat(actualInstalledIndexTemplates.get(), equalTo(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102797")
     public void testIngestPipelines() {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();

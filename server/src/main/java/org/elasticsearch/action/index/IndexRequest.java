@@ -102,6 +102,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private String pipeline;
     private String finalPipeline;
+    private String pluginsPipeline;
 
     private boolean isPipelineResolved;
 
@@ -188,6 +189,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                     ? null
                     : new ArrayList<>(possiblyImmutableExecutedPipelines);
             }
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD)) {
+            this.pluginsPipeline = in.readOptionalString();
         }
     }
 
@@ -353,6 +357,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public String getFinalPipeline() {
         return this.finalPipeline;
+    }
+
+    public String getPluginsPipeline() {
+        return pluginsPipeline;
+    }
+
+    public IndexRequest setPluginsPipeline(String pluginsPipeline) {
+        this.pluginsPipeline = pluginsPipeline;
+        return this;
     }
 
     /**
@@ -733,6 +746,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (listExecutedPipelines) {
                 out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
             }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD)) {
+            out.writeOptionalString(pluginsPipeline);
         }
     }
 

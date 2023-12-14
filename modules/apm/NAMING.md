@@ -64,3 +64,10 @@ Attribute names should follow the same rules. In particular, these rules apply t
 * pluralization (when an attribute represents a measurement)
 
 For **pluralization**, when an attribute represents an entity, the attribute name should be singular (e.g.` es.security.realm_type`, not` es.security.realms_type` or `es.security.realm_types`), unless it represents a collection (e.g.` es.rest.request_headers`)
+
+
+### List of previously registered metric names
+You can run all previously registered metrics names with
+`./gradlew run -Dtests.es.logger.org.elasticsearch.telemetry.apm=debug`
+This should help you find out the already registered group that your meteric
+might fit

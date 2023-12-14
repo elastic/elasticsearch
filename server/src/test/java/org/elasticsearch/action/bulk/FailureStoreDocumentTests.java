@@ -66,5 +66,7 @@ public class FailureStoreDocumentTests extends ESTestCase {
                 "\tat org.elasticsearch.action.bulk.FailureStoreDocumentTests.testFailureStoreDocumentConverstion"
             )
         );
+
+        assertThat(convertedRequest.isWriteToFailureStore(), is(true));
     }
 }

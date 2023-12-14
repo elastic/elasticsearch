@@ -44,7 +44,8 @@ public class FailureStoreDocument {
         // dependencies would be swapped like that...
         return new IndexRequest()
             .index(targetIndexName)
-            .source(createSource());
+            .source(createSource())
+            .setWriteToFailureStore(true);
     }
 
     private XContentBuilder createSource() throws IOException {
